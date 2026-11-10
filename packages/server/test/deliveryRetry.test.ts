@@ -5,6 +5,7 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { createWorkspaceServer, type WorkspaceServer } from "../src/server.js";
 import { DeliveryStore } from "../src/apps/deliveryStore.js";
 import { Store } from "../src/store.js";
+import { APP_SCOPES } from "@ownbase/protocol";
 
 /**
  * Retrying an endpoint's given-up events stays within its queue's ceiling
@@ -51,6 +52,7 @@ async function setUp(dir = ":memory:") {
     botUserId: owner.user.id,
     createdBy: owner.user.id,
     signingSecret: "test-signing-secret-not-a-credential",
+    scopes: APP_SCOPES,
   });
   appId = app.id;
   subscriptionId = store.apps.createSubscription({

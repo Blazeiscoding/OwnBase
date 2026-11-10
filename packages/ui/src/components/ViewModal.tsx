@@ -234,7 +234,7 @@ function AppForm(props: {
         setErrors({});
       } else {
         showError.current = true;
-        setErrors(result.errors ?? {});
+        setErrors(result.errors);
         setMessage(result.message ?? null);
       }
     } catch {

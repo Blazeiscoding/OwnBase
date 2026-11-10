@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { createWorkspaceServer, type WorkspaceServer } from "../src/server.js";
+import { APP_SCOPES } from "@ownbase/protocol";
 
 let server: WorkspaceServer;
 let base: string;
@@ -69,7 +70,7 @@ describe("atomic registration", () => {
 
   it("returns a consumed invitation when a later registration write fails", async () => {
     await owner();
-    server.setInviteOnly(true);
+    server.setAccessPolicy("invite_only");
     const code = (await request("/api/invites", { maxUses: 1 })).body.invite.code;
     const seq = server.store.currentSeq();
     const publish = vi.spyOn(server.gateway, "publish");
@@ -87,7 +88,7 @@ describe("atomic registration", () => {
 
   it("allows exactly one concurrent registration to consume the final invite use", async () => {
     await owner();
-    server.setInviteOnly(true);
+    server.setAccessPolicy("invite_only");
     const code = (await request("/api/invites", { maxUses: 1 })).body.invite.code;
     const results = await Promise.all([register("one", code), register("two", code)]);
     expect(results.map((result) => result.status).sort()).toEqual([201, 403]);
@@ -221,7 +222,13 @@ describe("atomic messages and integrations", () => {
             ? "DELETE"
             : "PUT";
       expect(
-        (await request(path, action === "edit" ? { text: "changed" } : undefined, method)).status,
+        (
+          await request(
+            path,
+            action === "edit" ? { text: "changed", expectedText: "original" } : undefined,
+            method,
+          )
+        ).status,
       ).toBe(500);
       expect(server.store.messages.get(message.id)).toEqual(before);
       expect(server.store.currentSeq()).toBe(seq);
@@ -236,16 +243,16 @@ describe("atomic messages and integrations", () => {
     vi.spyOn(server.store.apps, "addToken").mockImplementationOnce(() => {
       throw new Error("token write failed");
     });
-    expect((await request("/api/apps", { name: "Test App" })).status).toBe(500);
+    expect((await request("/api/apps", { name: "Test App", scopes: APP_SCOPES })).status).toBe(500);
     expect(server.store.people.list()).toHaveLength(count);
     expect(server.store.apps.list()).toHaveLength(0);
     expect(server.store.currentSeq()).toBe(seq);
-    expect((await request("/api/apps", { name: "Test App" })).status).toBe(201);
+    expect((await request("/api/apps", { name: "Test App", scopes: APP_SCOPES })).status).toBe(201);
   });
 
   it("rolls back a webhook and bot membership together", async () => {
     await owner();
-    const app = (await request("/api/apps", { name: "Test App" })).body.app;
+    const app = (await request("/api/apps", { name: "Test App", scopes: APP_SCOPES })).body.app;
     const channelId = server.store.channels.byName("general")!.id;
     failEvent();
     expect((await request(`/api/apps/${app.id}/webhooks`, { channelId })).status).toBe(500);
@@ -255,7 +262,7 @@ describe("atomic messages and integrations", () => {
 
   it("restores all app resources if deletion fails after removing them", async () => {
     await owner();
-    const app = (await request("/api/apps", { name: "Test App" })).body.app;
+    const app = (await request("/api/apps", { name: "Test App", scopes: APP_SCOPES })).body.app;
     const channelId = server.store.channels.byName("general")!.id;
     const hook = (await request(`/api/apps/${app.id}/webhooks`, { channelId })).body.webhook;
     const remove = server.store.apps.delete.bind(server.store);

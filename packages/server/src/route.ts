@@ -192,7 +192,7 @@ export function createRouter(opts: RouterOptions): Router {
           const caller = botCaller(req, opts);
           if (!caller) return { ok: false, error: "invalid_auth" };
           // Which scopes the token holds, on every answer to it, as Slack says.
-          reply.header("x-oauth-scopes", (caller.scopes ?? []).join(","));
+          reply.header("x-oauth-scopes", caller.scopes.join(","));
           bot = caller;
         } else if (endpoint.access !== "public") {
           const ticket = endpoint.ticket

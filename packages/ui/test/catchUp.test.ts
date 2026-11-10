@@ -18,6 +18,7 @@ const message = (n: number): Message => ({
   reactions: [],
   files: [],
   pinned: false,
+  previews: [],
   actions: [],
 });
 

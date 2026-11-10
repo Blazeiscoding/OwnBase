@@ -12,6 +12,7 @@ import {
   type EventSubscription,
   type ServerToClient,
   type User,
+  APP_SCOPES,
 } from "@ownbase/protocol";
 import { createWorkspaceServer, type WorkspaceServer } from "../src/index.js";
 import { isPrivateAddress } from "../src/outbound.js";
@@ -144,7 +145,7 @@ async function newApp(
     botUser: User;
     signingSecret: string;
     token: string;
-  }>("/api/apps", { token: aliceToken, body: { name } });
+  }>("/api/apps", { token: aliceToken, body: { name, scopes: APP_SCOPES } });
   return {
     id: data.app.id,
     botUser: data.botUser,
@@ -234,7 +235,7 @@ describe("the SSRF guard", () => {
     const created = await fetch(`${guardedBase}/api/apps`, {
       method: "POST",
       headers: { "content-type": "application/json", authorization: `Bearer ${token}` },
-      body: JSON.stringify({ name: "Local Bot" }),
+      body: JSON.stringify({ name: "Local Bot", scopes: APP_SCOPES }),
     });
     const { app } = (await created.json()) as { app: { id: string } };
 
@@ -996,7 +997,7 @@ describe("durable event delivery", () => {
       const edited = await api(`/api/messages/${id}`, {
         token: aliceToken,
         method: "PATCH",
-        body: { text: "what I meant to say" },
+        body: { text: "what I meant to say", expectedText: "the-first-draft-i-regret" },
       });
       expect(edited.status).toBe(200);
       await eventually(() => queued(bot.subscriptionId).length === 2);
@@ -1081,6 +1082,7 @@ describe("durable event delivery", () => {
       };
       const made = await call<{ app: { id: string }; botUser: User }>("/api/apps", {
         name: "Restart Bot",
+        scopes: APP_SCOPES,
       });
       stub.handler = (req) => ({
         body: JSON.stringify({
@@ -2954,13 +2956,8 @@ describe("replacing an app's credentials", () => {
 
 describe("scopes on bot tokens (E18c)", () => {
   type Made = { app: { id: string; scopes: string[] }; botUser: User; token: string };
-  const make = async (name: string, scopes?: string[]) =>
-    (
-      await api<Made>("/api/apps", {
-        token: aliceToken,
-        body: scopes ? { name, scopes } : { name },
-      })
-    ).data;
+  const make = async (name: string, scopes: string[]) =>
+    (await api<Made>("/api/apps", { token: aliceToken, body: { name, scopes } })).data;
 
   /** A Web API call with its answer's scopes header. */
   async function slack(method: string, token: string, body: unknown) {
@@ -2975,21 +2972,11 @@ describe("scopes on bot tokens (E18c)", () => {
     };
   }
 
-  it("gives an app every scope when none are named, as before scopes", async () => {
-    const made = await make("Unscoped Bot");
-    expect(made.app.scopes).toEqual([
-      "chat:write",
-      "chat:write.public",
-      "channels:history",
-      "groups:history",
-      "im:history",
-      "mpim:history",
-      "channels:read",
-      "groups:read",
-      "reactions:read",
-      "pins:read",
-      "users:read",
-    ]);
+  it("makes no app without its scopes named, and gives one those alone", async () => {
+    const unscoped = await api("/api/apps", { token: aliceToken, body: { name: "Unscoped Bot" } });
+    expect(unscoped.status).toBe(400);
+    const apps = await api<{ apps: { name: string }[] }>("/api/apps", { token: aliceToken });
+    expect(apps.data.apps.map((a) => a.name)).not.toContain("Unscoped Bot");
     // Named, an app gets those alone, whatever order they came in.
     const narrow = await make("Narrow Bot", ["reactions:read", "chat:write", "chat:write"]);
     expect(narrow.app.scopes).toEqual(["chat:write", "reactions:read"]);

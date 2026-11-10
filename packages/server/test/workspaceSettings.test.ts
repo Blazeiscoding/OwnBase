@@ -272,7 +272,7 @@ describe("renaming the workspace and choosing who may join", () => {
     server!.setWorkspaceName("Rocket Team");
     // The same again is not a change.
     await choose(owner.token, "invite_only");
-    server!.setInviteOnly(true);
+    server!.setAccessPolicy("invite_only");
     stop();
     await rename(admin.token, "Unheard");
 

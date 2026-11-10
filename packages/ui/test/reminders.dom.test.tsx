@@ -55,6 +55,7 @@ const message = (id: string, text: string): Message => ({
   reactions: [],
   files: [],
   pinned: false,
+  previews: [],
   actions: [],
 });
 const reminder = (messageId: string, remindAt: number, dueAt: number | null): Reminder => ({

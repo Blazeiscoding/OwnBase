@@ -95,12 +95,9 @@ export interface ThreadPage extends MessageWindow {
  * A filled-in form, as the app took it: field errors keyed by block id, or,
  * once accepted, the forms that closed (E18b).
  */
-export interface ViewSubmitted {
-  ok: boolean;
-  errors?: Record<string, string>;
-  message?: string;
-  closedViewIds?: ID[];
-}
+export type ViewSubmitted =
+  | { ok: true; closedViewIds: ID[] }
+  | { ok: false; errors: Record<string, string>; message?: string };
 
 /**
  * Slack's answer shape, for the Web API methods apps call. A refusal still

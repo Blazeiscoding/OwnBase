@@ -137,8 +137,8 @@ interface SentEncoding extends CameraEncoding {
  * call with `others` besides you, from a camera whose picture is `height`
  * tall. A small tile gets a picture no bigger than it, at a rate that suits
  * it, and a tile not drawn gets nothing, so the encoder for it stops. Each
- * limit is the stricter of that and the call's size (`cameraEncoding`). A
- * client from before E13b never says how it draws, and gets the call's size.
+ * limit is the stricter of that and the call's size (`cameraEncoding`).
+ * Until they first say how they draw it, they get the call's size.
  */
 export function cameraEncodingFor(
   others: number,
@@ -171,8 +171,8 @@ export function cameraEncodingFor(
 /**
  * What the share sends someone who draws it `view` tall, from a share whose
  * picture is `height` tall: no bigger than that, and nothing while it is not
- * drawn. Its rate stays the sharer's choice. As it comes for a client from
- * before E13b.
+ * drawn. Its rate stays the sharer's choice. As it comes until they first
+ * say how they draw it.
  */
 export function screenEncodingFor(view: number | undefined, height: number): SentEncoding {
   if (view === undefined) return { active: true, scaleResolutionDownBy: 1 };
@@ -382,9 +382,7 @@ function receivedLevel(peer: Peer): number {
  * The offerer declares microphone, camera, screen and screen sound in that
  * order. The answerer adopts those slots from the offer. Subsequent changes
  * use replaceTrack without renegotiation; incoming tracks use the negotiated
- * order. The one exception is the screen sound slot, which the offerer opens
- * for sending, with one more offer, the first time it has sound to send to
- * someone who has that slot (see `openScreenSoundSlot`).
+ * order.
  */
 export class HuddleSession {
   private destroyed = false;
@@ -998,10 +996,7 @@ export class HuddleSession {
     const audioTx = initiating ? pc.addTransceiver("audio", { direction: "sendrecv" }) : null;
     const cameraTx = initiating ? pc.addTransceiver("video", { direction: "sendrecv" }) : null;
     const screenTx = initiating ? pc.addTransceiver("video", { direction: "sendrecv" }) : null;
-    // The share's sound starts out only receiving. A client from before this
-    // slot takes any track on it for the person's microphone, so this side
-    // sends on it only to someone who says they have it.
-    const screenSoundTx = initiating ? pc.addTransceiver("audio", { direction: "recvonly" }) : null;
+    const screenSoundTx = initiating ? pc.addTransceiver("audio", { direction: "sendrecv" }) : null;
 
     const peer: Peer = {
       pc,
@@ -1016,7 +1011,6 @@ export class HuddleSession {
       cameraOn: false,
       screenOn: false,
       screenSoundOn: false,
-      hasScreenSoundSlot: false,
       micMuted: false,
       pendingIce: [],
       everConnected: false,
@@ -1251,7 +1245,6 @@ export class HuddleSession {
       peer.audioTx?.sender.replaceTrack(this.sentMicrophone),
       peer.cameraTx?.sender.replaceTrack(this.cameraTrack),
       peer.screenTx?.sender.replaceTrack(this.screenTrack),
-      // Sent only once the slot sends: see `openScreenSoundSlot`.
       peer.screenSoundTx?.sender.replaceTrack(this.screenSoundTrack),
     ]);
   }
@@ -1292,7 +1285,6 @@ export class HuddleSession {
       peer.audioTx = slots[0] ?? null;
       peer.cameraTx = slots[1] ?? null;
       peer.screenTx = slots[2] ?? null;
-      // Missing from a client older than the slot, which is then sent no sound.
       peer.screenSoundTx = slots[3] ?? null;
       for (const slot of slots) slot.direction = "sendrecv";
       await this.attachLocalTracks(peer);
@@ -1317,19 +1309,13 @@ export class HuddleSession {
       await pc.setRemoteDescription({ type: "answer", sdp: withStereoScreenSound(signal.sdp) });
       this.note("Received their answer.", from);
       await this.flushIce(peer);
-      // A slot opened while this setup was under way still has to be offered.
-      if (unoffered(peer.screenSoundTx)) this.offerAgain(from, peer);
     } else if (signal.kind === "media") {
       peer.cameraOn = signal.camera;
       peer.screenOn = signal.screen;
-      peer.micMuted = signal.muted ?? false;
-      peer.screenSoundOn = signal.screenSound === true;
-      if (typeof signal.screenSound === "boolean" && !peer.hasScreenSoundSlot) {
-        peer.hasScreenSoundSlot = true;
-        this.openScreenSoundSlot(from, peer);
-      }
+      peer.micMuted = signal.muted;
+      peer.screenSoundOn = signal.screenSound;
       const view = signal.view;
-      if (view && (view.camera !== peer.wants?.camera || view.screen !== peer.wants.screen)) {
+      if (view.camera !== peer.wants?.camera || view.screen !== peer.wants.screen) {
         peer.wants = { camera: view.camera, screen: view.screen };
         this.sizeFor(from, peer);
       }
@@ -1588,37 +1574,9 @@ export class HuddleSession {
   /** Puts the share's sound, or none, in every connection's slot for it. */
   private async sendScreenSound(): Promise<void> {
     await Promise.all(
-      [...this.peers].map(([userId, peer]) => {
-        this.openScreenSoundSlot(userId, peer);
-        return peer.screenSoundTx?.sender.replaceTrack(this.screenSoundTrack).catch(() => {});
-      }),
-    );
-  }
-
-  /**
-   * Lets the share's sound go to someone who has a slot for it. The side
-   * that offers made that slot receive-only (see `createPeer`), so the first
-   * time it has sound for them it turns the slot both ways and offers again;
-   * the answering side's slot sends from the start.
-   */
-  private openScreenSoundSlot(userId: ID, peer: Peer): void {
-    const slot = peer.screenSoundTx;
-    if (!this.screenSoundTrack || !peer.hasScreenSoundSlot || !peer.initiating || !slot) return;
-    if (slot.direction === "sendrecv") return;
-    slot.direction = "sendrecv";
-    this.note("Setting up the share's sound.", userId);
-    this.offerAgain(userId, peer);
-  }
-
-  /**
-   * Offers again for a slot whose direction changed. Before the first offer,
-   * that offer carries it; during a setup, its answer looks again.
-   */
-  private offerAgain(userId: ID, peer: Peer): void {
-    if (this.destroyed || this.peers.get(userId) !== peer) return;
-    if (!peer.pc.localDescription || peer.pc.signalingState !== "stable") return;
-    void this.offer(userId, peer.pc).catch((err) =>
-      this.note(`Could not set up the share's sound: ${describeError(err)}.`, userId),
+      [...this.peers.values()].map((peer) =>
+        peer.screenSoundTx?.sender.replaceTrack(this.screenSoundTrack).catch(() => {}),
+      ),
     );
   }
 
@@ -1750,8 +1708,6 @@ interface Peer {
   cameraOn: boolean;
   screenOn: boolean;
   screenSoundOn: boolean;
-  /** They said whether their share has sound, which only a client with the slot does. */
-  hasScreenSoundSlot: boolean;
   micMuted: boolean;
   /** What the camera's and the share's senders were last set to (`SentEncoding`, as JSON). */
   cameraSized: string | null;
@@ -1762,15 +1718,6 @@ interface Peer {
   viewTold: CallView | null;
   /** Sizing the senders, one change at a time. */
   sizing: Promise<void>;
-}
-
-/**
- * A slot this side opened for sending that the last setup did not carry,
- * because it was opened while that setup was under way.
- */
-function unoffered(slot: RTCRtpTransceiver | null): boolean {
-  if (!slot || slot.direction !== "sendrecv") return false;
-  return slot.currentDirection !== "sendrecv" && slot.currentDirection !== "sendonly";
 }
 
 const noCandidates = (): CandidateCounts => ({ host: 0, srflx: 0, prflx: 0, relay: 0 });

@@ -58,6 +58,7 @@ const message = (id: string, text: string, seq: number, extra: Partial<Message> 
     reactions: [],
     files: [],
     pinned: false,
+    previews: [],
     actions: [],
     ...extra,
   }) as unknown as Message;

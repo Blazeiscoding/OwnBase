@@ -249,6 +249,7 @@ const message = (n: number, userId = ana.id): Message =>
     reactions: [],
     files: [],
     pinned: false,
+    previews: [],
     actions: [],
   }) as unknown as Message;
 

@@ -451,8 +451,8 @@ export class Api {
     return this.http.json(endpoints.sendMessage, { params: { id: channelId }, body });
   }
 
-  /** With `expectedText`, refused as `message_changed` if the words are no longer those. */
-  editMessage(id: ID, text: string, expectedText?: string) {
+  /** Refused as `message_changed` if the words are no longer `expectedText`. */
+  editMessage(id: ID, text: string, expectedText: string) {
     return this.http.json(endpoints.editMessage, { params: { id }, body: { text, expectedText } });
   }
 
@@ -657,7 +657,7 @@ export class Api {
    * The bot token comes back once here and is never retrievable again. Left
    * without scopes, the app may do everything (E18c).
    */
-  createApp(body: { name: string; scopes?: AppScope[] }) {
+  createApp(body: { name: string; scopes: AppScope[] }) {
     return this.http.json(endpoints.createApp, { body });
   }
 
@@ -840,7 +840,7 @@ export class Api {
 
   search(q: string, limit = 30, opts: { cursor?: ID; channelId?: ID; signal?: AbortSignal } = {}) {
     // Dates in the query name days on the reader's calendar, not the server's.
-    const tz = Intl.DateTimeFormat().resolvedOptions().timeZone || undefined;
+    const tz = Intl.DateTimeFormat().resolvedOptions().timeZone;
     return this.http.json(
       endpoints.search,
       { query: { q, limit, cursor: opts.cursor, channelId: opts.channelId, tz } },

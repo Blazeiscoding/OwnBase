@@ -1,5 +1,6 @@
 import type { ID } from "@ownbase/protocol";
 import type { DatabaseSync } from "node:sqlite";
+import { countOf, shape } from "../core/rows.js";
 import { ulid } from "../ids.js";
 
 /** An event due to go to one subscription's endpoint, with where and how to sign it. */
@@ -13,15 +14,18 @@ export interface DueDelivery {
   signingSecret: string;
 }
 
-interface DueDeliveryRow {
-  id: string;
-  subscription_id: string;
-  event_seq: number;
-  body: string;
-  attempts: number;
-  url: string;
-  signing_secret: string;
-}
+const dueRow = shape({
+  id: "text",
+  subscription_id: "text",
+  event_seq: "number",
+  body: "text",
+  attempts: "number",
+  url: "text",
+  signing_secret: "text",
+});
+const attemptsRow = shape({ attempts: "number", failed_at: "number?" });
+const subscriptionIdRow = shape({ subscription_id: "text" });
+const queuedRow = shape({ id: "text", body: "text" });
 
 /**
  * The durable queue of events on their way to apps' endpoints: one row per
@@ -88,8 +92,8 @@ export class DeliveryStore {
    * `busy` (an event of theirs is already on its way) are left out entirely.
    */
   due(now = Date.now(), limit = 10, busy: readonly ID[] = []): DueDelivery[] {
-    const rows = this.db
-      .prepare(
+    const rows = dueRow.all(
+      this.db.prepare(
         `SELECT d.id, d.subscription_id, d.event_seq, d.body, d.attempts,
                 s.url, a.signing_secret
          FROM event_deliveries d
@@ -110,8 +114,11 @@ export class DeliveryStore {
            )
            AND d.subscription_id NOT IN (SELECT value FROM json_each(?))
          ORDER BY d.next_attempt_at, d.event_seq, d.id LIMIT ?`,
-      )
-      .all(now, JSON.stringify(busy), limit) as unknown as DueDeliveryRow[];
+      ),
+      now,
+      JSON.stringify(busy),
+      limit,
+    );
     return rows.map((r) => ({
       id: r.id,
       subscriptionId: r.subscription_id,
@@ -156,9 +163,10 @@ export class DeliveryStore {
          WHERE id = ?`,
       )
       .run(nextAttemptAt, error.slice(0, 500), maxAttempts, now, id);
-    const row = this.db
-      .prepare("SELECT attempts, failed_at FROM event_deliveries WHERE id = ?")
-      .get(id) as { attempts: number; failed_at: number | null } | undefined;
+    const row = attemptsRow.get(
+      this.db.prepare("SELECT attempts, failed_at FROM event_deliveries WHERE id = ?"),
+      id,
+    );
     return row ? { attempts: row.attempts, terminal: row.failed_at !== null } : null;
   }
 
@@ -226,11 +234,12 @@ export class DeliveryStore {
       )
       .get(subscriptionId);
     if (!waiting) return 0;
-    const { queued } = this.db
-      .prepare(
-        "SELECT COUNT(*) AS queued FROM event_deliveries WHERE subscription_id = ? AND failed_at IS NULL",
-      )
-      .get(subscriptionId) as { queued: number };
+    const queued = countOf(
+      this.db.prepare(
+        "SELECT COUNT(*) AS n FROM event_deliveries WHERE subscription_id = ? AND failed_at IS NULL",
+      ),
+      subscriptionId,
+    );
     const room = DeliveryStore.MAX_PENDING - queued;
     if (room <= 0) return 0;
     return Number(
@@ -248,9 +257,11 @@ export class DeliveryStore {
 
   /** Every endpoint's waiting retries, as far as each has room. Returns how many went in. */
   promoteAllRetries(now = Date.now()): number {
-    const subscriptions = this.db
-      .prepare("SELECT DISTINCT subscription_id FROM event_deliveries WHERE retry_requested = 1")
-      .all() as { subscription_id: string }[];
+    const subscriptions = subscriptionIdRow.all(
+      this.db.prepare(
+        "SELECT DISTINCT subscription_id FROM event_deliveries WHERE retry_requested = 1",
+      ),
+    );
     let promoted = 0;
     for (const { subscription_id } of subscriptions)
       promoted += this.promoteRetries(subscription_id, now);
@@ -285,11 +296,12 @@ export class DeliveryStore {
         .run(subscriptionId).changes,
     );
     this.promoteRetries(subscriptionId, now);
-    const { waiting } = this.db
-      .prepare(
-        "SELECT COUNT(*) AS waiting FROM event_deliveries WHERE subscription_id = ? AND retry_requested = 1",
-      )
-      .get(subscriptionId) as { waiting: number };
+    const waiting = countOf(
+      this.db.prepare(
+        "SELECT COUNT(*) AS n FROM event_deliveries WHERE subscription_id = ? AND retry_requested = 1",
+      ),
+      subscriptionId,
+    );
     // The tally is what an administrator was shown before deciding to retry, so
     // clearing it here marks that report as read rather than losing it.
     this.db
@@ -300,15 +312,14 @@ export class DeliveryStore {
 
   /** The queued copies of one message's events, but the one at `keepSeq`. */
   ofMessage(messageId: ID, keepSeq?: number): { id: string; body: string }[] {
-    return this.db
-      .prepare(
+    return queuedRow.all(
+      this.db.prepare(
         `SELECT id, body FROM event_deliveries WHERE message_id = ?
          ${keepSeq === undefined ? "" : "AND event_seq != ?"}`,
-      )
-      .all(messageId, ...(keepSeq === undefined ? [] : [keepSeq])) as {
-      id: string;
-      body: string;
-    }[];
+      ),
+      messageId,
+      ...(keepSeq === undefined ? [] : [keepSeq]),
+    );
   }
 
   /**

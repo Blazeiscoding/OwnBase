@@ -28,7 +28,7 @@ import { useConnectionDown } from "../lib/online.js";
 import { useMentionField } from "../lib/useMentionField.js";
 import { useListbox } from "../lib/useListbox.js";
 import { SuggestionList, useSuggestions } from "./Suggestions.js";
-import { appCommand, runAppCommand, withAppCommands } from "../lib/appCommands.js";
+import { appCommand, offeredCommands, runAppCommand } from "../lib/appCommands.js";
 import { useToast } from "./Toast.js";
 import {
   readWorkspaceStorage,
@@ -437,7 +437,7 @@ export function Composer({ channelId, threadRootId, placeholder, autoFocus, onLe
     const m = /^\/([a-zA-Z0-9_-]*)$/.exec(text);
     if (!m || guest) return [];
     const q = m[1]!.toLowerCase();
-    return withAppCommands(commands, isRoom).filter((c) => c.command.startsWith(q));
+    return offeredCommands(commands, isRoom).filter((c) => c.command.startsWith(q));
   }, [text, commands, guest, isRoom]);
   const commandList = useListbox(commandCandidates.length);
   function insertCommand(command: string) {

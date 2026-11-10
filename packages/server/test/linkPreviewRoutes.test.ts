@@ -122,9 +122,9 @@ const read = async (auth: string, channelId: string, id: string): Promise<Messag
 /** Waits for a message's previews to be the ones named, by url. */
 const previewsOf = async (channelId: string, id: string, urls: string[]) => {
   await expect
-    .poll(async () => ((await read(owner.token, channelId, id)).previews ?? []).map((p) => p.url))
+    .poll(async () => (await read(owner.token, channelId, id)).previews.map((p) => p.url))
     .toEqual(urls);
-  return (await read(owner.token, channelId, id)).previews ?? [];
+  return (await read(owner.token, channelId, id)).previews;
 };
 
 /** Everything the event log holds, as the raw text it is stored as. */
@@ -168,7 +168,7 @@ describe("link previews", () => {
       general,
       "Read https://news.example/launch and https://nothing.example/ then <https://docs.example/plan|the plan>",
     );
-    expect(message.previews).toBeUndefined();
+    expect(message.previews).toEqual([]);
     const previews = await previewsOf(general, message.id, [
       "https://news.example/launch",
       "https://docs.example/plan",
@@ -248,7 +248,10 @@ describe("link previews", () => {
     const edited = await request(
       `/api/messages/${message.id}`,
       peer.token,
-      { text: "https://docs.example/plan and https://blog.example/post" },
+      {
+        text: "https://docs.example/plan and https://blog.example/post",
+        expectedText: message.text,
+      },
       "PATCH",
     );
     expect(edited.body.message.previews.map((p: { url: string }) => p.url)).toEqual([
@@ -279,11 +282,11 @@ describe("link previews", () => {
     await request(
       `/api/messages/${message.id}`,
       peer.token,
-      { text: "Still https://news.example/launch" },
+      { text: "Still https://news.example/launch", expectedText: message.text },
       "PATCH",
     );
     await new Promise((done) => setTimeout(done, 100));
-    expect((await read(owner.token, general, message.id)).previews).toBeUndefined();
+    expect((await read(owner.token, general, message.id)).previews).toEqual([]);
     expect(fetched).toEqual(["https://news.example/launch"]);
   });
 
@@ -337,7 +340,7 @@ describe("link previews", () => {
     const quiet = await post(peer.token, general, "https://news.example/launch");
     await new Promise((done) => setTimeout(done, 100));
     expect(fetched).toEqual([]);
-    expect((await read(owner.token, general, quiet.id)).previews).toBeUndefined();
+    expect((await read(owner.token, general, quiet.id)).previews).toEqual([]);
 
     await request("/api/admin/workspace/link-previews", owner.token, { enabled: true }, "PUT");
     const back = await post(peer.token, general, "https://news.example/launch again");
@@ -361,7 +364,7 @@ describe("an isolated copy", () => {
     const message = await post(owner.token, general, "https://news.example/launch");
     await new Promise((done) => setTimeout(done, 100));
     expect(fetched).toEqual([]);
-    expect((await read(owner.token, general, message.id)).previews).toBeUndefined();
+    expect((await read(owner.token, general, message.id)).previews).toEqual([]);
   });
 });
 

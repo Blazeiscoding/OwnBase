@@ -67,6 +67,7 @@ function rows(): Message[] {
     reactions: [],
     files: [],
     pinned: false,
+    previews: [],
     actions: [],
   }));
 }

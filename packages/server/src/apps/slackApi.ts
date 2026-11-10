@@ -18,7 +18,7 @@ const missingScope = (owner: App, needed: AppScope) => ({
   ok: false as const,
   error: "missing_scope",
   needed,
-  provided: (owner.scopes ?? []).join(","),
+  provided: owner.scopes.join(","),
 });
 
 /**

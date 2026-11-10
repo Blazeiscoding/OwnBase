@@ -294,6 +294,7 @@ describe("a mention in a message being edited", () => {
     reactions: [],
     files: [],
     pinned: false,
+    previews: [],
   } as unknown as Message;
 
   function renderEditor() {

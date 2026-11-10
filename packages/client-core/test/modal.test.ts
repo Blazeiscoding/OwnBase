@@ -2,6 +2,7 @@ import { createServer, type Server, type ServerResponse } from "node:http";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { createWorkspaceServer, type WorkspaceServer } from "@ownbase/server";
 import { Api, WorkspaceClient } from "../src/index.js";
+import { APP_SCOPES } from "@ownbase/protocol";
 
 interface AppPayload {
   type: string;
@@ -90,7 +91,7 @@ async function post(path: string, token: string, body: unknown) {
 }
 
 async function open(appName: string, hookPath: string) {
-  const app = await admin.createApp({ name: appName });
+  const app = await admin.createApp({ name: appName, scopes: [...APP_SCOPES] });
   await admin.setInteractivityUrl(app.app.id, `http://127.0.0.1:${hookPort}${hookPath}`);
   const message = await post("/api/chat.postMessage", app.token, {
     channel: channelId,
@@ -168,6 +169,7 @@ describe("app form ownership across real socket pushes and callbacks (N05)", () 
     const submission = vi.spyOn(client.api, "submitView");
     expect(await client.submitModal({ details: { value: "Stale A answers" } }, a.viewId)).toEqual({
       ok: false,
+      errors: {},
       message: "This form is no longer available.",
     });
     expect(submission).not.toHaveBeenCalled();
@@ -236,12 +238,5 @@ describe("a stack of app forms (E18b)", () => {
     await expect.poll(() => client.state.modal?.title).toBe("Are you sure?");
     expect(client.state.modal!.id).toBe(a.viewId);
     expect(client.state.modal!.hash).not.toBe(before.hash);
-  });
-
-  it("closes the submitted form when a server from before stacks names nothing", async () => {
-    const a = await open("Older Server App", "/older");
-    vi.spyOn(client.api, "submitView").mockResolvedValue({ ok: true });
-    expect((await client.submitModal({ details: { value: "x" } }, a.viewId)).ok).toBe(true);
-    expect(client.state.modal).toBeNull();
   });
 });

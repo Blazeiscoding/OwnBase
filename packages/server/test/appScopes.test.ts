@@ -56,3 +56,48 @@ describe("an app made before scopes (E18c)", () => {
     }
   });
 });
+
+describe("a subscription's stored event types", () => {
+  it("are read as the known types they name, and as none when the column is not a list", () => {
+    const dir = mkdtempSync(join(tmpdir(), "ownbase-events-"));
+    dirs.push(dir);
+    const db = openDb(join(dir, "workspace.db"));
+    try {
+      const store = new Store(db);
+      const owner = store.people.create({
+        handle: "owner",
+        displayName: "Owner",
+        passwordHash: "unused",
+        salt: "unused",
+        role: "owner",
+      });
+      const bot = store.apps.createBotUser("deploy-bot", "Deploy Bot", "unused", "unused");
+      const app = store.apps.create({
+        name: "Deploy Bot",
+        botUserId: bot.id,
+        createdBy: owner.id,
+        signingSecret: "secret",
+        scopes: ["chat:write"],
+      });
+      const sub = store.apps.createSubscription({
+        appId: app.id,
+        url: "https://bot.example.com/events",
+        eventTypes: ["pin.added"],
+      });
+      const stored = db.prepare("UPDATE event_subscriptions SET event_types = ? WHERE id = ?");
+
+      stored.run(JSON.stringify(["pin.added", "no.such_event", 7]), sub.id);
+      expect(store.apps.getSubscription(sub.id)!.eventTypes).toEqual(["pin.added"]);
+      stored.run("not json", sub.id);
+      expect(store.apps.listSubscriptions(app.id)[0]!.eventTypes).toEqual([]);
+      expect(store.apps.allSubscriptions()).toMatchObject([
+        {
+          subscription: { id: sub.id, eventTypes: [] },
+          app: { id: app.id, scopes: ["chat:write"] },
+        },
+      ]);
+    } finally {
+      db.close();
+    }
+  });
+});

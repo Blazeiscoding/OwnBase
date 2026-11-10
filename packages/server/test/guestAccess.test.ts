@@ -1,12 +1,15 @@
 import { afterEach, describe, expect, it } from "vitest";
 import WebSocket from "ws";
-import { PROTOCOL_VERSION, type ServerToClient } from "@ownbase/protocol";
+import { PROTOCOL_VERSION, type ServerToClient, APP_SCOPES } from "@ownbase/protocol";
 import {
   createWorkspaceServer,
   GUEST_SESSION_TTL_MS,
   type WorkspaceServer,
 } from "../src/server.js";
 import { hashToken } from "../src/auth.js";
+
+/** The searcher's zone, which the server reads `before:` and `after:` in. */
+const TZ = encodeURIComponent(Intl.DateTimeFormat().resolvedOptions().timeZone);
 
 /**
  * Joining as a guest: allowed only while the host says so, with a display name
@@ -142,18 +145,13 @@ describe("who may join", () => {
     expect((await joinAsGuest()).user.role).toBe("guest");
   });
 
-  it("keeps accounts open alongside guests, and invites off never lets guests in", async () => {
+  it("keeps accounts open alongside guests, and asks for invites again once told to", async () => {
     await start({ inviteOnly: true });
     await register("owner");
-    server!.setInviteOnly(false);
-    expect((await serverInfo()).accessPolicy).toBe("account_required");
     server!.setAccessPolicy("guest_allowed");
     expect((await serverInfo()).requiresInvite).toBe(false);
     await register("member");
-    // A host that knows only about invites, turning them off again, keeps guests.
-    server!.setInviteOnly(false);
-    expect((await serverInfo()).accessPolicy).toBe("guest_allowed");
-    server!.setInviteOnly(true);
+    server!.setAccessPolicy("invite_only");
     expect(await serverInfo()).toMatchObject({ accessPolicy: "invite_only", requiresInvite: true });
   });
 });
@@ -200,10 +198,10 @@ describe("a guest", () => {
       const read = await call("GET", `/api/channels/${id}/messages`, guest.token);
       expect(read.status).toBe(404);
     }
-    const found = await call("GET", "/api/search?q=quietzebra", guest.token);
+    const found = await call("GET", `/api/search?tz=${TZ}&q=quietzebra`, guest.token);
     expect([found.status, found.data.messages]).toEqual([200, []]);
     // Where the owner, who can read both, finds them.
-    const theirs = await call("GET", "/api/search?q=quietzebra", owner.token);
+    const theirs = await call("GET", `/api/search?tz=${TZ}&q=quietzebra`, owner.token);
     expect(theirs.data.messages).toHaveLength(2);
     const socket = await connect(guest.token);
     const snapshot = JSON.stringify(socket.frames);
@@ -245,7 +243,7 @@ describe("a guest", () => {
       ["POST", "/api/invites", {}],
       ["POST", `/api/channels/${general}/scheduled`, { text: "later", sendAt: Date.now() + 1e6 }],
       ["POST", `/api/channels/${general}/commands`, { command: "shrug", text: "" }],
-      ["POST", "/api/apps", { name: "bot" }],
+      ["POST", "/api/apps", { name: "bot", scopes: APP_SCOPES }],
       ["POST", "/api/auth/password", { currentPassword: "x", newPassword: "password123" }],
       ["GET", "/api/auth/sessions", undefined],
       ["PATCH", `/api/channels/${general}`, { topic: "mine now" }],

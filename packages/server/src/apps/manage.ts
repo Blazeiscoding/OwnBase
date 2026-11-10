@@ -72,7 +72,7 @@ export function registerAppManagement(
         action: "app.created",
         targetType: "app",
         targetId: created.id,
-        details: { name: created.name, scopes: (created.scopes ?? []).join(", ") },
+        details: { name: created.name, scopes: created.scopes.join(", ") },
       });
       emit({ type: "user.joined", user: bot });
 
@@ -96,11 +96,11 @@ export function registerAppManagement(
     store.transaction(() => {
       const target = store.apps.get(params.id);
       if (!target) throw new HttpError(404, "not_found");
-      const before = target.scopes ?? [];
+      const before = target.scopes;
       store.apps.setScopes(target.id, body.scopes);
       const after = store.apps.get(target.id)!;
-      const added = (after.scopes ?? []).filter((scope) => !before.includes(scope));
-      const removed = before.filter((scope) => !(after.scopes ?? []).includes(scope));
+      const added = after.scopes.filter((scope) => !before.includes(scope));
+      const removed = before.filter((scope) => !after.scopes.includes(scope));
       if (added.length > 0 || removed.length > 0) {
         store.audit.record({
           actorId: me.id,

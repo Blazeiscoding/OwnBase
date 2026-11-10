@@ -34,6 +34,7 @@ import {
   type ChannelRemoval,
   type SidebarSection,
   type User,
+  type ViewSubmitted,
 } from "@ownbase/protocol";
 import { Api, ApiError, type CommandHint } from "./api.js";
 import { AccountActions } from "./account.js";
@@ -737,7 +738,7 @@ export class WorkspaceClient {
     for (const m of Object.values(this.state.messages)) {
       if (
         m.files.some((f) => f.id === fileId) ||
-        m.previews?.some((p) => previewImageKey(p.id) === fileId)
+        m.previews.some((p) => previewImageKey(p.id) === fileId)
       )
         return { channelId: m.channelId, messageId: m.id, threadRootId: m.threadRootId };
     }
@@ -1645,15 +1646,15 @@ export class WorkspaceClient {
   async submitModal(
     values: Record<string, Record<string, string | string[]>>,
     viewId = this.state.modal?.id,
-  ): Promise<{ ok: boolean; errors?: Record<string, string>; message?: string }> {
+  ): Promise<ViewSubmitted> {
     const modal = this.state.modal;
     if (!modal || modal.id !== viewId)
-      return { ok: false, message: "This form is no longer available." };
+      return { ok: false, errors: {}, message: "This form is no longer available." };
     const result = await this.api.submitView(modal.id, values);
     // The server names what closed: none when the app changed the form or
-    // stacked another on it. One from before stacks names nothing, and the
-    // form closes. Only ever closing keeps a late answer from reopening one.
-    if (result.ok) this.forgetModals(result.closedViewIds ?? [modal.id]);
+    // stacked another on it. Only ever closing keeps a late answer from
+    // reopening one.
+    if (result.ok) this.forgetModals(result.closedViewIds);
     return result;
   }
 
@@ -2932,7 +2933,7 @@ export class WorkspaceClient {
    * back and resolves with why.
    */
   removeLinkPreview(message: Message, previewId: ID): Promise<ApiError | null> {
-    const has = (m: Message) => !!m.previews?.some((p) => p.id === previewId);
+    const has = (m: Message) => m.previews.some((p) => p.id === previewId);
     return this.writes.write({ kind: "linkPreview", previewId }, false, {
       read: () => has(this.heldOr(message)),
       show: (shown) =>
@@ -2940,7 +2941,7 @@ export class WorkspaceClient {
           if (has(m) === shown) return m;
           return shown
             ? { ...m, previews: message.previews }
-            : { ...m, previews: m.previews!.filter((p) => p.id !== previewId) };
+            : { ...m, previews: m.previews.filter((p) => p.id !== previewId) };
         }),
       send: async () => {
         await this.api.removeLinkPreview(previewId);
@@ -3829,8 +3830,8 @@ export class WorkspaceClient {
     return this.api.getMessage(channelId, messageId, signal);
   }
 
-  /** With `expectedText`, refused as `message_changed` if the words are no longer those. */
-  editMessage(messageId: ID, text: string, expectedText?: string) {
+  /** Refused as `message_changed` if the words are no longer `expectedText`. */
+  editMessage(messageId: ID, text: string, expectedText: string) {
     return this.api.editMessage(messageId, text, expectedText);
   }
 

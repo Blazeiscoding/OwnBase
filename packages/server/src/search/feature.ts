@@ -14,7 +14,7 @@ export function registerSearch(ctx: ServerContext) {
 
   route(endpoints.search, async ({ user: me, query: q }) => {
     if (q.channelId) requireChannelAccess(store, q.channelId, me);
-    if (q.tz !== undefined && !isTimeZone(q.tz))
+    if (!isTimeZone(q.tz))
       throw new HttpError(
         400,
         "invalid_time_zone",

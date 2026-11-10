@@ -20,7 +20,6 @@ import {
   APP_SCOPES,
   DEFAULT_APP_SCOPES,
   eventScopes,
-  type App,
   type AppEventType,
   type AppScope,
   type Channel,
@@ -30,6 +29,7 @@ import {
 } from "@ownbase/protocol";
 import { ApiError, type AppDetail } from "@ownbase/client-core";
 import { useClient, useWorkspace } from "../context.js";
+import { failureText } from "../lib/failure.js";
 import { Dialog } from "./Dialog.js";
 import { inputCls, TextField } from "./TextField.js";
 import { Select } from "./Select.js";
@@ -131,23 +131,18 @@ export function AppsDialog({ onClose }: { onClose: () => void }) {
       const version = ++loadVersion.current;
       loadInFlight.current = true;
       if (!quiet) setLoading(true);
-      void client.apps
-        .list()
-        .then((result) => {
-          if (!alive.current || version !== loadVersion.current) return;
-          setApps(result.apps);
-          setLoadError(null);
-        })
-        .catch(() => {
-          if (!alive.current || version !== loadVersion.current) return;
+      void client.apps.list().then((listed) => {
+        if (!alive.current || version !== loadVersion.current) return;
+        if (listed instanceof ApiError) {
           // Keep the last good rows. A failed first load is not an empty list.
           setLoadError("Could not load apps. Check your connection and try again.");
-        })
-        .finally(() => {
-          if (!alive.current || version !== loadVersion.current) return;
-          loadInFlight.current = false;
-          if (!quiet) setLoading(false);
-        });
+        } else {
+          setApps(listed);
+          setLoadError(null);
+        }
+        loadInFlight.current = false;
+        if (!quiet) setLoading(false);
+      });
     },
     [client],
   );
@@ -175,11 +170,13 @@ export function AppsDialog({ onClose }: { onClose: () => void }) {
   );
 
   /**
-   * Shows an app the server just made. A bot token is returned only once, so
-   * its row stays visible even if the follow-up list request fails, and the
-   * admin can still copy the token.
+   * Makes an app and shows it. A bot token is returned only once, so its row
+   * stays visible even if the follow-up list request fails, and the admin can
+   * still copy the token.
    */
-  function adopt(r: { app: App; token: string; signingSecret: string }): AppDetail {
+  async function makeApp(appName: string, appScopes: AppScope[]): Promise<AppDetail | ApiError> {
+    const r = await client.apps.create({ name: appName, scopes: appScopes });
+    if (r instanceof ApiError) return r;
     const shown: AppDetail = {
       ...r.app,
       signingSecret: r.signingSecret,
@@ -202,15 +199,14 @@ export function AppsDialog({ onClose }: { onClose: () => void }) {
     }
     setCreateError(null);
     setBusy(true);
-    try {
-      adopt(await client.apps.create({ name: name.trim(), scopes }));
-      setName("");
-      setScopes([...DEFAULT_APP_SCOPES]);
-    } catch {
+    const made = await makeApp(name.trim(), scopes);
+    setBusy(false);
+    if (made instanceof ApiError) {
       setCreateError("Could not create the app. Check your connection and try again.");
-    } finally {
-      setBusy(false);
+      return;
     }
+    setName("");
+    setScopes([...DEFAULT_APP_SCOPES]);
   }
 
   /**
@@ -218,16 +214,13 @@ export function AppsDialog({ onClose }: { onClose: () => void }) {
    * credential is dead the moment the server answers and whatever was using
    * it fails until someone updates it.
    */
-  async function replace(title: string, body: string, action: () => Promise<void>) {
+  async function replace(title: string, body: string, action: () => Promise<ApiError | null>) {
     if (!(await confirm({ title, body, confirmLabel: "Replace", destructive: true }))) return;
     setRotateError(null);
-    try {
-      await action();
-    } catch {
+    if (await action())
       setRotateError(
         "Could not confirm whether it was replaced. Check that the app still works before you try again.",
       );
-    }
   }
 
   const replaceToken = (a: AppDetail) =>
@@ -235,8 +228,10 @@ export function AppsDialog({ onClose }: { onClose: () => void }) {
       `Replace ${a.name}'s bot token?`,
       "The current token stops working immediately. Whatever uses it fails until you give it the new one.",
       async () => {
-        const r = await client.apps.replaceToken(a.id);
-        setSecrets((s) => ({ ...s, [a.id]: r.token }));
+        const token = await client.apps.replaceToken(a.id);
+        if (token instanceof ApiError) return token;
+        setSecrets((s) => ({ ...s, [a.id]: token }));
+        return null;
       },
     );
 
@@ -245,8 +240,9 @@ export function AppsDialog({ onClose }: { onClose: () => void }) {
       `Replace ${a.name}'s signing secret?`,
       "The app will reject requests from this workspace until it has the new one.",
       async () => {
-        await client.apps.replaceSigningSecret(a.id);
-        load();
+        const failed = await client.apps.replaceSigningSecret(a.id);
+        if (!failed) load();
+        return failed;
       },
     );
 
@@ -255,15 +251,18 @@ export function AppsDialog({ onClose }: { onClose: () => void }) {
       `Replace the webhook URL for #${channelName}?`,
       "Anything posting to the current URL will stop working.",
       async () => {
-        const r = await client.apps.replaceWebhookUrl(webhookId);
-        setHookUrls((h) => ({ ...h, [webhookId]: `${client.baseUrl}${r.url}` }));
+        const path = await client.apps.replaceWebhookUrl(webhookId);
+        if (path instanceof ApiError) return path;
+        setHookUrls((h) => ({ ...h, [webhookId]: `${client.baseUrl}${path}` }));
         load();
+        return null;
       },
     );
 
   /** Returns the webhook's URL, which the server shows only this once. */
-  async function addWebhook(appId: ID, channelId: ID): Promise<string> {
+  async function addWebhook(appId: ID, channelId: ID): Promise<string | ApiError> {
     const r = await client.apps.createWebhook(appId, channelId);
+    if (r instanceof ApiError) return r;
     // The path comes back relative; show the address a tool would actually call.
     const url = `${client.baseUrl}${r.url}`;
     setHookUrls((h) => ({ ...h, [r.webhook.id]: url }));
@@ -283,9 +282,7 @@ export function AppsDialog({ onClose }: { onClose: () => void }) {
         apps={apps ?? []}
         rooms={rooms}
         hookUrls={hookUrls}
-        makeApp={async (appName) =>
-          adopt(await client.apps.create({ name: appName, scopes: [...DEFAULT_APP_SCOPES] }))
-        }
+        makeApp={(appName) => makeApp(appName, [...DEFAULT_APP_SCOPES])}
         makeWebhook={addWebhook}
         onChanged={load}
       />
@@ -373,19 +370,13 @@ export function AppsDialog({ onClose }: { onClose: () => void }) {
                   if (!go) return;
                   setBusy(true);
                   setRotateError(null);
-                  try {
-                    await client.apps.remove(a.id);
-                    load();
-                    void client.loadCommands();
-                  } catch {
+                  if (await client.apps.remove(a.id))
                     setRotateError(
                       "Could not confirm whether the app was deleted. OwnBase is loading the list again. Check it before you try again.",
                     );
-                    load();
-                    void client.loadCommands();
-                  } finally {
-                    setBusy(false);
-                  }
+                  load();
+                  void client.loadCommands();
+                  setBusy(false);
                 }}
                 className="rounded px-2 py-1 text-[11px] text-ink-faint transition-colors hover:text-alert disabled:opacity-40"
               >
@@ -424,15 +415,12 @@ export function AppsDialog({ onClose }: { onClose: () => void }) {
                           destructive: true,
                         });
                         if (!go) return;
-                        try {
-                          await client.apps.removeWebhook(w.id);
-                          load();
-                        } catch {
+                        if (await client.apps.removeWebhook(w.id))
                           toast({
                             message: `Could not remove the webhook for #${room}. Check your connection and try again.`,
                             kind: "error",
                           });
-                        }
+                        else load();
                       }}
                       className="text-ink-faint hover:text-alert"
                     >
@@ -488,7 +476,7 @@ interface TemplateChoice {
   newName: string;
   channel: Channel | null;
   /** The chosen app, made first when it is to be a new one. */
-  ensureApp: () => Promise<AppDetail>;
+  ensureApp: () => Promise<AppDetail | ApiError>;
   /** The Post as field, with the new app's name beside it when there is one to name. */
   postAs: React.ReactNode;
   channelField: (label: string) => React.ReactNode;
@@ -506,8 +494,8 @@ function AppTemplates(props: {
   rooms: Channel[];
   hookUrls: Record<ID, string>;
   /** Makes an app and shows it below with its one-time token. */
-  makeApp: (name: string) => Promise<AppDetail>;
-  makeWebhook: (appId: ID, channelId: ID) => Promise<string>;
+  makeApp: (name: string) => Promise<AppDetail | ApiError>;
+  makeWebhook: (appId: ID, channelId: ID) => Promise<string | ApiError>;
   onChanged: () => void;
 }) {
   const [template, setTemplate] = useState<AppTemplate>("webhook");
@@ -538,7 +526,7 @@ function AppTemplates(props: {
     ensureApp: async () => {
       if (app) return app;
       const made = await props.makeApp(newName.trim());
-      setAppId(made.id);
+      if (!(made instanceof ApiError)) setAppId(made.id);
       return made;
     },
     postAs: (
@@ -624,8 +612,8 @@ function AppTemplates(props: {
 }
 
 /** Why a test post to a webhook did not arrive, said as what to do about it. */
-function webhookTestError(err: unknown, channelName: string): string {
-  if (!(err instanceof ApiError)) {
+function webhookTestError(err: ApiError, channelName: string): string {
+  if (err.code === "network_error") {
     return "Could not reach the workspace at this URL. Check your connection and try again.";
   }
   if (err.code === "invalid_webhook") {
@@ -654,7 +642,7 @@ function WebhookTemplate({
   ci: boolean;
   choice: TemplateChoice;
   hookUrls: Record<ID, string>;
-  makeWebhook: (appId: ID, channelId: ID) => Promise<string>;
+  makeWebhook: (appId: ID, channelId: ID) => Promise<string | ApiError>;
 }) {
   const client = useClient();
   const { app, channel } = choice;
@@ -686,28 +674,24 @@ function WebhookTemplate({
     }
     setBusy(true);
     setError(null);
-    try {
-      const target = await choice.ensureApp();
-      const madeUrl = await makeWebhook(target.id, channel.id);
-      setMade({ appId: target.id, channelId: channel.id, url: madeUrl });
-    } catch {
+    const target = await choice.ensureApp();
+    const madeUrl = target instanceof ApiError ? target : await makeWebhook(target.id, channel.id);
+    setBusy(false);
+    if (target instanceof ApiError || madeUrl instanceof ApiError)
       setError("Could not create the webhook. Check your connection and try again.");
-    } finally {
-      setBusy(false);
-    }
+    else setMade({ appId: target.id, channelId: channel.id, url: madeUrl });
   }
 
   async function send() {
     if (!url || !channel || sending) return;
     setSending(true);
-    try {
-      await client.apps.postToWebhook(url, ci ? CI_TEST_MESSAGE : WEBHOOK_EXAMPLE);
-      setResult({ url, ok: true, text: `Posted to #${channel.name}.` });
-    } catch (err) {
-      setResult({ url, ok: false, text: webhookTestError(err, channel.name) });
-    } finally {
-      setSending(false);
-    }
+    const failed = await client.apps.postToWebhook(url, ci ? CI_TEST_MESSAGE : WEBHOOK_EXAMPLE);
+    setResult(
+      failed
+        ? { url, ok: false, text: webhookTestError(failed, channel.name) }
+        : { url, ok: true, text: `Posted to #${channel.name}.` },
+    );
+    setSending(false);
   }
 
   return (
@@ -824,50 +808,51 @@ function CommandTemplate({
     }
     setBusy(true);
     setError(null);
-    try {
-      const target = await choice.ensureApp();
-      const r = await client.apps.createCommand(target.id, { command: name, url: url.trim() });
-      setMade(r.command);
-      onChanged();
-      // The composer's hint list is loaded once, so refresh it now.
-      void client.loadCommands();
-    } catch (err) {
+    const target = await choice.ensureApp();
+    const added =
+      target instanceof ApiError
+        ? target
+        : await client.apps.createCommand(target.id, { command: name, url: url.trim() });
+    setBusy(false);
+    if (added instanceof ApiError) {
       setError(
-        !(err instanceof ApiError)
+        added.code === "network_error"
           ? "Could not add the command. Check your connection and try again."
-          : err.code === "invalid_request"
+          : added.code === "invalid_request"
             ? "Use letters, digits, - and _ in the command, and an http or https address."
-            : err.message,
+            : added.message,
       );
-    } finally {
-      setBusy(false);
+      return;
     }
+    setMade(added);
+    onChanged();
+    // The composer's hint list is loaded once, so refresh it now.
+    void client.loadCommands();
   }
 
   async function run() {
     if (!ready || !channel || !runKey || running) return;
     const typed = `/${ready.command} test`;
     setRunning(true);
-    try {
-      const answer = await client.apps.runCommand(channel.id, typed);
-      setResult({
-        key: runKey,
-        ok: answer.ok,
-        text: answer.ok
-          ? `Your service answered ${typed}. Its reply, if it sent one, is in #${channel.name}.`
-          : answer.message
-            ? `${typed} failed: ${answer.message}.`
-            : `${typed} failed. #${channel.name} says why.`,
-      });
-    } catch (err) {
-      setResult({
-        key: runKey,
-        ok: false,
-        text: `Could not run ${typed}: ${err instanceof ApiError ? err.message : "the workspace did not answer"}.`,
-      });
-    } finally {
-      setRunning(false);
-    }
+    const answer = await client.apps.runCommand(channel.id, typed);
+    setResult(
+      answer instanceof ApiError
+        ? {
+            key: runKey,
+            ok: false,
+            text: `Could not run ${typed}: ${answer.code === "network_error" ? "the workspace did not answer" : answer.message}.`,
+          }
+        : {
+            key: runKey,
+            ok: answer.ok,
+            text: answer.ok
+              ? `Your service answered ${typed}. Its reply, if it sent one, is in #${channel.name}.`
+              : answer.message
+                ? `${typed} failed: ${answer.message}.`
+                : `${typed} failed. #${channel.name} says why.`,
+          },
+    );
+    setRunning(false);
   }
 
   return (
@@ -1090,29 +1075,28 @@ function CommandList({ app, onChanged }: { app: AppDetail; onChanged: () => void
       return;
     }
     setBusy(true);
-    try {
-      await client.apps.createCommand(app.id, {
-        command: command.trim(),
-        url: url.trim(),
-        description: description.trim(),
-      });
-      setCommand("");
-      setUrl("");
-      setDescription("");
-      onChanged();
-      // The composer's hint list is loaded once, so refresh it now.
-      void client.loadCommands();
-    } catch (err) {
+    const added = await client.apps.createCommand(app.id, {
+      command: command.trim(),
+      url: url.trim(),
+      description: description.trim(),
+    });
+    setBusy(false);
+    if (added instanceof ApiError) {
       setError(
-        !(err instanceof ApiError)
+        added.code === "network_error"
           ? "Could not add the command. Check your connection and try again."
-          : err.code === "invalid_request"
+          : added.code === "invalid_request"
             ? "Use letters, digits, - and _ in the command, and an http or https address."
-            : reason(err),
+            : reason(added),
       );
-    } finally {
-      setBusy(false);
+      return;
     }
+    setCommand("");
+    setUrl("");
+    setDescription("");
+    onChanged();
+    // The composer's hint list is loaded once, so refresh it now.
+    void client.loadCommands();
   }
 
   return (
@@ -1126,7 +1110,12 @@ function CommandList({ app, onChanged }: { app: AppDetail; onChanged: () => void
             </span>
             <button
               onClick={async () => {
-                await client.apps.removeCommand(c.id);
+                setError(null);
+                const failed = await client.apps.removeCommand(c.id);
+                if (failed) {
+                  setError(failureText(`Could not remove /${c.command}.`, failed));
+                  return;
+                }
                 onChanged();
                 void client.loadCommands();
               }}
@@ -1283,11 +1272,8 @@ function AppScopes({ app, onChanged }: { app: AppDetail; onChanged: () => void }
     setShown(next);
     setError(null);
     const attempt = ++saving.current;
-    try {
-      await client.apps.setScopes(app.id, next);
-      onChanged();
-    } catch {
-      if (attempt !== saving.current) return;
+    if (!(await client.apps.setScopes(app.id, next))) onChanged();
+    else if (attempt === saving.current) {
       setShown(before);
       setError("Could not change what it may do. Check your connection and try again.");
     }
@@ -1325,10 +1311,9 @@ function AppScopes({ app, onChanged }: { app: AppDetail; onChanged: () => void }
  * out from a quiet endpoint.
  */
 function missingScopes(app: AppDetail, sub: EventSubscription): AppScope[] {
-  if (!app.scopes) return [];
   const types = sub.eventTypes.length > 0 ? sub.eventTypes : APP_EVENT_TYPES;
   const needed = new Set(types.flatMap((type) => eventScopes(type)));
-  return APP_SCOPES.filter((scope) => needed.has(scope) && !app.scopes!.includes(scope));
+  return APP_SCOPES.filter((scope) => needed.has(scope) && !app.scopes.includes(scope));
 }
 
 /**
@@ -1338,8 +1323,7 @@ function missingScopes(app: AppDetail, sub: EventSubscription): AppScope[] {
  */
 function DeliveryStatus({ delivery }: { delivery: EventSubscription["delivery"] }) {
   if (!delivery) return null;
-  const { pending, failed, dropped, lastError } = delivery;
-  const retrying = delivery.retrying ?? 0;
+  const { pending, failed, retrying, dropped, lastError } = delivery;
   if (pending === 0 && failed === 0 && dropped === 0 && retrying === 0) return null;
   const parts = [
     pending > 0 ? `${pending} waiting` : null,
@@ -1374,16 +1358,12 @@ function SubscriptionList({ app, onChanged }: { app: AppDetail; onChanged: () =>
   /** Gives the app the scopes a subscription is waiting on. */
   async function allow(missing: AppScope[]) {
     setError(null);
-    try {
-      const granted = app.scopes ?? [];
-      await client.apps.setScopes(
-        app.id,
-        APP_SCOPES.filter((scope) => granted.includes(scope) || missing.includes(scope)),
-      );
-      onChanged();
-    } catch {
-      setError("Could not allow those. Check your connection and try again.");
-    }
+    const failed = await client.apps.setScopes(
+      app.id,
+      APP_SCOPES.filter((scope) => app.scopes.includes(scope) || missing.includes(scope)),
+    );
+    if (failed) setError("Could not allow those. Check your connection and try again.");
+    else onChanged();
   }
 
   async function add(e: React.FormEvent) {
@@ -1397,19 +1377,18 @@ function SubscriptionList({ app, onChanged }: { app: AppDetail; onChanged: () =>
     }
     setUrlProblem(null);
     setBusy(true);
-    try {
-      await client.apps.subscribe(app.id, { url: url.trim(), eventTypes: types });
+    const failed = await client.apps.subscribe(app.id, { url: url.trim(), eventTypes: types });
+    setBusy(false);
+    if (!failed) {
       setUrl("");
       setTypes([]);
       onChanged();
-    } catch (err) {
+    } else if (failed.code === "network_error") {
+      setError("Could not subscribe. Check your connection and try again.");
+    } else {
       // The server refused the address: it did not answer, or answered wrongly.
-      if (err instanceof ApiError) {
-        setUrlProblem(reason(err));
-        urlField.current?.focus();
-      } else setError("Could not subscribe. Check your connection and try again.");
-    } finally {
-      setBusy(false);
+      setUrlProblem(reason(failed));
+      urlField.current?.focus();
     }
   }
 
@@ -1431,14 +1410,10 @@ function SubscriptionList({ app, onChanged }: { app: AppDetail; onChanged: () =>
                   onClick={async () => {
                     setRetrying(sub.id);
                     setError(null);
-                    try {
-                      await client.apps.retrySubscription(sub.id);
-                      onChanged();
-                    } catch {
+                    if (await client.apps.retrySubscription(sub.id))
                       setError("Could not retry those deliveries.");
-                    } finally {
-                      setRetrying(null);
-                    }
+                    else onChanged();
+                    setRetrying(null);
                   }}
                   className="text-copper hover:underline disabled:opacity-40"
                 >
@@ -1447,8 +1422,10 @@ function SubscriptionList({ app, onChanged }: { app: AppDetail; onChanged: () =>
               )}
               <button
                 onClick={async () => {
-                  await client.apps.removeSubscription(sub.id);
-                  onChanged();
+                  setError(null);
+                  const failed = await client.apps.removeSubscription(sub.id);
+                  if (failed) setError(failureText("Could not remove the subscription.", failed));
+                  else onChanged();
                 }}
                 className="text-ink-faint hover:text-alert"
               >
@@ -1557,18 +1534,17 @@ function InteractivityUrl({ app, onChanged }: { app: AppDetail; onChanged: () =>
     setProblem(null);
     setError(null);
     setSaved(null);
-    try {
-      await client.apps.setInteractivityUrl(app.id, url.trim());
+    const failed = await client.apps.setInteractivityUrl(app.id, url.trim());
+    setBusy(false);
+    if (!failed) {
       setSaved(url);
       onChanged();
-    } catch (err) {
+    } else if (failed.code === "network_error") {
+      setError("Could not save. Check your connection and try again.");
+    } else {
       // The server refused the address: it did not answer, or answered wrongly.
-      if (err instanceof ApiError) {
-        setProblem(reason(err));
-        field.current?.focus();
-      } else setError("Could not save. Check your connection and try again.");
-    } finally {
-      setBusy(false);
+      setProblem(reason(failed));
+      field.current?.focus();
     }
   }
 

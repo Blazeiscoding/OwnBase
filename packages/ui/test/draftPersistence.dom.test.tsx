@@ -112,6 +112,7 @@ function sent(client: WorkspaceClient, nonce: string, text: string): Message {
     reactions: [],
     files: [],
     pinned: false,
+    previews: [],
     actions: [],
   };
 }

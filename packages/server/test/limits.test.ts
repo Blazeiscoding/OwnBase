@@ -4,7 +4,7 @@ import { createServer, type Server } from "node:http";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import WebSocket from "ws";
-import { PROTOCOL_VERSION, type ServerToClient } from "@ownbase/protocol";
+import { PROTOCOL_VERSION, type ServerToClient, APP_SCOPES } from "@ownbase/protocol";
 import { createWorkspaceServer, type WorkspaceServer } from "../src/index.js";
 import { APP_CALLS_IN_FLIGHT, DEFAULT_LIMITS, RateLimiter } from "../src/limits.js";
 
@@ -622,7 +622,7 @@ describe("incoming webhooks", () => {
     const channelId = server!.store.channels.byName("general")!.id;
     const { data: created } = await call<{ app: { id: string } }>("/api/apps", {
       token: owner,
-      body: { name: "Alerts" },
+      body: { name: "Alerts", scopes: APP_SCOPES },
     });
     const urls: string[] = [];
     for (let i = 0; i < count; i++) {
@@ -700,7 +700,7 @@ describe("calls out to apps", () => {
     const channelId = server!.store.channels.byName("general")!.id;
     const { data: created } = await call<{ app: { id: string } }>("/api/apps", {
       token: owner,
-      body: { name: "Deployer" },
+      body: { name: "Deployer", scopes: APP_SCOPES },
     });
     const appId = created.app.id;
     expect(

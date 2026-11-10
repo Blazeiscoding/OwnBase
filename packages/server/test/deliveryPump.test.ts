@@ -4,6 +4,7 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { createWorkspaceServer, type WorkspaceServer } from "../src/server.js";
+import { APP_SCOPES } from "@ownbase/protocol";
 
 /**
  * App events go out through a pump (REV-15, slice B). An endpoint slow to
@@ -80,6 +81,7 @@ function subscribe(name: string): string {
     botUserId: bot.id,
     createdBy: ownerId,
     signingSecret: "test-signing-secret-not-a-credential",
+    scopes: APP_SCOPES,
   });
   return store.apps.createSubscription({
     appId: app.id,

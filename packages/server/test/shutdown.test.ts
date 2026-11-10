@@ -5,6 +5,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { OutboundError, postToUrl } from "../src/outbound.js";
 import { createWorkspaceServer, type WorkspaceServer } from "../src/server.js";
+import { APP_SCOPES } from "@ownbase/protocol";
 
 /**
  * An app that takes its time. `hold` decides how long each request waits
@@ -171,6 +172,7 @@ describe("stopping while a request is still being worked on", () => {
     const token = await owner(base);
     const { data: made } = await call<{ app: { id: string } }>(base, "/api/apps", token, {
       name: "Slow Bot",
+      scopes: APP_SCOPES,
     });
     const registered = await call(base, `/api/apps/${made.app.id}/commands`, token, {
       command: "/slow",
@@ -214,7 +216,7 @@ describe("an event delivery cut short by shutdown", () => {
       base,
       "/api/apps",
       token,
-      { name: "Events Bot" },
+      { name: "Events Bot", scopes: APP_SCOPES },
     );
     const subscribed = await call(base, `/api/apps/${made.app.id}/subscriptions`, token, {
       url: app.url("/events"),

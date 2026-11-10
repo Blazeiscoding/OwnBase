@@ -361,6 +361,7 @@ describe("Up in an empty box", () => {
     reactions: [],
     files: [],
     pinned: false,
+    previews: [],
     actions: [],
     ...extra,
   });

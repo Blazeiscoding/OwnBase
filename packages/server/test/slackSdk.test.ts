@@ -2,6 +2,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { createServer, type Server } from "node:http";
 import { WebClient, type WebAPIPlatformError } from "@slack/web-api";
 import { createWorkspaceServer, type WorkspaceServer } from "../src/server.js";
+import { APP_SCOPES } from "@ownbase/protocol";
 
 /**
  * Slack's own SDK, pointed at this server. The API claims that an integration
@@ -69,7 +70,7 @@ beforeAll(async () => {
   const made = await call<{ app: { id: string }; botUser: { id: string }; token: string }>(
     "/api/apps",
     ownerToken,
-    { name: "SDK Bot" },
+    { name: "SDK Bot", scopes: APP_SCOPES },
   );
   bot = { appId: made.app.id, botUserId: made.botUser.id, token: made.token };
   channelId = server.store.channels.byName("general")!.id;

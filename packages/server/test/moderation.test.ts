@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import WebSocket from "ws";
-import { PROTOCOL_VERSION, type ServerToClient } from "@ownbase/protocol";
+import { PROTOCOL_VERSION, type ServerToClient, APP_SCOPES } from "@ownbase/protocol";
 import { createWorkspaceServer, type WorkspaceServer } from "../src/server.js";
 
 /**
@@ -135,7 +135,7 @@ describe("blocking someone", () => {
 
   it("is not for oneself, an app or nobody", async () => {
     expect((await block(maya, maya)).data.error).toBe("cannot_block_self");
-    const app = await call("/api/apps", owner.token, { name: "Deploy Bot" });
+    const app = await call("/api/apps", owner.token, { name: "Deploy Bot", scopes: APP_SCOPES });
     expect(
       (await call(`/api/me/blocks/${app.data.botUser.id}`, maya.token, undefined, "PUT")).data
         .error,

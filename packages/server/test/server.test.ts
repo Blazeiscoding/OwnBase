@@ -10,8 +10,12 @@ import {
   type ReadySnapshot,
   type ServerToClient,
   type User,
+  APP_SCOPES,
 } from "@ownbase/protocol";
 import { createWorkspaceServer, type WorkspaceServer } from "../src/index.js";
+
+/** The searcher's zone, which the server reads `before:` and `after:` in. */
+const TZ = encodeURIComponent(Intl.DateTimeFormat().resolvedOptions().timeZone);
 
 let server: WorkspaceServer;
 let base: string;
@@ -255,14 +259,14 @@ describe("workspace server", () => {
     const edited = await api<{ message: Message }>(`/api/messages/${root.data.message.id}`, {
       method: "PATCH",
       token: aliceToken,
-      body: { text: "thread root (edited)" },
+      body: { text: "thread root (edited)", expectedText: "thread root" },
     });
     expect(edited.data.message.editedAt).not.toBeNull();
 
     const foreignEdit = await api(`/api/messages/${root.data.message.id}`, {
       method: "PATCH",
       token: bobToken,
-      body: { text: "hijack" },
+      body: { text: "hijack", expectedText: "thread root (edited)" },
     });
     expect(foreignEdit.status).toBe(403);
 
@@ -296,13 +300,13 @@ describe("workspace server", () => {
       body: { text: "secret zebra heist" },
     });
 
-    const bobSearch = await api<{ messages: Message[] }>("/api/search?q=zebra", {
+    const bobSearch = await api<{ messages: Message[] }>(`/api/search?tz=${TZ}&q=zebra`, {
       token: bobToken,
     });
     expect(bobSearch.data.messages).toHaveLength(1);
     expect(bobSearch.data.messages[0]!.text).toContain("quarterly");
 
-    const aliceSearch = await api<{ messages: Message[] }>("/api/search?q=zebra", {
+    const aliceSearch = await api<{ messages: Message[] }>(`/api/search?tz=${TZ}&q=zebra`, {
       token: aliceToken,
     });
     expect(aliceSearch.data.messages).toHaveLength(2);
@@ -331,7 +335,9 @@ describe("workspace server", () => {
     await attach(secret.id, "Q3 budget final.xlsx", "the real numbers");
     const search = async (q: string, token: string) =>
       (
-        await api<{ messages: Message[] }>(`/api/search?q=${encodeURIComponent(q)}`, { token })
+        await api<{ messages: Message[] }>(`/api/search?tz=${TZ}&q=${encodeURIComponent(q)}`, {
+          token,
+        })
       ).data.messages.map((m) => m.text);
 
     expect(await search("budget", bobToken)).toEqual(["numbers for the quarter"]);
@@ -515,7 +521,7 @@ describe("workspace server", () => {
     });
     const find = async (q: string) =>
       (
-        await api<{ messages: Message[] }>(`/api/search?q=${encodeURIComponent(q)}`, {
+        await api<{ messages: Message[] }>(`/api/search?tz=${TZ}&q=${encodeURIComponent(q)}`, {
           token: aliceToken,
         })
       ).data.messages.filter((m) => m.text.includes("quokkas"));
@@ -539,38 +545,40 @@ describe("workspace server", () => {
       body: { text: "alpaca link https://example.com/alpaca" },
     });
 
-    const all = await api<{ messages: Message[] }>("/api/search?q=alpaca", { token: aliceToken });
+    const all = await api<{ messages: Message[] }>(`/api/search?tz=${TZ}&q=alpaca`, {
+      token: aliceToken,
+    });
     expect(all.data.messages).toHaveLength(2);
 
     const fromBob = await api<{ messages: Message[] }>(
-      `/api/search?q=${encodeURIComponent("alpaca from:@bob")}`,
+      `/api/search?tz=${TZ}&q=${encodeURIComponent("alpaca from:@bob")}`,
       { token: aliceToken },
     );
     expect(fromBob.data.messages).toHaveLength(1);
     expect(fromBob.data.messages[0]!.userId).toBe(bob.id);
 
     const withLink = await api<{ messages: Message[] }>(
-      `/api/search?q=${encodeURIComponent("alpaca has:link")}`,
+      `/api/search?tz=${TZ}&q=${encodeURIComponent("alpaca has:link")}`,
       { token: aliceToken },
     );
     expect(withLink.data.messages).toHaveLength(1);
     expect(withLink.data.messages[0]!.text).toContain("https://");
 
     const inGeneral = await api<{ messages: Message[] }>(
-      `/api/search?q=${encodeURIComponent("alpaca in:#general")}`,
+      `/api/search?tz=${TZ}&q=${encodeURIComponent("alpaca in:#general")}`,
       { token: aliceToken },
     );
     expect(inGeneral.data.messages).toHaveLength(2);
 
     const elsewhere = await api<{ messages: Message[] }>(
-      `/api/search?q=${encodeURIComponent("alpaca in:#nowhere")}`,
+      `/api/search?tz=${TZ}&q=${encodeURIComponent("alpaca in:#nowhere")}`,
       { token: aliceToken },
     );
     expect(elsewhere.data.messages).toHaveLength(0);
 
     // Modifiers alone, with no free text, still search.
     const bobsPosts = await api<{ messages: Message[] }>(
-      `/api/search?q=${encodeURIComponent("from:@bob in:#general")}`,
+      `/api/search?tz=${TZ}&q=${encodeURIComponent("from:@bob in:#general")}`,
       { token: aliceToken },
     );
     expect(bobsPosts.data.messages.length).toBeGreaterThan(0);
@@ -579,7 +587,7 @@ describe("workspace server", () => {
     // A future cutoff excludes everything written so far.
     const tomorrow = new Date(Date.now() + 86_400_000).toISOString().slice(0, 10);
     const laterOnly = await api<{ messages: Message[] }>(
-      `/api/search?q=${encodeURIComponent(`alpaca after:${tomorrow}`)}`,
+      `/api/search?tz=${TZ}&q=${encodeURIComponent(`alpaca after:${tomorrow}`)}`,
       { token: aliceToken },
     );
     expect(laterOnly.data.messages).toHaveLength(0);
@@ -593,7 +601,7 @@ describe("workspace server", () => {
     });
     // Bob is not a member, so naming the channel must not leak it.
     const bobTry = await api<{ messages: Message[] }>(
-      `/api/search?q=${encodeURIComponent("alpaca in:#secret-plans")}`,
+      `/api/search?tz=${TZ}&q=${encodeURIComponent("alpaca in:#secret-plans")}`,
       { token: bobToken },
     );
     expect(bobTry.data.messages).toHaveLength(0);
@@ -1056,7 +1064,7 @@ describe("workspace server", () => {
 
     const created = await api<{ app: { id: string }; botUser: User; token: string }>("/api/apps", {
       token: aliceToken,
-      body: { name: "Deploy Bot" },
+      body: { name: "Deploy Bot", scopes: APP_SCOPES },
     });
     expect(created.status).toBe(201);
     expect(created.data.botUser.isBot).toBe(true);
@@ -1127,7 +1135,7 @@ describe("workspace server", () => {
     const general = server.store.channels.byName("general")!;
     const created = await api<{ app: { id: string }; botUser: User; token: string }>("/api/apps", {
       token: aliceToken,
-      body: { name: "Status Bot" },
+      body: { name: "Status Bot", scopes: APP_SCOPES },
     });
     const botToken = created.data.token;
 
@@ -1177,12 +1185,15 @@ describe("workspace server", () => {
 
   it("keeps app management to admins, and revoking kills the webhook", async () => {
     const general = server.store.channels.byName("general")!;
-    const denied = await api("/api/apps", { token: bobToken, body: { name: "Bob's Bot" } });
+    const denied = await api("/api/apps", {
+      token: bobToken,
+      body: { name: "Bob's Bot", scopes: APP_SCOPES },
+    });
     expect(denied.status).toBe(403);
 
     const created = await api<{ app: { id: string } }>("/api/apps", {
       token: aliceToken,
-      body: { name: "Temp Bot" },
+      body: { name: "Temp Bot", scopes: APP_SCOPES },
     });
     const hook = await api<{ url: string }>(`/api/apps/${created.data.app.id}/webhooks`, {
       token: aliceToken,
@@ -1213,7 +1224,7 @@ describe("workspace server", () => {
   });
 
   it("enforces invite-only registration when enabled", async () => {
-    server.setInviteOnly(true);
+    server.setAccessPolicy("invite_only");
     const noInvite = await api("/api/auth/register", {
       body: { handle: "carol", displayName: "Carol", password: "password123" },
     });
@@ -1232,6 +1243,6 @@ describe("workspace server", () => {
       },
     });
     expect(withInvite.status).toBe(201);
-    server.setInviteOnly(false);
+    server.setAccessPolicy("account_required");
   });
 });

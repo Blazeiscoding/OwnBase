@@ -278,13 +278,6 @@ export interface WorkspaceServer {
   setRelay: (relay: ServerRelay | null) => void;
   /** Why the relay gave calls no password last time it was asked, until it does. */
   relayError: () => string | null;
-  /** Whether an account after the first needs an invite code. */
-  inviteOnly: () => boolean;
-  /**
-   * Turns invites on (`invite_only`) or off. Off keeps guests allowed if they
-   * were, so a host that does not know about guests cannot let them in.
-   */
-  setInviteOnly: (inviteOnly: boolean) => void;
   /** Who may join: invited accounts, any account, or guests too. */
   accessPolicy: () => AccessPolicy;
   /**
@@ -619,11 +612,6 @@ async function startWorkspaceServer(
     setIceServers: (servers) => huddles.setIceServers(servers),
     setRelay: (next) => huddles.setRelay(next),
     relayError: () => huddles.relayError(),
-    inviteOnly: () => workspace.accessPolicy() === "invite_only",
-    setInviteOnly: (value) => {
-      if (typeof value !== "boolean") throw new TypeError("inviteOnly must be a boolean");
-      workspace.changeAccessPolicy(workspace.withInvites(value), null);
-    },
     accessPolicy: workspace.accessPolicy,
     setAccessPolicy: (policy) => {
       if (!isAccessPolicy(policy)) throw new TypeError(`policy must be one of ${ACCESS_POLICIES}`);

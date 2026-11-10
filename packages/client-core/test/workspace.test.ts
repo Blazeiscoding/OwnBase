@@ -421,7 +421,7 @@ describe("WorkspaceClient", () => {
     const { message: late } = await bob.sendMessage(channel.id, { text: "posted meanwhile" });
     const { message: gone } = await bob.sendMessage(channel.id, { text: "deleted meanwhile" });
     const { message: edited } = await bob.sendMessage(channel.id, { text: "first draft" });
-    await bob.editMessage(edited.id, "edited meanwhile");
+    await bob.editMessage(edited.id, "edited meanwhile", edited.text);
     await bob.deleteMessage(gone.id);
     await until(
       client,

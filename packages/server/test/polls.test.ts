@@ -210,7 +210,11 @@ describe("making a poll", () => {
 
   it("cannot have its question edited, since people voted on it as it was", async () => {
     const made = await poll("Lunch?", ["Pizza", "Tacos"]);
-    const edit = await request(`/api/messages/${made.id}`, { text: "Dinner?" }, "PATCH");
+    const edit = await request(
+      `/api/messages/${made.id}`,
+      { text: "Dinner?", expectedText: "Lunch?" },
+      "PATCH",
+    );
     expect(edit.status).toBe(409);
     expect(edit.body.error).toBe("poll_not_editable");
     expect((await history()).at(-1)!.text).toBe("Lunch?");
@@ -434,7 +438,7 @@ describe("deleting a poll", () => {
 });
 
 describe("the /poll command", () => {
-  it("is listed, and an older client that sends it is told where polls are made", async () => {
+  it("is listed and reserved, and refused when sent to the server", async () => {
     const listed = (await request("/api/commands", undefined, "GET")).body.commands;
     expect(listed).toContainEqual(expect.objectContaining({ command: "poll", builtin: true }));
     const sent = await request(`/api/channels/${channelId}/commands`, { text: "/poll Lunch?" });
@@ -445,7 +449,7 @@ describe("the /poll command", () => {
 });
 
 describe("commands the app runs itself", () => {
-  it("are listed, and an older client that sends one is told to update", async () => {
+  it("are listed and reserved, and refused when sent to the server", async () => {
     const listed = (await request("/api/commands", undefined, "GET")).body.commands;
     for (const command of [
       "away",
@@ -461,6 +465,6 @@ describe("commands the app runs itself", () => {
     const sent = await request(`/api/channels/${channelId}/commands`, { text: "/away" });
     expect(sent.status).toBe(400);
     expect(sent.body.error).toBe("in_app_command");
-    expect(sent.body.message).toBe("Update OwnBase to use /away.");
+    expect(sent.body.message).toBe("/away is run by the app, not the server.");
   });
 });

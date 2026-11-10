@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { createServer, type Server, type ServerResponse } from "node:http";
 import { createWorkspaceServer, type WorkspaceServer } from "../src/server.js";
+import { APP_SCOPES } from "@ownbase/protocol";
 
 type Callback = { type: string; trigger_id?: string; response_url?: string; view?: { id: string } };
 let server: WorkspaceServer;
@@ -63,7 +64,7 @@ beforeEach(async () => {
     })
   ).body.token;
   channel = server.store.channels.byName("general")!.id;
-  app = (await api("POST", "/api/apps", { name: "Meeting App" })).body;
+  app = (await api("POST", "/api/apps", { name: "Meeting App", scopes: APP_SCOPES })).body;
   expect(
     (
       await api("PUT", `/api/apps/${app.app.id}/interactivity`, {

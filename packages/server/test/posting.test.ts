@@ -3,7 +3,7 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { createServer, type Server } from "node:http";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { MESSAGE_TEXT_MAX } from "@ownbase/protocol";
+import { MESSAGE_TEXT_MAX, APP_SCOPES } from "@ownbase/protocol";
 import { createWorkspaceServer, type WorkspaceServer } from "../src/index.js";
 
 /** Every way into a conversation meets the same rules (untangle U4). */
@@ -94,7 +94,7 @@ async function start(rateLimits?: Parameters<typeof createWorkspaceServer>[0]["r
   const channelId = server.store.channels.byName("general")!.id;
   const made = await call<{ app: { id: string }; botUser: { id: string }; token: string }>(
     "/api/apps",
-    { token: owner, body: { name: "Deployer" } },
+    { token: owner, body: { name: "Deployer", scopes: APP_SCOPES } },
   );
   const appId = made.data.app.id;
   await call(`/api/apps/${appId}/commands`, {

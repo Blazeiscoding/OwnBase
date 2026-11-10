@@ -322,11 +322,8 @@ const appScopes = z.array(z.enum(APP_SCOPES)).max(APP_SCOPES.length);
 
 export const createAppBody = z.object({
   name: z.string().min(1).max(60),
-  /**
-   * What it may do (E18c). Left out, it may do everything, as every app could
-   * before scopes, so an older client or a script makes the same app it did.
-   */
-  scopes: appScopes.optional(),
+  /** What it may do (E18c). */
+  scopes: appScopes,
 });
 
 /** Replaces what an app may do. */
@@ -423,10 +420,9 @@ export const editMessageBody = z.object({
   text: z.string().min(1).max(MESSAGE_TEXT_MAX),
   /**
    * The words the author is replacing, as their client last had them. A
-   * message changed since is refused rather than overwritten. Left out, an
-   * edit replaces whatever is there, as before this existed.
+   * message changed since is refused rather than overwritten.
    */
-  expectedText: z.string().max(MESSAGE_TEXT_MAX).optional(),
+  expectedText: z.string().max(MESSAGE_TEXT_MAX),
 });
 
 export const markReadBody = z.object({
@@ -510,11 +506,8 @@ export const searchQuery = z.object({
   limit: z.coerce.number().int().positive().max(100).default(30),
   cursor: z.string().min(1).max(100).optional(),
   channelId: z.string().min(1).max(100).optional(),
-  /**
-   * The reader's IANA time zone, whose calendar days `before:` and `after:`
-   * name. Without it the server's own zone is used, as older clients expect.
-   */
-  tz: z.string().min(1).max(64).optional(),
+  /** The reader's IANA time zone, whose calendar days `before:` and `after:` name. */
+  tz: z.string().min(1).max(64),
 });
 
 export const activityQuery = z.object({

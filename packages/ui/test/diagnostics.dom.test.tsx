@@ -138,7 +138,11 @@ describe("the server's status in the report, for the owner and admins (OPS-10)",
     schemaVersion: 34,
     uptimeSeconds: 3 * 3600 + 5 * 60,
     database: { bytes: 48 * 1024 * 1024, walBytes: 4 * 1024 * 1024 },
-    attachments: { bytes: 300 * 1024 * 1024, limitBytes: 1024 ** 3 },
+    attachments: {
+      bytes: 300 * 1024 * 1024,
+      limitBytes: 1024 ** 3,
+      removal: { waiting: 0, retrying: 0, rejected: 0, oldestQueuedAt: null },
+    },
     diskFreeBytes: 12 * 1024 ** 3,
     deliveries: {
       waiting: 3,
@@ -151,8 +155,10 @@ describe("the server's status in the report, for the owner and admins (OPS-10)",
       lastSuccessAt: Date.parse("2026-09-26T03:00:00Z"),
       failures: 2,
     },
+    backups: { enabled: false },
     connections: { sockets: 5, people: 1 },
     eventLoopDelayMs: { p50: 10.2, p99: 12.5, max: 40.1 },
+    backgroundFailures: [],
   };
 
   it("adds sizes, queues and timings after the device's own lines", () => {
@@ -162,12 +168,15 @@ describe("the server's status in the report, for the owner and admins (OPS-10)",
       "Server: v0.4.2, schema 34, up 3 h 5 min",
       "Database: 48 MB, log 4.0 MB",
       "Attachments: 300 MB of 1.0 GB",
+      "Attachment removal: 0 waiting, 0 retrying, 0 set aside",
       "Free disk: 12 GB",
       "App deliveries: 3 waiting (oldest for 12 min), 1 given up",
       "Scheduled messages: 2 queued, 1 held for a retry, 0 failed",
       "History removal: last done 2026-09-26T03:00:00.000Z, 2 failures since",
+      "Backups: not scheduled",
       "Connections: 5 sockets for 1 person",
       "Event loop delay: p50 10.2 ms, p99 12.5 ms, max 40.1 ms",
+      "Background work: all running",
     ]);
   });
 
@@ -177,7 +186,7 @@ describe("the server's status in the report, for the owner and admins (OPS-10)",
       workspace: {
         ...busy,
         uptimeSeconds: 20,
-        attachments: { bytes: 0, limitBytes: null },
+        attachments: { ...busy.attachments, bytes: 0, limitBytes: null },
         diskFreeBytes: null,
         deliveries: { waiting: 0, oldestWaitingAt: null, failed: 0 },
         retention: { enabled: false, lastSuccessAt: null, failures: 0 },
@@ -204,8 +213,6 @@ describe("the server's status in the report, for the owner and admins (OPS-10)",
     ).toContain(
       "Background work failing: scheduled messages (3 times in a row, for 5 min); event deliveries (1 time in a row, for 30 s)",
     );
-    // A server from before it does not say, so neither does the report.
-    expect(report(undefined)).not.toContain("Background work");
   });
 
   it("gives each of the server's extensions a line, saying when one needs attention (P6)", () => {
@@ -241,7 +248,6 @@ describe("the server's status in the report, for the owner and admins (OPS-10)",
     expect(report).toContain(
       "Attachment removal: 3 waiting (oldest for 20 min), 2 retrying, 1 set aside",
     );
-    expect(diagnosticsReport({ ...base, workspace: busy })).not.toContain("Attachment removal");
   });
 
   it("says how scheduled backups go, or that there are none", () => {
@@ -283,8 +289,6 @@ describe("the server's status in the report, for the owner and admins (OPS-10)",
     ).toContain("Offsite copies: newest from 2026-09-25T03:00:00.000Z, 1 failure since");
     expect(report(scheduled)).not.toContain("Offsite");
     expect(report({ enabled: false })).toContain("Backups: not scheduled");
-    // A server from before them does not say, so neither does the report.
-    expect(report(undefined)).not.toContain("Backups");
   });
 
   it("says when the status could not be read", () => {
@@ -409,13 +413,19 @@ describe("the diagnostics dialog", () => {
       schemaVersion: 34,
       uptimeSeconds: 90,
       database: { bytes: 2048, walBytes: 0 },
-      attachments: { bytes: 0, limitBytes: null },
+      attachments: {
+        bytes: 0,
+        limitBytes: null,
+        removal: { waiting: 0, retrying: 0, rejected: 0, oldestQueuedAt: null },
+      },
       diskFreeBytes: null,
       deliveries: { waiting: 0, oldestWaitingAt: null, failed: 0 },
       scheduled: { queued: 0, held: 0, failed: 0 },
       retention: { enabled: false, lastSuccessAt: null, failures: 0 },
+      backups: { enabled: false },
       connections: { sockets: 1, people: 1 },
       eventLoopDelayMs: null,
+      backgroundFailures: [],
     }));
     const report = await screen.findByLabelText("Diagnostics report");
     expect(report).toHaveTextContent("Workspace status");

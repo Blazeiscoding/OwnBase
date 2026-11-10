@@ -24,6 +24,7 @@ const invite = (over: Partial<Invite>): Invite => ({
   expiresAt: NOW + 7 * DAY,
   maxUses: null,
   uses: 0,
+  revokedAt: null,
   status: "active",
   ...over,
 });
@@ -48,11 +49,6 @@ describe("the invite shown again", () => {
     expect(reusableInvite([...candidates, invite({ code: "FINE" })], "U_ME", NOW)?.code).toBe(
       "FINE",
     );
-  });
-
-  it("counts one from an older server, without a status, as working", () => {
-    const { status: _gone, ...old } = invite({ code: "OLD" });
-    expect(reusableInvite([old], "U_ME", NOW)?.code).toBe("OLD");
   });
 });
 

@@ -173,7 +173,7 @@ describe("a message's link previews", () => {
     expect(screen.queryByRole("link", { name: "Launch day" })).toBeNull();
     expect(screen.getByText("Launch day")).toBeVisible();
     cleanup();
-    shown(message({ previews: undefined }));
+    shown(message({ previews: [] }));
     expect(screen.queryByText("Example News")).toBeNull();
   });
 });
@@ -224,7 +224,7 @@ describe("turning link previews off", () => {
     expect(box).toBeChecked();
   });
 
-  it("is not offered by a server without previews", () => {
+  it("is not offered before the workspace has said whether they are on", () => {
     const { dialog } = settings({ linkPreviews: null });
     expect(within(dialog).queryByText("Link previews")).toBeNull();
   });

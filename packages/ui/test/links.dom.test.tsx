@@ -57,6 +57,7 @@ const madeInvite: Invite = {
   expiresAt: null,
   maxUses: null,
   uses: 0,
+  revokedAt: null,
   status: "active",
 };
 

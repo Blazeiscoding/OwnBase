@@ -56,6 +56,7 @@ const message: Message = {
   reactions: [],
   files: [],
   pinned: false,
+  previews: [],
   actions: [],
 };
 

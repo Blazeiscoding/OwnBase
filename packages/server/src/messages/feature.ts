@@ -344,11 +344,7 @@ export function registerMessages(ctx: ServerContext, { files }: { files: Files }
     if (existing.call)
       throw new HttpError(409, "call_not_editable", "A note about a call cannot be changed.");
     // Words already the new ones are a retry whose answer was lost, not a conflict.
-    if (
-      body.expectedText !== undefined &&
-      existing.text !== body.expectedText &&
-      existing.text !== body.text
-    ) {
+    if (existing.text !== body.expectedText && existing.text !== body.text) {
       throw new HttpError(
         409,
         "message_changed",

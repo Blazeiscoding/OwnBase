@@ -170,7 +170,14 @@ describe("Apps list status", () => {
           url: "https://bot.example.com/events",
           eventTypes: [],
           createdAt: 0,
-          delivery: { pending: 1, failed: 0, dropped: 0, lastError: null, lastFailedAt: null },
+          delivery: {
+            pending: 1,
+            failed: 0,
+            retrying: 0,
+            dropped: 0,
+            lastError: null,
+            lastFailedAt: null,
+          },
         },
       ],
     };

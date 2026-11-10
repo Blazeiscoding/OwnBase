@@ -65,6 +65,7 @@ const lunch = (poll: Partial<Poll> = {}, over: Partial<Message> = {}): Message =
   reactions: [],
   files: [],
   pinned: false,
+  previews: [],
   actions: [],
   poll: {
     options: [

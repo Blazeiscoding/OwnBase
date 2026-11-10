@@ -30,8 +30,7 @@ export function reusableInvite(invites: Invite[], selfId: ID | undefined, now = 
       .filter(
         (invite) =>
           invite.createdBy === selfId &&
-          (invite.status ?? "active") === "active" &&
-          !invite.revokedAt &&
+          invite.status === "active" &&
           invite.maxUses === null &&
           (invite.expiresAt === null || invite.expiresAt - now >= DAY),
       )

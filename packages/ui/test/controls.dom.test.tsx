@@ -281,6 +281,7 @@ describe("message actions", () => {
     reactions: [],
     files: [],
     pinned: true,
+    previews: [],
     actions: [],
   };
 

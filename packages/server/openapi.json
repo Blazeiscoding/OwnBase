@@ -5380,7 +5380,7 @@
           {
             "name": "tz",
             "in": "query",
-            "required": false,
+            "required": true,
             "schema": {
               "type": "string",
               "minLength": 1,
@@ -5934,7 +5934,8 @@
           }
         },
         "required": [
-          "text"
+          "text",
+          "expectedText"
         ]
       },
       "ReportMessageBody": {
@@ -6005,7 +6006,8 @@
           }
         },
         "required": [
-          "name"
+          "name",
+          "scopes"
         ]
       },
       "AppScopesBody": {

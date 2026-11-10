@@ -58,7 +58,7 @@ describe("what changed in a conversation", () => {
     await expect.poll(changed).toBeGreaterThan(0);
     const pinned = changed();
 
-    await owner.editMessage(message.id, "Edited");
+    await owner.editMessage(message.id, "Edited", message.text);
     await expect.poll(changed).toBeGreaterThan(pinned);
     const edited = changed();
 

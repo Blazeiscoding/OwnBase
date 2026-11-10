@@ -2129,7 +2129,7 @@ test("an app's button calls it back and rewrites the message it sits on", async 
       await fetch(`${base}/api/apps`, {
         method: "POST",
         headers: admin,
-        body: JSON.stringify({ name: "Deploy Bot" }),
+        body: JSON.stringify({ name: "Deploy Bot", scopes: ["chat:write", "chat:write.public"] }),
       })
     ).json();
 
@@ -2291,7 +2291,7 @@ test("a button opens the app's form, and what you type reaches the app", async (
       await fetch(`${base}/api/apps`, {
         method: "POST",
         headers: admin,
-        body: JSON.stringify({ name: "Form Bot" }),
+        body: JSON.stringify({ name: "Form Bot", scopes: ["chat:write", "chat:write.public"] }),
       })
     ).json();
     botToken = created.token;
