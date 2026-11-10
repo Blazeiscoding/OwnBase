@@ -323,6 +323,8 @@ export interface WorkspaceServer {
   connectedPeople: () => number;
   /** Calls `listener` whenever that count may have changed. Returns how to stop. */
   onConnectedChange: (listener: () => void) => () => void;
+  /** How many accounts there are; none until the owner's is made. */
+  accountCount: () => number;
   stop: () => Promise<void>;
 }
 
@@ -635,6 +637,7 @@ async function startWorkspaceServer(
     reannounce: () => announce(),
     connectedPeople: () => gateway.onlineUserIds().length,
     onConnectedChange: (listener) => gateway.onPresenceChange(listener),
+    accountCount: () => store.people.count(),
     stop: () => {
       if (stopping) return stopping;
       if (!stopped.started) {
