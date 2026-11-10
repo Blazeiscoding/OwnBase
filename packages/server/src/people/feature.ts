@@ -136,7 +136,7 @@ export function registerPeople(ctx: ServerContext) {
   route(endpoints.reportMessage, async ({ user: me, body, params }) => {
     const message = requireVisibleMessage(store, params.id, me);
     if (message.userId === me.id) throw new HttpError(400, "cannot_report_own_message");
-    store.people.report(message.id, me.id, body.reason, body.note?.trim() ?? "");
+    store.reports.file(message.id, me.id, body.reason, body.note?.trim() ?? "");
     return { ok: true };
   });
 

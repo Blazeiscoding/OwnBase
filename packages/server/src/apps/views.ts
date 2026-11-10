@@ -1,11 +1,11 @@
 import { endpoints, type ID, type ModalView } from "@ownbase/protocol";
+import { CapabilityMap } from "../core/capabilities.js";
 import type { ServerContext } from "../core/context.js";
 import { HttpError } from "../httpError.js";
 import { ulid } from "../ids.js";
 import { CAPABILITIES_ALIVE } from "../limits.js";
 import { parseView, readAnswer, type AnswerContext } from "./blockKit.js";
 import type { AppCalls } from "./calls.js";
-import { CapabilityMap } from "../core/capabilities.js";
 import { slackError, structured } from "./slackApi.js";
 
 /**
@@ -37,6 +37,7 @@ interface OpenView {
   expiresAt: number;
 }
 
+const TRIGGER_LIFE = 3 * 60_000;
 const VIEW_LIFE = 30 * 60_000;
 const MAX_STACK = 3;
 
@@ -49,7 +50,7 @@ export function registerViews(ctx: ServerContext, { calls }: { calls: AppCalls }
   const newTrigger: NewTrigger = (trigger) => {
     const now = Date.now();
     const id = ulid();
-    triggers.set(id, { ...trigger, expiresAt: now + 3 * 60_000 }, now);
+    triggers.set(id, { ...trigger, expiresAt: now + TRIGGER_LIFE }, now);
     return id;
   };
 
@@ -178,7 +179,6 @@ export function registerViews(ctx: ServerContext, { calls }: { calls: AppCalls }
       if (typeof triggerId === "string") triggers.delete(triggerId);
       return { error: "expired_trigger_id" };
     }
-    // The trigger belongs to whoever it was issued for, and to that app alone.
     if (trigger.appId !== owner.id) return { error: "trigger_not_yours" };
     triggers.delete(triggerId as string);
     if (!calls.capabilityHolds({ ...trigger, invokerId: trigger.userId })) {
@@ -221,19 +221,16 @@ export function registerViews(ctx: ServerContext, { calls }: { calls: AppCalls }
     return { ok: true, view: describeView(openViews.get(read.view.id)!) };
   };
 
-  route(endpoints.viewsOpen, async ({ req, bot: owner }) => {
-    const body = (req.body ?? {}) as { trigger_id?: unknown; view?: unknown };
-    const trigger = spendTrigger(owner, body.trigger_id);
-    if ("error" in trigger) return slackError(trigger.error);
-    return placeView(owner, trigger, structured(body.view), false);
-  });
-
-  route(endpoints.viewsPush, async ({ req, bot: owner }) => {
-    const body = (req.body ?? {}) as { trigger_id?: unknown; view?: unknown };
-    const trigger = spendTrigger(owner, body.trigger_id);
-    if ("error" in trigger) return slackError(trigger.error);
-    return placeView(owner, trigger, structured(body.view), true);
-  });
+  const showOnTrigger =
+    (push: boolean) =>
+    async ({ req, bot: owner }: { req: { body: unknown }; bot: { id: ID; botUserId: ID } }) => {
+      const body = (req.body ?? {}) as { trigger_id?: unknown; view?: unknown };
+      const trigger = spendTrigger(owner, body.trigger_id);
+      if ("error" in trigger) return slackError(trigger.error);
+      return placeView(owner, trigger, structured(body.view), push);
+    };
+  route(endpoints.viewsOpen, showOnTrigger(false));
+  route(endpoints.viewsPush, showOnTrigger(true));
 
   route(endpoints.viewsUpdate, async ({ req, bot: owner }) => {
     // An app updating in a loop pushes a form at someone with every call.
@@ -281,7 +278,6 @@ export function registerViews(ctx: ServerContext, { calls }: { calls: AppCalls }
 
   route(endpoints.submitView, async ({ user: me, body, params }) => {
     const open = openViews.get(params.id);
-    // A view belongs to the one person it was opened for.
     if (!open || open.userId !== me.id || open.expiresAt < Date.now()) {
       // A request from another account must not consume the owner's view.
       if (!open || open.expiresAt < Date.now()) openViews.delete(params.id);

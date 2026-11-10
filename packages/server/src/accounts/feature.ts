@@ -558,7 +558,7 @@ export function registerAccounts(
         expiresAt: body.expiresInHours ? Date.now() + body.expiresInHours * 3600_000 : null,
         maxUses: body.maxUses ?? null,
       });
-      store.recordAudit({
+      store.audit.record({
         actorId: me.id,
         action: "invite.created",
         targetType: "invite",
@@ -583,7 +583,7 @@ export function registerAccounts(
     }
     const revoked = store.transaction(() => {
       if (!store.accounts.revokeInvite(invite.code, me.id)) return false;
-      store.recordAudit({
+      store.audit.record({
         actorId: me.id,
         action: "invite.revoked",
         targetType: "invite",

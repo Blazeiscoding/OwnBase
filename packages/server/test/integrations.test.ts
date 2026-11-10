@@ -272,7 +272,6 @@ describe("slash commands", () => {
     });
     expect(res.status).toBe(200);
     const messages = server.store.messages.list({ channelId, limit: 1 });
-    // Stored pre-escaped for the renderer; the UI test pins how it displays.
     // Stored escaped for the renderer; the ui package pins how that displays.
     expect(messages[0]!.text).toBe(`well then ${escapeMrkdwn("¯\\_(ツ)_/¯")}`);
     expect(messages[0]!.userId).toBe(alice.id);
@@ -1411,6 +1410,59 @@ describe("interactive buttons", () => {
     });
     expect(res.status).toBe(200);
     expect(server.store.messages.get(messageId)).toBeNull();
+  });
+
+  it("tells the presser, and only them, when the app answers a press with an error", async () => {
+    const created = await newApp("Failing Button Bot");
+    acceptVerification();
+    await api(`/api/apps/${created.id}/interactivity`, {
+      method: "PUT",
+      token: aliceToken,
+      body: { url: stub.url("/interactions") },
+    });
+    const posted = await api<{ ts: string }>("/api/chat.postMessage", {
+      token: created.token,
+      body: {
+        channel: channelId,
+        text: "Ship 414?",
+        blocks: [
+          {
+            type: "actions",
+            elements: [
+              { type: "button", action_id: "go", text: { type: "plain_text", text: "Go" } },
+            ],
+          },
+        ],
+      },
+    });
+    // Pressed by Alice: the modal tests below spend most of Bob's app-call budget.
+    const presser = connectWs(aliceToken);
+    const bystander = connectWs(bobToken);
+    await presser.next((frame) => frame.type === "ready");
+    await bystander.next((frame) => frame.type === "ready");
+    try {
+      stub.handler = () => ({ status: 500, body: "boom" });
+      const pressed = await api<{ ok: boolean; error: string }>(
+        `/api/messages/${posted.data.ts}/actions`,
+        { token: aliceToken, body: { actionId: "go" } },
+      );
+      expect(pressed.data).toEqual({ ok: false, error: "action_failed" });
+      const note = (await presser.next(
+        (frame) => frame.type === "ephemeral" && frame.event.type === "ephemeral.message",
+      )) as { type: "ephemeral"; event: { text: string } };
+      expect(note.event.text).toBe("That button failed: the app answered 500.");
+      expect(
+        bystander.received.some(
+          (frame) => frame.type === "ephemeral" && frame.event.type === "ephemeral.message",
+        ),
+      ).toBe(false);
+      expect(server.store.messages.get(posted.data.ts)!.text).toBe("Ship 414?");
+    } finally {
+      // Anything else refused meanwhile would come back as a retry in a later test.
+      stub.handler = () => ({ body: "" });
+      presser.ws.terminate();
+      bystander.ws.terminate();
+    }
   });
 
   it("refuses a button on a message the presser cannot see", async () => {
