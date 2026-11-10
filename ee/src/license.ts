@@ -18,7 +18,6 @@ export const GRACE_MS = 14 * 24 * 60 * 60 * 1000;
 /** A license dated this far ahead of the server's clock is not believed. */
 const CLOCK_SKEW_MS = 24 * 60 * 60 * 1000;
 
-/** What a license says. */
 export interface LicenseClaims {
   /** Tells licenses apart, for whoever issued them. */
   id: string;
@@ -55,7 +54,6 @@ const isText = (value: unknown, max: number): value is string =>
 const isTime = (value: unknown): value is number =>
   typeof value === "number" && Number.isSafeInteger(value) && value > 0;
 
-/** The claims, if `value` has every field a license needs, as it needs them. */
 function claimsFrom(value: unknown): LicenseClaims | null {
   if (typeof value !== "object" || value === null) return null;
   const c = value as Record<string, unknown>;
@@ -117,7 +115,6 @@ export function readLicense(
   return { state: "expired", claims };
 }
 
-/** The Enterprise features on at this moment: a license's, while it is active or in grace. */
 export function featuresOn(license: LicenseState): ReadonlySet<string> {
   return license.state === "active" || license.state === "grace"
     ? new Set(license.claims.features)

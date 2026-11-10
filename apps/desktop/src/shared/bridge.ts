@@ -39,7 +39,6 @@ export interface OpenedMicrophone {
   name: string;
 }
 
-/** Each call, as the window makes it and what it resolves to. */
 export interface Calls {
   "file:download": (url: string) => void;
   "storage:get": (key: string, options?: { strict?: boolean }) => unknown;
@@ -100,7 +99,6 @@ export interface Calls {
   "hosting:openAtLogin:set": (open: boolean) => boolean;
 }
 
-/** Each event the main process pushes, and what it carries. */
 export interface Events {
   "lan:servers": DiscoveredServer[];
   "hosting:changed": HostingStatus;

@@ -566,7 +566,6 @@ export class Api {
     return this.http.json(endpoints.deleteSidebarSection, { params: { id } });
   }
 
-  /** Puts every one of this account's sections in this order. */
   orderSidebarSections(ids: ID[]) {
     return this.http.json(endpoints.orderSidebarSections, { body: { ids } });
   }

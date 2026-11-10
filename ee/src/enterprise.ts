@@ -16,7 +16,6 @@ export const ENDING_SOON_MS = 30 * 24 * 60 * 60 * 1000;
 
 /** The Enterprise edition as the server holds it (P6). */
 export interface Enterprise extends ServerExtension {
-  /** The license, where it stands now. */
   license(): LicenseState;
   /** Whether an Enterprise feature is on now. Chat never asks this. */
   has(feature: string): boolean;
