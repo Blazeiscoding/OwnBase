@@ -136,7 +136,7 @@ describe("link previews on the client", () => {
       text: "Sounds good",
       replyToId: message.id,
     });
-    await bob.editMessage(message.id, "Plans for Friday https://news.example/slow");
+    await bob.editMessage(message.id, "Plans for Friday https://news.example/slow", message.text);
     await until(
       client,
       () => !!held(client, general.id, reply.id)?.replyTo?.text.includes("news.example"),

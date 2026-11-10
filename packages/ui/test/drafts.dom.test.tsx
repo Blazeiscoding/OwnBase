@@ -62,6 +62,7 @@ const message = (id: string, text: string, userId = sam.id): Message => ({
   reactions: [],
   files: [],
   pinned: false,
+  previews: [],
   actions: [],
 });
 const release = message("M_RELEASE", "Ship the release notes");

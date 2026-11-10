@@ -59,6 +59,7 @@ const message = (over: Partial<Message> = {}): Message => ({
   reactions: [],
   files: [],
   pinned: false,
+  previews: [],
   actions: [],
   ...over,
 });

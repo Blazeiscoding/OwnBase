@@ -49,8 +49,8 @@ async function postedAt(text: string, at: number) {
     .run(at, message.id);
 }
 
-async function search(q: string, tz?: string) {
-  const params = new URLSearchParams({ q, ...(tz ? { tz } : {}) });
+async function search(q: string, tz: string) {
+  const params = new URLSearchParams({ q, tz });
   const res = await fetch(`${base}/api/search?${params}`, {
     headers: { authorization: `Bearer ${token}` },
   });
@@ -86,5 +86,12 @@ describe("dates in a search", () => {
     const res = await search("zebra after:2026-03-08", "Mars/Olympus_Mons");
     expect(res.status).toBe(400);
     expect(res.body.error).toBe("invalid_time_zone");
+  });
+
+  it("refuses a search that does not say whose calendar its dates are on", async () => {
+    const res = await fetch(`${base}/api/search?q=zebra`, {
+      headers: { authorization: `Bearer ${token}` },
+    });
+    expect(res.status).toBe(400);
   });
 });

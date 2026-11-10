@@ -34,6 +34,7 @@ const message = (id: string, channelId = "C1", seq = 1): Message => ({
   reactions: [],
   files: [],
   pinned: false,
+  previews: [],
   actions: [],
 });
 

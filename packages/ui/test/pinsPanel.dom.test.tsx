@@ -56,6 +56,7 @@ const pinned = (id: string, text: string, seq: number): Message =>
     reactions: [],
     files: [],
     pinned: true,
+    previews: [],
   }) as unknown as Message;
 
 type Page = { messages: Message[]; nextCursor: string | null };

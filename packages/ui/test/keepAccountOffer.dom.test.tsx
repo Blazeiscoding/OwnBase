@@ -55,6 +55,7 @@ const message = (id: string, userId: string, threadRootId: string | null = null)
   reactions: [],
   files: [],
   pinned: false,
+  previews: [],
   actions: [],
 });
 

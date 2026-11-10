@@ -163,7 +163,7 @@ describe("inline replies", () => {
       (
         await request(
           `/api/messages/${pinged.id}`,
-          { text: "I do, at my desk" },
+          { text: "I do, at my desk", expectedText: "I do" },
           "PATCH",
           peer.token,
         )
@@ -240,7 +240,11 @@ describe("inline replies", () => {
     const reply = await post(peer.token, { text: "Love it", replyToId: original.id });
     expect(logged()).toContain("first draft");
 
-    await request(`/api/messages/${original.id}`, { text: "The plan, revised" }, "PATCH");
+    await request(
+      `/api/messages/${original.id}`,
+      { text: "The plan, revised", expectedText: "The secret plan, first draft" },
+      "PATCH",
+    );
     const history = await request(`/api/channels/${channelId}/messages`, undefined, "GET");
     const shown = history.body.messages.find((m: { id: string }) => m.id === reply.id);
     expect(shown.replyTo.text).toBe("The plan, revised");
@@ -254,7 +258,12 @@ describe("inline replies", () => {
     const original = await post(owner.token, { text: "Regrettable words" });
     const reply = await post(peer.token, { text: "Wow", replyToId: original.id });
     // An edit of the reply itself is a copy too.
-    await request(`/api/messages/${reply.id}`, { text: "Wow indeed" }, "PATCH", peer.token);
+    await request(
+      `/api/messages/${reply.id}`,
+      { text: "Wow indeed", expectedText: "Wow" },
+      "PATCH",
+      peer.token,
+    );
 
     await request(`/api/messages/${original.id}`, undefined, "DELETE");
     const history = await request(`/api/channels/${channelId}/messages`, undefined, "GET");

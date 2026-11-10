@@ -7,6 +7,7 @@ import { join } from "node:path";
 import { createWorkspaceServer, type WorkspaceServer } from "../src/server.js";
 import { parseIceServers } from "../src/rtc.js";
 import { openDbAtVersion } from "../src/db.js";
+import { APP_SCOPES } from "@ownbase/protocol";
 
 let server: WorkspaceServer | undefined;
 let directory: string | undefined;
@@ -94,8 +95,12 @@ describe("self-hosted product", () => {
   it("does not let bot tokens join private channels by posting", async () => {
     const base = await start();
     const owner = (await register(base, "owner")).data;
-    const created = (await request(base, "/api/apps", owner.token, "POST", { name: "Build Bot" }))
-      .data;
+    const created = (
+      await request(base, "/api/apps", owner.token, "POST", {
+        name: "Build Bot",
+        scopes: APP_SCOPES,
+      })
+    ).data;
     const channel = (
       await request(base, "/api/channels", owner.token, "POST", {
         type: "private",

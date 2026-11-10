@@ -125,7 +125,7 @@ describe("forwarding on the client", () => {
     });
     await until(client, () => !!held(client, general.id, forward.id), "the forward");
 
-    await bob.editMessage(original.id, "Meeting at 4");
+    await bob.editMessage(original.id, "Meeting at 4", original.text);
     await until(
       client,
       () => held(client, general.id, forward.id)?.forwardedFrom?.text === "Meeting at 4",
@@ -192,6 +192,7 @@ describe("a forward's card", () => {
     reactions: [],
     files: [],
     pinned: false,
+    previews: [],
     actions: [],
     ...over,
   });

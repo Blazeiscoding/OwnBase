@@ -104,7 +104,7 @@ describe("connection recovery", () => {
     await expect.poll(() => timelineMessages(client.state, channelId).length).toBe(2);
     await client.loadThread(edited.id, channelId);
     await disconnect();
-    await owner.editMessage(edited.id, "after edit");
+    await owner.editMessage(edited.id, "after edit", edited.text);
     await owner.deleteMessage(deleted.id);
     await owner.addReaction(edited.id, "yes");
     await owner.pinMessage(edited.id);
@@ -123,6 +123,7 @@ describe("connection recovery", () => {
     expect(items.find((m) => m.id === edited.id)).toMatchObject({
       text: "after edit",
       pinned: true,
+      previews: [],
       replyCount: 1,
       reactions: [{ emoji: "yes" }],
     });

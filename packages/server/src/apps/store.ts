@@ -164,12 +164,11 @@ export class AppStore {
     botUserId: ID;
     createdBy: ID;
     signingSecret: string;
-    /** Left out, everything, as every app could before scopes (E18c). */
-    scopes?: readonly AppScope[];
+    scopes: readonly AppScope[];
   }): App {
     const id = ulid();
     const now = Date.now();
-    const scopes = scopeList(input.scopes ?? APP_SCOPES);
+    const scopes = scopeList(input.scopes);
     this.db
       .prepare(
         "INSERT INTO apps (id, name, bot_user_id, created_by, created_at, signing_secret, scopes) VALUES (?, ?, ?, ?, ?, ?, ?)",

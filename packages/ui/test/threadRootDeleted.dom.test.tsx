@@ -51,6 +51,7 @@ const root: Message = {
   reactions: [],
   files: [],
   pinned: false,
+  previews: [],
   actions: [],
 };
 const draftKey = `${general.id}:${root.id}`;

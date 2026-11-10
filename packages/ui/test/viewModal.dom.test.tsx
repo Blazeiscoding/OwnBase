@@ -2,7 +2,7 @@ import { act, fireEvent, screen, waitFor, within } from "@testing-library/react"
 import { render } from "./render.js";
 import userEvent from "@testing-library/user-event";
 import { WorkspaceClient } from "@ownbase/client-core";
-import type { Channel, ModalField, ModalView, User } from "@ownbase/protocol";
+import type { Channel, ModalField, ModalView, User, ViewSubmitted } from "@ownbase/protocol";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { ViewModal } from "../src/components/ViewModal.js";
 import { ClientContext } from "../src/context.js";
@@ -132,7 +132,9 @@ describe("an app's form", () => {
   it("starts each replacement view with its own answers and sends only those", async () => {
     const client = new WorkspaceClient("http://127.0.0.1:9", "test-token-not-a-credential");
     client.store.setState({ self: sam, users: { [sam.id]: sam }, modal: view, status: "online" });
-    const submit = vi.spyOn(client.api, "submitView").mockResolvedValue({ ok: true });
+    const submit = vi
+      .spyOn(client.api, "submitView")
+      .mockResolvedValue({ ok: true, closedViewIds: ["V_APP_B"] });
     render(
       <ClientContext.Provider value={client}>
         <ViewModal />
@@ -167,7 +169,7 @@ describe("an app's form", () => {
     async (outcome) => {
       const client = new WorkspaceClient("http://127.0.0.1:9", "test-token-not-a-credential");
       client.store.setState({ self: sam, users: { [sam.id]: sam }, modal: view, status: "online" });
-      let resolve!: (result: { ok: boolean; errors?: Record<string, string> }) => void;
+      let resolve!: (result: ViewSubmitted) => void;
       let reject!: (error: Error) => void;
       vi.spyOn(client.api, "submitView").mockReturnValueOnce(
         new Promise((done, fail) => {
@@ -192,7 +194,7 @@ describe("an app's form", () => {
         else
           resolve(
             outcome === "success"
-              ? { ok: true }
+              ? { ok: true, closedViewIds: [view.id] }
               : { ok: false, errors: { amount: "Old app's rejection" } },
           );
       });
@@ -220,7 +222,7 @@ describe("an app's form", () => {
   it("dispatches one submission while its response is pending, then permits correction", async () => {
     const client = new WorkspaceClient("http://127.0.0.1:9", "test-token-not-a-credential");
     client.store.setState({ self: sam, modal: view, status: "online" });
-    let finish!: (result: { ok: boolean }) => void;
+    let finish!: (result: ViewSubmitted) => void;
     const submit = vi
       .spyOn(client.api, "submitView")
       .mockReturnValueOnce(
@@ -228,7 +230,7 @@ describe("an app's form", () => {
           finish = resolve;
         }),
       )
-      .mockResolvedValue({ ok: true });
+      .mockResolvedValue({ ok: true, closedViewIds: [view.id] });
     render(
       <ClientContext.Provider value={client}>
         <ViewModal />
@@ -240,7 +242,7 @@ describe("an app's form", () => {
       fireEvent.submit(form);
     });
     expect(submit).toHaveBeenCalledOnce();
-    await act(async () => finish({ ok: false }));
+    await act(async () => finish({ ok: false, errors: {} }));
     await waitFor(() => expect(screen.getByRole("button", { name: "Submit" })).toBeEnabled());
     fireEvent.submit(form);
     await waitFor(() => expect(submit).toHaveBeenCalledTimes(2));
@@ -337,7 +339,9 @@ describe("an app's form with choices", () => {
       modal: form,
       status: "online",
     });
-    const submit = vi.spyOn(client, "submitModal").mockResolvedValue({ ok: true });
+    const submit = vi
+      .spyOn(client, "submitModal")
+      .mockResolvedValue({ ok: true, closedViewIds: [form.id] });
     render(
       <ClientContext.Provider value={client}>
         <ViewModal />

@@ -174,7 +174,7 @@ function roughDuration(ms: number): string {
 const plural = (n: number, one: string, many = `${one}s`) => `${n} ${n === 1 ? one : many}`;
 
 /** "Backups: every 24 h, keeping 7; last done …, next …", or that they are off. */
-function backupLine(backups: NonNullable<WorkspaceStatus["backups"]>): string {
+function backupLine(backups: WorkspaceStatus["backups"]): string {
   if (!backups.enabled) return "Backups: not scheduled";
   const hours = backups.everyMs / 3600_000;
   return [
@@ -216,16 +216,11 @@ function workspaceLines(status: WorkspaceStatus | { error: string }, now: number
     `Attachments: ${formatBytes(attachments.bytes)}${
       attachments.limitBytes === null ? ", no limit" : ` of ${formatBytes(attachments.limitBytes)}`
     }`,
-    // Servers before REV-02 do not say how removing deleted attachments goes.
-    ...(attachments.removal
-      ? [
-          `Attachment removal: ${attachments.removal.waiting} waiting${
-            attachments.removal.oldestQueuedAt === null
-              ? ""
-              : ` (oldest for ${roughDuration(now - attachments.removal.oldestQueuedAt)})`
-          }, ${attachments.removal.retrying} retrying, ${attachments.removal.rejected} set aside`,
-        ]
-      : []),
+    `Attachment removal: ${attachments.removal.waiting} waiting${
+      attachments.removal.oldestQueuedAt === null
+        ? ""
+        : ` (oldest for ${roughDuration(now - attachments.removal.oldestQueuedAt)})`
+    }, ${attachments.removal.retrying} retrying, ${attachments.removal.rejected} set aside`,
     `Free disk: ${status.diskFreeBytes === null ? "unknown" : formatBytes(status.diskFreeBytes)}`,
     `App deliveries: ${deliveries.waiting} waiting${
       deliveries.oldestWaitingAt === null
@@ -241,9 +236,8 @@ function workspaceLines(status: WorkspaceStatus | { error: string }, now: number
             : `last done ${new Date(retention.lastSuccessAt).toISOString()}`) +
           (retention.failures ? `, ${plural(retention.failures, "failure")} since` : "")
     }`,
-    // Servers before scheduled backups do not say, and a line would guess.
-    ...(status.backups ? [backupLine(status.backups)] : []),
-    ...(status.backups?.enabled && status.backups.offsite
+    backupLine(status.backups),
+    ...(status.backups.enabled && status.backups.offsite
       ? [offsiteLine(status.backups.offsite)]
       : []),
     `Connections: ${plural(connections.sockets, "socket")} for ${plural(connections.people, "person", "people")}`,
@@ -252,19 +246,14 @@ function workspaceLines(status: WorkspaceStatus | { error: string }, now: number
         ? `p50 ${loop.p50} ms, p99 ${loop.p99} ms, max ${loop.max} ms`
         : "not measured until the server has run a minute"
     }`,
-    // Servers before REV-01 do not say, and a line would guess.
-    ...(status.backgroundFailures
-      ? [
-          status.backgroundFailures.length === 0
-            ? "Background work: all running"
-            : `Background work failing: ${status.backgroundFailures
-                .map(
-                  (f) =>
-                    `${f.queue} (${plural(f.failures, "time")} in a row, for ${roughDuration(now - f.since)})`,
-                )
-                .join("; ")}`,
-        ]
-      : []),
+    status.backgroundFailures.length === 0
+      ? "Background work: all running"
+      : `Background work failing: ${status.backgroundFailures
+          .map(
+            (f) =>
+              `${f.queue} (${plural(f.failures, "time")} in a row, for ${roughDuration(now - f.since)})`,
+          )
+          .join("; ")}`,
     // Parts of the server outside its core, such as the Enterprise edition (P6).
     ...(status.extensions ?? []).map(
       (extension) =>

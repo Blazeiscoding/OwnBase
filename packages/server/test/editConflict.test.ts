@@ -112,11 +112,10 @@ describe("editing a message that may have changed", () => {
     expect(server!.store.messages.get(id)!.text).toBe("Ship it on Monday");
   });
 
-  it("still replaces whatever is there for a client that does not say what it expects", async () => {
+  it("refuses an edit that does not say which words it replaces", async () => {
     const { token, id } = await posted("Ship it on Friday");
-    await call(token, `/api/messages/${id}`, "PATCH", { text: "Ship it on Thursday" });
     const blind = await call(token, `/api/messages/${id}`, "PATCH", { text: "Ship it on Monday" });
-    expect(blind.status).toBe(200);
-    expect(server!.store.messages.get(id)!.text).toBe("Ship it on Monday");
+    expect(blind.status).toBe(400);
+    expect(server!.store.messages.get(id)!.text).toBe("Ship it on Friday");
   });
 });

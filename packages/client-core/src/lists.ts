@@ -176,10 +176,7 @@ export class Lists {
         const page = await this.api.listFollowedThreads({ cursor, unreadOnly }, signal);
         if (!signal.aborted)
           for (const t of page.threads)
-            details.set(t.root.id, {
-              unreadCount: t.unreadCount,
-              latestReply: t.latestReply ?? null,
-            });
+            details.set(t.root.id, { unreadCount: t.unreadCount, latestReply: t.latestReply });
         return { items: page.threads.map((t) => t.root), nextCursor: page.nextCursor ?? null };
       },
       {

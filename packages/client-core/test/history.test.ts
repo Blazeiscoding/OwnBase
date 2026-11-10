@@ -137,7 +137,7 @@ describe("timeline snapshot reconciliation", () => {
         });
       }
       await captured;
-      await owner.editMessage(root.id, "edited while history was on its way");
+      await owner.editMessage(root.id, "edited while history was on its way", root.text);
       await owner.deleteMessage(gone.id);
       await owner.addReaction(root.id, "yes");
       await owner.pinMessage(root.id);
@@ -152,6 +152,7 @@ describe("timeline snapshot reconciliation", () => {
         {
           text: "edited while history was on its way",
           pinned: true,
+          previews: [],
           replyCount: 1,
           reactions: [{ emoji: "yes", userIds: [root.userId] }],
         },
@@ -202,7 +203,7 @@ describe("timeline snapshot reconciliation", () => {
     await caughtUp();
     const socket = holdSocketEvents();
     const root = (await owner.sendMessage(channelId, { text: "original root" })).message;
-    await owner.editMessage(root.id, "snapshot text");
+    await owner.editMessage(root.id, "snapshot text", root.text);
     await owner.sendMessage(channelId, { text: "quiet reply", threadRootId: root.id });
     await owner.addReaction(root.id, "yes");
     await owner.removeReaction(root.id, "yes");
@@ -279,6 +280,7 @@ describe("timeline snapshot reconciliation", () => {
     expect(timelineMessages(client.state, channelId).find((m) => m.id === root.id)).toMatchObject({
       replyCount: 1,
       pinned: false,
+      previews: [],
       reactions: [],
     });
     expect(timelineMessages(client.state, channelId).at(-1)?.id).toBe(broadcast.id);
@@ -545,7 +547,7 @@ describe("opening where reading stopped (X3)", () => {
     vi.spyOn(client.api, "listMessagesSince").mockImplementation(hold.read);
     const loading = client.loadTimeline(channelId, { unreadAfter: messages[30]!.seq });
     await hold.captured;
-    await owner.editMessage(messages[31]!.id, "edited on the way");
+    await owner.editMessage(messages[31]!.id, "edited on the way", messages[31]!.text);
     await owner.deleteMessage(messages[32]!.id);
     await caughtUp();
     hold.release();

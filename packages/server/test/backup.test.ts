@@ -14,6 +14,7 @@ import {
 } from "../src/backups/backup.js";
 import { SCHEMA_VERSION } from "../src/db.js";
 import { createWorkspaceServer, type ServerOptions, type WorkspaceServer } from "../src/server.js";
+import { APP_SCOPES } from "@ownbase/protocol";
 
 let server: WorkspaceServer | undefined;
 let root: string;
@@ -325,7 +326,9 @@ describe("an isolated restore", () => {
   /** The populated workspace, plus an app that receives events and a command. */
   async function withApp() {
     const world = await populate();
-    const made = (await api("/api/apps", world.owner.token, "POST", { name: "Deploy Bot" })).body;
+    const made = (
+      await api("/api/apps", world.owner.token, "POST", { name: "Deploy Bot", scopes: APP_SCOPES })
+    ).body;
     const subscribed = await api(
       `/api/apps/${made.app.id}/subscriptions`,
       world.owner.token,

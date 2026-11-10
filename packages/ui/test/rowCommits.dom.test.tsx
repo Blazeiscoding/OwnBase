@@ -66,6 +66,7 @@ function messages(): Message[] {
       reactions: i % 13 === 0 ? [{ emoji: "👍", userIds: ["U7"] }] : [],
       files: [],
       pinned: false,
+      previews: [],
       actions: [],
     };
   });

@@ -56,6 +56,7 @@ const message = (n: number): Message =>
     reactions: [],
     files: [],
     pinned: false,
+    previews: [],
     actions: [],
   }) as unknown as Message;
 const SERVER = "http://127.0.0.1:9";

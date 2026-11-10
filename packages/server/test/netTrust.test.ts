@@ -4,6 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { createWorkspaceServer, type WorkspaceServer } from "../src/index.js";
 import { isLoopbackOrigin, originFromConnection, resolveClientAddress } from "../src/netTrust.js";
+import { APP_SCOPES } from "@ownbase/protocol";
 
 describe("where the server thinks it is", () => {
   it("uses the address the connection arrived on", () => {
@@ -218,7 +219,7 @@ describe("the url handed to an app", () => {
       await fetch(`${base}/api/apps`, {
         method: "POST",
         headers: { authorization: `Bearer ${token}`, "content-type": "application/json" },
-        body: JSON.stringify({ name: "Origin Bot" }),
+        body: JSON.stringify({ name: "Origin Bot", scopes: APP_SCOPES }),
       })
     ).json();
     await fetch(`${base}/api/apps/${(app as { app: { id: string } }).app.id}/commands`, {

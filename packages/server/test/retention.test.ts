@@ -4,6 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import { createWorkspaceServer, type WorkspaceServer } from "../src/server.js";
+import { APP_SCOPES } from "@ownbase/protocol";
 
 let server: WorkspaceServer | undefined;
 let directory: string;
@@ -124,6 +125,7 @@ describe("what deleting a message actually reaches", () => {
     const message = await post(wrong);
     const edited = await api(`/api/messages/${message.id}`, "PATCH", {
       text: "i think the process is the problem here",
+      expectedText: wrong,
     });
     expect(edited.status).toBe(200);
 
@@ -332,6 +334,7 @@ describe("a retention window", () => {
       botUserId: userId,
       createdBy: userId,
       signingSecret: "test-signing-secret-not-a-credential",
+      scopes: APP_SCOPES,
     });
     const subscription = store.apps.createSubscription({
       appId: app.id,

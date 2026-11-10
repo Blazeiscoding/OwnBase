@@ -28,7 +28,7 @@ const isWide = (image: { width: number; height: number }) =>
  * remove one, which takes it off for everyone.
  */
 export function LinkPreviews({ message, canRemove }: { message: Message; canRemove: boolean }) {
-  const previews = message.previews ?? [];
+  const { previews } = message;
   if (previews.length === 0) return null;
   return (
     <div className="mt-1 space-y-1.5">

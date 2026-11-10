@@ -56,6 +56,7 @@ const pinned = {
   reactions: [],
   files: [],
   pinned: true,
+  previews: [],
 } as unknown as Message;
 
 const clients: WorkspaceClient[] = [];

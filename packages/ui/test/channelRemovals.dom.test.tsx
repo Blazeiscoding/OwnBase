@@ -69,6 +69,7 @@ const message = (
   reactions: [],
   files: [],
   pinned: false,
+  previews: [],
   actions: [],
 });
 const removal = (

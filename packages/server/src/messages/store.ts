@@ -957,7 +957,7 @@ export class MessageStore {
       actions: parseActions(r.actions),
       ...replyTo(r),
       ...forwardedFrom(r),
-      ...(previews.has(r.id) ? { previews: previews.get(r.id)! } : {}),
+      previews: previews.get(r.id) ?? [],
       ...(polls.has(r.id) ? { poll: polls.get(r.id)! } : {}),
       ...(r.call_kind === "missed" ? { call: { kind: "missed" as const } } : {}),
     }));

@@ -96,6 +96,7 @@ describe("an open image that is taken away (F07)", () => {
       reactions: [],
       files: [file],
       pinned: false,
+      previews: [],
       actions: [],
     };
     client.store.setState(held({ threads: { M_ROOT: [reply] } }));

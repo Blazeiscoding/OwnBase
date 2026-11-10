@@ -238,10 +238,9 @@ export interface Message {
   /**
    * What the server found at the first few web addresses in its words, in the
    * order they appear (E2). Added a moment after the message is sent, by a
-   * `message.updated` that says `previewsOnly`. Absent from servers before
-   * link previews, and empty while none has been found.
+   * `message.updated` that says `previewsOnly`. Empty while none has been found.
    */
-  previews?: LinkPreview[];
+  previews: LinkPreview[];
   /**
    * The choices this message asks people to pick from, its words being the
    * question (E6). Votes change it by a `message.updated` that says
@@ -394,9 +393,8 @@ export interface Invite {
   expiresAt: number | null;
   maxUses: number | null;
   uses: number;
-  /** Absent from servers before schema v23. */
-  revokedAt?: number | null;
-  status?: InviteStatus;
+  revokedAt: number | null;
+  status: InviteStatus;
 }
 
 export type ReportReason = "spam" | "harassment" | "inappropriate" | "other";
@@ -501,13 +499,12 @@ export interface WorkspaceStatus {
   /**
    * Stored attachments, against the configured limit (null: none), and the
    * removal of deleted ones (REV-02): due or soon, failed and waiting to be
-   * tried again, and set aside because they can never succeed. Absent from
-   * servers that predate it.
+   * tried again, and set aside because they can never succeed.
    */
   attachments: {
     bytes: number;
     limitBytes: number | null;
-    removal?: {
+    removal: {
       waiting: number;
       retrying: number;
       rejected: number;
@@ -529,9 +526,9 @@ export interface WorkspaceStatus {
   /**
    * Backups the server takes on a timer: off, or how often, how many it
    * keeps, when the last one finished, failures since, and when the next is
-   * due. Absent from servers that predate them.
+   * due.
    */
-  backups?:
+  backups:
     | { enabled: false }
     | {
         enabled: true;
@@ -556,9 +553,9 @@ export interface WorkspaceStatus {
   eventLoopDelayMs: { p50: number; p99: number; max: number } | null;
   /**
    * Background queues failing now: since when and how many times in a row.
-   * Empty when all are running; absent from servers that predate it.
+   * Empty when all are running.
    */
-  backgroundFailures?: { queue: string; since: number; failures: number }[];
+  backgroundFailures: { queue: string; since: number; failures: number }[];
   /**
    * Parts of the server outside its core, such as the Enterprise edition,
    * and how each is (P6). Absent where there are none.
@@ -792,9 +789,9 @@ export interface FollowedThread {
   unreadCount: number;
   /**
    * The thread's newest reply, for the list to show where it has got to; null
-   * with none. Absent from servers before it was sent.
+   * with none.
    */
-  latestReply?: Message | null;
+  latestReply: Message | null;
 }
 
 export const PROTOCOL_VERSION = 2;

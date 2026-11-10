@@ -62,6 +62,7 @@ const message = (id: string, text: string, seq: number, channelId = design.id): 
     reactions: [],
     files: [],
     pinned: false,
+    previews: [],
   }) as unknown as Message;
 
 function workspace() {

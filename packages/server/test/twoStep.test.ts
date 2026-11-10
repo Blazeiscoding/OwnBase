@@ -5,6 +5,7 @@ import { join } from "node:path";
 import { createWorkspaceServer, type WorkspaceServer } from "../src/server.js";
 import { recoverAccount } from "../src/recover.js";
 import { codeFor, stepAt } from "../src/twoStep.js";
+import { APP_SCOPES } from "@ownbase/protocol";
 
 /**
  * Two-step sign-in (E11): set up with the password and a first code, asked
@@ -412,7 +413,7 @@ describe("two-step sign-in for a guest or an app", () => {
     server!.setAccessPolicy("guest_allowed");
     const guest = await call("/api/auth/guest", null, { displayName: "Visitor" });
     expect((await call("/api/me/two-step", guest.data.token, undefined, "GET")).status).toBe(403);
-    const app = await call("/api/apps", owner.token, { name: "Deploy Bot" });
+    const app = await call("/api/apps", owner.token, { name: "Deploy Bot", scopes: APP_SCOPES });
     // An app's token is no session, which these need.
     expect((await call("/api/me/two-step", app.data.token, undefined, "GET")).status).toBe(401);
   });

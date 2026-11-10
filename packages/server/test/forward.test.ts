@@ -214,7 +214,12 @@ describe("forwarding a message", () => {
     const original = await post(peer.token, general, { text: "Meet at 3" });
     const forward = await post(owner.token, general, { text: "", forwardFrom: original.id });
 
-    await request(`/api/messages/${original.id}`, peer.token, { text: "Meet at 4" }, "PATCH");
+    await request(
+      `/api/messages/${original.id}`,
+      peer.token,
+      { text: "Meet at 4", expectedText: "Meet at 3" },
+      "PATCH",
+    );
     expect((await read(owner.token, general, forward.id)).forwardedFrom.text).toBe("Meet at 4");
     expect(loggedCopies(forward.id).map((m) => m.forwardedFrom?.text)).toEqual(["Meet at 4"]);
     expect(logged()).not.toContain("Meet at 3");

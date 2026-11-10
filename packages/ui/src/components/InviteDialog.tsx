@@ -388,7 +388,7 @@ export function InviteDialog(props: {
                   ? "creator_deactivated"
                   : inv.status !== "revoked" && author?.canInvite === false
                     ? "creator_not_permitted"
-                    : (inv.status ?? "active");
+                    : inv.status;
               const creator =
                 inv.createdBy === selfId ? "you" : (users[inv.createdBy]?.displayName ?? "someone");
               return (

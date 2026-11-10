@@ -263,6 +263,7 @@ describe("a missed huddle's note", () => {
     reactions: [],
     files: [],
     pinned: false,
+    previews: [],
     actions: [],
     call: { kind: "missed" },
   });

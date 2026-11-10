@@ -249,7 +249,7 @@ describe("a direct message's huddle", () => {
     const edit = await request(
       `/api/messages/${note!.id}`,
       alice.token,
-      { text: "Hello" },
+      { text: "Hello", expectedText: note!.text },
       "PATCH",
     );
     expect(edit).toMatchObject({ status: 409, data: { error: "call_not_editable" } });

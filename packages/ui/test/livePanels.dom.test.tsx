@@ -52,6 +52,7 @@ const message = (id: string, text: string, seq: number): Message => ({
   reactions: [],
   files: [],
   pinned: false,
+  previews: [],
   actions: [],
 });
 
@@ -140,7 +141,7 @@ describe("the Threads panel", () => {
     let unreadCount = 0;
     client.store.setState({ threadFollows: { M1: follow("M1", 1, 1) } });
     vi.spyOn(client.api, "listFollowedThreads").mockImplementation(async () => ({
-      threads: [{ root, lastSeq: 1 + unreadCount, unreadCount }],
+      threads: [{ root, lastSeq: 1 + unreadCount, unreadCount, latestReply: null }],
       nextCursor: null,
     }));
     render(

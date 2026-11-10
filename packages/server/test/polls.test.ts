@@ -210,7 +210,11 @@ describe("making a poll", () => {
 
   it("cannot have its question edited, since people voted on it as it was", async () => {
     const made = await poll("Lunch?", ["Pizza", "Tacos"]);
-    const edit = await request(`/api/messages/${made.id}`, { text: "Dinner?" }, "PATCH");
+    const edit = await request(
+      `/api/messages/${made.id}`,
+      { text: "Dinner?", expectedText: "Lunch?" },
+      "PATCH",
+    );
     expect(edit.status).toBe(409);
     expect(edit.body.error).toBe("poll_not_editable");
     expect((await history()).at(-1)!.text).toBe("Lunch?");

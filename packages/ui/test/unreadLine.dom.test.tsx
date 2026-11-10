@@ -54,6 +54,7 @@ const message = (n: number): Message =>
     reactions: [],
     files: [],
     pinned: false,
+    previews: [],
     actions: [],
   }) as unknown as Message;
 const range = (from: number, to: number) =>

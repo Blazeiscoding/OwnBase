@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { Writable } from "node:stream";
 import type { Invite } from "@ownbase/protocol";
 import { createWorkspaceServer, type WorkspaceServer } from "../src/server.js";
+import { APP_SCOPES } from "@ownbase/protocol";
 
 let server: WorkspaceServer;
 let base: string;
@@ -255,6 +256,7 @@ describe("permission to create invite codes", () => {
 
     const app = await call<{ botUser: { id: string } }>("/api/apps", owner.token, "POST", {
       name: "Inviting Bot",
+      scopes: APP_SCOPES,
     });
     const forApp = await call<{ error: string }>(
       `/api/admin/users/${app.data.botUser.id}`,

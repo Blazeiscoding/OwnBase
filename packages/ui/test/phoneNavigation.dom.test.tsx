@@ -549,6 +549,7 @@ describe("the Direct messages panel", () => {
       reactions: [],
       files: [],
       pinned: false,
+      previews: [],
       actions: [],
     }) as Message;
 

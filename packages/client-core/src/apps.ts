@@ -13,11 +13,8 @@ export class AppActions {
     return this.api.listApps();
   }
 
-  /**
-   * The bot token comes back once here and is never retrievable again. Left
-   * without scopes, the app may do everything (E18c).
-   */
-  create(body: { name: string; scopes?: AppScope[] }) {
+  /** The bot token comes back once here and is never retrievable again. */
+  create(body: { name: string; scopes: AppScope[] }) {
     return this.api.createApp(body);
   }
 

@@ -48,6 +48,7 @@ const original: Message = {
   reactions: [],
   files: [],
   pinned: false,
+  previews: [],
 } as unknown as Message;
 
 const draftKey = "C1:edit:M1";

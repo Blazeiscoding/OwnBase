@@ -53,6 +53,7 @@ const message = (id: string, seq: number, threadRootId: string | null = "M_ROOT"
     reactions: [],
     files: [],
     pinned: false,
+    previews: [],
     actions: [],
   }) as unknown as Message;
 const root = message("M_ROOT", 1, null);

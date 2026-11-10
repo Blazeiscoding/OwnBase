@@ -23,7 +23,7 @@ import { join } from "node:path";
 import { execSync } from "node:child_process";
 import { createWorkspaceServer, type WorkspaceServer } from "../packages/server/src/server.js";
 import { hashToken } from "../packages/server/src/auth.js";
-import { PROTOCOL_VERSION } from "../packages/protocol/src/index.js";
+import { APP_SCOPES, PROTOCOL_VERSION } from "../packages/protocol/src/index.js";
 
 const arg = (name: string, fallback: number) =>
   Number(process.argv.find((a) => a.startsWith(`--${name}=`))?.split("=")[1] ?? fallback);
@@ -202,6 +202,7 @@ async function appPosting(subscriptions: number) {
       botUserId: bot.id,
       createdBy: owner!.id,
       signingSecret: "measurement-signing-secret-not-a-credential",
+      scopes: APP_SCOPES,
     });
     for (let i = 0; i < subscriptions; i++)
       server.store.apps.createSubscription({

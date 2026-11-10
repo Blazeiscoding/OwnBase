@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import WebSocket from "ws";
-import { PROTOCOL_VERSION, type ServerToClient } from "@ownbase/protocol";
+import { PROTOCOL_VERSION, type ServerToClient, APP_SCOPES } from "@ownbase/protocol";
 import { createWorkspaceServer, type WorkspaceServer } from "../src/server.js";
 
 /**
@@ -208,7 +208,10 @@ describe("public rooms take in everyone", () => {
     const visitor = await guestJoin("Visitor");
     const cleo = await register("cleo");
     await request(`/api/admin/users/${cleo.id}`, owner.token, "PATCH", { deactivated: true });
-    const app = await request("/api/apps", owner.token, "POST", { name: "Deploys" });
+    const app = await request("/api/apps", owner.token, "POST", {
+      name: "Deploys",
+      scopes: APP_SCOPES,
+    });
     const anaSocket = await connect(ana);
 
     const room = await request("/api/channels", owner.token, "POST", {

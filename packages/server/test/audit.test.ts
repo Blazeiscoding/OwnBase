@@ -7,6 +7,7 @@ import type { AuditEntry } from "@ownbase/protocol";
 import { hashToken } from "../src/auth.js";
 import { recoverAccount } from "../src/recover.js";
 import { createWorkspaceServer, type WorkspaceServer } from "../src/server.js";
+import { APP_SCOPES } from "@ownbase/protocol";
 
 /** An app endpoint that accepts every url_verification challenge. */
 let endpoint: Server;
@@ -140,7 +141,7 @@ describe("the administrative record", () => {
       "/api/apps",
       owner.token,
       "POST",
-      { name: "Audited Bot" },
+      { name: "Audited Bot", scopes: APP_SCOPES },
     );
     const appId = made.data.app.id;
     const newToken = (await call(`/api/apps/${appId}/token`, owner.token, "POST")).data.token;

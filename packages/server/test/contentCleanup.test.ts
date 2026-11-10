@@ -4,7 +4,7 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { basename, dirname, join, resolve } from "node:path";
 import WebSocket from "ws";
-import { PROTOCOL_VERSION, type Message, type ServerToClient } from "@ownbase/protocol";
+import { PROTOCOL_VERSION, type Message, type ServerToClient, APP_SCOPES } from "@ownbase/protocol";
 import { openDb, openDbAtVersion, SCHEMA_VERSION } from "../src/db.js";
 import { Store } from "../src/store.js";
 import { ulid } from "../src/ids.js";
@@ -94,7 +94,7 @@ describe("complete message content cleanup (N06/N07)", () => {
   it.each(["delete", "retention"])(
     "omits removed button content from stored rows and real replay after %s",
     async (operation) => {
-      const created = await api("POST", "/api/apps", { name: "Meeting App" });
+      const created = await api("POST", "/api/apps", { name: "Meeting App", scopes: APP_SCOPES });
       const botToken = created.body.token;
       const after = server.store.currentSeq();
       const post = async (text: string) =>
@@ -283,6 +283,7 @@ describe("complete message content cleanup (N06/N07)", () => {
           reactions: [],
           files: [],
           pinned: false,
+          previews: [],
           actions: JSON.parse(row.actions),
         };
       };

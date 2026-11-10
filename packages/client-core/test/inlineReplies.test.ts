@@ -107,7 +107,7 @@ describe("inline replies on the client", () => {
     });
     await until(client, () => !!held(client, general.id, reply.id), "reply");
 
-    await bob.editMessage(original.id, "Meeting at 4");
+    await bob.editMessage(original.id, "Meeting at 4", original.text);
     await until(
       client,
       () => held(client, general.id, reply.id)?.replyTo?.text === "Meeting at 4",
@@ -148,7 +148,7 @@ describe("inline replies on the client", () => {
     const { messages, messageSeqs, timelines } = first.client.state;
     first.client.destroy();
 
-    await bob.editMessage(edited.id, "Draft two");
+    await bob.editMessage(edited.id, "Draft two", edited.text);
     await bob.deleteMessage(deleted.id);
 
     // Back with what it held, resuming from where it left off.
@@ -188,6 +188,7 @@ describe("keeping quotes current", () => {
     reactions: [],
     files: [],
     pinned: false,
+    previews: [],
     actions: [],
     ...over,
   });

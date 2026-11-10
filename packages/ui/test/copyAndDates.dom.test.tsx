@@ -61,6 +61,7 @@ const message = (id: string, userId: string, text: string, seq: number): Message
   reactions: [],
   files: [],
   pinned: false,
+  previews: [],
   actions: [],
 });
 

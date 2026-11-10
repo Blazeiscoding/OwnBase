@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import type { AppEventType } from "@ownbase/protocol";
+import { APP_SCOPES, type AppEventType } from "@ownbase/protocol";
 import { createWorkspaceServer, type WorkspaceServer } from "../src/server.js";
 
 /**
@@ -54,6 +54,7 @@ function app(
     botUserId: bot.id,
     createdBy: ownerId,
     signingSecret: "test-signing-secret-not-a-credential",
+    scopes: APP_SCOPES,
   });
   const ids: string[] = [];
   for (let i = 0; i < subscriptions; i++)
