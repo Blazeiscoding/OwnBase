@@ -176,15 +176,15 @@ try {
   // ---- each part, as the gateway builds it ----
   const store = server.store;
   const parts: [string, () => unknown][] = [
-    ["users", () => store.listUsers()],
-    ["channels", () => store.listChannelsVisibleTo(me)],
-    ["memberships", () => store.memberships(me)],
-    ["channelLastSeq", () => store.channelLastSeqMap(me)],
+    ["users", () => store.people.list()],
+    ["channels", () => store.channels.visibleTo(me)],
+    ["memberships", () => store.channels.memberships(me)],
+    ["channelLastSeq", () => store.channels.lastSeqMap(me)],
     ["presence", () => server.gateway.presenceMap()],
-    ["savedMessageIds", () => store.savedMessageIds(me)],
-    ["threadFollows", () => store.threadFollows(me)],
-    ["mentionCounts", () => store.unreadMentionCounts(me)],
-    ["friends", () => store.listFriends(me)],
+    ["savedMessageIds", () => store.saved.savedIds(me)],
+    ["threadFollows", () => store.threads.follows(me)],
+    ["mentionCounts", () => store.channels.unreadMentionCounts(me)],
+    ["friends", () => store.people.friends(me)],
   ];
   console.log("\npart             time                              size");
   let partsTotal = 0;

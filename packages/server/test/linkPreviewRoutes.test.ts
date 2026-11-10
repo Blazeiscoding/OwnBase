@@ -151,7 +151,7 @@ beforeEach(async () => {
   owner = await register("owner");
   peer = await register("peer");
   outsider = await register("outsider");
-  general = server.store.getChannelByName("general")!.id;
+  general = server.store.channels.byName("general")!.id;
 });
 
 afterEach(async () => {
@@ -292,7 +292,7 @@ describe("link previews", () => {
     const [preview] = await previewsOf(general, message.id, ["https://news.example/launch"]);
     expect(logged()).toContain("Launch day");
     await request(`/api/messages/${message.id}`, peer.token, undefined, "DELETE");
-    expect(server.store.previewRows(message.id)).toEqual([]);
+    expect(server.store.messages.previewRows(message.id)).toEqual([]);
     expect(logged()).not.toContain("Launch day");
     expect(
       (await request(`/api/link-previews/${preview!.id}/image`, peer.token, undefined, "GET"))
@@ -304,8 +304,8 @@ describe("link previews", () => {
     const message = await post(peer.token, general, "https://news.example/launch");
     await previewsOf(general, message.id, ["https://news.example/launch"]);
     await new Promise((done) => setTimeout(done, 5));
-    server.store.transaction(() => server.store.purgeMessagesBefore(Date.now()));
-    expect(server.store.previewRows(message.id)).toEqual([]);
+    server.store.transaction(() => server.store.messages.purgeBefore(Date.now()));
+    expect(server.store.messages.previewRows(message.id)).toEqual([]);
     expect(logged()).not.toContain("Launch day");
   });
 
@@ -343,8 +343,8 @@ describe("link previews", () => {
     const back = await post(peer.token, general, "https://news.example/launch again");
     await previewsOf(general, back.id, ["https://news.example/launch"]);
     expect(
-      server.store
-        .listAudit({ limit: 10 })
+      server.store.audit
+        .list({ limit: 10 })
         .filter((e) => e.action === "workspace.link_previews_changed")
         .map((e) => e.details),
     ).toEqual([

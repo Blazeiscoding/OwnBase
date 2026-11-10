@@ -2,6 +2,7 @@ import { useEffect, useId, useRef, useState } from "react";
 import type { SettingsField, SettingsPanel } from "@ownbase/protocol";
 import { ApiError } from "@ownbase/client-core";
 import { useClient } from "../context.js";
+import { failureText } from "../lib/failure.js";
 import { useSaved } from "../lib/savedNote.js";
 import { UnsavedGuard } from "../lib/dismissGuard.js";
 import { buttonClass } from "./Button.js";
@@ -21,13 +22,10 @@ export function useExtensionPanels(enabled: boolean) {
   useEffect(() => {
     if (!enabled) return;
     let stop = false;
-    client.admin.extensionSettings().then(
-      (result) => {
-        if (!stop) setPanels(result.panels);
-      },
+    void client.admin.extensionSettings().then((panels) => {
       // One that fails is asked again next time.
-      () => {},
-    );
+      if (!stop && !(panels instanceof ApiError)) setPanels(panels);
+    });
     return () => {
       stop = true;
     };
@@ -85,21 +83,15 @@ function ExtensionPanelForm({ panel, onSaved }: { panel: SettingsPanel; onSaved:
         .filter((f) => !(f.kind === "secret" && values[f.key] === ""))
         .map((f) => [f.key, values[f.key]!]),
     );
-    try {
-      await client.admin.saveExtensionSettings(panel.save, sent);
-      if (!alive.current) return;
-      saved();
-      onSaved();
-    } catch (err) {
-      if (!alive.current) return;
-      setError(
-        err instanceof ApiError && err.message && err.message !== err.code
-          ? err.message
-          : "Nothing was saved. Check your connection and try again.",
-      );
-    } finally {
-      if (alive.current) setBusy(false);
+    const failed = await client.admin.saveExtensionSettings(panel.save, sent);
+    if (!alive.current) return;
+    setBusy(false);
+    if (failed) {
+      setError(failureText("Nothing was saved.", failed, "Try again."));
+      return;
     }
+    saved();
+    onSaved();
   }
 
   // Typed settings wait for Save, as the workspace's name does, so closing

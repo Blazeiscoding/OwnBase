@@ -1,7 +1,7 @@
 import type { DurableRegistry, EphemeralRegistry } from "../events/registry.js";
 
 /**
- * The events of messages, reactions, pins and threads. `ts` in a Slack shape
+ * The events of messages, reactions and threads. `ts` in a Slack shape
  * is our message id: Slack treats it as opaque, and ours sorts the same way
  * theirs does.
  */
@@ -10,7 +10,7 @@ export const messageDurable = {
     channel: (event) => event.message.channelId,
     effects(event, seq, store) {
       const message = event.message;
-      store.stampMessageSeq(
+      store.messages.stampSeq(
         message.id,
         message.channelId,
         seq,
@@ -20,18 +20,22 @@ export const messageDurable = {
       if (message.threadRootId) {
         // Every way a reply can be written arrives here, so following belongs
         // here too rather than in each of the routes that can create one.
-        store.autoFollowThread(message.threadRootId, message.userId, seq);
-        const root = store.getMessage(message.threadRootId);
-        store.tellThreadFollowers(message.threadRootId, [
+        store.threads.autoFollow(message.threadRootId, message.userId, seq);
+        const root = store.messages.get(message.threadRootId);
+        store.threads.tellFollowers(message.threadRootId, [
           message.userId,
           ...(root ? [root.userId] : []),
         ]);
       }
-      const named = store.mentionedMemberIds(message.channelId, message.text, message.userId);
+      const named = store.messages.mentionedMemberIds(
+        message.channelId,
+        message.text,
+        message.userId,
+      );
       // A reply that notified the author of what it answers counts for them.
       const pinged = message.replyTo?.ping ? message.replyTo.userId : null;
       store.outbox.mentions(
-        pinged && !named.includes(pinged) && store.isMember(message.channelId, pinged)
+        pinged && !named.includes(pinged) && store.channels.isMember(message.channelId, pinged)
           ? [...named, pinged]
           : named,
       );
@@ -73,7 +77,7 @@ export const messageDurable = {
   "message.deleted": {
     channel: (event) => event.channelId,
     effects(event, _seq, store) {
-      store.dropMessageReminders(event.messageId);
+      store.reminders.dropForMessage(event.messageId);
       store.outbox.mentionsIn(event.channelId);
     },
     app: {
@@ -116,37 +120,8 @@ export const messageDurable = {
       }),
     },
   },
-  "pin.added": {
-    channel: (event) => event.channelId,
-    app: {
-      actor: (event) => event.userId,
-      slack: (event) => ({
-        type: "pin_added",
-        user: event.userId,
-        channel_id: event.channelId,
-        item: { type: "message", channel: event.channelId, ts: event.messageId },
-      }),
-    },
-  },
-  "pin.removed": {
-    channel: (event) => event.channelId,
-    app: {
-      actor: () => null,
-      slack: (event) => ({
-        type: "pin_removed",
-        channel_id: event.channelId,
-        item: { type: "message", channel: event.channelId, ts: event.messageId },
-      }),
-    },
-  },
 } satisfies Partial<DurableRegistry>;
 
 export const messageEphemeral = {
-  saved: "person",
-  "thread.follow": "person",
   mentions: "person",
-  reminder: "person",
-  "reminder.removed": "person",
-  "poll.choices": "person",
-  scheduled: "person",
 } as const satisfies Partial<EphemeralRegistry>;

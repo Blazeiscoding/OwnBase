@@ -5,6 +5,7 @@ import { join } from "node:path";
 import type { DatabaseSync } from "node:sqlite";
 import { openDb, openDbAtVersion } from "../src/db.js";
 import { Store } from "../src/store.js";
+import { MENTIONS_ME, UNREAD } from "../src/core/sqlRules.js";
 
 /**
  * Unread mention counts and the Activity mentions list are read from
@@ -14,7 +15,6 @@ import { Store } from "../src/store.js";
  * `<!here>`, `<!channel>` or `<!everyone>`, which counts in a channel but not
  * in a DM.
  */
-const statics = Store as unknown as { UNREAD: string; MENTIONS_ME: string };
 
 /** The count straight from the text, as it was computed before v31. */
 function countsFromText(db: DatabaseSync, userId: string): Record<string, number> {
@@ -23,8 +23,8 @@ function countsFromText(db: DatabaseSync, userId: string): Record<string, number
       `SELECT m.channel_id, COUNT(*) AS n FROM messages m
        JOIN channels c ON c.id = m.channel_id
        JOIN channel_members cm ON cm.channel_id = c.id AND cm.user_id = ?
-       WHERE m.user_id != ? AND m.deleted_at IS NULL AND ${statics.MENTIONS_ME}
-       AND ${statics.UNREAD}
+       WHERE m.user_id != ? AND m.deleted_at IS NULL AND ${MENTIONS_ME}
+       AND ${UNREAD}
        AND (m.thread_root_id IS NULL OR EXISTS (
          SELECT 1 FROM messages root WHERE root.id = m.thread_root_id AND root.deleted_at IS NULL))
        GROUP BY m.channel_id`,
@@ -40,7 +40,7 @@ function mentionsFromText(db: DatabaseSync, userId: string): string[] {
       .prepare(
         `SELECT m.id FROM messages m JOIN channels c ON c.id = m.channel_id
          JOIN channel_members cm ON cm.channel_id = c.id
-         WHERE cm.user_id = ? AND m.user_id != ? AND m.deleted_at IS NULL AND ${statics.MENTIONS_ME}
+         WHERE cm.user_id = ? AND m.user_id != ? AND m.deleted_at IS NULL AND ${MENTIONS_ME}
          AND (m.thread_root_id IS NULL OR EXISTS (
            SELECT 1 FROM messages root WHERE root.id = m.thread_root_id AND root.deleted_at IS NULL))
          ORDER BY m.id DESC`,
@@ -76,7 +76,7 @@ beforeEach(() => {
     ["C2", ["U1", "U2"]],
     ["D1", ["U1", "U2"]],
   ] as const) {
-    for (const user of users) store.addMember(channel, user);
+    for (const user of users) store.channels.addMember(channel, user);
   }
 });
 
@@ -115,7 +115,7 @@ describe("mentions read from who each message names", () => {
         const roots = live.filter((m) => m.channel === channel);
         const threadRootId = roots.length && random(3) === 0 ? pickOne(roots).id : null;
         const author = pickOne(channel === "C1" ? ["U1", "U2", "U3"] : ["U1", "U2"]);
-        const message = store.createMessage({
+        const message = store.messages.create({
           channelId: channel,
           userId: author,
           text: pickOne(texts),
@@ -123,38 +123,43 @@ describe("mentions read from who each message names", () => {
           nonce: null,
           broadcast: random(4) === 0,
         });
-        store.stampMessageSeq(message.id, channel, ++seq);
+        store.messages.stampSeq(message.id, channel, ++seq);
         db.prepare("UPDATE messages SET created_at = ? WHERE id = ?").run(clock++, message.id);
         if (!threadRootId) live.push({ id: message.id, channel });
         done.sent++;
       } else if (action < 7) {
-        store.editMessage(pickOne(live).id, pickOne(texts));
+        store.messages.edit(pickOne(live).id, pickOne(texts));
         done.edited++;
       } else if (action < 8) {
         const doomed = live.splice(random(live.length), 1)[0]!;
-        store.deleteMessage(doomed.id);
+        store.messages.delete(doomed.id);
         done.deleted++;
       } else if (action < 9) {
-        store.markRead(pickOne(["C1", "C2", "D1"]), pickOne(["U1", "U2"]), random(seq + 1));
+        store.channels.markRead(
+          pickOne(["C1", "C2", "D1"]),
+          pickOne(["U1", "U2"]),
+          random(seq + 1),
+        );
         done.read++;
       } else {
         const root = pickOne(live);
-        store.markThreadRead("U1", root.id, random(seq + 1));
+        store.threads.markRead("U1", root.id, random(seq + 1));
         done.threadRead++;
       }
       if (step % 25 === 24) {
         // Retention takes the oldest away; their mentions go with them.
         const before = clock - 150;
-        done.purged += store.purgeMessagesBefore(before).messages;
+        done.purged += store.messages.purgeBefore(before).messages;
         for (let i = live.length - 1; i >= 0; i--) {
           if (!db.prepare("SELECT 1 FROM messages WHERE id = ?").get(live[i]!.id))
             live.splice(i, 1);
         }
       }
       for (const user of ["U1", "U2", "U3"]) {
-        expect(store.unreadMentionCounts(user), `counts for ${user} at step ${step}`).toEqual(
-          countsFromText(db, user),
-        );
+        expect(
+          store.channels.unreadMentionCounts(user),
+          `counts for ${user} at step ${step}`,
+        ).toEqual(countsFromText(db, user));
       }
       // Nothing is left over for a message deleted or purged.
       expect(leftovers(), `leftover mentions at step ${step}`).toEqual({ n: 0 });
@@ -162,8 +167,8 @@ describe("mentions read from who each message names", () => {
     // Every kind of change happened, several times over.
     for (const [kind, times] of Object.entries(done)) expect(times, kind).toBeGreaterThan(10);
     for (const user of ["U1", "U2", "U3"]) {
-      const listed = store
-        .activityMessages(user, { mode: "mentions", limit: 1000 })
+      const listed = store.search
+        .activity(user, { mode: "mentions", limit: 1000 })
         .map((m) => m.id);
       expect(listed).toEqual(mentionsFromText(db, user));
     }
@@ -172,7 +177,7 @@ describe("mentions read from who each message names", () => {
   it("pages the Activity mentions list by its cursor, each message once", () => {
     const ids: string[] = [];
     for (let i = 0; i < 7; i++) {
-      const message = store.createMessage({
+      const message = store.messages.create({
         channelId: "C1",
         userId: "U2",
         // Named directly and as the whole room: still one entry.
@@ -180,12 +185,12 @@ describe("mentions read from who each message names", () => {
         threadRootId: null,
         nonce: null,
       });
-      store.stampMessageSeq(message.id, "C1", i + 1);
+      store.messages.stampSeq(message.id, "C1", i + 1);
       ids.push(message.id);
     }
-    const first = store.activityMessages("U1", { mode: "mentions", limit: 4 }).map((m) => m.id);
-    const second = store
-      .activityMessages("U1", { mode: "mentions", limit: 4, cursor: first.at(-1)! })
+    const first = store.search.activity("U1", { mode: "mentions", limit: 4 }).map((m) => m.id);
+    const second = store.search
+      .activity("U1", { mode: "mentions", limit: 4, cursor: first.at(-1)! })
       .map((m) => m.id);
     // Newest id first, as Activity pages, whatever order they were created in.
     expect([...first, ...second]).toEqual([...ids].sort().reverse());
@@ -270,8 +275,8 @@ describe("upgrading to the mentions index", () => {
         "M10:U2",
       ]);
       const upgraded = new Store(db);
-      expect(upgraded.unreadMentionCounts("U1")).toEqual(countsFromText(db, "U1"));
-      expect(upgraded.unreadMentionCounts("U1")).toEqual({ C1: 6 });
+      expect(upgraded.channels.unreadMentionCounts("U1")).toEqual(countsFromText(db, "U1"));
+      expect(upgraded.channels.unreadMentionCounts("U1")).toEqual({ C1: 6 });
     } finally {
       db.close();
     }

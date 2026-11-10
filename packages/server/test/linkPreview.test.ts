@@ -2,12 +2,12 @@ import { createServer, type IncomingMessage, type ServerResponse } from "node:ht
 import { afterEach, describe, expect, it } from "vitest";
 import {
   fetchLinkPreview,
-  previewImageType,
   previewLinks,
   readPage,
   PREVIEW_IMAGE_BYTES,
 } from "../src/linkPreview.js";
 import { getFromUrl, isPrivateAddress, OutboundError } from "../src/outbound.js";
+import { imageTypeOf } from "../src/imageSize.js";
 
 /**
  * Link previews (E2): which links get one, what a page's head says, and the
@@ -131,9 +131,9 @@ describe("what a page says about itself", () => {
   });
 
   it("knows a picture by its first bytes", () => {
-    expect(previewImageType(png(10, 10))).toBe("image/png");
-    expect(previewImageType(Buffer.from("GIF89a......"))).toBe("image/gif");
-    expect(previewImageType(Buffer.from("<svg xmlns='http://www.w3.org/2000/svg'/>"))).toBeNull();
+    expect(imageTypeOf(png(10, 10))).toBe("image/png");
+    expect(imageTypeOf(Buffer.from("GIF89a......"))).toBe("image/gif");
+    expect(imageTypeOf(Buffer.from("<svg xmlns='http://www.w3.org/2000/svg'/>"))).toBeNull();
   });
 });
 

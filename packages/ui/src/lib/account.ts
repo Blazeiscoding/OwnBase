@@ -1,34 +1,38 @@
-import { ApiError } from "@ownbase/client-core";
+import type { ApiError } from "@ownbase/client-core";
+import { failureText } from "./failure.js";
 
-export function accountError(error: unknown): string {
-  if (error instanceof ApiError) {
-    const messages: Record<string, string> = {
-      invalid_credentials: "Your current password was not accepted.",
-      credentials_changed: "Your password changed while this request was running. Sign in again.",
-      unauthorized: "You were signed out. Sign in again to continue.",
-      auth_busy: "The workspace is handling other sign-ins. Try again in a moment.",
-      invalid_request: "Check the fields. A password must be 8 to 256 characters long.",
-      session_not_found: "That device is already signed out. Refresh the list.",
-      admin_only: "You no longer have permission to manage accounts.",
-      owner_only: "Only the current workspace owner can transfer ownership.",
-      owner_is_protected: "An administrator cannot reset the owner's password.",
-      admins_are_equals: "Only the owner can reset another administrator's password.",
-      user_not_found: "That account is no longer available.",
-      invalid_owner: "Choose an active person to own the workspace.",
-      cannot_reset_self: "Use Account settings to change your own password.",
-      bots_have_no_password: "App accounts do not use passwords.",
-      invalid_two_step_code:
-        "That code is not right. Enter the one your authenticator app shows now.",
-      two_step_setup_expired: "Setting up took too long. Start again.",
-      two_step_on: "Two-step sign-in is already on.",
-      two_step_off: "Two-step sign-in was already off.",
-      too_many_requests: "Too many tries for now. Wait a minute, then try again.",
-    };
-    return (
-      messages[error.code] ?? "The workspace could not complete this change. Refresh and try again."
-    );
-  }
-  return "The workspace did not confirm the change. Check your connection and refresh before trying again.";
+/** Why a change to an account, its own or someone else's, did not happen. */
+export function accountError(error: ApiError): string {
+  const messages: Record<string, string> = {
+    invalid_credentials: "Your current password was not accepted.",
+    credentials_changed: "Your password changed while this request was running. Sign in again.",
+    unauthorized: "You were signed out. Sign in again to continue.",
+    auth_busy: "The workspace is handling other sign-ins. Try again in a moment.",
+    invalid_request: "Check the fields. A password must be 8 to 256 characters long.",
+    session_not_found: "That device is already signed out. Refresh the list.",
+    admin_only: "You no longer have permission to manage accounts.",
+    owner_only: "Only the current workspace owner can transfer ownership.",
+    owner_is_protected: "An administrator cannot reset the owner's password.",
+    admins_are_equals: "Only the owner can reset another administrator's password.",
+    user_not_found: "That account is no longer available.",
+    invalid_owner: "Choose an active person to own the workspace.",
+    cannot_reset_self: "Use Account settings to change your own password.",
+    bots_have_no_password: "App accounts do not use passwords.",
+    invalid_two_step_code:
+      "That code is not right. Enter the one your authenticator app shows now.",
+    two_step_setup_expired: "Setting up took too long. Start again.",
+    two_step_on: "Two-step sign-in is already on.",
+    two_step_off: "Two-step sign-in was already off.",
+    too_many_requests: "Too many tries for now. Wait a minute, then try again.",
+  };
+  if (messages[error.code]) return messages[error.code]!;
+  if (error.code === "network_error")
+    return "The workspace did not confirm the change. Check your connection and refresh before trying again.";
+  return failureText(
+    "The workspace could not complete this change.",
+    error,
+    "Refresh and try again.",
+  );
 }
 
 export function deviceLabel(agent: string): string {

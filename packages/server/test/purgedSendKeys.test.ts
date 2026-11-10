@@ -52,7 +52,7 @@ async function register(handle: string) {
   });
   const { token } = (await response.json()) as { token: string };
   // The first account brings #general into being.
-  channelId = server!.store.getChannelByName("general")!.id;
+  channelId = server!.store.channels.byName("general")!.id;
   return token;
 }
 

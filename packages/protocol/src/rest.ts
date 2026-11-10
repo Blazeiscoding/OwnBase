@@ -81,7 +81,6 @@ export const reportMessageBody = z.object({
   note: z.string().max(500).optional(),
 });
 
-/** What an admin does about a reported message (E12). */
 export const resolveReportBody = z.object({ action: z.enum(["dismiss", "remove", "deactivate"]) });
 
 /** Proves it is this account's owner before its two-step sign-in changes (E11). */
@@ -122,7 +121,6 @@ export const channelPrefsBody = z.object({
   /** False puts it back on the account's default (v53); true keeps `notifyLevel`. */
   notifyChosen: z.boolean().optional(),
   muted: z.boolean().optional(),
-  /** A server before schema v40 drops this unread; see `ReadySnapshot.stars`. */
   starred: z.boolean().optional(),
   /** The sidebar section to keep it in, or null for none (E8). */
   sectionId: idSchema.nullable().optional(),
@@ -283,7 +281,6 @@ export const sendMessageBody = z
       })
       .optional(),
   })
-  // A message needs words, attachments or a message it forwards.
   .refine(
     (b) => b.text.trim().length > 0 || (b.fileIds?.length ?? 0) > 0 || b.forwardFrom !== undefined,
     { message: "message must have text or files" },
@@ -384,7 +381,6 @@ export const interactivityBody = z.object({
   url: z.union([integrationUrl, z.literal("")]),
 });
 
-/** Which button on a message was pressed. */
 export const messageActionBody = z.object({
   actionId: z.string().min(1).max(255),
 });
@@ -450,13 +446,10 @@ export const workspaceNameSchema = z
   .transform((value) => value.trim())
   .pipe(z.string().min(1).max(WORKSPACE_NAME_MAX));
 
-/** An owner or admin renaming the workspace. */
 export const workspaceNameBody = z.object({ name: workspaceNameSchema });
 
-/** Turns link previews on or off for the workspace (E2). */
 export const linkPreviewsBody = z.object({ enabled: z.boolean() });
 
-/** An owner or admin changing who may join. */
 export const accessPolicyBody = z.object({
   accessPolicy: z.enum([
     "invite_only",
@@ -490,7 +483,6 @@ export const PROFILE_PICTURE_TYPES = WORKSPACE_ICON_TYPES;
 export const PROFILE_PICTURE_MAX_BYTES = WORKSPACE_ICON_MAX_BYTES;
 export const PROFILE_PICTURE_PIXELS = WORKSPACE_ICON_PIXELS;
 
-/** A page of the administrative record. */
 export const auditQuery = z.object({
   before: z.string().max(40).optional(),
   limit: z.coerce.number().int().positive().max(200).default(50),

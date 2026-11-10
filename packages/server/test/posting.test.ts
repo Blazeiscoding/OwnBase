@@ -91,7 +91,7 @@ async function start(rateLimits?: Parameters<typeof createWorkspaceServer>[0]["r
       body: { handle: "owner", displayName: "Owner", password: "password123" },
     })
   ).data.token;
-  const channelId = server.store.getChannelByName("general")!.id;
+  const channelId = server.store.channels.byName("general")!.id;
   const made = await call<{ app: { id: string }; botUser: { id: string }; token: string }>(
     "/api/apps",
     { token: owner, body: { name: "Deployer" } },
@@ -132,7 +132,7 @@ async function call<T>(
 }
 
 const texts = (channelId: string) =>
-  server!.store.listMessages({ channelId, limit: 50 }).map((m) => m.text);
+  server!.store.messages.list({ channelId, limit: 50 }).map((m) => m.text);
 
 const tooLong = "x".repeat(MESSAGE_TEXT_MAX + 1);
 
@@ -205,7 +205,7 @@ describe("the message length limit", () => {
         ],
       },
     });
-    const [message] = server!.store.listMessages({ channelId, limit: 1 });
+    const [message] = server!.store.messages.list({ channelId, limit: 1 });
     app!.answer = JSON.stringify({ replace_original: true, text: tooLong });
     const pressed = await call<{ ok: boolean; error: string }>(
       `/api/messages/${message!.id}/actions`,
@@ -214,7 +214,7 @@ describe("the message length limit", () => {
     expect(pressed.data).toEqual({ ok: false, error: "action_failed" });
     const late = await call(app!.responseUrl, { body: { replace_original: true, text: tooLong } });
     expect(late).toEqual({ status: 400, data: { ok: false, error: "msg_too_long" } });
-    expect(server!.store.getMessage(message!.id)!.text).toBe("Ship it?");
+    expect(server!.store.messages.get(message!.id)!.text).toBe("Ship it?");
   });
 });
 
@@ -267,14 +267,14 @@ describe("an incoming webhook", () => {
         body: { channelId: room },
       })
     ).data.url;
-    server!.store.removeMember(room, botUserId);
+    server!.store.channels.removeMember(room, botUserId);
     expect(await call(roomHook, { body: { text: "hello" } })).toEqual({
       status: 403,
       data: { ok: false, error: "not_in_channel" },
     });
 
-    server!.store.addMember(room, botUserId);
-    server!.store.updateChannel(room, { archived: true });
+    server!.store.channels.addMember(room, botUserId);
+    server!.store.channels.update(room, { archived: true });
     expect(await call(roomHook, { body: { text: "hello" } })).toEqual({
       status: 404,
       data: { ok: false, error: "channel_not_found" },

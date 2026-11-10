@@ -4,13 +4,13 @@ import { existsSync, mkdirSync, mkdtempSync, readdirSync, rmSync, writeFileSync 
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { verifyBackup, type BackupManifest } from "../src/backup.js";
+import { verifyBackup, type BackupManifest } from "../src/backups/backup.js";
 import {
   backupFolderName,
   backupFolderTime,
   backupInChildProcess,
   listScheduledBackups,
-} from "../src/backupSchedule.js";
+} from "../src/backups/backupSchedule.js";
 import { createWorkspaceServer, type ServerOptions, type WorkspaceServer } from "../src/server.js";
 
 let server: WorkspaceServer | undefined;
@@ -60,7 +60,7 @@ async function register() {
 
 /** A message with a file, and where the file's bytes are kept. */
 async function attachedMessage() {
-  const channelId = server!.store.getChannelByName("general")!.id;
+  const channelId = server!.store.channels.byName("general")!.id;
   const form = new FormData();
   form.append("file", new Blob(["kept until the copy is done"]), "notes.txt");
   const uploaded = await fetch(`${base}/api/channels/${channelId}/files`, {
@@ -237,12 +237,12 @@ describe("scheduled backups", () => {
     expect((await api(`/api/messages/${item.messageId}`, "DELETE")).status).toBe(200);
     await server!.flushFileDeletions();
     expect(existsSync(item.path)).toBe(true);
-    expect(server!.store.pendingFileDeletions()).toHaveLength(1);
+    expect(server!.store.files.pendingDeletions()).toHaveLength(1);
     held.open();
     await running;
     await vi.waitFor(() => {
       expect(existsSync(item.path)).toBe(false);
-      expect(server!.store.pendingFileDeletions()).toEqual([]);
+      expect(server!.store.files.pendingDeletions()).toEqual([]);
     });
   });
 

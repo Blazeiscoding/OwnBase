@@ -62,7 +62,7 @@ describe("self-hosted product", () => {
   it("streams uploads and downloads and removes partial oversized files", async () => {
     const base = await start(2 * 1024 * 1024);
     const owner = (await register(base, "owner")).data;
-    const channel = server!.store.getChannelByName("general")!;
+    const channel = server!.store.channels.byName("general")!;
     const body = new Uint8Array(1024 * 1024).fill(42);
     const form = new FormData();
     form.append("file", new Blob([body]), "payload.bin");
@@ -109,8 +109,8 @@ describe("self-hosted product", () => {
     // Slack answers a failed method with 200 and ok:false; see slackError.
     expect(result.status).toBe(200);
     expect((result.data as { error?: string }).error).toBe("not_in_channel");
-    expect(server!.store.isMember(channel.id, created.app.botUserId)).toBe(false);
-    server!.store.addMember(channel.id, created.app.botUserId);
+    expect(server!.store.channels.isMember(channel.id, created.app.botUserId)).toBe(false);
+    server!.store.channels.addMember(channel.id, created.app.botUserId);
     expect(
       (
         await request(base, "/api/chat.postMessage", created.token, "POST", {
@@ -205,7 +205,7 @@ describe("self-hosted product", () => {
     const base = await start();
     const results = await Promise.all([register(base, "alpha"), register(base, "bravo")]);
     expect(results.filter((r) => r.status === 201)).toHaveLength(1);
-    expect(server!.store.listUsers().filter((u) => u.role === "owner")).toHaveLength(1);
+    expect(server!.store.people.list().filter((u) => u.role === "owner")).toHaveLength(1);
   });
 
   it.each([null, { type: "hello", token: {}, protocolVersion: 2, lastSeq: null }])(
@@ -248,7 +248,7 @@ describe("self-hosted product", () => {
       displayName: "Owner",
       password: "password123",
     });
-    const channel = server!.store.getChannelByName("general")!;
+    const channel = server!.store.channels.byName("general")!;
     const posted = await request(
       base,
       `/api/channels/${channel.id}/messages`,
@@ -448,11 +448,11 @@ describe("self-hosted product", () => {
     const invite = (await request(base, "/api/invites", owner.data.token, "POST", { maxUses: 5 }))
       .data.invite.code;
     const leaver = await register(base, "leaver", invite);
-    const channel = server!.store.getChannelByName("general")!;
+    const channel = server!.store.channels.byName("general")!;
 
     // Queued through the store so it is already due; the API rightly refuses a
     // time in the past, and what is under test is what the sender picks up.
-    const queued = server!.store.scheduleMessage({
+    const queued = server!.store.scheduled.schedule({
       channelId: channel.id,
       userId: leaver.data.user.id,
       text: "posted by a ghost",
@@ -461,8 +461,8 @@ describe("self-hosted product", () => {
       sendAt: Date.now() - 1000,
     });
     const ghosted = () =>
-      server!.store
-        .listMessages({ channelId: channel.id, limit: 50 })
+      server!.store.messages
+        .list({ channelId: channel.id, limit: 50 })
         .some((m) => m.text === "posted by a ghost");
 
     await request(base, `/api/admin/users/${leaver.data.user.id}`, owner.data.token, "PATCH", {
@@ -472,7 +472,7 @@ describe("self-hosted product", () => {
     expect(ghosted()).toBe(false);
 
     // It is held with a reason, not thrown away: reactivating lets it go out.
-    const held = server!.store.getScheduled(queued.id)!;
+    const held = server!.store.scheduled.get(queued.id)!;
     expect(held.status).toBe("held");
     expect(held.failureReason).toMatch(/deactivated/);
 
@@ -481,7 +481,7 @@ describe("self-hosted product", () => {
     });
     server!.flushScheduled();
     expect(ghosted()).toBe(true);
-    expect(server!.store.getScheduled(queued.id)!.status).toBe("sent");
+    expect(server!.store.scheduled.get(queued.id)!.status).toBe("sent");
   });
 
   it("keeps the workspace from being taken away from its owner", async () => {

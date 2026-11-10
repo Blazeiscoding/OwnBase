@@ -5,12 +5,13 @@
   "type": "module",
   "exports": {
     ".": "./src/index.ts",
-    "./backup": "./src/backup.ts",
+    "./backup": "./src/backups/backup.ts",
     "./extensions": "./src/extensions.ts",
     "./httpError": "./src/httpError.ts",
-    "./main": "./src/main.ts",
-    "./ownership": "./src/ownership.ts",
-    "./workspaceIcon": "./src/workspaceIcon.ts"
+    "./cli": "./src/cli/run.ts",
+    "./cliFlags": "./src/cli/flags.ts",
+    "./ownership": "./src/core/ownership.ts",
+    "./workspaceIcon": "./src/admin/workspaceIcon.ts"
   },
   "scripts": {
     "dev": "tsx watch src/main.ts --data ./data",

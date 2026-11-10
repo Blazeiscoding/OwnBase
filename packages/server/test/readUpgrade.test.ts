@@ -59,18 +59,24 @@ describe("upgrading to replies read through their threads", () => {
     try {
       const store = new Store(db);
       // Only the mention after the old cursor counts, as it did before.
-      expect(store.unreadMentionCounts("U1")).toEqual({ C1: 1 });
-      expect(store.activityMessages("U1", { mode: "unread", limit: 50 }).map((m) => m.id)).toEqual([
+      expect(store.channels.unreadMentionCounts("U1")).toEqual({ C1: 1 });
+      expect(store.search.activity("U1", { mode: "unread", limit: 50 }).map((m) => m.id)).toEqual([
         "M60",
       ]);
       // The thread without a cursor of its own is read where the channel was.
-      expect(store.memberships("U1")[0]).toMatchObject({ lastReadSeq: 50, repliesReadSeq: 50 });
-      expect(store.threadFollow("U1", "M10")).toMatchObject({ following: false, lastReadSeq: 50 });
+      expect(store.channels.memberships("U1")[0]).toMatchObject({
+        lastReadSeq: 50,
+        repliesReadSeq: 50,
+      });
+      expect(store.threads.follow("U1", "M10")).toMatchObject({
+        following: false,
+        lastReadSeq: 50,
+      });
       // The followed thread's cursor is raised to the channel's, so Threads
       // now agrees with what Activity already said.
-      expect(store.threadFollow("U1", "M42")).toMatchObject({ following: true, lastReadSeq: 50 });
-      expect(store.unreadThreadCount("U1")).toBe(0);
-      expect(store.followedThreads("U1").threads).toMatchObject([{ unreadCount: 0 }]);
+      expect(store.threads.follow("U1", "M42")).toMatchObject({ following: true, lastReadSeq: 50 });
+      expect(store.threads.unreadCount("U1")).toBe(0);
+      expect(store.threads.followed("U1").threads).toMatchObject([{ unreadCount: 0 }]);
     } finally {
       db.close();
     }

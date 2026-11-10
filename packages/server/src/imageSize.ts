@@ -3,21 +3,36 @@
  * Clients use these to reserve space before the image loads, so timelines
  * don't jump. Returns null for anything unrecognized.
  */
+export type ImageType = "image/png" | "image/jpeg" | "image/webp" | "image/gif";
+
+/** The type an image's first bytes say it is, or null for anything else. */
+export function imageTypeOf(bytes: Uint8Array): ImageType | null {
+  const at = (offset: number, ...expected: number[]) =>
+    bytes.length >= offset + expected.length && expected.every((b, i) => bytes[offset + i] === b);
+  if (at(0, 0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a)) return "image/png";
+  if (at(0, 0xff, 0xd8, 0xff)) return "image/jpeg";
+  // "RIFF", four bytes of length, "WEBP".
+  if (at(0, 0x52, 0x49, 0x46, 0x46) && at(8, 0x57, 0x45, 0x42, 0x50)) return "image/webp";
+  if (at(0, 0x47, 0x49, 0x46, 0x38)) return "image/gif";
+  return null;
+}
+
 export function imageSize(buf: Buffer): { width: number; height: number } | null {
   if (buf.length < 24) return null;
+  const type = imageTypeOf(buf);
 
   // PNG: 8-byte signature, then IHDR with width/height as big-endian uint32.
-  if (buf.readUInt32BE(0) === 0x89504e47 && buf.readUInt32BE(4) === 0x0d0a1a0a) {
+  if (type === "image/png") {
     return { width: buf.readUInt32BE(16), height: buf.readUInt32BE(20) };
   }
 
   // GIF: "GIF87a"/"GIF89a", then little-endian uint16 width/height.
-  if (buf.toString("ascii", 0, 3) === "GIF") {
+  if (type === "image/gif") {
     return { width: buf.readUInt16LE(6), height: buf.readUInt16LE(8) };
   }
 
-  // WebP: RIFF container; VP8/VP8L/VP8X each store size differently.
-  if (buf.toString("ascii", 0, 4) === "RIFF" && buf.toString("ascii", 8, 12) === "WEBP") {
+  // WebP: VP8/VP8L/VP8X each store size differently.
+  if (type === "image/webp") {
     const format = buf.toString("ascii", 12, 16);
     if (format === "VP8 " && buf.length >= 30) {
       return { width: buf.readUInt16LE(26) & 0x3fff, height: buf.readUInt16LE(28) & 0x3fff };
@@ -35,7 +50,7 @@ export function imageSize(buf: Buffer): { width: number; height: number } | null
   }
 
   // JPEG: walk the marker segments to the SOFn frame header.
-  if (buf.readUInt16BE(0) === 0xffd8) {
+  if (type === "image/jpeg") {
     let offset = 2;
     while (offset + 9 < buf.length) {
       if (buf[offset] !== 0xff) {

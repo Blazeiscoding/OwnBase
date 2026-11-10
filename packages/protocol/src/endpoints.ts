@@ -34,7 +34,6 @@ import type {
 import type { CallLogEntry } from "./huddle.js";
 import type { UnreadSummary } from "./rest.js";
 
-/** A session, as signing in or joining gives one. */
 export interface SignedIn {
   token: string;
   user: User;

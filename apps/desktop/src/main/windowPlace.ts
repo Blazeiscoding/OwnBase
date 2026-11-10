@@ -15,7 +15,6 @@ export interface WindowPlace {
   maximized: boolean;
 }
 
-/** The setting the place is kept under. */
 export const WINDOW_PLACE_KEY = "windowPlace";
 
 export const DEFAULT_WINDOW_SIZE = { width: 1280, height: 820 } as const;

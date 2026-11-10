@@ -4,8 +4,8 @@ import { existsSync, mkdtempSync, readdirSync, readFileSync, rmSync } from "node
 import * as fsPromises from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { backupWorkspace, restoreWorkspace } from "../src/backup.js";
-import { holdWorkspace } from "../src/ownership.js";
+import { backupWorkspace, restoreWorkspace } from "../src/backups/backup.js";
+import { holdWorkspace } from "../src/core/ownership.js";
 import { createWorkspaceServer } from "../src/server.js";
 
 /**

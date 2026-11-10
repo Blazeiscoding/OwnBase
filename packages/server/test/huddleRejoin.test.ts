@@ -80,7 +80,7 @@ async function connect(token: string) {
   return { ws, frames, settle, events, send };
 }
 
-const general = () => server.store.getChannelByName("general")!.id;
+const general = () => server.store.channels.byName("general")!.id;
 
 /** Alice and Bob in #general's huddle, each on one device. */
 async function call() {

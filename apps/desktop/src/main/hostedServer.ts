@@ -9,7 +9,6 @@ export interface HostedServerHost {
   savedRelay(): Promise<CallRelay | null>;
   /** Running workspaces that calls can be given a relay by, so a change reaches them at once. */
   relayServers: Set<WorkspaceServer>;
-  /** Whether a stable public address is set for this computer. */
   publicAddressConfigured(): boolean;
 }
 
@@ -49,7 +48,7 @@ export async function startHostedServer(
     // open while any stable public address is configured. This is the one
     // start that changes who may join over what the workspace holds: it only
     // ever closes joining, and the record names the host as having done it.
-    if (host.publicAddressConfigured()) server.setInviteOnly(true);
+    if (host.publicAddressConfigured()) server.setAccessPolicy("invite_only");
   } catch (error) {
     host.relayServers.delete(server);
     try {
@@ -65,7 +64,7 @@ export async function startHostedServer(
   return {
     port: server.port,
     instanceId: server.instanceId,
-    workspaceId: () => server.store.getMeta("workspace_id") ?? null,
+    workspaceId: () => server.workspaceId(),
     workspaceName: () => server.workspaceName(),
     setWorkspaceName: (name) => server.setWorkspaceName(name),
     workspaceIcon: () => server.workspaceIcon(),
@@ -84,10 +83,8 @@ export async function startHostedServer(
     // visitor address only while the controller owns a live connector.
     setTrustLoopbackProxy: (enabled) => server.setTrustLoopbackProxy(enabled),
     setIceServers: (servers) => server.setIceServers(servers),
-    inviteOnly: () => server.inviteOnly(),
-    setInviteOnly: (value) => server.setInviteOnly(value),
     accessPolicy: () => server.accessPolicy(),
     setAccessPolicy: (policy) => server.setAccessPolicy(policy),
-    accountCount: () => server.store.userCount(),
+    accountCount: () => server.store.people.count(),
   };
 }

@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { ApiError } from "@ownbase/client-core";
 import type { Channel, ID } from "@ownbase/protocol";
 import { useClient, useWorkspace } from "../context.js";
+import { failureText } from "../lib/failure.js";
 import { Avatar } from "./Avatar.js";
 import { Dialog, DialogScroll } from "./Dialog.js";
 import { inputCls, TextField } from "./TextField.js";
@@ -213,29 +214,29 @@ export function GuestAccountDialog(props: {
       return;
     }
     setBusy(true);
-    try {
-      const { token, user } = await client.account.keepAsAccount({
-        handle: handle.trim().toLowerCase(),
-        password,
-      });
+    const kept = await client.account.keepAsAccount({
+      handle: handle.trim().toLowerCase(),
+      password,
+    });
+    if (!(kept instanceof ApiError)) {
       // Even closed, the guest session it replaced has ended: carry on as the account.
-      props.onCreated(token, user.handle);
-    } catch (err) {
-      if (!alive.current) return;
-      setBusy(false);
-      if (err instanceof ApiError && err.code === "handle_taken") {
-        setProblems({ handle: "That username is taken. Choose another." });
-        handleField.current?.focus();
-        return;
-      }
-      setError(
-        err instanceof ApiError && err.code === "invalid_request"
-          ? "Usernames use lowercase letters and numbers. Passwords need at least 8 characters."
-          : err instanceof ApiError && err.code === "invite_required"
-            ? "This workspace now needs an invite to create an account."
-            : "Could not create the account. Try again.",
-      );
+      props.onCreated(kept.token, kept.user.handle);
+      return;
     }
+    if (!alive.current) return;
+    setBusy(false);
+    if (kept.code === "handle_taken") {
+      setProblems({ handle: "That username is taken. Choose another." });
+      handleField.current?.focus();
+      return;
+    }
+    setError(
+      kept.code === "invalid_request"
+        ? "Usernames use lowercase letters and numbers. Passwords need at least 8 characters."
+        : kept.code === "invite_required"
+          ? "This workspace now needs an invite to create an account."
+          : failureText("Could not create the account.", kept, "Try again."),
+    );
   }
 
   return (

@@ -32,40 +32,40 @@ describe("the store's notes of removals", () => {
   afterEach(() => db.close());
 
   it("keeps the channel as it was named, newest first, until read", () => {
-    const first = store.addChannelRemoval("U2", store.getChannel("C1")!, "U1")!;
+    const first = store.channels.addRemoval("U2", store.channels.get("C1")!, "U1")!;
     expect(first).toMatchObject({
       channelId: "C1",
       channelName: "design",
       channelType: "public",
       removedBy: "U1",
     });
-    const second = store.addChannelRemoval("U2", store.getChannel("C2")!, "U1")!;
+    const second = store.channels.addRemoval("U2", store.channels.get("C2")!, "U1")!;
     db.prepare("UPDATE channel_removals SET created_at = created_at - 1000 WHERE id = ?").run(
       first.id,
     );
     // A rename since does not change what the note says.
     db.exec("UPDATE channels SET name = 'design-old' WHERE id = 'C1'");
-    expect(store.channelRemovals("U2").map((r) => [r.id, r.channelName])).toEqual([
+    expect(store.channels.removals("U2").map((r) => [r.id, r.channelName])).toEqual([
       [second.id, "plans"],
       [first.id, "design"],
     ]);
-    expect(store.channelRemovals("U1")).toEqual([]);
+    expect(store.channels.removals("U1")).toEqual([]);
 
     // Another account's notes are not theirs to read; one read twice is read once.
-    expect(store.readChannelRemovals("U1", [first.id])).toEqual([]);
-    expect(store.readChannelRemovals("U2", [first.id, first.id, "nope"])).toEqual([first.id]);
-    expect(store.channelRemovals("U2").map((r) => r.id)).toEqual([second.id]);
+    expect(store.channels.readRemovals("U1", [first.id])).toEqual([]);
+    expect(store.channels.readRemovals("U2", [first.id, first.id, "nope"])).toEqual([first.id]);
+    expect(store.channels.removals("U2").map((r) => r.id)).toEqual([second.id]);
   });
 
   it("leaves no note for a direct conversation", () => {
-    expect(store.addChannelRemoval("U2", store.getChannel("D1")!, "U1")).toBeNull();
-    expect(store.channelRemovals("U2")).toEqual([]);
+    expect(store.channels.addRemoval("U2", store.channels.get("D1")!, "U1")).toBeNull();
+    expect(store.channels.removals("U2")).toEqual([]);
   });
 
   it("outlives the channel it names", () => {
-    store.addChannelRemoval("U2", store.getChannel("C2")!, "U1");
+    store.channels.addRemoval("U2", store.channels.get("C2")!, "U1");
     db.exec("DELETE FROM channels WHERE id = 'C2'");
-    expect(store.channelRemovals("U2").map((r) => r.channelName)).toEqual(["plans"]);
+    expect(store.channels.removals("U2").map((r) => r.channelName)).toEqual(["plans"]);
   });
 });
 
@@ -202,7 +202,7 @@ describe("removal from a channel, over the API", () => {
     await request(`/api/channels/${plans.id}/leave`, {}, "POST", peer.token);
     // Removing someone no longer there changes nothing, so says nothing.
     await remove(design.id);
-    expect(server!.store.channelRemovals(peer.id)).toEqual([]);
+    expect(server!.store.channels.removals(peer.id)).toEqual([]);
     const again = await connect(peer.token);
     expect(snapshotRemovals(again)).toEqual([]);
     expect(told(theirs)).toEqual([]);
@@ -212,7 +212,7 @@ describe("removal from a channel, over the API", () => {
     const design = await channel("public", "design");
     // A member cannot remove the owner.
     expect((await remove(design.id, owner.id, peer.token)).status).toBe(403);
-    expect(server!.store.channelRemovals(owner.id)).toEqual([]);
+    expect(server!.store.channels.removals(owner.id)).toEqual([]);
   });
 
   it("reads notes once, on every device, and only the reader's own", async () => {
@@ -220,7 +220,7 @@ describe("removal from a channel, over the API", () => {
     const plans = await channel("private", "plans");
     await remove(design.id);
     await remove(plans.id);
-    const [newest, oldest] = server!.store.channelRemovals(peer.id);
+    const [newest, oldest] = server!.store.channels.removals(peer.id);
     const phone = await connect(peer.token);
     const laptop = await connect(peer.token);
 
@@ -239,7 +239,7 @@ describe("removal from a channel, over the API", () => {
       await expect
         .poll(() => told(device))
         .toEqual([{ type: "channel.removals.read", ids: [oldest!.id] }]);
-    expect(server!.store.channelRemovals(peer.id).map((r) => r.id)).toEqual([newest!.id]);
+    expect(server!.store.channels.removals(peer.id).map((r) => r.id)).toEqual([newest!.id]);
 
     // Read again: nothing changes, and nobody is told.
     await request("/api/activity/removals/read", { ids: [oldest!.id] }, "POST", peer.token);

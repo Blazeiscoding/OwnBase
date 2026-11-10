@@ -69,9 +69,9 @@ async function connect(person: Person) {
 /** Calls to what a publication may cost, from here on. */
 function cost() {
   return {
-    members: vi.spyOn(server.store, "memberIds"),
-    membership: vi.spyOn(server.store, "isMember"),
-    recounts: vi.spyOn(server.store, "unreadMentionCounts"),
+    members: vi.spyOn(server.store.channels, "memberIds"),
+    membership: vi.spyOn(server.store.channels, "isMember"),
+    recounts: vi.spyOn(server.store.channels, "unreadMentionCounts"),
   };
 }
 
@@ -95,8 +95,8 @@ beforeEach(async () => {
         })
       ).data,
     );
-  channelId = server.store.getChannelByName("general")!.id;
-  expect(server.store.memberIds(channelId)).toHaveLength(MEMBERS);
+  channelId = server.store.channels.byName("general")!.id;
+  expect(server.store.channels.memberIds(channelId)).toHaveLength(MEMBERS);
 }, 60_000);
 
 afterEach(async () => {
@@ -191,7 +191,7 @@ describe("publishing a message (REV-06)", () => {
           })
         ).status,
       ).toBe(200);
-    expect(server.store.memberIds(channelId)).toHaveLength(MEMBERS);
+    expect(server.store.channels.memberIds(channelId)).toHaveLength(MEMBERS);
 
     const thread = async (label: string) => {
       const root = await post(author, `<!channel> ${label}`);

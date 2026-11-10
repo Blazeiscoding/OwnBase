@@ -3,6 +3,7 @@ import { afterEach, describe, expect, it } from "vitest";
 import { z } from "zod";
 import { endpoint, json, type Role, type User } from "@ownbase/protocol";
 import { createRouter } from "../src/route.js";
+import { hashToken } from "../src/auth.js";
 
 /**
  * Every REST route is registered from its declaration: who may call it, what
@@ -57,10 +58,10 @@ function server() {
   const { route } = createRouter({
     app,
     log: app.log,
-    sessionUser: (req) => people[req.headers.authorization ?? ""] ?? null,
+    sessionUser: (tokenHash) =>
+      Object.entries(people).find(([token]) => hashToken(token) === tokenHash)?.[1] ?? null,
     mustChangePassword: (id) => id === "L",
-    botCaller: () => null,
-    sayScopes: () => {},
+    appForToken: () => null,
   });
   route(declared.guests, async ({ user }) => ({ id: user.id }));
   route(declared.members, async ({ user, body }) => ({ id: user.id, count: body.count }));
@@ -79,7 +80,7 @@ const call = async (
   const res = await app.inject({
     method,
     url,
-    headers: who ? { authorization: who } : {},
+    headers: who ? { authorization: `Bearer ${who}` } : {},
     ...(body === undefined ? {} : { payload: body as object }),
   });
   return { status: res.statusCode, data: res.json() as Record<string, unknown> };

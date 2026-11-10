@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { readableText } from "@ownbase/client-core";
+import { ApiError, readableText } from "@ownbase/client-core";
 import type { ReportedMessage, ReportResolution, User } from "@ownbase/protocol";
 import { useClient, useWorkspace } from "../context.js";
 import { accountError } from "../lib/account.js";
@@ -35,16 +35,15 @@ export function ReportsDialog({ onClose }: { onClose: () => void }) {
   const load = useCallback(async () => {
     const mine = ++version.current;
     setLoading(true);
-    try {
-      const result = await client.admin.reports();
-      if (!alive.current || mine !== version.current) return;
-      setReports(result.reports);
-      setLoadError(false);
-    } catch {
-      if (alive.current && mine === version.current) setLoadError(true);
-    } finally {
-      if (alive.current && mine === version.current) setLoading(false);
+    const reports = await client.admin.reports();
+    if (!alive.current || mine !== version.current) return;
+    setLoading(false);
+    if (reports instanceof ApiError) {
+      setLoadError(true);
+      return;
     }
+    setReports(reports);
+    setLoadError(false);
   }, [client]);
   useEffect(() => {
     alive.current = true;
@@ -74,22 +73,21 @@ export function ReportsDialog({ onClose }: { onClose: () => void }) {
     setBusy(item.messageId);
     setError(null);
     setNotice(null);
-    try {
-      await client.admin.resolveReport(item.messageId, action);
-      if (!alive.current) return;
-      setReports((list) => list?.filter((other) => other.messageId !== item.messageId) ?? list);
-      setNotice(
-        action === "dismiss"
-          ? "Dismissed. The message stays."
-          : action === "remove"
-            ? `${possessive(name)} message is removed.`
-            : `${possessive(name)} message is removed, and ${name} is deactivated.`,
-      );
-    } catch (err) {
-      if (alive.current) setError(accountError(err));
-    } finally {
-      if (alive.current) setBusy(null);
+    const failed = await client.admin.resolveReport(item.messageId, action);
+    if (!alive.current) return;
+    setBusy(null);
+    if (failed) {
+      setError(accountError(failed));
+      return;
     }
+    setReports((list) => list?.filter((other) => other.messageId !== item.messageId) ?? list);
+    setNotice(
+      action === "dismiss"
+        ? "Dismissed. The message stays."
+        : action === "remove"
+          ? `${possessive(name)} message is removed.`
+          : `${possessive(name)} message is removed, and ${name} is deactivated.`,
+    );
   }
 
   return (

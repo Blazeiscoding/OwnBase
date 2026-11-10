@@ -206,6 +206,9 @@ importers:
 
   ee/cloud:
     dependencies:
+      '@ownbase/server':
+        specifier: workspace:*
+        version: link:../../packages/server
       fastify:
         specifier: ^5.12.5
         version: 5.12.5

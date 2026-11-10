@@ -1,8 +1,9 @@
-// A build's entry with one command-line extension, as ee/src/main.ts is one:
-// it registers the extension, then runs the server's own main.ts (P6).
-import { ConfigError, addCommandLineExtension } from "../../src/extensions.js";
+// A build's entry with one command-line extension, as ee/src/main.ts is one (P6).
+import { fileURLToPath } from "node:url";
+import { runServerCli } from "../../src/cli/run.js";
+import { ConfigError, type CommandLineExtension } from "../../src/extensions.js";
 
-addCommandLineExtension({
+const greeting: CommandLineExtension = {
   options: { greeting: { type: "string" } },
   help: `Greeting
 
@@ -19,5 +20,6 @@ addCommandLineExtension({
       }),
     };
   },
-});
-await import("../../src/main.js");
+};
+
+await runServerCli({ extensions: [greeting], script: fileURLToPath(import.meta.url) });

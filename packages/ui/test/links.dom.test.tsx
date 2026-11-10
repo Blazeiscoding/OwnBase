@@ -2,7 +2,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { act, fireEvent, screen, waitFor, within } from "@testing-library/react";
 import { render } from "./render.js";
 import userEvent from "@testing-library/user-event";
-import { WorkspaceClient } from "@ownbase/client-core";
+import { ApiError, WorkspaceClient } from "@ownbase/client-core";
 import type { Channel, Invite, ServerInfo, User } from "@ownbase/protocol";
 import { ClientContext, OpenMessageContext, PlatformContext } from "../src/context.js";
 import { InviteDialog } from "../src/components/InviteDialog.js";
@@ -334,6 +334,41 @@ describe("inviting someone", () => {
       }),
     );
     expect(revokeInvite).toHaveBeenCalledWith("OLD-CODE");
+  });
+
+  it("says an invite was not revoked when the server refuses, and whether it could not tell", async () => {
+    const oldInvite: Invite = { ...madeInvite, code: "OLD-CODE", uses: 1, maxUses: 3 };
+    const { dialog, user, revokeInvite } = await inviteWith({
+      baseUrl: "http://192.168.1.20:8543",
+      invites: [oldInvite],
+    });
+    const revoke = async () => {
+      await user.click(await dialog.findByRole("button", { name: "Revoke invite OLD-CODE" }));
+      await user.click(
+        within(screen.getByRole("dialog", { name: "Revoke this invite?" })).getByRole("button", {
+          name: "Revoke",
+        }),
+      );
+    };
+    revokeInvite.mockRejectedValueOnce(
+      new ApiError(
+        403,
+        "invite_permission_required",
+        "only its maker or an admin can revoke an invite",
+      ),
+    );
+    await revoke();
+    expect(await dialog.findByRole("alert")).toHaveTextContent(
+      "That invite was not revoked. Only its maker or an admin can revoke an invite.",
+    );
+
+    revokeInvite.mockRejectedValueOnce(new TypeError("Failed to fetch"));
+    await revoke();
+    await vi.waitFor(() =>
+      expect(dialog.getByRole("alert")).toHaveTextContent(
+        "Could not confirm whether that invite was revoked. Check your connection before trying again.",
+      ),
+    );
   });
 
   it("tells someone who cannot create invite codes what joining takes", async () => {

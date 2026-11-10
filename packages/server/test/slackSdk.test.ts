@@ -72,8 +72,8 @@ beforeAll(async () => {
     { name: "SDK Bot" },
   );
   bot = { appId: made.app.id, botUserId: made.botUser.id, token: made.token };
-  channelId = server.store.getChannelByName("general")!.id;
-  server.store.addMember(channelId, bot.botUserId);
+  channelId = server.store.channels.byName("general")!.id;
+  server.store.channels.addMember(channelId, bot.botUserId);
   // No retries: a failure should be reported here, not retried into a timeout.
   client = new WebClient(bot.token, {
     slackApiUrl: `${base}/api/`,
@@ -117,7 +117,7 @@ describe("Slack's SDK against this server", () => {
       ],
     });
     expect(result.ok).toBe(true);
-    const stored = server.store.getMessage(result.ts!)!;
+    const stored = server.store.messages.get(result.ts!)!;
     expect(stored.actions.map((a) => a.actionId)).toEqual(["approve"]);
   });
 
@@ -127,7 +127,7 @@ describe("Slack's SDK against this server", () => {
       text: "",
       blocks: [{ type: "section", text: { type: "mrkdwn", text: "from blocks alone" } }],
     });
-    expect(server.store.getMessage(result.ts!)!.text).toBe("from blocks alone");
+    expect(server.store.messages.get(result.ts!)!.text).toBe("from blocks alone");
   });
 
   it("reports a refusal by name, not as a failure to connect", async () => {
@@ -232,6 +232,6 @@ describe("a token sent the other way Slack accepts", () => {
     });
     const body = (await res.json()) as { ok: boolean; ts: string };
     expect(body.ok).toBe(true);
-    expect(server.store.getMessage(body.ts)!.userId).toBe(bot.botUserId);
+    expect(server.store.messages.get(body.ts)!.userId).toBe(bot.botUserId);
   });
 });

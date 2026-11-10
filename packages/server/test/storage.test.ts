@@ -33,7 +33,7 @@ async function stop() {
 
 /** Registers on first start, signs in again after a restart. */
 async function signIn() {
-  const existing = server!.store.getUserAuthByHandle("owner");
+  const existing = server!.store.people.authByHandle("owner");
   const res = await fetch(`${base}/api/auth/${existing ? "login" : "register"}`, {
     method: "POST",
     headers: { "content-type": "application/json" },
@@ -45,7 +45,7 @@ async function signIn() {
   });
   const body = (await res.json()) as any;
   token = body.token;
-  channelId = server!.store.getChannelByName("general")!.id;
+  channelId = server!.store.channels.byName("general")!.id;
 }
 
 /** Uploads `bytes` of filler and reports what the server made of it. */
@@ -264,7 +264,7 @@ describe("abandoned uploads", () => {
 
     expect(blobsOnDisk()).toHaveLength(0);
     expect((await usage()).usedBytes).toBe(0);
-    expect(server!.store.getFile(id)).toBeNull();
+    expect(server!.store.files.get(id)).toBeNull();
   });
 
   it("leaves an upload that was actually sent alone", async () => {
@@ -328,7 +328,7 @@ describe("abandoned uploads", () => {
        VALUES ('01BROKENBROKENBROKENBROKEN', ?, ?, 'x', NULL, 'not json', ?, ?)`,
     ).run(
       channelId,
-      server!.store.getUserAuthByHandle("owner")!.id,
+      server!.store.people.authByHandle("owner")!.id,
       Date.now() + 60_000,
       Date.now(),
     );

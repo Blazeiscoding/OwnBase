@@ -107,7 +107,7 @@ beforeEach(async () => {
   await start();
   owner = await register("owner");
   peer = await register("peer");
-  general = server!.store.getChannelByName("general")!.id;
+  general = server!.store.channels.byName("general")!.id;
 });
 
 afterEach(async () => {
@@ -143,7 +143,7 @@ describe("the section list", () => {
 
   it(`keeps at most ${SIDEBAR_SECTIONS_MAX}`, async () => {
     for (let i = 0; i < SIDEBAR_SECTIONS_MAX; i++)
-      server!.store.createSidebarSection(owner.id, `Section ${i}`);
+      server!.store.channels.createSection(owner.id, `Section ${i}`);
     const refused = await create("One more");
     expect(refused.status).toBe(409);
     expect(refused.body.error).toBe("too_many_sections");
@@ -252,9 +252,9 @@ describe("a conversation in a section", () => {
       .poll(() => prefsTold(mine).at(-1))
       .toMatchObject({ channelId: general, prefs: { sectionId: null } });
     await expect.poll(() => names(told(mine).at(-1) ?? [])).toEqual(["Keep"]);
-    expect(server!.store.getChannelPrefs(general, owner.id)!.sectionId).toBeNull();
+    expect(server!.store.channels.prefs(general, owner.id)!.sectionId).toBeNull();
     // The other section keeps its own.
-    expect(server!.store.getChannelPrefs(design, owner.id)!.sectionId).toBe(keep.id);
+    expect(server!.store.channels.prefs(design, owner.id)!.sectionId).toBe(keep.id);
     expect((await request(`/api/sidebar-sections/${work.id}`, undefined, "DELETE")).status).toBe(
       404,
     );
@@ -269,7 +269,7 @@ describe("a conversation in a section", () => {
     await prefs(design, { sectionId: work.id });
     expect((await request(`/api/channels/${design}/leave`, {})).status).toBe(200);
     await request(`/api/channels/${design}/join`, {});
-    expect(server!.store.getChannelPrefs(design, owner.id)!.sectionId).toBeNull();
+    expect(server!.store.channels.prefs(design, owner.id)!.sectionId).toBeNull();
   });
 });
 
@@ -300,7 +300,7 @@ describe("closing a direct conversation", () => {
     expect(closed.status).toBe(200);
     expect(closed.body.prefs.hiddenSeq).toBe(42);
     await expect.poll(() => prefsTold(mine).at(-1)?.prefs.hiddenSeq).toBe(42);
-    expect(server!.store.getChannelPrefs(dm, peer.id)?.hiddenSeq).toBeNull();
+    expect(server!.store.channels.prefs(dm, peer.id)?.hiddenSeq).toBeNull();
     expect((await prefs(dm, { hiddenSeq: null })).body.prefs.hiddenSeq).toBeNull();
   });
 

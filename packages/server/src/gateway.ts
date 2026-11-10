@@ -1,31 +1,30 @@
-import type { IncomingMessage, Server as HttpServer } from "node:http";
-import { WebSocketServer, WebSocket } from "ws";
 import {
   PROTOCOL_VERSION,
   SOCKET_CLOSE,
   clientMessage,
   isAdministrator,
-  type SocketRefusal,
-  type AccessPolicy,
   type ClientToServer,
   type EphemeralEvent,
   type EventEnvelope,
   type HuddleRing,
   type ID,
-  type MemberNotice,
   type Presence,
   type ReadySnapshot,
-  type ServerNotice,
   type ServerToClient,
+  type SocketRefusal,
+  type User,
 } from "@ownbase/protocol";
-import type { Store } from "./store.js";
-import { eventChannel, type EventTo } from "./events/registry.js";
-import type { Audiences, OutboxSink } from "./events/outbox.js";
+import type { Server as HttpServer, IncomingMessage } from "node:http";
+import { WebSocket, WebSocketServer } from "ws";
 import { hashToken } from "./auth.js";
-import { PASSWORD_CHANGE_REQUIRED } from "./httpError.js";
 import { CallLog } from "./callLog.js";
+import { contain } from "./core/contain.js";
+import type { Audiences, OutboxSink } from "./events/outbox.js";
+import { eventChannel, type EventTo } from "./events/registry.js";
+import { PASSWORD_CHANGE_REQUIRED } from "./httpError.js";
 import type { RateLimiter } from "./limits.js";
 import { resolveClientAddress } from "./netTrust.js";
+import type { Store } from "./store.js";
 
 type HuddleJoinResult = Extract<EphemeralEvent, { type: "huddle.join.result" }>;
 type SessionCheck = (client: Client) => boolean;
@@ -38,6 +37,12 @@ interface Client {
   /** Its device has gone idle, as it says (E9); every one idle makes the account away. */
   idle?: boolean;
 }
+
+/** The startup snapshot without what the gateway itself knows: the features' slices. */
+export type FeatureSnapshot = Omit<
+  ReadySnapshot,
+  "type" | "seq" | "replayFrom" | "self" | "presence" | "huddles" | "huddleRings" | "serverTime"
+>;
 
 /**
  * How long a place in a huddle waits for its device to come back after that
@@ -93,21 +98,12 @@ export class Gateway implements OutboxSink {
   private sockets = new Set<WebSocket>();
   private closing = false;
   private closePromise: Promise<void> | null = null;
+  private featureSnapshot: (user: User) => FeatureSnapshot = () => {
+    throw new Error("the gateway was attached before the features gave their snapshot");
+  };
 
   constructor(
     private store: Store,
-    /** The workspace's name, who may join it and its icon's version, as they are now. */
-    private workspace: {
-      name: () => string;
-      accessPolicy: () => AccessPolicy;
-      iconVersion: () => string | null;
-      /** Whether new messages get link previews now (E2). */
-      linkPreviews: () => boolean;
-      /** How many members the plan includes, when the host set it (P5). */
-      memberNotice?: () => MemberNotice | null;
-      /** What the server's extensions tell the owner and admins now (P6). */
-      notices?: () => ServerNotice[];
-    },
     /** Shared with the HTTP side, so one caller has one allowance overall. */
     private limiter: RateLimiter | null = null,
     private clientAddress: (request: IncomingMessage) => string = (request) =>
@@ -147,21 +143,7 @@ export class Gateway implements OutboxSink {
    * close; this only keeps the server up.
    */
   private contained(where: string, work: () => void): boolean {
-    try {
-      work();
-      return true;
-    } catch (err) {
-      this.report(err, where);
-      return false;
-    }
-  }
-
-  private report(err: unknown, where: string): void {
-    try {
-      this.reportFailure(err, where);
-    } catch {
-      // Reporting cannot be what ends the process either.
-    }
+    return contain(work, (err) => this.reportFailure(err, where));
   }
 
   /**
@@ -179,6 +161,11 @@ export class Gateway implements OutboxSink {
     } catch {
       ws.terminate();
     }
+  }
+
+  /** What the features give the startup snapshot, each its own slice. */
+  useSnapshot(snapshot: (user: User) => FeatureSnapshot): void {
+    this.featureSnapshot = snapshot;
   }
 
   attach(server: HttpServer, path = "/ws"): void {
@@ -307,7 +294,7 @@ export class Gateway implements OutboxSink {
   private presenceOf(userId: ID): Presence {
     const sockets = this.byUser.get(userId);
     if (!sockets || sockets.size === 0) return "offline";
-    if (this.store.isAway(userId)) return "away";
+    if (this.store.people.isAway(userId)) return "away";
     return [...sockets].every((client) => client.idle) ? "away" : "online";
   }
 
@@ -368,12 +355,12 @@ export class Gateway implements OutboxSink {
           return;
         }
         const tokenHash = hashToken(msg.token);
-        const user = this.store.getSessionUser(tokenHash);
+        const user = this.store.accounts.getSessionUser(tokenHash);
         if (!user) {
           this.refuse(ws, "auth_failed", "invalid token");
           return;
         }
-        if (this.store.mustChangePassword(user.id)) {
+        if (this.store.accounts.mustChangePassword(user.id)) {
           this.refuse(ws, "password_change_required", PASSWORD_CHANGE_REQUIRED);
           return;
         }
@@ -384,32 +371,11 @@ export class Gateway implements OutboxSink {
           seq: this.store.currentSeq(),
           replayFrom: null,
           self: user,
-          users: this.store.listUsers(),
-          channels: this.store.listChannelsVisibleTo(user.id),
-          memberships: this.store.memberships(user.id),
-          channelLastSeq: this.store.channelLastSeqMap(user.id),
           presence: {},
-          savedMessageIds: this.store.savedMessageIds(user.id),
-          threadFollows: this.store.threadFollows(user.id),
-          mentionCounts: this.store.unreadMentionCounts(user.id),
           huddles: this.huddlesVisibleTo(user.id),
           huddleRings: this.ringsFor(user.id),
           serverTime: Date.now(),
-          reminders: this.store.reminders(user.id),
-          channelRemovals: this.store.channelRemovals(user.id),
-          pollChoices: this.store.anonymousPollChoices(user.id),
-          sidebarSections: this.store.sidebarSections(user.id),
-          notifyDefault: this.store.notifyDefault(user.id),
-          accessPolicy: this.workspace.accessPolicy(),
-          iconVersion: this.workspace.iconVersion(),
-          linkPreviews: this.workspace.linkPreviews(),
-          workspaceName: this.workspace.name(),
-          workspaceId: this.store.workspaceId(),
-          friends: this.store.listFriends(user.id),
-          blocked: this.store.blockedIds(user.id),
-          ...(isAdministrator(user.role)
-            ? { openReports: this.store.openReportCount(), ...this.noticesFor() }
-            : {}),
+          ...this.featureSnapshot(user),
         };
         const missed =
           msg.lastSeq !== null && msg.lastSeq <= snapshot.seq
@@ -579,16 +545,6 @@ export class Gateway implements OutboxSink {
     this.presenceChanged();
   }
 
-  /** The plan's member notice and the extensions' notices for a snapshot, when there are any. */
-  private noticesFor(): { memberNotice?: MemberNotice; notices?: ServerNotice[] } {
-    const notice = this.workspace.memberNotice?.();
-    const notices = this.workspace.notices?.() ?? [];
-    return {
-      ...(notice ? { memberNotice: notice } : {}),
-      ...(notices.length > 0 ? { notices } : {}),
-    };
-  }
-
   // ---------- huddles ----------
 
   private huddlesVisibleTo(userId: ID): Record<ID, ID[]> {
@@ -718,18 +674,16 @@ export class Gateway implements OutboxSink {
    * drops whatever they may no longer see (F06). The change itself stands.
    */
   updateChannelAccess(channelId: ID, userId: ID): void {
-    try {
+    const told = this.contained("channel access", () => {
       const membership =
-        this.store.memberships(userId).find((m) => m.channelId === channelId) ?? null;
+        this.store.channels.memberships(userId).find((m) => m.channelId === channelId) ?? null;
       const channel = this.store.canAccess(channelId, userId)
-        ? this.store.getChannel(channelId)
+        ? this.store.channels.get(channelId)
         : null;
       if (!channel) this.leaveHuddle(channelId, userId, "lost access");
       this.tellPerson(userId, { type: "channel.access", channelId, channel, membership });
-    } catch (err) {
-      this.report(err, "channel access");
-      this.resynchronizeUser(userId);
-    }
+    });
+    if (!told) this.resynchronizeUser(userId);
   }
 
   /** Tells the channel who is in its huddle now, and brings its ring up to date (E10). */
@@ -754,11 +708,11 @@ export class Gateway implements OutboxSink {
    * Joining a huddle already going rings nobody, and a channel never rings.
    */
   private startRing(channelId: ID, callerId: ID): void {
-    const channel = this.store.getChannel(channelId);
+    const channel = this.store.channels.get(channelId);
     if (!channel || (channel.type !== "dm" && channel.type !== "group_dm")) return;
-    const rang = this.store.memberIds(channelId).filter((id) => {
+    const rang = this.store.channels.memberIds(channelId).filter((id) => {
       if (id === callerId) return false;
-      const user = this.store.getUser(id);
+      const user = this.store.people.get(id);
       return !!user && !user.isBot && !user.deactivated;
     });
     if (rang.length === 0) return;
@@ -896,12 +850,12 @@ export class Gateway implements OutboxSink {
    */
   private channelAudience(channelId: ID, audiences?: Audiences): Set<ID> | null {
     if (audiences?.has(channelId)) return audiences.get(channelId)!;
-    const ch = this.store.getChannel(channelId);
+    const ch = this.store.channels.get(channelId);
     const audience = !ch
       ? new Set<ID>()
       : ch.type === "public"
         ? null
-        : new Set(this.store.memberIds(channelId));
+        : new Set(this.store.channels.memberIds(channelId));
     audiences?.set(channelId, audience);
     return audience;
   }
@@ -944,12 +898,11 @@ export class Gateway implements OutboxSink {
       const key = `${client.tokenHash}\n${client.userId}`;
       let active = known.get(key);
       if (active === undefined) {
-        try {
-          active = this.store.isSessionActive(client.tokenHash, client.userId);
-        } catch (err) {
-          this.report(err, "session check");
-          active = "unreadable";
-        }
+        let read: boolean | "unreadable" = "unreadable";
+        this.contained("session check", () => {
+          read = this.store.accounts.isSessionActive(client.tokenHash, client.userId);
+        });
+        active = read;
         known.set(key, active);
       }
       // A session that cannot be read is not known to be signed in: send it
@@ -1040,7 +993,7 @@ export class Gateway implements OutboxSink {
   tellAdmins(event: EventTo<"admins">): void {
     const admins = new Set<ID>();
     for (const userId of this.byUser.keys()) {
-      const user = this.store.getUser(userId);
+      const user = this.store.people.get(userId);
       if (user && isAdministrator(user.role) && !user.deactivated) admins.add(userId);
     }
     if (admins.size > 0) this.fanOut({ type: "ephemeral", event }, admins);

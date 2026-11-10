@@ -4,6 +4,7 @@ import { WORKSPACE_NAME_MAX, type AccessPolicy, type WorkspaceCopy } from "@ownb
 import { ApiError } from "@ownbase/client-core";
 import { useClient, usePlatform, useWorkspace } from "../context.js";
 import { formatBytes, formatTime } from "../lib/format.js";
+import { failureText } from "../lib/failure.js";
 import { memberNoticeText, UpgradeLink, usePlanMembers } from "./MemberNotice.js";
 import { SavedContext, useSaved, useSavedNote } from "../lib/savedNote.js";
 import { IconProblem, prepareIcon } from "../lib/iconImage.js";
@@ -439,13 +440,14 @@ function CopySection() {
     void (async () => {
       try {
         if (!(await client.serverInfo()).workspaceCopies) return;
-        const { copy } = await client.admin.workspaceCopy();
-        if (stop) return;
-        setSupported(true);
-        setCopy(copy);
       } catch {
-        // Offered again next time the window opens; nothing here is urgent.
+        return;
       }
+      const copy = await client.admin.workspaceCopy();
+      // One that fails is offered again next time the window opens; nothing here is urgent.
+      if (stop || copy instanceof ApiError) return;
+      setSupported(true);
+      setCopy(copy);
     })();
     return () => {
       stop = true;
@@ -456,12 +458,9 @@ function CopySection() {
   useEffect(() => {
     if (!making) return;
     const timer = setInterval(() => {
-      client.admin.workspaceCopy().then(
-        ({ copy }) => {
-          if (alive.current) setCopy(copy);
-        },
-        () => {},
-      );
+      void client.admin.workspaceCopy().then((copy) => {
+        if (alive.current && !(copy instanceof ApiError)) setCopy(copy);
+      });
     }, COPY_POLL_MS);
     return () => clearInterval(timer);
   }, [client, making, alive]);
@@ -472,38 +471,37 @@ function CopySection() {
     setBusy(true);
     setError(null);
     setStarted(false);
-    try {
-      const { copy } = await client.admin.makeWorkspaceCopy();
-      if (alive.current) setCopy(copy);
-    } catch (err) {
-      if (!alive.current) return;
-      setError(
-        err instanceof ApiError &&
-          (err.code === "not_enough_space" || err.code === "copy_downloading") &&
-          err.message
-          ? err.message
-          : "The copy was not started. Check your connection and try again.",
-      );
-    } finally {
-      if (alive.current) setBusy(false);
-    }
+    const copy = await client.admin.makeWorkspaceCopy();
+    if (!alive.current) return;
+    setBusy(false);
+    if (!(copy instanceof ApiError)) setCopy(copy);
+    // These two say what to do in their own words; a full disk answers 507.
+    else if (copy.code === "not_enough_space" || copy.code === "copy_downloading")
+      setError(copy.message);
+    else setError(failureText("The copy was not started.", copy, "Try again."));
   }
 
   async function download(ready: Extract<WorkspaceCopy, { state: "ready" }>) {
     setBusy(true);
     setError(null);
+    const url = await client.admin.workspaceCopyUrl(ready.id);
+    if (url instanceof ApiError) {
+      if (!alive.current) return;
+      setBusy(false);
+      setError(
+        url.code === "no_copy"
+          ? "That copy is gone from the server. Make a new one."
+          : failureText("The download did not start.", url, "Try again."),
+      );
+      return;
+    }
     try {
-      const url = await client.admin.workspaceCopyUrl(ready.id);
       if (!platform.downloadFile) throw new Error("This app cannot save downloads.");
       await platform.downloadFile(url);
       if (alive.current) setStarted(true);
-    } catch (err) {
-      if (!alive.current) return;
-      setError(
-        err instanceof ApiError && err.code === "no_copy"
-          ? "That copy is gone from the server. Make a new one."
-          : "The download did not start. Check your connection and try again.",
-      );
+    } catch {
+      if (alive.current)
+        setError("The download did not start. Check your connection and try again.");
     } finally {
       if (alive.current) setBusy(false);
     }

@@ -197,9 +197,8 @@ function harness(
     saveFails: false,
     notifyFails: false,
     accountCount: 1,
-    inviteOnly: false,
     accessPolicy: "account_required" as AccessPolicy,
-    policyCalls: [] as boolean[],
+    policyCalls: [] as AccessPolicy[],
     proxyTrust: [] as boolean[],
     publicUrls: [] as (string | null)[],
     savedPublicAddresses: [] as (string | null)[],
@@ -330,30 +329,15 @@ function harness(
               setTrustLoopbackProxy: (enabled: boolean) => h.proxyTrust.push(enabled),
               setPublicUrl: (url: string | null) => h.publicUrls.push(url),
               setIceServers: (servers: { urls: string }[]) => h.iceServers.push(servers),
-              inviteOnly: () => h.inviteOnly,
-              setInviteOnly: (value: boolean) => {
-                h.events.push(`policy:${value}`);
-                h.policyCalls.push(value);
-                h.inviteOnly = value;
-              },
               accountCount: () => h.accountCount,
             }
           : {}),
-        // As the server does: invites off keeps guests if they were allowed.
-        ...(options.policies
+        ...(options.publicAccess || options.policies
           ? {
-              inviteOnly: () => h.accessPolicy === "invite_only",
-              setInviteOnly: (value: boolean) => {
-                h.events.push(`policy:${value}`);
-                h.accessPolicy = value
-                  ? "invite_only"
-                  : h.accessPolicy === "invite_only"
-                    ? "account_required"
-                    : h.accessPolicy;
-              },
               accessPolicy: () => h.accessPolicy,
               setAccessPolicy: (policy: AccessPolicy) => {
                 h.events.push(`access:${policy}`);
+                h.policyCalls.push(policy);
                 h.accessPolicy = policy;
               },
             }
@@ -414,7 +398,8 @@ function registryOf(h: ReturnType<typeof harness>): HostedWorkspace[] {
 describe("hosting a workspace from the desktop app", () => {
   it("starts a new workspace on the usual port, in a folder of its own, and lists it", async () => {
     const h = harness();
-    const status = await h.controller.start({ workspaceName: "  Rocket Team " });
+    await h.controller.start({ workspaceName: "  Rocket Team " });
+    const status = h.controller.status();
     const [entry] = registryOf(h);
     expect(entry).toEqual({
       id: "ws-1",
@@ -469,7 +454,8 @@ describe("hosting a workspace from the desktop app", () => {
     await h.controller.start({ workspaceName: "Rocket Team", port: 9001 });
     await h.controller.stop();
     const [entry] = registryOf(h);
-    const status = await h.controller.start({ folder: entry!.folder });
+    await h.controller.start({ folder: entry!.folder });
+    const status = h.controller.status();
     // No name is passed, so the server keeps the one it has.
     expect(h.starts[1]).toEqual({ port: 9001, dataDir: join(h.dataRoot, entry!.folder) });
     expect(status).toMatchObject({ running: true, workspaceName: "Rocket Team", port: 9001 });
@@ -506,9 +492,8 @@ describe("hosting a workspace from the desktop app", () => {
     expect(h.changes).toEqual([]);
     expect(h.controller.status()).toEqual({ running: false, phase: "stopped" });
     // The longest name allowed is still allowed.
-    await expect(h.controller.start({ workspaceName: "x".repeat(80) })).resolves.toMatchObject({
-      running: true,
-    });
+    await h.controller.start({ workspaceName: "x".repeat(80) });
+    expect(h.controller.status().running).toBe(true);
   });
 
   it("moves to a free port only when the port was its own choice", async () => {
@@ -516,7 +501,8 @@ describe("hosting a workspace from the desktop app", () => {
     automatic.beforeBind = (port) => {
       if (port === 8543) throw inUse();
     };
-    const status = await automatic.controller.start({ workspaceName: "Rocket Team" });
+    await automatic.controller.start({ workspaceName: "Rocket Team" });
+    const status = automatic.controller.status();
     expect(automatic.starts.map((s) => s.port)).toEqual([8543, 0]);
     expect(status.port).toBe(50123);
     // Whatever took 8543 is still answering there, so say where this went.
@@ -537,7 +523,8 @@ describe("hosting a workspace from the desktop app", () => {
 
   it("keeps a port chosen at creation when it is busy on reopening, and does not start", async () => {
     const h = harness();
-    const made = await h.controller.start({ workspaceName: "Rocket Team", port: 9100 });
+    await h.controller.start({ workspaceName: "Rocket Team", port: 9100 });
+    const made = h.controller.status();
     await h.controller.stop();
     const folder = registryOf(h)[0]!.folder;
     h.beforeBind = (port) => {
@@ -563,7 +550,8 @@ describe("hosting a workspace from the desktop app", () => {
       if (port === 9100) throw inUse();
     };
     h.starts.length = 0;
-    expect(await h.controller.startForLaunch()).toBeNull();
+    await h.controller.startForLaunch();
+    expect(h.controller.status().running).toBe(false);
     expect(h.starts.map((s) => s.port)).toEqual([9100]);
     expect(h.controller.status().launchError).toMatch(/Port 9100, chosen for Rocket Team/);
     expect(registryOf(h)[0]).toMatchObject({ port: 9100, portChosen: true });
@@ -579,7 +567,8 @@ describe("hosting a workspace from the desktop app", () => {
       if (port === 8543) throw inUse();
     };
     h.starts.length = 0;
-    const status = await h.controller.start({ folder });
+    await h.controller.start({ folder });
+    const status = h.controller.status();
     expect(h.starts.map((s) => s.port)).toEqual([8543, 0]);
     expect(status.port).toBe(50123);
   });
@@ -626,7 +615,8 @@ describe("hosting a workspace from the desktop app", () => {
     h.beforeBind = () => {
       h.saveFails = true;
     };
-    const status = await h.controller.start({ workspaceName: "Rocket Team" });
+    await h.controller.start({ workspaceName: "Rocket Team" });
+    const status = h.controller.status();
     expect(status).toMatchObject({
       running: true,
       phase: "running",
@@ -635,7 +625,8 @@ describe("hosting a workspace from the desktop app", () => {
     expect(h.servers[0]!.stop).not.toHaveBeenCalled();
 
     h.saveFails = false;
-    const again = await h.controller.start({ workspaceName: "Rocket Team" });
+    await h.controller.start({ workspaceName: "Rocket Team" });
+    const again = h.controller.status();
     expect(h.starts).toHaveLength(1);
     expect(registryOf(h)).toEqual([expect.objectContaining({ id: "ws-1", port: 8543 })]);
     expect(again.warning).toBeUndefined();
@@ -647,7 +638,8 @@ describe("hosting a workspace from the desktop app", () => {
     // somewhere else.
     const h = harness({ verifyLoopback: async () => false });
 
-    const status = await h.controller.start({ workspaceName: "Rocket Team" });
+    await h.controller.start({ workspaceName: "Rocket Team" });
+    const status = h.controller.status();
 
     expect(status.port).toBe(8543);
     expect(status.warning).toMatch(/Another program is answering on http:\/\/127\.0\.0\.1:8543/);
@@ -658,9 +650,8 @@ describe("hosting a workspace from the desktop app", () => {
 
   it("stays quiet when loopback reaches this run, or cannot be checked at all", async () => {
     const reaches = harness({ verifyLoopback: async () => true });
-    expect(
-      (await reaches.controller.start({ workspaceName: "Rocket Team" })).warning,
-    ).toBeUndefined();
+    await reaches.controller.start({ workspaceName: "Rocket Team" });
+    expect(reaches.controller.status().warning).toBeUndefined();
 
     // A probe that throws knows nothing about who owns the port. Warning on
     // that would cry wolf on every machine where the check cannot run.
@@ -669,14 +660,12 @@ describe("hosting a workspace from the desktop app", () => {
         throw new Error("fetch is unavailable");
       },
     });
-    expect(
-      (await broken.controller.start({ workspaceName: "Rocket Team" })).warning,
-    ).toBeUndefined();
+    await broken.controller.start({ workspaceName: "Rocket Team" });
+    expect(broken.controller.status().warning).toBeUndefined();
 
     const unchecked = harness();
-    expect(
-      (await unchecked.controller.start({ workspaceName: "Rocket Team" })).warning,
-    ).toBeUndefined();
+    await unchecked.controller.start({ workspaceName: "Rocket Team" });
+    expect(unchecked.controller.status().warning).toBeUndefined();
   });
 
   it("asks about the port it actually bound, and about this run", async () => {
@@ -705,7 +694,8 @@ describe("hosting a workspace from the desktop app", () => {
       h.saveFails = true;
     };
 
-    const status = await h.controller.start({ workspaceName: "Rocket Team" });
+    await h.controller.start({ workspaceName: "Rocket Team" });
+    const status = h.controller.status();
     // Two independent things are wrong, and neither replaces the other.
     expect(status.warning).toMatch(/8543 was already in use/);
     expect(status.warning).toMatch(/could not save its hosting settings/);
@@ -713,7 +703,8 @@ describe("hosting a workspace from the desktop app", () => {
     // Saving succeeding says nothing about which port this run is listening
     // on, so it must not take that notice away.
     h.saveFails = false;
-    const again = await h.controller.start({ workspaceName: "Rocket Team" });
+    await h.controller.start({ workspaceName: "Rocket Team" });
+    const again = h.controller.status();
     expect(again.warning).toMatch(/8543 was already in use/);
     expect(again.warning).not.toMatch(/could not save its hosting settings/);
 
@@ -725,7 +716,8 @@ describe("hosting a workspace from the desktop app", () => {
   it("does not start a second server beside the one running", async () => {
     const h = harness();
     await h.controller.start({ workspaceName: "Rocket Team" });
-    await expect(h.controller.start({ workspaceName: "Rocket Team" })).resolves.toMatchObject({
+    await h.controller.start({ workspaceName: "Rocket Team" });
+    expect(h.controller.status()).toMatchObject({
       running: true,
       port: 8543,
     });
@@ -819,7 +811,8 @@ describe("hosting a workspace from the desktop app", () => {
   it("goes on hosting when telling the windows about a change throws", async () => {
     const h = harness();
     h.notifyFails = true;
-    await expect(h.controller.start({ workspaceName: "Rocket Team" })).resolves.toMatchObject({
+    await h.controller.start({ workspaceName: "Rocket Team" });
+    expect(h.controller.status()).toMatchObject({
       running: true,
     });
     await h.controller.stop();
@@ -833,8 +826,9 @@ describe("hosting a workspace from the desktop app", () => {
       await expect(h.controller.setAccessPolicy("guest_allowed")).rejects.toThrow(/Start hosting/);
       await h.controller.start({ workspaceName: "Rocket Team" });
       expect(h.controller.status().accessPolicy).toBe("account_required");
-      const changed = await h.controller.setAccessPolicy("guest_allowed");
-      expect(changed).toMatchObject({ accessPolicy: "guest_allowed" });
+      // The change answers only that it happened; the windows hear the status.
+      await expect(h.controller.setAccessPolicy("guest_allowed")).resolves.toBeUndefined();
+      expect(h.changes.at(-1)).toMatchObject({ accessPolicy: "guest_allowed" });
       await expect(h.controller.setAccessPolicy("everyone")).rejects.toThrow(/Say who may join/);
       expect(h.accessPolicy).toBe("guest_allowed");
     });
@@ -846,8 +840,8 @@ describe("hosting a workspace from the desktop app", () => {
       expect(h.events.slice(0, 2)).toEqual(["access:guest_allowed", "tunnel:open"]);
       expect(h.controller.status().accessPolicy).toBe("guest_allowed");
       // Closing puts back what the workspace had before, not the guests.
-      const closed = await h.controller.endOpenToAll();
-      expect(closed.accessPolicy).toBe("account_required");
+      await expect(h.controller.endOpenToAll()).resolves.toBeUndefined();
+      expect(h.changes.at(-1)!.accessPolicy).toBe("account_required");
     });
 
     it("keeps guests a host allowed before opening, through opening and closing", async () => {
@@ -856,7 +850,8 @@ describe("hosting a workspace from the desktop app", () => {
       await h.controller.setAccessPolicy("guest_allowed");
       await h.controller.openToAll({ accessPolicy: "guest_allowed" });
       expect(h.controller.status().accessPolicy).toBe("guest_allowed");
-      expect((await h.controller.endOpenToAll()).accessPolicy).toBe("guest_allowed");
+      await h.controller.endOpenToAll();
+      expect(h.controller.status().accessPolicy).toBe("guest_allowed");
     });
 
     it("puts back the policy it had when the public link cannot open", async () => {
@@ -878,8 +873,9 @@ describe("hosting a workspace from the desktop app", () => {
       const h = harness({ publicAccess: true });
       await h.controller.start({ workspaceName: "Rocket Team" });
 
-      const opened = await h.controller.openToAll({});
-      expect(h.events.slice(0, 2)).toEqual(["policy:true", "tunnel:open"]);
+      await h.controller.openToAll({});
+      const opened = h.controller.status();
+      expect(h.events.slice(0, 2)).toEqual(["access:invite_only", "tunnel:open"]);
       expect(h.tunnelStarts).toHaveLength(1);
       expect(h.publicUrls).toEqual(["https://rocket-team.trycloudflare.com"]);
       expect(h.proxyTrust).toEqual([true]);
@@ -899,7 +895,8 @@ describe("hosting a workspace from the desktop app", () => {
       expect(h.tunnelStarts).toHaveLength(1);
       expect(h.controller.status().accessPolicy).toBe("account_required");
 
-      const closed = await h.controller.endOpenToAll();
+      await h.controller.endOpenToAll();
+      const closed = h.controller.status();
       expect(h.tunnels[0]!.close).toHaveBeenCalledOnce();
       expect(h.publicUrls.at(-1)).toBeNull();
       expect(h.proxyTrust).toEqual([true, false]);
@@ -918,7 +915,7 @@ describe("hosting a workspace from the desktop app", () => {
       await expect(h.controller.openToAll({ accessPolicy: "invite_only" })).rejects.toThrow(
         "Cloudflare is offline",
       );
-      expect(h.policyCalls).toEqual([true, false]);
+      expect(h.policyCalls).toEqual(["invite_only", "account_required"]);
       expect(h.controller.status()).toMatchObject({
         running: true,
         accessPolicy: "account_required",
@@ -999,7 +996,7 @@ describe("hosting a workspace from the desktop app", () => {
       const closing = h.controller.endOpenToAll();
       await openingResult;
       await closing;
-      expect(h.policyCalls).toEqual([true, false]);
+      expect(h.policyCalls).toEqual(["invite_only", "account_required"]);
       expect(h.controller.status()).not.toHaveProperty("openToAll");
     });
 
@@ -1018,7 +1015,7 @@ describe("hosting a workspace from the desktop app", () => {
       // Quitting does not wait out a tunnel Cloudflare may take a minute over.
       await h.controller.shutdown();
       await opening;
-      expect(h.policyCalls).toEqual([true, false]);
+      expect(h.policyCalls).toEqual(["invite_only", "account_required"]);
       expect(h.servers[0]!.stop).toHaveBeenCalledOnce();
       expect(h.controller.status()).toEqual({
         running: false,
@@ -1137,7 +1134,8 @@ describe("hosting a workspace from the desktop app", () => {
         openToAllError: expect.stringMatching(/could not finish closing/),
       });
 
-      await expect(h.controller.endOpenToAll()).resolves.not.toHaveProperty("openToAll");
+      await h.controller.endOpenToAll();
+      expect(h.controller.status()).not.toHaveProperty("openToAll");
     });
 
     it("keeps an established connector pending after a timed-out close until the same handle is retried", async () => {
@@ -1158,7 +1156,7 @@ describe("hosting a workspace from the desktop app", () => {
         "Finish stopping",
       );
       expect(h.tunnelStarts).toHaveLength(1);
-      expect(h.inviteOnly).toBe(true);
+      expect(h.accessPolicy).toBe("invite_only");
       expect(h.controller.status()).toHaveProperty("openToAllError");
 
       finish();
@@ -1236,7 +1234,7 @@ describe("hosting a workspace from the desktop app", () => {
       );
 
       bind.resolve();
-      await expect(starting).resolves.toMatchObject({ running: true });
+      await expect(starting).resolves.toMatchObject({ workspaceName: "Rocket Team" });
       await quitting;
       expect(h.servers).toHaveLength(1);
       expect(h.servers[0]!.stop).toHaveBeenCalledOnce();
@@ -1505,7 +1503,8 @@ describe("the list of workspaces hosted on this computer", () => {
 
     // Read again once it can be, rather than remembered as empty.
     h.readFails = false;
-    await expect(h.controller.start({ workspaceName: "Rocket Team" })).resolves.toMatchObject({
+    await h.controller.start({ workspaceName: "Rocket Team" });
+    expect(h.controller.status()).toMatchObject({
       running: true,
     });
   });
@@ -1564,7 +1563,8 @@ describe("the list of workspaces hosted on this computer", () => {
     await expect(h.controller.restore({ backupDir: profile() })).rejects.toThrow(
       /newer version of OwnBase/,
     );
-    await expect(h.controller.startForLaunch()).resolves.toBeNull();
+    await h.controller.startForLaunch();
+    expect(h.controller.status().running).toBe(false);
     expect(h.controller.status().launchError).toMatch(/newer version of OwnBase/);
     expect([...h.settings]).toEqual(before);
     expect(h.starts).toEqual([]);
@@ -1705,7 +1705,8 @@ describe("renaming a hosted workspace", () => {
     expect(h.saved).toEqual([null]);
 
     // Starting it gives the server no name: it already has the new one.
-    const status = await h.controller.start({ folder: "rocket-team" });
+    await h.controller.start({ folder: "rocket-team" });
+    const status = h.controller.status();
     expect(h.starts).toEqual([{ port: 9001, dataDir: join(hosted, "rocket-team") }]);
     expect(status.workspaceName).toBe("Blue Team");
     await h.controller.stop();
@@ -1972,10 +1973,12 @@ describe("restoring a backup in the desktop app", () => {
 
     // A later launch finds it still held, and starts it only to look inside.
     const later = harness({ root: join(h.dataRoot, ".."), settings });
-    expect(await later.controller.startForLaunch()).toBeNull();
+    await later.controller.startForLaunch();
+    expect(later.controller.status().running).toBe(false);
     const listed = (await later.controller.list()).workspaces[0]!;
     expect(listed).toMatchObject({ folder: "rocket-team", restored: true });
-    const looking = await later.controller.start({ folder: "rocket-team" });
+    await later.controller.start({ folder: "rocket-team" });
+    const looking = later.controller.status();
     expect(looking.isolated).toBe(true);
     expect(later.starts.at(-1)).toMatchObject({ isolated: true });
     await expect(later.controller.openToAll({})).rejects.toThrow(/cannot have a public link/);
@@ -1988,7 +1991,8 @@ describe("restoring a backup in the desktop app", () => {
     await later.controller.stop();
 
     // Put back in use on purpose: a normal start, and the hold is gone for good.
-    const live = await later.controller.start({ folder: "rocket-team", activate: true });
+    await later.controller.start({ folder: "rocket-team", activate: true });
+    const live = later.controller.status();
     expect(live.isolated).toBeUndefined();
     expect(later.starts.at(-1)).not.toHaveProperty("isolated");
     expect(registryOf(later)[0]!.restoredHold).toBeUndefined();
@@ -2006,7 +2010,8 @@ describe("restoring a backup in the desktop app", () => {
     h.settings.set("startOnLaunch", saved.workspaces[0]!.folder);
     const later = harness({ root: join(h.dataRoot, ".."), settings: h.settings });
     for (const [path, found] of h.databases) later.databases.set(path, found);
-    expect(await later.controller.startForLaunch()).toBeNull();
+    await later.controller.startForLaunch();
+    expect(later.controller.status().running).toBe(false);
     expect(later.controller.status().launchError).toMatch(
       /restored from a backup and has not been put back in use/,
     );
@@ -2066,7 +2071,8 @@ describe("restoring a backup in the desktop app", () => {
         ],
       });
       expect((await h.controller.list()).workspaces[0]).toMatchObject({ restored: true });
-      expect(await h.controller.start({ folder: "held-copy" })).toMatchObject({ isolated: true });
+      await h.controller.start({ folder: "held-copy" });
+      expect(h.controller.status()).toMatchObject({ isolated: true });
       expect(h.starts[0]).toMatchObject({ isolated: true, port: 0 });
       await h.controller.stop();
       const later = harness({ root: join(h.dataRoot, ".."), settings: h.settings });
@@ -2130,7 +2136,8 @@ describe("restoring a backup in the desktop app", () => {
     });
     // The next launch has nothing restored to start as the workspace.
     const later = harness({ root: join(h.dataRoot, ".."), settings });
-    expect(await later.controller.startForLaunch()).toBeNull();
+    await later.controller.startForLaunch();
+    expect(later.controller.status().running).toBe(false);
     expect(later.starts).toEqual([]);
 
     // The hold saves, but taking it off starting with OwnBase does not.
@@ -2157,7 +2164,8 @@ describe("restoring a backup in the desktop app", () => {
     await h.controller.restore({ backupDir: backup.dir });
 
     // A tunnel or port forward still aimed at 9001 must not reach the copy.
-    const looking = await h.controller.start({ folder: "rocket-team" });
+    await h.controller.start({ folder: "rocket-team" });
+    const looking = h.controller.status();
     expect(looking).toMatchObject({ isolated: true, port: 50123 });
     expect(h.starts.at(-1)).toMatchObject({ port: 0, isolated: true });
     expect(registryOf(h)[0]).toMatchObject({ port: 9001, portChosen: true });
@@ -2166,14 +2174,16 @@ describe("restoring a backup in the desktop app", () => {
 
     // The system happens to hand out its own port, then the usual one: it asks again.
     h.freePorts = [9001, 8543];
-    expect(await h.controller.start({ folder: "rocket-team" })).toMatchObject({ port: 50123 });
+    await h.controller.start({ folder: "rocket-team" });
+    expect(h.controller.status()).toMatchObject({ port: 50123 });
     expect(h.servers.slice(-3).map((s) => s.port)).toEqual([9001, 8543, 50123]);
     expect(h.servers.at(-3)!.stop).toHaveBeenCalled();
     expect(h.servers.at(-2)!.stop).toHaveBeenCalled();
     await h.controller.stop();
 
     // Put back in use, it is on its own port again.
-    const live = await h.controller.start({ folder: "rocket-team", activate: true });
+    await h.controller.start({ folder: "rocket-team", activate: true });
+    const live = h.controller.status();
     expect(live).toMatchObject({ port: 9001 });
     expect(live.isolated).toBeUndefined();
     expect(h.starts.at(-1)).toMatchObject({ port: 9001 });
@@ -2206,7 +2216,7 @@ describe("restoring a backup in the desktop app", () => {
     const older = join(elsewhere, "older");
     await backupWorkspace({ dataDir, out: older });
     const again = await serve();
-    const general = again.store.getChannelByName("general")!.id;
+    const general = again.store.channels.byName("general")!.id;
     const posted = await fetch(`http://127.0.0.1:${again.port}/api/channels/${general}/messages`, {
       method: "POST",
       headers: { authorization: `Bearer ${token}`, "content-type": "application/json" },
@@ -2324,7 +2334,8 @@ describe("a stable public address configured for this computer", () => {
       if (port === 8543) throw inUse();
     };
 
-    const status = await h.controller.start({ workspaceName: "Rocket Team" });
+    await h.controller.start({ workspaceName: "Rocket Team" });
+    const status = h.controller.status();
 
     // The carrier keeps forwarding to 8543 whatever happens here, so the
     // address would reach the program that took it. Opening to all would
@@ -2381,7 +2392,8 @@ describe("a stable public address configured for this computer", () => {
       publicAddress: () => ({ url: address, managed: true }),
     });
     for (const [path, found] of first.databases) next.databases.set(path, found);
-    const started = await next.controller.startForLaunch();
+    await next.controller.startForLaunch();
+    const started = next.controller.status();
     expect(started?.openToAll).toEqual({ phase: "open", url: expect.any(String) });
     expect(next.tunnelStarts).toHaveLength(1);
     expect(next.controller.status().accessPolicy).toBe("invite_only");
@@ -2396,7 +2408,8 @@ describe("a stable public address configured for this computer", () => {
       publicAddress: () => ({ url: address, managed: true }),
     });
     for (const [path, found] of first.databases) moved.databases.set(path, found);
-    const running = await moved.controller.startForLaunch();
+    await moved.controller.startForLaunch();
+    const running = moved.controller.status();
     expect(running?.running).toBe(true);
     expect(moved.tunnelStarts).toHaveLength(0);
     expect(moved.controller.status().launchError).toMatch(/was not reopened.*has changed/);
@@ -2421,7 +2434,8 @@ describe("a stable public address configured for this computer", () => {
     next.beforeTunnel = () => {
       throw new Error("address did not reach this workspace");
     };
-    const started = await next.controller.startForLaunch();
+    await next.controller.startForLaunch();
+    const started = next.controller.status();
     expect(started?.running).toBe(true);
     expect(next.controller.status().launchError).toMatch(
       /started on this network, but .* was not reopened\. .*did not reach/,
@@ -2437,7 +2451,8 @@ describe("a stable public address configured for this computer", () => {
     next.beforeTunnel = () => {
       if (refuse) throw new Error("address did not reach this workspace");
     };
-    const started = await next.controller.startForLaunch();
+    await next.controller.startForLaunch();
+    const started = next.controller.status();
     expect(started?.running).toBe(true);
     expect(next.controller.status()).toMatchObject({
       running: true,
@@ -2464,7 +2479,8 @@ describe("a stable public address configured for this computer", () => {
     };
     await next.controller.startForLaunch();
     expect(next.controller.status().launchError).toBeDefined();
-    const after = next.controller.dismissLaunchError();
+    next.controller.dismissLaunchError();
+    const after = next.controller.status();
     expect(after.launchError).toBeUndefined();
     expect(after.running).toBe(true);
   });
@@ -2667,7 +2683,8 @@ describe("a stable public address configured for this computer", () => {
 describe("starting with the computer", () => {
   it("starts the chosen workspace when the app opens, and says so in the status and the list", async () => {
     const first = harness();
-    const made = await first.controller.start({ workspaceName: "Rocket Team" });
+    await first.controller.start({ workspaceName: "Rocket Team" });
+    const made = first.controller.status();
     await first.controller.setStartOnLaunch(made.folder!);
     expect(first.settings.get("startOnLaunch")).toBe(made.folder);
     expect(first.controller.status().startsOnLaunch).toBe(true);
@@ -2676,7 +2693,8 @@ describe("starting with the computer", () => {
     // The next launch, sharing the profile and its settings.
     const next = harness({ root: join(first.dataRoot, ".."), settings: first.settings });
     for (const [dataDir, db] of first.databases) next.databases.set(dataDir, db);
-    const started = await next.controller.startForLaunch();
+    await next.controller.startForLaunch();
+    const started = next.controller.status();
     expect(started).toMatchObject({ running: true, folder: made.folder, startsOnLaunch: true });
     expect(next.starts).toHaveLength(1);
     expect((await next.controller.list()).workspaces).toEqual([
@@ -2694,14 +2712,16 @@ describe("starting with the computer", () => {
     const next = harness({ root: join(first.dataRoot, ".."), settings: first.settings });
     for (const [path, found] of first.databases) next.databases.set(path, found);
     next.unreadableKeys.add("startOnLaunch");
-    expect(await next.controller.startForLaunch()).toBeNull();
+    await next.controller.startForLaunch();
+    expect(next.controller.status().running).toBe(false);
     expect(next.controller.status().launchError).toMatch(/could not read which workspace to start/);
     // The rest of hosting still works, and lists what it can.
     expect((await next.controller.list()).workspaces.map((w) => w.folder)).toEqual([folder]);
 
     // Repaired: nothing unreadable was remembered as "none".
     next.unreadableKeys.clear();
-    const started = await next.controller.startForLaunch();
+    await next.controller.startForLaunch();
+    const started = next.controller.status();
     expect(started?.running).toBe(true);
     expect(next.controller.status().launchError).toBeUndefined();
   });
@@ -2715,7 +2735,8 @@ describe("starting with the computer", () => {
     h.beforeBind = () => {
       throw Object.assign(new Error("listen EACCES"), { code: "EACCES" });
     };
-    expect(await h.controller.startForLaunch()).toBeNull();
+    await h.controller.startForLaunch();
+    expect(h.controller.status().running).toBe(false);
     expect(h.controller.status().launchError).toBeDefined();
 
     expect(await h.controller.setStartOnLaunch(null)).toBeNull();
@@ -2727,19 +2748,23 @@ describe("starting with the computer", () => {
   it("does not take a choice it cannot understand for no choice", async () => {
     const h = harness();
     h.settings.set("startOnLaunch", 42);
-    expect(await h.controller.startForLaunch()).toBeNull();
+    await h.controller.startForLaunch();
+    expect(h.controller.status().running).toBe(false);
     expect(h.controller.status().launchError).toMatch(/could not read which workspace to start/);
   });
 
   it("starts nothing when nothing was chosen, or the choice was taken back", async () => {
     const h = harness();
-    expect(await h.controller.startForLaunch()).toBeNull();
-    const made = await h.controller.start({ workspaceName: "Rocket Team" });
+    await h.controller.startForLaunch();
+    expect(h.controller.status().running).toBe(false);
+    await h.controller.start({ workspaceName: "Rocket Team" });
+    const made = h.controller.status();
     await h.controller.setStartOnLaunch(made.folder!);
     await h.controller.setStartOnLaunch(null);
     expect(h.controller.status().startsOnLaunch).toBeUndefined();
     await h.controller.stop();
-    expect(await h.controller.startForLaunch()).toBeNull();
+    await h.controller.startForLaunch();
+    expect(h.controller.status().running).toBe(false);
     expect(h.starts).toHaveLength(1);
   });
 
@@ -2754,13 +2779,15 @@ describe("starting with the computer", () => {
 
   it("says why the chosen workspace did not start, until hosting next starts", async () => {
     const h = harness();
-    const made = await h.controller.start({ workspaceName: "Rocket Team" });
+    await h.controller.start({ workspaceName: "Rocket Team" });
+    const made = h.controller.status();
     await h.controller.setStartOnLaunch(made.folder!);
     await h.controller.stop();
     h.beforeBind = () => {
       throw new Error("The database is newer than this version of OwnBase.");
     };
-    expect(await h.controller.startForLaunch()).toBeNull();
+    await h.controller.startForLaunch();
+    expect(h.controller.status().running).toBe(false);
     expect(h.controller.status()).toMatchObject({
       running: false,
       launchError:
@@ -2776,18 +2803,21 @@ describe("starting with the computer", () => {
 
   it("drops a choice whose workspace has left the list, and forgetting a workspace drops it too", async () => {
     const h = harness();
-    const made = await h.controller.start({ workspaceName: "Rocket Team" });
+    await h.controller.start({ workspaceName: "Rocket Team" });
+    const made = h.controller.status();
     await h.controller.setStartOnLaunch(made.folder!);
     await h.controller.stop();
     rmSync(join(h.dataRoot, made.folder!), { recursive: true, force: true });
     await h.controller.forget(made.folder);
     expect(h.settings.get("startOnLaunch")).toBeNull();
-    expect(await h.controller.startForLaunch()).toBeNull();
+    await h.controller.startForLaunch();
+    expect(h.controller.status().running).toBe(false);
 
     // A choice left behind by some other way of editing the list.
     const other = harness();
     other.settings.set("startOnLaunch", "w-long-gone");
-    expect(await other.controller.startForLaunch()).toBeNull();
+    await other.controller.startForLaunch();
+    expect(other.controller.status().running).toBe(false);
     expect(other.settings.get("startOnLaunch")).toBeNull();
     expect(other.controller.status().launchError).toBeUndefined();
   });
@@ -2796,7 +2826,8 @@ describe("starting with the computer", () => {
     const h = harness();
     h.settings.set("startOnLaunch", "w-anything");
     h.unreadableKeys.add("hostedWorkspaces");
-    expect(await h.controller.startForLaunch()).toBeNull();
+    await h.controller.startForLaunch();
+    expect(h.controller.status().running).toBe(false);
     expect(h.controller.status().launchError).toMatch(
       /could not read its list of hosted workspaces/,
     );
@@ -2833,7 +2864,8 @@ describe("who is connected, and which port", () => {
 
   it("changes the port a stopped workspace starts on, and not the running one's", async () => {
     const h = harness();
-    const made = await h.controller.start({ workspaceName: "Rocket Team" });
+    await h.controller.start({ workspaceName: "Rocket Team" });
+    const made = h.controller.status();
     await expect(h.controller.setPort({ folder: made.folder, port: 9100 })).rejects.toThrow(
       "Stop hosting Rocket Team before changing its port.",
     );
@@ -2850,7 +2882,8 @@ describe("who is connected, and which port", () => {
 
   it("refuses a port no program could use, and a workspace it does not list", async () => {
     const h = harness();
-    const made = await h.controller.start({ workspaceName: "Rocket Team" });
+    await h.controller.start({ workspaceName: "Rocket Team" });
+    const made = h.controller.status();
     await h.controller.stop();
     for (const port of [0, 65536, 80.5, "9000", null]) {
       await expect(h.controller.setPort({ folder: made.folder, port })).rejects.toThrow(
@@ -2865,7 +2898,8 @@ describe("who is connected, and which port", () => {
 
   it("keeps the old port when the new one cannot be saved", async () => {
     const h = harness();
-    const made = await h.controller.start({ workspaceName: "Rocket Team" });
+    await h.controller.start({ workspaceName: "Rocket Team" });
+    const made = h.controller.status();
     await h.controller.stop();
     h.saveFails = true;
     await expect(h.controller.setPort({ folder: made.folder, port: 9100 })).rejects.toThrow(
@@ -3000,8 +3034,8 @@ describe("protecting recovery copies", () => {
         body: JSON.stringify({ handle: "owner", displayName: "Owner", password: "password123" }),
       });
       const owner = (await response.json()) as { user: { id: string } };
-      fileId = server.store.createFile({
-        channelId: server.store.getChannelByName("general")!.id,
+      fileId = server.store.files.create({
+        channelId: server.store.channels.byName("general")!.id,
         userId: owner.user.id,
         name: "saved.txt",
         mime: "text/plain",
@@ -3103,7 +3137,8 @@ describe("protecting recovery copies", () => {
 
   it("removes a copy whose workspace changed while it was being made, and records nothing", async () => {
     const h = harness();
-    const made = await h.controller.start({ workspaceName: "Rocket Team" });
+    await h.controller.start({ workspaceName: "Rocket Team" });
+    const made = h.controller.status();
     const destination = profile();
     // Checked before the copy starts, then swapped for another workspace's.
     h.swapDuringBackup = "ws-swapped";
@@ -3120,7 +3155,8 @@ describe("scheduled backups", () => {
 
   async function scheduled(keep = 2) {
     const h = harness();
-    const made = await h.controller.start({ workspaceName: "Rocket Team" });
+    await h.controller.start({ workspaceName: "Rocket Team" });
+    const made = h.controller.status();
     const destination = profile();
     await h.controller.setAutoBackup({
       folder: made.folder,
@@ -3177,7 +3213,8 @@ describe("scheduled backups", () => {
 
   it("backs up into a new folder at once, however recently the workspace was backed up elsewhere", async () => {
     const h = harness();
-    const made = await h.controller.start({ workspaceName: "Rocket Team" });
+    await h.controller.start({ workspaceName: "Rocket Team" });
+    const made = h.controller.status();
     await h.controller.backup({ folder: made.folder!, destination: profile() });
     const weekly = profile();
     await h.controller.setAutoBackup({
@@ -3278,9 +3315,11 @@ describe("scheduled backups", () => {
 
   it("does not back up a schedule turned off while it waited its turn", async () => {
     const h = harness();
-    const first = await h.controller.start({ workspaceName: "Rocket Team" });
+    await h.controller.start({ workspaceName: "Rocket Team" });
+    const first = h.controller.status();
     await h.controller.stop();
-    const second = await h.controller.start({ workspaceName: "Design Guild" });
+    await h.controller.start({ workspaceName: "Design Guild" });
+    const second = h.controller.status();
     const [one, two] = [profile(), profile()];
     await h.controller.setAutoBackup({
       folder: first.folder,
@@ -3455,7 +3494,8 @@ describe("scheduled backups", () => {
 
   it("refuses a schedule it could not follow", async () => {
     const h = harness();
-    const made = await h.controller.start({ workspaceName: "Rocket Team" });
+    await h.controller.start({ workspaceName: "Rocket Team" });
+    const made = h.controller.status();
     await expect(
       h.controller.setAutoBackup({ folder: made.folder, schedule: { everyDays: 1, keep: 7 } }),
     ).rejects.toThrow("Choose a folder to back the workspace up into.");
@@ -3583,7 +3623,8 @@ describe("following changes made inside a hosted workspace", () => {
     expect(h.controller.status().accessPolicy).toBe("guest_allowed");
 
     // Guests the host let in for the link would leave with it; these an admin chose.
-    expect((await h.controller.endOpenToAll()).accessPolicy).toBe("guest_allowed");
+    await h.controller.endOpenToAll();
+    expect(h.controller.status().accessPolicy).toBe("guest_allowed");
     expect(h.accessPolicy).toBe("guest_allowed");
   });
 
@@ -3593,7 +3634,8 @@ describe("following changes made inside a hosted workspace", () => {
     await h.controller.openToAll({ accessPolicy: "guest_allowed" });
     // A rename inside says nothing about who may join.
     changedInside(h, { workspaceName: "Blue Team" });
-    expect((await h.controller.endOpenToAll()).accessPolicy).toBe("account_required");
+    await h.controller.endOpenToAll();
+    expect(h.controller.status().accessPolicy).toBe("account_required");
   });
 
   it("does not put back the rule it read when the link fails to open, over one chosen meanwhile", async () => {
@@ -3653,7 +3695,8 @@ describe("a hosted workspace's icon", () => {
 
     // Another, running, whose server says what it holds.
     h.icon = { type: "image/webp", bytes: new Uint8Array([1, 2, 3]), version: "live-version" };
-    expect(await h.controller.start({ workspaceName: "Blue Team" })).toMatchObject({
+    await h.controller.start({ workspaceName: "Blue Team" });
+    expect(h.controller.status()).toMatchObject({
       running: true,
       iconVersion: "live-version",
     });

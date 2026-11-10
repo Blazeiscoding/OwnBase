@@ -3,8 +3,8 @@ import { existsSync, mkdtempSync, readdirSync, rmSync } from "node:fs";
 import * as fsPromises from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { backupWorkspace, restoreWorkspace } from "../src/backup.js";
-import { WorkspaceInUseError } from "../src/ownership.js";
+import { backupWorkspace, restoreWorkspace } from "../src/backups/backup.js";
+import { WorkspaceInUseError } from "../src/core/ownership.js";
 import { listAccounts } from "../src/recover.js";
 import { createWorkspaceServer } from "../src/server.js";
 

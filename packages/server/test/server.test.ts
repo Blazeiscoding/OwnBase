@@ -163,7 +163,7 @@ describe("workspace server", () => {
 
   it("replays missed events on reconnect", async () => {
     // Bob is offline; Alice keeps talking.
-    const general = server.store.getChannelByName("general")!;
+    const general = server.store.channels.byName("general")!;
     await api(`/api/channels/${general.id}/messages`, {
       token: aliceToken,
       body: { text: "while you were away" },
@@ -233,7 +233,7 @@ describe("workspace server", () => {
   });
 
   it("supports threads, edits, deletes, and reactions", async () => {
-    const general = server.store.getChannelByName("general")!;
+    const general = server.store.channels.byName("general")!;
     const root = await api<{ message: Message }>(`/api/channels/${general.id}/messages`, {
       token: aliceToken,
       body: { text: "thread root" },
@@ -285,12 +285,12 @@ describe("workspace server", () => {
   });
 
   it("searches messages with FTS and respects channel access", async () => {
-    const general = server.store.getChannelByName("general")!;
+    const general = server.store.channels.byName("general")!;
     await api(`/api/channels/${general.id}/messages`, {
       token: aliceToken,
       body: { text: "the quarterly zebra report is ready" },
     });
-    const secret = server.store.getChannelByName("secret-plans")!;
+    const secret = server.store.channels.byName("secret-plans")!;
     await api(`/api/channels/${secret.id}/messages`, {
       token: aliceToken,
       body: { text: "secret zebra heist" },
@@ -325,8 +325,8 @@ describe("workspace server", () => {
       });
       return sent.data.message;
     };
-    const general = server.store.getChannelByName("general")!;
-    const secret = server.store.getChannelByName("secret-plans")!;
+    const general = server.store.channels.byName("general")!;
+    const secret = server.store.channels.byName("secret-plans")!;
     const shared = await attach(general.id, "Q3 Budget.xlsx", "numbers for the quarter");
     await attach(secret.id, "Q3 budget final.xlsx", "the real numbers");
     const search = async (q: string, token: string) =>
@@ -349,7 +349,7 @@ describe("workspace server", () => {
   });
 
   it("uploads a file, attaches it to a message, and gates access by channel", async () => {
-    const general = server.store.getChannelByName("general")!;
+    const general = server.store.channels.byName("general")!;
 
     // A 1x1 red PNG — real bytes, so the header parser has something to measure.
     const png = Buffer.from(
@@ -405,7 +405,7 @@ describe("workspace server", () => {
   });
 
   it("rejects an empty message with no attachments", async () => {
-    const general = server.store.getChannelByName("general")!;
+    const general = server.store.channels.byName("general")!;
     const res = await api(`/api/channels/${general.id}/messages`, {
       token: aliceToken,
       body: { text: "   " },
@@ -414,7 +414,7 @@ describe("workspace server", () => {
   });
 
   it("keeps uploads out of channels the user cannot see", async () => {
-    const secret = server.store.getChannelByName("secret-plans")!;
+    const secret = server.store.channels.byName("secret-plans")!;
     const form = new FormData();
     form.append("file", new Blob([Buffer.from("classified")], { type: "text/plain" }), "plan.txt");
     const res = await fetch(`${base}/api/channels/${secret.id}/files`, {
@@ -426,7 +426,7 @@ describe("workspace server", () => {
   });
 
   it("pins messages for the whole channel and saves them privately", async () => {
-    const general = server.store.getChannelByName("general")!;
+    const general = server.store.channels.byName("general")!;
     const posted = await api<{ message: Message }>(`/api/channels/${general.id}/messages`, {
       token: aliceToken,
       body: { text: "read this before Friday" },
@@ -474,7 +474,7 @@ describe("workspace server", () => {
   });
 
   it("will not pin a message in a channel the user cannot see", async () => {
-    const secret = server.store.getChannelByName("secret-plans")!;
+    const secret = server.store.channels.byName("secret-plans")!;
     const posted = await api<{ message: Message }>(`/api/channels/${secret.id}/messages`, {
       token: aliceToken,
       body: { text: "eyes only" },
@@ -508,7 +508,7 @@ describe("workspace server", () => {
   });
 
   it("finds a word from its start while the last one is still being typed", async () => {
-    const general = server.store.getChannelByName("general")!;
+    const general = server.store.channels.byName("general")!;
     await api(`/api/channels/${general.id}/messages`, {
       token: aliceToken,
       body: { text: "the quokkas arrived for the budget review" },
@@ -529,7 +529,7 @@ describe("workspace server", () => {
   });
 
   it("filters search with from:, in:, has: and date modifiers", async () => {
-    const general = server.store.getChannelByName("general")!;
+    const general = server.store.channels.byName("general")!;
     await api(`/api/channels/${general.id}/messages`, {
       token: aliceToken,
       body: { text: "alpaca sighting confirmed by me" },
@@ -586,7 +586,7 @@ describe("workspace server", () => {
   });
 
   it("keeps search modifiers inside the caller's visibility", async () => {
-    const secret = server.store.getChannelByName("secret-plans")!;
+    const secret = server.store.channels.byName("secret-plans")!;
     await api(`/api/channels/${secret.id}/messages`, {
       token: aliceToken,
       body: { text: "alpaca smuggling route" },
@@ -600,7 +600,7 @@ describe("workspace server", () => {
   });
 
   it("stores per-channel notification preferences privately", async () => {
-    const general = server.store.getChannelByName("general")!;
+    const general = server.store.channels.byName("general")!;
 
     const res = await api<{ prefs: { notifyLevel: string; muted: boolean } }>(
       `/api/channels/${general.id}/prefs`,
@@ -628,7 +628,7 @@ describe("workspace server", () => {
     });
 
     // Alice's choice is hers alone.
-    expect(server.store.getChannelPrefs(general.id, bob.id)).toEqual({
+    expect(server.store.channels.prefs(general.id, bob.id)).toEqual({
       notifyLevel: "mentions",
       notifyChosen: false,
       muted: false,
@@ -643,7 +643,7 @@ describe("workspace server", () => {
       body: { muted: false },
     });
     // A partial update leaves the other field alone.
-    expect(server.store.getChannelPrefs(general.id, alice.id)).toEqual({
+    expect(server.store.channels.prefs(general.id, alice.id)).toEqual({
       notifyLevel: "all",
       notifyChosen: true,
       muted: false,
@@ -658,7 +658,7 @@ describe("workspace server", () => {
       token: aliceToken,
       body: { type: "dm", memberIds: [bob.id] },
     });
-    expect(server.store.getChannelPrefs(dm.data.channel.id, alice.id)?.notifyLevel).toBe("all");
+    expect(server.store.channels.prefs(dm.data.channel.id, alice.id)?.notifyLevel).toBe("all");
   });
 
   it("snoozes notifications with Do Not Disturb", async () => {
@@ -788,7 +788,7 @@ describe("workspace server", () => {
   });
 
   it("will not load history from a place read in a hidden channel", async () => {
-    const secret = server.store.getChannelByName("secret-plans")!;
+    const secret = server.store.channels.byName("secret-plans")!;
     await api<{ message: Message }>(`/api/channels/${secret.id}/messages`, {
       token: aliceToken,
       body: { text: "still classified" },
@@ -798,7 +798,7 @@ describe("workspace server", () => {
   });
 
   it("will not load history around a message in a hidden channel", async () => {
-    const secret = server.store.getChannelByName("secret-plans")!;
+    const secret = server.store.channels.byName("secret-plans")!;
     const posted = await api<{ message: Message }>(`/api/channels/${secret.id}/messages`, {
       token: aliceToken,
       body: { text: "still classified" },
@@ -810,8 +810,8 @@ describe("workspace server", () => {
   });
 
   it("gives one message to whoever can read its conversation, for a link to it", async () => {
-    const general = server.store.getChannelByName("general")!;
-    const secret = server.store.getChannelByName("secret-plans")!;
+    const general = server.store.channels.byName("general")!;
+    const secret = server.store.channels.byName("secret-plans")!;
     const said = await api<{ message: Message }>(`/api/channels/${general.id}/messages`, {
       token: aliceToken,
       body: { text: "the plan is in the doc" },
@@ -862,7 +862,7 @@ describe("workspace server", () => {
   });
 
   it("queues a message and sends it when it comes due", async () => {
-    const general = server.store.getChannelByName("general")!;
+    const general = server.store.channels.byName("general")!;
 
     // Two seconds out: long enough to observe queued, short enough to wait for.
     const sendAt = Date.now() + 2000;
@@ -902,7 +902,7 @@ describe("workspace server", () => {
   });
 
   it("refuses a time in the past", async () => {
-    const general = server.store.getChannelByName("general")!;
+    const general = server.store.channels.byName("general")!;
     const res = await api(`/api/channels/${general.id}/scheduled`, {
       token: aliceToken,
       body: { text: "too late", sendAt: Date.now() - 60_000 },
@@ -911,7 +911,7 @@ describe("workspace server", () => {
   });
 
   it("only lets the author cancel a scheduled message", async () => {
-    const general = server.store.getChannelByName("general")!;
+    const general = server.store.channels.byName("general")!;
     const queued = await api<{ scheduled: { id: string } }>(
       `/api/channels/${general.id}/scheduled`,
       { token: aliceToken, body: { text: "mine alone", sendAt: Date.now() + 3_600_000 } },
@@ -931,7 +931,7 @@ describe("workspace server", () => {
   });
 
   it("will not queue into a channel the user cannot see", async () => {
-    const secret = server.store.getChannelByName("secret-plans")!;
+    const secret = server.store.channels.byName("secret-plans")!;
     const res = await api(`/api/channels/${secret.id}/scheduled`, {
       token: bobToken,
       body: { text: "sneaky", sendAt: Date.now() + 60_000 },
@@ -940,7 +940,7 @@ describe("workspace server", () => {
   });
 
   it("tracks huddle participants and relays signalling between them", async () => {
-    const general = server.store.getChannelByName("general")!;
+    const general = server.store.channels.byName("general")!;
     const a = connectWs(aliceToken);
     const b = connectWs(bobToken);
     await a.next((m) => m.type === "ready");
@@ -997,7 +997,7 @@ describe("workspace server", () => {
   });
 
   it("will not relay huddle signals to someone outside the huddle", async () => {
-    const general = server.store.getChannelByName("general")!;
+    const general = server.store.channels.byName("general")!;
     const a = connectWs(aliceToken);
     const b = connectWs(bobToken);
     await a.next((m) => m.type === "ready");
@@ -1026,7 +1026,7 @@ describe("workspace server", () => {
   });
 
   it("keeps huddles in private channels invisible to outsiders", async () => {
-    const secret = server.store.getChannelByName("secret-plans")!;
+    const secret = server.store.channels.byName("secret-plans")!;
     const a = connectWs(aliceToken);
     const b = connectWs(bobToken);
     await a.next((m) => m.type === "ready");
@@ -1052,7 +1052,7 @@ describe("workspace server", () => {
   });
 
   it("posts through an incoming webhook shaped like Slack's", async () => {
-    const general = server.store.getChannelByName("general")!;
+    const general = server.store.channels.byName("general")!;
 
     const created = await api<{ app: { id: string }; botUser: User; token: string }>("/api/apps", {
       token: aliceToken,
@@ -1124,7 +1124,7 @@ describe("workspace server", () => {
   });
 
   it("accepts Slack-compatible chat.postMessage from a bot token", async () => {
-    const general = server.store.getChannelByName("general")!;
+    const general = server.store.channels.byName("general")!;
     const created = await api<{ app: { id: string }; botUser: User; token: string }>("/api/apps", {
       token: aliceToken,
       body: { name: "Status Bot" },
@@ -1176,7 +1176,7 @@ describe("workspace server", () => {
   });
 
   it("keeps app management to admins, and revoking kills the webhook", async () => {
-    const general = server.store.getChannelByName("general")!;
+    const general = server.store.channels.byName("general")!;
     const denied = await api("/api/apps", { token: bobToken, body: { name: "Bob's Bot" } });
     expect(denied.status).toBe(403);
 
@@ -1204,7 +1204,7 @@ describe("workspace server", () => {
   });
 
   it("marks channels read", async () => {
-    const general = server.store.getChannelByName("general")!;
+    const general = server.store.channels.byName("general")!;
     const res = await api(`/api/channels/${general.id}/read`, {
       token: bobToken,
       body: { seq: 999 },

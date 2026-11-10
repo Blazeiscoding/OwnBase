@@ -93,7 +93,7 @@ describe("starting a hosted workspace's server", () => {
 
     expect(await answers(hosted.port)).toBe(true);
     expect(hosted.workspaceName!()).toBe("Rocket Team");
-    expect(hosted.inviteOnly!()).toBe(false);
+    expect(hosted.accessPolicy!()).not.toBe("invite_only");
     expect([...host.relayServers]).toEqual(created);
 
     await hosted.stop();
@@ -104,7 +104,7 @@ describe("starting a hosted workspace's server", () => {
   it("closes joining before handing over when a public address is set", async () => {
     host.publicAddressConfigured = () => true;
     const hosted = await startHostedServer({ dataDir, port: 0 }, host);
-    expect(hosted.inviteOnly!()).toBe(true);
+    expect(hosted.accessPolicy!()).toBe("invite_only");
     await hosted.stop();
   });
 
@@ -208,7 +208,7 @@ describe("starting a hosted workspace's server", () => {
     // And the same workspace starts once its database takes the write.
     refusePolicyWrites(false);
     const hosted = await startHostedServer({ dataDir, port: 0 }, host);
-    expect(hosted.inviteOnly!()).toBe(true);
+    expect(hosted.accessPolicy!()).toBe("invite_only");
     expect(await answers(hosted.port)).toBe(true);
     await hosted.stop();
   });
@@ -218,7 +218,7 @@ describe("starting a hosted workspace's server", () => {
     const stuck = new Error("drain failed");
     const server = {
       port: 1,
-      setInviteOnly: () => {
+      setAccessPolicy: () => {
         throw refused;
       },
       stop: vi.fn(async () => {

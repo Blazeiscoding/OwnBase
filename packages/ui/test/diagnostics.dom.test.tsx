@@ -423,10 +423,10 @@ describe("the diagnostics dialog", () => {
     expect(screen.getByText(/how the server is keeping up/)).toBeVisible();
   });
 
-  it("says a server too old to report its status is too old, for the owner", async () => {
-    open({ ...sam, role: "owner" }, () => Promise.reject(new ApiError(404, "not_found")));
+  it("says why the server would not give its status, as it says no to someone no longer an admin", async () => {
+    open({ ...sam, role: "admin" }, () => Promise.reject(new ApiError(403, "admin_only")));
     expect(await screen.findByLabelText("Diagnostics report")).toHaveTextContent(
-      "Not available: this server's version does not report it",
+      "Workspace status Not available: only the owner and admins can read it",
     );
   });
 

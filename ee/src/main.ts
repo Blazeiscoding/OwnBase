@@ -1,11 +1,13 @@
 /**
  * The OwnBase server with its Enterprise edition: the command line's entry
- * for builds that include ee/ (P6). It puts the Enterprise extension in the
- * command line's registry, then runs the server's own main.ts, which reads
- * it. Without a license that is the free edition, flag for flag.
+ * for builds that include ee/ (P6). Without a license that is the free
+ * edition, flag for flag.
  */
-import { addCommandLineExtension } from "@ownbase/server/extensions";
+import { fileURLToPath } from "node:url";
+import { runServerCli } from "@ownbase/server/cli";
 import { enterpriseCommandLine } from "./enterprise.js";
 
-addCommandLineExtension(enterpriseCommandLine);
-await import("@ownbase/server/main");
+await runServerCli({
+  extensions: [enterpriseCommandLine],
+  script: fileURLToPath(import.meta.url),
+});

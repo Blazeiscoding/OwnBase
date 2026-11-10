@@ -114,6 +114,92 @@
       "concepts": ["event delivery", "scopes", "bot loop prevention"]
     },
     {
+      "path": "packages/server/src/apps/feature.ts",
+      "plain": "Puts the parts of apps together: setting them up, what they call, the commands, buttons and forms that call them, and the events they are sent.",
+      "summary": "registerApps(ctx, { accounts, messages, files }) registers every app route and returns the event pump's flush, deliverSoon, start and hourly steps.",
+      "details": [
+        "createWorkspaceServer calls it once; the parts share one AppCalls (calls.ts) and the views' trigger maker."
+      ],
+      "concepts": ["apps", "feature module"]
+    },
+    {
+      "path": "packages/server/src/apps/calls.ts",
+      "plain": "Every call the server makes to an app goes through here: signed, limited, and refused in an isolated copy.",
+      "summary": "createAppCalls: admit (calls in flight per account and app), post and postForm (signed, cut short on shutdown), verifyCallbackUrl, capabilityHolds, whyFailed, sayEphemeral.",
+      "details": [
+        "capabilityHolds checks again, when a reply or form is spent, that the app, its bot, the channel and the person are all still allowed, so waiting out a revocation does not get around it.",
+        "verifyCallbackUrl is Slack's url_verification handshake: an endpoint that cannot echo the challenge has not agreed to receive anything."
+      ],
+      "concepts": ["apps", "outbound calls", "capability lifetime"]
+    },
+    {
+      "path": "packages/server/src/apps/manage.ts",
+      "plain": "What an administrator does to apps: making them, their scopes, tokens and secrets, webhooks, the button URL and event subscriptions.",
+      "summary": "registerAppManagement: createApp, listApps, setAppScopes, replaceAppToken, replaceSigningSecret, deleteApp, the webhook routes, setInteractivityUrl and the subscription routes, each audited.",
+      "details": [
+        "The bot token is shown once and stored hashed; the signing secret stays readable to administrators because verification needs it.",
+        "The audit log keeps only the host of a URL an administrator gave (hostOf), since webhook and callback URLs often carry a secret."
+      ],
+      "concepts": ["apps", "audit log"]
+    },
+    {
+      "path": "packages/server/src/apps/slackApi.ts",
+      "plain": "The Slack-shaped calls an app makes: posting through a webhook, auth.test and chat.postMessage.",
+      "summary": "registerSlackApi, slackError (HTTP 200 with ok:false, as Slack answers) and structured (JSON fields sent form-encoded).",
+      "details": [
+        "Slack's SDK reads only a 200 or 429 body, so refusals keep status 200 with Slack's error name."
+      ],
+      "concepts": ["Slack compatibility", "apps"]
+    },
+    {
+      "path": "packages/server/src/apps/views.ts",
+      "plain": "The forms apps open in front of people: opening, stacking, updating, closing and submitting them.",
+      "summary": "registerViews: trigger_ids, each person's stack of open views (at most three), views.open, views.push, views.update, closeView and submitView; returns newTrigger.",
+      "details": [
+        "A trigger_id lives three minutes and decides who sees the form; an open view half an hour, renewed with the rest of its stack while the app changes it.",
+        "One submission of a view may be with the app at a time; a second meanwhile gets 409 view_submitting."
+      ],
+      "concepts": ["modal parsing", "capability lifetime", "apps"]
+    },
+    {
+      "path": "packages/server/src/apps/replies.ts",
+      "plain": "What an app answers with, at once or later through a reply address, and the buttons people press on its messages.",
+      "summary": "registerAppReplies: response URLs (half an hour, five uses), deliverReply, commandResponse and runMessageAction.",
+      "details": [
+        "in_channel posts as the bot; anything else is a private note to the person.",
+        "replace_original and delete_original apply only while the pressed message is still the version pressed."
+      ],
+      "concepts": ["apps", "capability lifetime"]
+    },
+    {
+      "path": "packages/server/src/apps/deliveries.ts",
+      "plain": "Sends events to the apps that subscribed to them, retrying a failing endpoint on a ladder and giving up after eight tries.",
+      "summary": "createEventDeliveries: a pump of at most ten deliveries at once and one per subscription, a five-second timer, and the hourly prune of given-up rows after a week.",
+      "details": [
+        "A delivery cut short by the server stopping stays due and spends none of the endpoint's attempts.",
+        "An endpoint that spends its whole ladder takes the rest of its queue with it, kept for an administrator to retry."
+      ],
+      "concepts": ["event delivery", "retry ladder"]
+    },
+    {
+      "path": "packages/server/src/apps/store.ts",
+      "plain": "Saves apps, their bot accounts, tokens, webhooks, commands and event subscriptions.",
+      "summary": "AppStore (store.apps): apps, app tokens, webhooks, slash commands and event subscriptions, each table's row read in one place.",
+      "details": [
+        "Subscriptions are listed with their delivery counts (waiting, failed, dropped) for the administrator."
+      ],
+      "concepts": ["apps", "feature store"]
+    },
+    {
+      "path": "packages/server/src/apps/deliveryStore.ts",
+      "plain": "Keeps the queue of events waiting to go to apps, and the ones given up on.",
+      "summary": "DeliveryStore (store.deliveries): enqueue, due, complete, fail, abandonBacklog, retryFailed, prune, and the redaction of a deleted message's queued copies.",
+      "details": [
+        "At most MAX_PENDING (500) waiting and MAX_FAILED (1,000) given-up events per endpoint; past that an event is counted as dropped."
+      ],
+      "concepts": ["event delivery", "bounded queue"]
+    },
+    {
       "path": "packages/server/src/httpError.ts",
       "plain": "How the server turns a request down: a status and one of the listed reasons, sent back as the error.",
       "summary": "HttpError(statusCode, code: ErrorCode, message?, retryAfter?), shared by the server's routes and ee's single sign-on.",
@@ -150,7 +236,7 @@
       "concepts": ["two-step sign-in", "TOTP", "RFC 6238", "recovery codes", "E11"]
     },
     {
-      "path": "packages/server/src/backup.ts",
+      "path": "packages/server/src/backups/backup.ts",
       "plain": "Makes a complete backup of the workspace and its files, checks it, and puts a backup back in place when the host restores one.",
       "summary": "Captures, verifies, inventories and restores portable workspace backups.",
       "details": [
@@ -163,7 +249,7 @@
       "concepts": ["backup", "checksum", "WAL snapshot", "path lock"]
     },
     {
-      "path": "packages/server/src/backupSchedule.ts",
+      "path": "packages/server/src/backups/backupSchedule.ts",
       "plain": "Lets the server back itself up on a timer into dated folders, keeping the newest few, so a host does not have to remember to.",
       "summary": "Schedules verified backups, prunes old ones and reports how they are going.",
       "details": [
@@ -175,7 +261,7 @@
       "concepts": ["scheduled backup", "retention of copies", "child process", "P3"]
     },
     {
-      "path": "packages/server/src/offsite.ts",
+      "path": "packages/server/src/backups/offsite.ts",
       "plain": "Sends each scheduled backup, as one zip, to a bucket somewhere else such as Cloudflare R2, so losing the server's disk does not lose the backups too.",
       "summary": "Uploads verified backups to an S3-compatible bucket and keeps the newest few there.",
       "details": [
@@ -187,7 +273,18 @@
       "concepts": ["offsite backup", "S3 SigV4", "multipart upload", "Cloudflare R2"]
     },
     {
-      "path": "packages/server/src/blockKit.ts",
+      "path": "packages/server/src/backups/feature.ts",
+      "plain": "Takes backups on a timer and makes the copy of the workspace the owner downloads.",
+      "summary": "registerBackups: scheduled backups (P3), the owner's workspace copy and its one-use download tickets (P4), and the backup summary in workspace status.",
+      "details": [
+        "scheduledBackupsOf refuses, before the database opens, schedules that cannot work: in memory, a non-positive interval, keeping none, or a backup folder inside the workspace or around it. An isolated copy takes none.",
+        "Making a copy is refused with 507 when the disk would have less than 64 MB left after it.",
+        "Both take an ordinary backup with attachment removals held, and stop before the drain so held removals run once the backup has ended."
+      ],
+      "concepts": ["feature module", "backup"]
+    },
+    {
+      "path": "packages/server/src/apps/blockKit.ts",
       "plain": "Turns the text, buttons and forms that Slack-style apps send into what OwnBase can show, leaving out what it cannot.",
       "summary": "Converts supported Slack Block Kit payloads into OwnBase's text, buttons and modal fields.",
       "details": [
@@ -201,7 +298,7 @@
       "concepts": ["Slack compatibility", "bounded payload", "modal parsing"]
     },
     {
-      "path": "packages/server/src/capabilities.ts",
+      "path": "packages/server/src/core/capabilities.ts",
       "plain": "Briefly remembers which open forms and replies an app is still allowed to use, and forgets them when the server restarts.",
       "summary": "Keeps short-lived app permissions in a bounded in-memory map.",
       "details": [
@@ -213,14 +310,15 @@
       "concepts": ["bounded memory", "capability lifetime", "expiration"]
     },
     {
-      "path": "packages/server/src/commands.ts",
-      "plain": "Gives every workspace the built-in /shrug and /me commands, even before any app is added.",
-      "summary": "Provides built-in /shrug and /me commands before any integration is installed.",
+      "path": "packages/server/src/apps/commands.ts",
+      "plain": "Slash commands: the built-in ones every workspace has, the ones apps add, and running either.",
+      "summary": "BUILTIN_COMMANDS, and registerCommands: createCommand, deleteCommand, listCommands and runCommand.",
       "details": [
         "A map holds description, usage hint and a function that returns the message text or null for invalid arguments.",
         "/shrug escapes its backslash and underscores through the shared formatter so the visible arms survive mrkdwn parsing; /me wraps supplied text in italics.",
         "Built-in names are reserved during app command registration, preventing an app from unexpectedly taking over these commands.",
-        "A built-in may say inApp: a command the app runs itself, which the server only lists and reserves, answering a client that sends it anyway with that sentence. /poll is one (E6)."
+        "A built-in may say inApp: a command the app runs itself, which the server only lists and reserves, answering a client that sends it anyway with that sentence. /poll is one (E6).",
+        "An app's command gets the command as a signed form with a response_url and a trigger_id; a failure is said privately to the person who ran it and returned as command_failed."
       ],
       "concepts": ["slash commands", "mrkdwn"]
     },
@@ -327,7 +425,7 @@
       "concepts": ["attachment metadata", "layout stability"]
     },
     {
-      "path": "packages/server/src/workspaceCopy.ts",
+      "path": "packages/server/src/backups/workspaceCopy.ts",
       "plain": "Makes a fresh copy of the workspace for its owner to download, and unpacks a downloaded copy so it can be restored.",
       "summary": "Owns the owner's downloadable copy and the zip form of a backup.",
       "details": [
@@ -339,7 +437,7 @@
       "concepts": ["data portability", "download ticket", "backup", "P4"]
     },
     {
-      "path": "packages/server/src/workspaceIcon.ts",
+      "path": "packages/server/src/admin/workspaceIcon.ts",
       "plain": "Checks a workspace's icon before it is kept: only a small PNG, JPEG or WebP picture, judged by what the file really is rather than by what it says it is.",
       "summary": "Validates, versions and stores the workspace icon without decoding it (UX-60).",
       "details": [
@@ -352,7 +450,57 @@
       "concepts": ["workspace icon", "magic bytes", "content addressing", "UX-60"]
     },
     {
-      "path": "packages/server/src/zip.ts",
+      "path": "packages/server/src/admin/feature.ts",
+      "plain": "The routes the owner and admins use to run the workspace, and the ones that say whether it is up.",
+      "summary": "registerAdmin: health, the icon, workspace status (OPS-10), ownership, workspace settings and extension settings panels; it hands the people routes to admin/members.ts.",
+      "details": [
+        "Health and the icon are open to anyone; the icon is rationed by publicByAddress and cached under ?v= for a year.",
+        "Workspace status reports counts and sizes only: database and log, attachments and their removal queue, free disk, app deliveries, the scheduled queue, retention, backups, sockets, event-loop delay over the last full minute, failing background queues and each extension's status line."
+      ],
+      "concepts": ["feature module", "administration"]
+    },
+    {
+      "path": "packages/server/src/admin/members.ts",
+      "plain": "The routes an admin uses to look after people: the audit log, everyone's role and account, password and two-step resets, and reported messages.",
+      "summary": "registerMemberAdmin: listAudit, listAllUsers, updateUserAdmin, resetPassword, resetTwoStep, listReports and resolveReport, called once from registerAdmin.",
+      "details": [
+        "mayChange is the one rule for whose account an admin may change (not their own, never the owner's, another admin's only as the owner), shared by role changes and by deactivating a reported author.",
+        "Password and two-step resets share resettable's rules; a password reset is checked again after hashing, which yields.",
+        "Resolving a report removes the message inside the same mutate and, for deactivate, ends the author's sessions and sockets."
+      ],
+      "concepts": ["feature module", "administration"]
+    },
+    {
+      "path": "packages/server/src/admin/auditLog.ts",
+      "plain": "Keeps the record of who changed what in the workspace, and reads it back for admins.",
+      "summary": "AuditLog (store.audit): record, called by every feature inside the transaction that makes the change, and list, newest first by insertion order.",
+      "details": [
+        "Every feature that changes something an admin answers for writes here (accounts, admin, workspace, backups, apps, recover), so it hangs off the store rather than an admin-only object."
+      ],
+      "concepts": ["administration", "queries"]
+    },
+    {
+      "path": "packages/server/src/admin/reportStore.ts",
+      "plain": "Keeps reported messages: members file them, admins settle them.",
+      "summary": "ReportStore (store.reports): file (false for a second open report by the same person), openCount, open (grouped by message with its conversation and author, read through the message row) and resolve.",
+      "details": [
+        "Filing or resolving tells admins the new open count through the outbox's reports event."
+      ],
+      "concepts": ["administration", "queries"]
+    },
+    {
+      "path": "packages/server/src/admin/workspace.ts",
+      "plain": "The workspace itself: its name, who may join, its icon and link previews, changed the same way by the host and by its owner and admins.",
+      "summary": "createWorkspace: start-up settings for an unowned workspace, rename, changeAccessPolicy, changeIcon, setLinkPreviews, change listeners and the workspace part of the startup snapshot.",
+      "details": [
+        "Before anyone owns the workspace, the start options decide its name and who may join; once it has an owner a start never puts back an older choice. It also makes the claim code while nobody owns it.",
+        "Each change writes its settings through the registry with its audit record in one transaction, tells everyone signed in, and tells onChange listeners, one of which re-announces the workspace on the network after a rename or a new icon.",
+        "Turning guests off ends every guest session and closes their sockets."
+      ],
+      "concepts": ["feature module", "settings registry", "startup snapshot"]
+    },
+    {
+      "path": "packages/server/src/backups/zip.ts",
       "plain": "Packs a workspace copy into one zip file, and unpacks one, without any outside library.",
       "summary": "Writes stored ZIP/ZIP64 archives with exact lengths and reads stored or deflated entries back.",
       "details": [
@@ -375,7 +523,7 @@
       "concepts": ["package boundary", "embedded server"]
     },
     {
-      "path": "packages/server/src/integrations.ts",
+      "path": "packages/server/src/apps/signing.ts",
       "plain": "Signs what the server sends to outside apps, the way Slack signs its own.",
       "summary": "signatureHeaders: HMAC-SHA256 over v0:timestamp:body, with OwnBase and Slack header names.",
       "details": [
@@ -401,18 +549,13 @@
     },
     {
       "path": "packages/server/src/main.ts",
-      "plain": "Starts the server on its own and runs the host's backup, restore and account recovery commands.",
-      "summary": "Runs the standalone server and its operator commands.",
+      "plain": "The file that starts the server from the command line.",
+      "summary": "The standalone server's entry: runs the command line with no extensions.",
       "details": [
-        "Parses flags/environment, validates startup values, locates the built web client and chooses LAN or isolated loopback hosting.",
-        "Dispatches backup, verify-backup, restore and local account recovery commands before ordinary server startup.",
-        "Verification prints the consequences of starting a backup: app callbacks, queued messages, accepted sessions and host settings that must be configured again.",
-        "Ordinary startup reports reachable addresses and first-owner claim information, advertises discovery when enabled and handles process shutdown.",
-        "This is an executable entry point; desktop embedding uses the library API instead.",
-        "--name, --invite-only and --access-policy set up a new workspace only. On a workspace that already has an owner the stored name and rule win, and the start prints one line for each flag that disagrees (keptSettingsNotes).",
-        "recover says when it turned two-step sign-in off (E11)."
+        "Calls runServerCli with itself as the script, so a backup child process runs this same file again.",
+        "A build with ee/ starts from ee/src/main.ts instead, which passes its extension to the same function."
       ],
-      "concepts": ["CLI", "self-hosting", "operator workflow"]
+      "concepts": ["CLI", "entry point"]
     },
     {
       "path": "packages/server/src/mdns.ts",
@@ -464,7 +607,7 @@
       "concepts": ["link previews", "SSRF guard", "HTML metadata"]
     },
     {
-      "path": "packages/server/src/ownership.ts",
+      "path": "packages/server/src/core/ownership.ts",
       "plain": "Makes sure only one server at a time can open and change a workspace folder.",
       "summary": "Ensures one process owns a writable workspace folder at a time.",
       "details": [
@@ -557,8 +700,8 @@
         "GET /api/channels/:id/messages/:messageId gives one message to anyone who can read its conversation, guests included, for the card under a link to it. A message deleted, or under another conversation's id, is a 404, as is one in a conversation the reader cannot see.",
         "A status can end by itself (UX-61): PATCH /api/me takes statusExpiresAt, and a new status without one drops an earlier end. One timer waits for the soonest end, clears every status due then and sends user.updated to everyone, as if its owner had cleared it; on start it clears what ended while the server was stopped.",
         "A slash command whose app answered an error status, could not be reached or was blocked answers ok: false, command_failed, with the reason in message as well as in the private note to the channel, for the test in Apps and integrations (UX-63). Older clients read only ok and error.",
-        "The workspace's name and who may join belong to the workspace (UX-60). PUT /api/admin/workspace/name and /access-policy, owner or admin only, go through renameWorkspace and changeAccessPolicy, the same functions the desktop host's setWorkspaceName, setAccessPolicy and setInviteOnly call, so the two cannot drift. Each writes the audit record in the same transaction (the host as a null actor), tells every socket (workspace.renamed, workspace.accessPolicy), signs guests out with their sockets when they are no longer allowed, and tells onWorkspaceChange listeners. The start options workspaceName, accessPolicy and inviteOnly set up a workspace with no accounts only; once it has one, a start never puts back an older choice.",
-        "The workspace's icon (UX-60): PUT /api/admin/workspace/icon takes the image itself as the body (a scoped parser reads every type as bytes, so workspaceIcon.ts's check answers) and DELETE removes it, both for the owner and admins. One changeIcon, which the host's setWorkspaceIcon and removeWorkspaceIcon also use, writes the meta rows and a workspace.icon_changed audit entry naming type and size but never the image, broadcasts workspace.icon to everyone signed in and tells onWorkspaceChange. GET /api/workspace/icon serves it to anyone, under the publicByAddress allowance, typed from the checked bytes with nosniff and an ETag; with ?v= of the current version it may be cached for a year, otherwise it is revalidated, and it answers 404 when there is none. /api/server-info carries iconVersion so the join card can show it before sign-in.",
+        "The workspace's name and who may join belong to the workspace (UX-60). PUT /api/admin/workspace/name and /access-policy, owner or admin only, go through admin/workspace.ts's rename and changeAccessPolicy, the same functions the desktop host's setWorkspaceName, setAccessPolicy and setInviteOnly call, so the two cannot drift. Each writes the audit record in the same transaction (the host as a null actor), tells every socket (workspace.renamed, workspace.accessPolicy), signs guests out with their sockets when they are no longer allowed, and tells onWorkspaceChange listeners. The start options workspaceName, accessPolicy and inviteOnly set up a workspace with no accounts only; once it has one, a start never puts back an older choice.",
+        "The workspace's icon (UX-60): PUT /api/admin/workspace/icon takes the image itself as the body (a scoped parser reads every type as bytes, so workspaceIcon.ts's check answers) and DELETE removes it, both for the owner and admins. One changeIcon (admin/workspace.ts), which the host's setWorkspaceIcon and removeWorkspaceIcon also use, writes the meta rows and a workspace.icon_changed audit entry naming type and size but never the image, broadcasts workspace.icon to everyone signed in and tells onWorkspaceChange. GET /api/workspace/icon serves it to anyone, under the publicByAddress allowance, typed from the checked bytes with nosniff and an ETag; with ?v= of the current version it may be cached for a year, otherwise it is revalidated, and it answers 404 when there is none. /api/server-info carries iconVersion so the join card can show it before sign-in.",
         "A send can carry forwardFrom (E1). The sender must be able to read that message now: a missing, deleted or unreadable one answers 404 message_not_found. A forward with no words or files of its own passes on its original instead, and when the sender cannot read that original or it is gone the send answers 409 forward_unavailable. The forwarded id is part of the send's nonce identity.",
         "Link previews (E2): after a send or an edit commits, queuePreviews puts the message in a queue of at most 200 worked by two fetches at a time, unless the workspace is an isolated copy or previews are off (meta link_previews). findPreviews fetches the links it has no row for, through a cache of 25 addresses for half an hour shared by concurrent sends, then in one change adds what it found and emits message.updated with previewsOnly, unless the message was edited or deleted meanwhile. Shutdown aborts fetches under way.",
         "GET /api/link-previews/:id/image serves a preview's picture to readers of its message as the type its bytes said, with nosniff, no-store and a sandboxing CSP. DELETE /api/link-previews/:id is for the message's sender. PUT /api/admin/workspace/link-previews, for the owner and admins, records workspace.link_previews_changed and tells everyone signed in with workspace.linkPreviews. ServerOptions.fetchLinkPreview replaces the network fetch in tests.",
@@ -637,7 +780,7 @@
         "Profiles (E9): a user row gives timeZone, away and avatarVersion only when set, so older comparisons of users still hold. updateUser sets the first two; isAway, avatar and setAvatar keep the rest, setAvatar with null deleting the bytes.",
         "A message row's call_kind becomes Message.call, and createMessage keeps one (E10).",
         "Two-step sign-in (E11): twoStep reads an account's key, last step and recovery codes left; twoStepUserIds lists who has it. enableTwoStep, disableTwoStep (which says whether it was on) and replaceRecoveryCodes are called inside a transaction; useTwoStepStep keeps the step a code was accepted for, and useRecoveryCode spends a code once.",
-        "Blocks and reports (E12): blockedIds, setBlocked, reportMessage (false for a second open report by the same person), openReportCount (messages waiting), openReports (grouped by message with its conversation and author, read through the message row) and resolveReports. NOT_BLOCKED leaves a blocked author out of unreadMentionCounts and activityMessages; listFriends leaves out a request from someone blocked."
+        "Blocks and reports (E12): blockedIds and setBlocked; reports are kept by admin/reportStore.ts. NOT_BLOCKED leaves a blocked author out of unreadMentionCounts and activityMessages; listFriends leaves out a request from someone blocked."
       ],
       "concepts": ["SQLite data layer", "N06", "N07", "adaptive search", "batch hydration"]
     },
@@ -1047,6 +1190,425 @@
         "currentZoneName gives the name the IANA database has now for the 19 zones Chromium, Electron and Node still give by an old one, such as Asia/Calcutta for Asia/Kolkata (E9)."
       ],
       "concepts": ["search syntax", "time zones", "bounded cache"]
+    },
+    {
+      "path": "packages/server/src/cli/run.ts",
+      "plain": "Starts the server on its own and runs the host's backup, restore and account recovery commands.",
+      "summary": "runServerCli: parses flags, runs operator commands, or starts the standalone server.",
+      "details": [
+        "Takes the build's command-line extensions as an argument, so an extension can never be registered after the command line has read its flags.",
+        "Parses flags/environment through the flag table, validates startup values, locates the built web client and chooses LAN or isolated loopback hosting.",
+        "Dispatches backup, verify-backup, restore and local account recovery commands before ordinary server startup.",
+        "Verification prints the consequences of starting a backup: app callbacks, queued messages, accepted sessions and host settings that must be configured again.",
+        "--name, --invite-only and --access-policy set up a new workspace only; on an owned workspace the start prints one line for each flag that disagrees (keptSettingsNotes)."
+      ],
+      "concepts": ["CLI", "self-hosting", "operator workflow"]
+    },
+    {
+      "path": "packages/server/src/cli/flags.ts",
+      "plain": "The one list of every command-line setting, its environment variable and its help.",
+      "summary": "Declares each CLI flag once: type, default, OWNBASE_ environment fallback, --help lines and whether hosting may pass it.",
+      "details": [
+        "parseArgs options, the options part of --help and the environment fallback are all derived from FLAGS.",
+        "ENV_SETTINGS lists settings given only by the environment; CLOUD_ENV is the subset OwnBase's hosting passes on from its own environment.",
+        "serverArgs builds a workspace server's arguments for ee/cloud, typed so only flags marked cloud can be passed."
+      ],
+      "concepts": ["CLI", "configuration", "single declaration"]
+    },
+    {
+      "path": "packages/server/src/core/context.ts",
+      "plain": "What every part of the server is handed: the database, the live connections, the rules for checking requests.",
+      "summary": "ServerContext, the shared pieces each feature module is built on, and the shared access checks.",
+      "details": [
+        "createWorkspaceServer builds one context and hands it to each feature; handlers are plain functions over it.",
+        "requireChannelAccess and requireVisibleMessage answer 404 for anything the caller may not read, without saying whether it exists.",
+        "rationWith turns the rate limiter into the 429 every feature throws."
+      ],
+      "concepts": ["composition", "feature modules", "access checks"]
+    },
+    {
+      "path": "packages/server/src/core/commit.ts",
+      "plain": "Saves a change and its events together, then tells everyone who should hear about it.",
+      "summary": "recordEvent and mutate: one transaction per change, events published only after commit.",
+      "details": [
+        "recordEvent appends to the event log, writes the event's declared effects and queues app deliveries inside the caller's transaction.",
+        "mutate commits, flushes the outbox's ahead-notices, runs after-commit effects, then publishes; a frame that cannot be sent resynchronizes every socket (REV-10).",
+        "onPublished lets the apps feature start a delivery round after events go out."
+      ],
+      "concepts": ["transactions", "event log", "publish after commit"]
+    },
+    {
+      "path": "packages/server/src/core/background.ts",
+      "plain": "Runs the server's background jobs so one failing never brings the server down.",
+      "summary": "BackgroundWork: contained queue runs, after-commit work and housekeeping, with failures counted for admin status.",
+      "details": [
+        "run() contains throws and rejections from timers and immediates (REV-01), counting failures per queue until it next succeeds.",
+        "afterCommitted logs work that fails after a commit instead of undoing the answer; maintain logs one housekeeping step without skipping the rest."
+      ],
+      "concepts": ["crash containment", "background queues"]
+    },
+    {
+      "path": "packages/server/src/core/contain.ts",
+      "plain": "Catches a crash in one piece of work so the server keeps running.",
+      "summary": "contain(): runs work, hands a throw to a reporter, and reports whether it finished.",
+      "details": [
+        "The one crash-containment wrapper: socket callbacks (gateway), outbox notices, background work and after-commit effects all use it.",
+        "A reporter that throws is swallowed too, so reporting cannot end the process."
+      ],
+      "concepts": ["crash containment"]
+    },
+    {
+      "path": "packages/server/src/core/rows.ts",
+      "plain": "Says once what each database table's rows look like, and checks every row read against it.",
+      "summary": "shape(): a table's columns (text, number, bytes, a fixed set of words, or NULL-able) typed once; get/all read checked rows.",
+      "details": [
+        "Each feature store declares one shape per table and derives narrower or wider ones with pick() and with(), so no query casts its result.",
+        "oneOf()/oneOfOrNull() take an object keyed by every word of a protocol union, so a word added to the union and not to the column fails to compile.",
+        "A column missing from a query, NULL where it may not be, or of another type throws at that read instead of passing a wrong value on."
+      ],
+      "concepts": ["typed rows", "storage"]
+    },
+    {
+      "path": "packages/server/src/core/lifecycle.ts",
+      "plain": "Knows when the server is stopping, and stops every timer and outgoing call when it does.",
+      "summary": "Lifecycle: closing flag, shutdown signal, interval timers, close and drain hooks.",
+      "details": [
+        "Features register intervals and close hooks here; stop() closes them before waiting on anything, then aborts outbound calls.",
+        "Drains (attachment removals, app event deliveries) run after the last request handler finishes and before the database closes."
+      ],
+      "concepts": ["shutdown", "timers"]
+    },
+    {
+      "path": "packages/server/src/core/soonest.ts",
+      "plain": "One alarm clock for many things due at different times.",
+      "summary": "SoonestTimer: a single timeout armed for the soonest due row, re-armed after each round.",
+      "details": [
+        "Used by reminders and status expiry; a time beyond setTimeout's range wakes the timer to wait again.",
+        "Cleared when the server starts stopping; never armed when off, as in an isolated copy."
+      ],
+      "concepts": ["timers", "scheduling"]
+    },
+    {
+      "path": "packages/server/src/core/network.ts",
+      "plain": "Works out where a request came from and the address others use to reach this server.",
+      "summary": "Network: public URL, proxy trust, caller address, local-request check and request origin.",
+      "details": [
+        "isLocalRequest refuses anything forwarded, anything to a server with a public URL, and any browser Origin that is not this server.",
+        "requestOrigin uses the configured public URL, forwarded headers only when a proxy is declared, otherwise the connection's own address.",
+        "setPublicUrl and setTrustLoopbackProxy let a desktop host change these while running."
+      ],
+      "concepts": ["proxy trust", "claim protection"]
+    },
+    {
+      "path": "packages/server/src/core/http.ts",
+      "plain": "Sets up the web server every request goes through, before any route is added.",
+      "summary": "createHttp: Fastify with request tracking, CORS, uploads, security headers, form bodies and the web client.",
+      "details": [
+        "runningHandlers holds every handler still running so shutdown waits for them before closing the database.",
+        "Unknown Slack Web API methods answer unknown_method; the browser client is served with precompressed files and a fallback to index.html."
+      ],
+      "concepts": ["HTTP", "Fastify"]
+    },
+    {
+      "path": "packages/server/src/core/settings.ts",
+      "plain": "The workspace's own settings, like its name and who may join, each written down once.",
+      "summary": "SETTINGS registry and Settings: each workspace setting's meta rows, parsing, fallback and writes in one place.",
+      "details": [
+        "workspaceId, workspaceName, accessPolicy (kept in step with the older invite_only row), linkPreviews, claimCode and the icon's three rows.",
+        "Store.settings is the only reader and writer of these meta rows; extensions get their own prefixed storage from extensionStorage()."
+      ],
+      "concepts": ["workspace settings", "single declaration"]
+    },
+    {
+      "path": "packages/server/src/reminders/feature.ts",
+      "plain": "Lets people set a reminder on a message and tells them when it is due.",
+      "summary": "Reminder routes, the due-reminder timer and the reminders part of the startup snapshot.",
+      "details": [
+        "Set, cancel and list; at most REMINDER_LIMITS.perAccount per account, at most five years ahead.",
+        "One SoonestTimer brings reminders due, dropping those whose message is gone or no longer readable, or whose account is deactivated; never in an isolated copy."
+      ],
+      "concepts": ["reminders", "feature module"]
+    },
+    {
+      "path": "packages/server/src/reminders/store.ts",
+      "plain": "Saves reminders and finds the ones that are due.",
+      "summary": "ReminderStore: the reminders table's queries, its row type mapped once.",
+      "details": [
+        "Reachable reminders are those whose message is still there and whose conversation the account can read.",
+        "Setting, removing and coming due each tell the account's devices through the outbox."
+      ],
+      "concepts": ["reminders", "queries"]
+    },
+    {
+      "path": "packages/server/src/reminders/events.ts",
+      "plain": "Says who hears about a reminder changing.",
+      "summary": "The reminder and reminder.removed events, heard by the account's own devices.",
+      "details": ["Spread into the event registry beside every other feature's events."],
+      "concepts": ["events"]
+    },
+    {
+      "path": "packages/server/src/polls/feature.ts",
+      "plain": "Lets people vote in a poll and lets its author close it.",
+      "summary": "Poll vote and close routes, and the anonymous choices part of the startup snapshot.",
+      "details": [
+        "A vote replaces the account's choices; a closed poll, an archived channel or a choice outside the poll is refused.",
+        "Both change the poll's message with a message.updated marked pollOnly, which apps are not told of."
+      ],
+      "concepts": ["polls", "feature module"]
+    },
+    {
+      "path": "packages/server/src/polls/store.ts",
+      "plain": "Saves polls and counts their votes.",
+      "summary": "PollStore: poll rules, choices, closing, and the polls of a page of messages with votes counted.",
+      "details": [
+        "ofMessages counts votes for every poll among the messages being sent, in one query, for message hydration.",
+        "anonymousChoices is the account's own choices in anonymous polls, which nobody else is told."
+      ],
+      "concepts": ["polls", "queries"]
+    },
+    {
+      "path": "packages/server/src/polls/events.ts",
+      "plain": "Says who hears about a person's own poll choices.",
+      "summary": "poll.choices, heard only by the account's own devices.",
+      "details": ["Spread into the event registry beside every other feature's events."],
+      "concepts": ["events"]
+    },
+    {
+      "path": "packages/server/src/saved/feature.ts",
+      "plain": "Lets people pin messages for a whole channel, and save messages for themselves.",
+      "summary": "Pin, unpin, list pins, save, unsave and list saved routes, and the saved ids part of the startup snapshot.",
+      "details": [
+        "Pinning needs the message to be readable; listing a channel's pins needs the channel to be.",
+        "Saved messages are an account's own: saving tells only its devices."
+      ],
+      "concepts": ["pins", "saved messages", "feature module"]
+    },
+    {
+      "path": "packages/server/src/saved/store.ts",
+      "plain": "Saves pins and saved messages, and pages through them.",
+      "summary": "SavedStore: the pins and saved_messages tables' queries.",
+      "details": ["Lists page by cursor and leave out what the reader can no longer see."],
+      "concepts": ["pins", "saved messages", "queries"]
+    },
+    {
+      "path": "packages/server/src/saved/events.ts",
+      "plain": "Says who hears about pins and saved messages.",
+      "summary": "pin.added and pin.removed, heard by the channel's readers and sent to apps; saved, heard by the account's own devices.",
+      "details": ["Spread into the event registry beside every other feature's events."],
+      "concepts": ["events"]
+    },
+    {
+      "path": "packages/server/src/scheduled/feature.ts",
+      "plain": "Lets people schedule a message for later, and posts it when the time comes.",
+      "summary": "Scheduled message routes, the due-message loop and its hourly prune.",
+      "details": [
+        "Scheduling goes through the posting rules (messages/posting.ts), so what sending would refuse later is refused now.",
+        "The loop posts a batch at a time, yielding between full batches; what the author can clear holds a row, what they cannot fails it, each with words for their list.",
+        "An isolated copy posts nothing; sent rows are kept a week as proof, then pruned."
+      ],
+      "concepts": ["scheduled messages", "queue", "feature module"]
+    },
+    {
+      "path": "packages/server/src/scheduled/store.ts",
+      "plain": "Saves the queue of messages waiting to be posted.",
+      "summary": "ScheduledStore: the scheduled_messages queue's queries, with its row mapped once.",
+      "details": [
+        "Rows are queued, held (with a time to look again), sent or failed; held rows wake early when what held them clears.",
+        "Each change tells the author's devices through the outbox."
+      ],
+      "concepts": ["scheduled messages", "queries"]
+    },
+    {
+      "path": "packages/server/src/scheduled/events.ts",
+      "plain": "Says who hears about a person's scheduled messages changing.",
+      "summary": "scheduled, heard by the author's own devices.",
+      "details": ["Spread into the event registry beside every other feature's events."],
+      "concepts": ["events"]
+    },
+    {
+      "path": "packages/server/src/threads/feature.ts",
+      "plain": "Shows a thread's replies, and lets people follow, mute and mark threads read or unread.",
+      "summary": "Thread history, follow, mute, read, unread and followed-threads routes, and the thread follows part of the startup snapshot.",
+      "details": [
+        "Only a thread's root can be followed, muted or read; a root the caller cannot read is a 404.",
+        "Replying follows a thread automatically, in the message.created event's effects, so every way a reply is written does it."
+      ],
+      "concepts": ["threads", "feature module"]
+    },
+    {
+      "path": "packages/server/src/threads/store.ts",
+      "plain": "Saves who follows each thread and how far they have read it.",
+      "summary": "ThreadStore: thread history, thread_follows rows, followers, unread counts and the Threads list.",
+      "details": [
+        "A follow's revision orders its changes, so a device applies only the newest.",
+        "A reply seen in the channel counts as read in its thread too, unless the thread was marked unread since (READ_IN_CHANNEL)."
+      ],
+      "concepts": ["threads", "queries"]
+    },
+    {
+      "path": "packages/server/src/threads/events.ts",
+      "plain": "Says who hears about a person following or reading a thread.",
+      "summary": "thread.follow, heard by the account's own devices.",
+      "details": ["Spread into the event registry beside every other feature's events."],
+      "concepts": ["events"]
+    },
+    {
+      "path": "packages/server/src/core/sqlRules.ts",
+      "plain": "The few database rules several features share, like what counts as unread or as a mention.",
+      "summary": "SQL fragments for unread, read-in-channel, mentions, blocked authors, guests and the channel timeline.",
+      "details": [
+        "One definition each, so a badge count can never disagree with the list it opens.",
+        "The client's isMessageRead is the same rule as UNREAD."
+      ],
+      "concepts": ["unread", "mentions", "shared rules"]
+    },
+    {
+      "path": "packages/server/src/search/feature.ts",
+      "plain": "Lets people search messages and see their mentions and reactions in Activity.",
+      "summary": "Search and Activity routes.",
+      "details": [
+        "Search parses words and filters (from:, in:, dates in the caller's time zone) and refuses a query with nothing to look for.",
+        "Both page by cursor and only ever return messages the caller can read."
+      ],
+      "concepts": ["search", "activity", "feature module"]
+    },
+    {
+      "path": "packages/server/src/search/store.ts",
+      "plain": "Finds messages by words, filters and mentions.",
+      "summary": "SearchStore: full-text search over messages and the Activity list's queries.",
+      "details": [
+        "Few matches are read in full; many are searched within a recent window first (SEARCH_FEW_MATCHES, SEARCH_WINDOW), so a common word stays fast.",
+        "Activity reads mentions from message_mentions by the same rule as the badges (core/sqlRules.ts)."
+      ],
+      "concepts": ["search", "FTS", "queries"]
+    },
+    {
+      "path": "packages/server/src/huddles/feature.ts",
+      "plain": "Gives calls the servers they connect through, keeps the call log, and leaves a note when a call is missed.",
+      "summary": "Huddles' HTTP side: ICE/TURN configuration, the call log and the missed-call note; joining and ringing travel over the socket.",
+      "details": [
+        "rtcConfig gives the host's STUN/TURN servers plus a relay password for this member, never the relay's API token or shared secret.",
+        "The host can replace the ICE servers or the relay while running; a refused relay leaves the old one.",
+        "A ring nobody answered posts 'Missed huddle' as the caller, through the posting rules, so someone who can no longer post there leaves none."
+      ],
+      "concepts": ["huddles", "WebRTC", "feature module"]
+    },
+    {
+      "path": "packages/server/src/files/feature.ts",
+      "plain": "Lets people upload and download attachments, and removes the files nobody needs any more.",
+      "summary": "Upload, download, download-ticket, shared-files and storage routes, the blob removal queue and its timers.",
+      "details": [
+        "Uploads stream to disk under the storage budget; a picture's size is read from its header.",
+        "Downloads are checked again when a one-minute, single-use ticket is redeemed.",
+        "Blob removals go a page at a time and wait while a backup copies attachments (holdingRemovals); orphaned blobs are queued at startup and abandoned uploads are freed hourly."
+      ],
+      "concepts": ["attachments", "storage budget", "feature module"]
+    },
+    {
+      "path": "packages/server/src/files/store.ts",
+      "plain": "Saves attachments' details, download tickets and the list of files waiting to be removed.",
+      "summary": "FileStore: files rows, shared files, download tickets and the file deletion queue with its retry ladder.",
+      "details": [
+        "A file waiting for a scheduled message is never counted as abandoned.",
+        "A deletion that fails waits longer each time (DELETION_RETRY_MS); an id the server never gives is set aside for good."
+      ],
+      "concepts": ["attachments", "queries"]
+    },
+    {
+      "path": "packages/server/src/messages/feature.ts",
+      "plain": "Lets people read, send, edit, delete and react to messages, adds link previews, and discards old history when retention is on.",
+      "summary": "Message routes and reactions, the link preview queue, the posting rules' setup, message removal and the retention sweep.",
+      "details": [
+        "Every post goes through posting.ts; updateMessage and removeMessage are what apps and moderation use to change a message.",
+        "Link previews are fetched after commit by two workers with a small cache; never in an isolated copy or with previews turned off.",
+        "Retention removes whole threads past the window a pass at a time, each pass its own transaction, and logs one history.removed per conversation.",
+        "Removed messages' send keys are pruned hourly once no app could retry them."
+      ],
+      "concepts": ["messages", "link previews", "retention", "feature module"]
+    },
+    {
+      "path": "packages/server/src/messages/store.ts",
+      "plain": "Saves messages, their previews and reactions, and reads them back with everything they show.",
+      "summary": "MessageStore: creating, editing, deleting and listing messages, send keys, link previews, reactions, retention purges and hydration.",
+      "details": [
+        "hydrate turns rows into whole messages in a few queries per page: files, reactions, previews, polls, replies and forwards.",
+        "Editing or deleting re-quotes and redacts the event log's copies through the store core."
+      ],
+      "concepts": ["messages", "queries"]
+    },
+    {
+      "path": "packages/server/src/channels/feature.ts",
+      "plain": "Lets people make, join, leave and manage channels and DMs, set how each one notifies them, and organise their sidebar.",
+      "summary": "Channel, membership, read place, prefs, notify default, unread summary, sidebar section and removal-note routes, and the conversations part of the startup snapshot.",
+      "details": [
+        "Who may invite, remove or make managers follows protocol's channelPermissions; guests stay in public channels.",
+        "joinPublicChannels puts a new account in every open public channel, as a new public channel takes in everyone.",
+        "The snapshot slice holds the visible conversations, memberships, last seqs, mention counts, removal notes, sidebar sections and the notify default."
+      ],
+      "concepts": ["channels", "membership", "feature module"]
+    },
+    {
+      "path": "packages/server/src/channels/store.ts",
+      "plain": "Saves conversations, who is in them and how far each person has read.",
+      "summary": "ChannelStore: channels and DMs, membership, prefs, read cursors, sidebar sections, removal notes and unread mention counts.",
+      "details": [
+        "Reading a channel reads the replies it showed too, unless the thread was marked unread since (UNREAD in core/sqlRules.ts).",
+        "Mention counts are read from message_mentions, so a badge costs what the account's mentions cost."
+      ],
+      "concepts": ["channels", "queries"]
+    },
+    {
+      "path": "packages/server/src/people/feature.ts",
+      "plain": "Lets people change their profile and status, set a picture, see who is in the workspace, add friends, block someone and report a message.",
+      "summary": "Profile, status, avatar, member list, friend, block and report routes; the status-expiry timer; the people part of the startup snapshot.",
+      "details": [
+        "A status set to clear itself is cleared at its time by one SoonestTimer, for everyone to see, and on starting for those that ended while stopped.",
+        "Profile pictures meet the same checks as the workspace icon (checkedPicture in core/context.ts).",
+        "Guests cannot be friends; reports go to the owner and admins as an open-report count."
+      ],
+      "concepts": ["profiles", "friends", "blocks", "feature module"]
+    },
+    {
+      "path": "packages/server/src/people/store.ts",
+      "plain": "Saves accounts as others see them, their pictures, friendships and blocks.",
+      "summary": "PeopleStore: users rows mapped once (toUser), profiles, avatars, statuses, friends and blocks.",
+      "details": [
+        "toUser is the one mapping from a users row to the protocol's User, shared with sessions in the store core.",
+        "mayInvite is the rule for who may invite, also read by invites."
+      ],
+      "concepts": ["people", "queries"]
+    },
+    {
+      "path": "packages/server/src/accounts/feature.ts",
+      "plain": "Lets people join, sign in and out, set up two-step sign-in, change their password, manage their sessions, join as a guest and invite others.",
+      "summary": "Register, guest, login, second step, logout, password, two-step, session and invite routes, and the password-hashing slots.",
+      "details": [
+        "Password derivations run two at a time at most (hashing); more is refused with auth_busy rather than queued.",
+        "Wrong guesses are rationed per address and per handle; a right password clears the handle's count.",
+        "The first account needs the claim code unless it comes from this machine; when an extension requires single sign-on, a password signs in the owner alone.",
+        "Guests join for a day, at most 200 at once, into public channels only."
+      ],
+      "concepts": ["accounts", "authentication", "two-step", "feature module"]
+    },
+    {
+      "path": "packages/server/src/accounts/store.ts",
+      "plain": "Saves sign-ins, passwords, two-step keys and invites.",
+      "summary": "AccountStore: sessions, passwords, two-step secrets and recovery codes, guest sessions and invites.",
+      "details": [
+        "Sessions are kept by token hash; a session unused for 30 days ends, a guest's after a day.",
+        "An invite's status reads its creator's standing now: a deactivated creator or one no longer allowed to invite disables it."
+      ],
+      "concepts": ["sessions", "invites", "queries"]
+    },
+    {
+      "path": "packages/server/src/sso/feature.ts",
+      "plain": "Plugs in the server's extensions, such as single sign-on, and gives them a way to make members and sign them in.",
+      "summary": "registerExtensions: hands each extension its routes, storage, member count, user lookup, member creation and session start.",
+      "details": [
+        "An extension's storage is its own prefixed rows (Settings.extensionStorage), apart from the workspace's settings.",
+        "Members an extension makes have a password nobody knows and join the public channels as anyone joining does; none can be made while nobody owns the workspace."
+      ],
+      "concepts": ["extensions", "single sign-on", "feature module"]
     }
   ],
   "flows": [
@@ -1152,7 +1714,7 @@
           "files": [
             "packages/server/src/server.ts",
             "packages/server/src/gateway.ts",
-            "packages/server/src/integrations.ts"
+            "packages/server/src/apps/signing.ts"
           ],
           "detail": "Gateway fans out only committed events under current visibility. Targeted follow/mention updates are coalesced, while app deliveries run through the bounded retry pump."
         }
@@ -1168,8 +1730,8 @@
           "title": "Show only buttons OwnBase supports",
           "description": "Apps lay out their messages the way Slack apps do. The server keeps only text, buttons that open a web link and buttons that tell the app they were pressed, all within size limits. The message a button sits on decides which app and conversation the press belongs to.",
           "files": [
-            "packages/server/src/blockKit.ts",
-            "packages/server/src/server.ts",
+            "packages/server/src/apps/blockKit.ts",
+            "packages/server/src/apps/replies.ts",
             "packages/protocol/src/entities.ts"
           ],
           "detail": "Block Kit text/actions become bounded native text and HTTP(S) link or callback buttons. The pressed message determines the owning bot and conversation."
@@ -1178,10 +1740,11 @@
           "title": "Give the app short-lived permission",
           "description": "When someone presses a button, the server tells the app and hands it two short-lived permissions, one to open a form and a reply address to update the message. These expire, and only so many can exist at once. Every call to an app is signed, has a time limit and cannot reach private computers on the host's network.",
           "files": [
-            "packages/server/src/capabilities.ts",
+            "packages/server/src/core/capabilities.ts",
             "packages/server/src/limits.ts",
-            "packages/server/src/integrations.ts",
-            "packages/server/src/outbound.ts"
+            "packages/server/src/apps/signing.ts",
+            "packages/server/src/outbound.ts",
+            "packages/server/src/apps/calls.ts"
           ],
           "detail": "The callback receives an app-bound trigger and a response URL. Capability maps cap memory and expire permissions; outbound calls are signed, deadline-bounded and private-host-checked."
         },
@@ -1189,8 +1752,8 @@
           "title": "Open the form for the right person",
           "description": "The app uses its permission once to open a form. The server first checks that the app, its bot, the person and the channel are all still allowed. It then sends the form, with only the kinds of fields OwnBase supports, to that person alone.",
           "files": [
-            "packages/server/src/server.ts",
-            "packages/server/src/blockKit.ts",
+            "packages/server/src/apps/views.ts",
+            "packages/server/src/apps/blockKit.ts",
             "packages/protocol/src/events.ts"
           ],
           "detail": "views.open and views.push consume one matching trigger after current app, bot, person and channel checks. Supported fields become a view.open ephemeral event, carrying the person's whole stack, for the owner alone. views.update needs no trigger and changes a view still open."
@@ -1198,20 +1761,20 @@
         {
           "title": "Refuse a second submission at the same time",
           "description": "When the person submits, the server checks the form is theirs, required answers are filled in and each answer is one the field offered: an option it listed, someone with an account, a conversation the person can open, a real date. Only one submission of a form can be on its way to the app at a time, and a second one meanwhile is refused. Once the first finishes, the person can correct their answers or try again.",
-          "files": ["packages/server/src/server.ts", "packages/protocol/src/rest.ts"],
+          "files": ["packages/server/src/apps/views.ts", "packages/protocol/src/rest.ts"],
           "detail": "The server verifies form ownership, then readAnswer checks each value against its field and shapes it as Slack's state.values. One modal ID may have one callback in flight; overlap receives 409 view_submitting, and finally releases exclusion for correction or deliberate retry."
         },
         {
           "title": "Ignore late changes to an old message",
           "description": "The app may later ask to replace or delete the message whose button was pressed. The server does this only if the message still looks as it did when pressed, and ignores the request if it was changed or deleted since. Each successful update through the same reply address becomes the version the next one must match.",
-          "files": ["packages/server/src/server.ts", "packages/server/src/store.ts"],
+          "files": ["packages/server/src/apps/replies.ts", "packages/server/src/store.ts"],
           "detail": "Before replace/delete, current text/edit/actions must match the pressed revision. A disappeared or changed origin is ignored; successful updates through the same response URL advance its own expected revision."
         },
         {
           "title": "Know what a retry can still repeat",
           "description": "The server stops overlapping submissions and checks again that permission was not withdrawn. Still, an app may act on a submission and then lose the connection before answering. If the person tries again, the app should spot the repeat by the form's ID.",
           "files": [
-            "packages/server/src/server.ts",
+            "packages/server/src/apps/views.ts",
             "packages/server/test/integrationLifetime.test.ts"
           ],
           "detail": "The server prevents overlap and rechecks revocation, but an endpoint may perform its business effect before a transport failure. An app should deduplicate a retried view_submission by view ID."
@@ -1283,14 +1846,14 @@
         {
           "title": "Copy the database at one moment",
           "description": "The server copies its database as it stands, including the most recent saves, and lists the uploaded files the backup needs. If a file is deleted while the backup runs, the backup fails. To be sure a backup is complete, take it while the server is stopped.",
-          "files": ["packages/server/src/backup.ts"],
+          "files": ["packages/server/src/backups/backup.ts"],
           "detail": "VACUUM INTO reads committed SQLite/WAL state; snapshot file inventory identifies required blobs. Missing concurrent-deleted blobs fail capture, so stopped-server capture is the way to guarantee completeness."
         },
         {
           "title": "Or let the server back itself up",
           "description": "A host can ask the server to take a backup on a timer into a folder of dated copies, keeping the newest few. Each is the same checked backup. While one copies files, the server holds off removing deleted ones, so the copy is complete without stopping anything, and the copying happens in a separate process so chat does not wait.",
           "files": [
-            "packages/server/src/backupSchedule.ts",
+            "packages/server/src/backups/backupSchedule.ts",
             "packages/server/src/server.ts",
             "packages/server/src/main.ts"
           ],
@@ -1300,8 +1863,8 @@
           "title": "And send each one somewhere else",
           "description": "A host can also have every scheduled backup sent as one zip to a storage bucket elsewhere, such as Cloudflare R2, keeping the newest few there. If the server's disk is lost, the backups are not. A send that fails is tried again within the hour without taking a new backup.",
           "files": [
-            "packages/server/src/offsite.ts",
-            "packages/server/src/backupSchedule.ts",
+            "packages/server/src/backups/offsite.ts",
+            "packages/server/src/backups/backupSchedule.ts",
             "packages/server/src/main.ts",
             "ee/cloud/src/controlPlane.ts"
           ],
@@ -1311,8 +1874,8 @@
           "title": "Or download a copy as the owner",
           "description": "The owner can ask for a copy from Workspace settings without reaching the server. It is a fresh backup, checked like any other, sent as one zip file through a link that works once. The same zip restores the workspace here or on the owner's own server.",
           "files": [
-            "packages/server/src/workspaceCopy.ts",
-            "packages/server/src/zip.ts",
+            "packages/server/src/backups/workspaceCopy.ts",
+            "packages/server/src/backups/zip.ts",
             "packages/server/src/server.ts",
             "packages/ui/src/components/WorkspaceSettings.tsx"
           ],
@@ -1321,14 +1884,14 @@
         {
           "title": "Check the backup before keeping it",
           "description": "The copied database and files must match their recorded sizes and fingerprints, the expected layout and counts, and the database's own health check. Every file reference must be valid, with nothing listed twice and nothing pointing outside the backup. Only then does the server move the finished backup to its final place.",
-          "files": ["packages/server/src/backup.ts", "packages/server/src/db.ts"],
+          "files": ["packages/server/src/backups/backup.ts", "packages/server/src/db.ts"],
           "detail": "Staged database and files must match checksums/sizes, schema/counts, integrity and references, with no manifest duplicates or path escape. Only then is the complete capture renamed to its destination."
         },
         {
           "title": "See what a restored copy would do",
           "description": "Without changing anything, the host can list which outside apps a restored copy would contact, which scheduled messages are waiting, which app calls never went out and which sign-ins still work. A separate isolated mode runs the copy without calling apps or sending scheduled messages, so it can be looked at safely.",
           "files": [
-            "packages/server/src/backup.ts",
+            "packages/server/src/backups/backup.ts",
             "packages/server/src/main.ts",
             "packages/server/src/server.ts"
           ],
@@ -1337,20 +1900,23 @@
         {
           "title": "Prepare the restore beside the original",
           "description": "Restore refuses to start if a server is using the workspace. It copies the checked backup next to the workspace folder and checks the copy again. The old workspace moves to a set-aside folder so it can still be recovered.",
-          "files": ["packages/server/src/backup.ts", "packages/server/src/ownership.ts"],
+          "files": [
+            "packages/server/src/backups/backup.ts",
+            "packages/server/src/core/ownership.ts"
+          ],
           "detail": "Restore refuses an already held workspace, copies the verified backup beside the target and verifies staged bytes. The old workspace is moved to a superseded folder for recovery."
         },
         {
           "title": "No other server can slip in while folders swap",
           "description": "Restore has to let go of the workspace folder for a moment to rename it, because Windows will not rename a folder with a file open inside it. It keeps a second claim beside the folder the whole time, so a server started in that moment is refused and makes no workspace of its own there. If the swap fails, the original goes back where it was.",
-          "files": ["packages/server/src/backup.ts"],
+          "files": ["packages/server/src/backups/backup.ts"],
           "detail": "Restore holds a sibling path lock from before staging until publication or rollback is complete, and releases the in-folder hold only for the renames. holdWorkspace takes the path lock before mkdir, so a concurrent start gets WorkspaceInUseError and the target stays absent until the staged copy is renamed in."
         },
         {
           "title": "Start the restored workspace as usual",
           "description": "The next server to start takes sole hold of the restored workspace and upgrades its database if needed, keeping a copy from before the upgrade. The host applies settings that belong to the computer separately, such as the public address, how long history is kept and call connection settings.",
           "files": [
-            "packages/server/src/ownership.ts",
+            "packages/server/src/core/ownership.ts",
             "packages/server/src/db.ts",
             "packages/server/src/config.ts",
             "packages/server/src/server.ts"

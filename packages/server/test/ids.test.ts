@@ -58,11 +58,11 @@ describe("messages made faster than the clock ticks", () => {
       body: JSON.stringify({ handle: "owner", displayName: "Owner", password: "password123" }),
     });
     const { user } = (await res.json()) as { user: { id: string } };
-    const general = server.store.getChannelByName("general")!.id;
+    const general = server.store.channels.byName("general")!.id;
 
     // Straight into the store: hundreds within each millisecond.
     const made = Array.from({ length: 2_000 }, (_, n) =>
-      server!.store.createMessage({
+      server!.store.messages.create({
         channelId: general,
         userId: user.id,
         text: `message ${n}`,

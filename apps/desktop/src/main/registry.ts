@@ -133,7 +133,6 @@ export function parseAutoBackup(value: unknown): AutoBackup | undefined {
   return schedule;
 }
 
-/** The settings key the registry lives under. */
 export const REGISTRY_KEY = "hostedWorkspaces";
 
 /**

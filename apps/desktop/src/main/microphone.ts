@@ -259,7 +259,6 @@ export class SystemMicrophones {
     for (const session of [...this.sessions.keys()]) this.drop(session);
   }
 
-  /** How many microphones are open. */
   get openCount(): number {
     return this.sessions.size;
   }

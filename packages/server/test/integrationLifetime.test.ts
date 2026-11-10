@@ -62,7 +62,7 @@ beforeEach(async () => {
       password: "password123",
     })
   ).body.token;
-  channel = server.store.getChannelByName("general")!.id;
+  channel = server.store.channels.byName("general")!.id;
   app = (await api("POST", "/api/apps", { name: "Meeting App" })).body;
   expect(
     (
@@ -140,7 +140,7 @@ async function view(auth = token) {
 const submit = (id: string, text = "Attending", auth = token) =>
   api("POST", `/api/views/${id}/submit`, { values: { b: { a: text } } }, auth);
 const submissions = () => callbacks.filter((payload) => payload.type === "view_submission");
-const messages = () => server.store.listMessages({ channelId: channel, limit: 50 });
+const messages = () => server.store.messages.list({ channelId: channel, limit: 50 });
 
 describe("one submission per app view (N08)", () => {
   it("refuses another submission during its callback, while another person's view still proceeds", async () => {
@@ -229,7 +229,7 @@ describe("replacement keeps the origin's lifetime (N09)", () => {
       expect((await api("DELETE", `/api/messages/${original}`)).status).toBe(200);
       answer(response!, { [directive]: true, response_type: "in_channel", text: "RSVP recorded." });
       expect((await action).body.ok).toBe(true);
-      expect(server.store.getMessage(original)).toBeNull();
+      expect(server.store.messages.get(original)).toBeNull();
       expect(messages()).toEqual([]);
     },
   );
@@ -266,14 +266,14 @@ describe("replacement keeps the origin's lifetime (N09)", () => {
       true,
     );
     expect((await late(staleUrl, { delete_original: true })).body.ok).toBe(true);
-    expect(server.store.getMessage(original)?.text).toBe("RSVP recorded.");
+    expect(server.store.messages.get(original)?.text).toBe("RSVP recorded.");
     expect(
       (await late(currentUrl, { replace_original: true, text: "Agenda updated." })).body.ok,
     ).toBe(true);
     expect(
       (await late(currentUrl, { replace_original: true, text: "Agenda confirmed." })).body.ok,
     ).toBe(true);
-    expect(server.store.getMessage(original)).toMatchObject({
+    expect(server.store.messages.get(original)).toMatchObject({
       text: "Agenda confirmed.",
       actions: [],
     });

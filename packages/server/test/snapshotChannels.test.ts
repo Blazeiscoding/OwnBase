@@ -28,7 +28,7 @@ afterEach(() => {
 });
 
 const person = (handle: string): User =>
-  store.createUser({ handle, displayName: handle, passwordHash: "", salt: "", role: "member" });
+  store.people.create({ handle, displayName: handle, passwordHash: "", salt: "", role: "member" });
 
 describe("the channels listed at a handshake", () => {
   it("carry the same managers and members as each channel read on its own", () => {
@@ -38,60 +38,65 @@ describe("the channels listed at a handshake", () => {
       User,
       User,
     ];
-    const managed = store.createChannel({
+    const managed = store.channels.create({
       type: "public",
       name: "managed",
       creatorId: ana.id,
       memberIds: [ana.id, ben.id, cai.id],
     });
-    store.setChannelManager(managed.id, cai.id, true);
-    store.setChannelManager(managed.id, ana.id, true);
-    store.createChannel({
+    store.channels.setChannelManager(managed.id, cai.id, true);
+    store.channels.setChannelManager(managed.id, ana.id, true);
+    store.channels.create({
       type: "public",
       name: "nobody-manages",
       creatorId: ben.id,
       memberIds: [ben.id],
     });
-    const plans = store.createChannel({
+    const plans = store.channels.create({
       type: "private",
       name: "plans",
       creatorId: ana.id,
       memberIds: [ana.id, dee.id],
     });
-    store.setChannelManager(plans.id, dee.id, true);
+    store.channels.setChannelManager(plans.id, dee.id, true);
     // One ana is not in, whose manager she must not be told of by way of it.
-    const hidden = store.createChannel({
+    const hidden = store.channels.create({
       type: "private",
       name: "hidden",
       creatorId: ben.id,
       memberIds: [ben.id],
     });
-    store.setChannelManager(hidden.id, ben.id, true);
-    store.createChannel({
+    store.channels.setChannelManager(hidden.id, ben.id, true);
+    store.channels.create({
       type: "dm",
       creatorId: ana.id,
       memberIds: [dee.id, ana.id],
       dmKey: [ana.id, dee.id].sort().join(":"),
     });
-    store.createChannel({
+    store.channels.create({
       type: "group_dm",
       creatorId: cai.id,
       memberIds: [cai.id, ana.id, ben.id],
     });
     // One dee has left: listed to those still in it, as they are now.
-    const left = store.createChannel({
+    const left = store.channels.create({
       type: "group_dm",
       creatorId: ben.id,
       memberIds: [ben.id, cai.id, dee.id],
     });
-    store.removeMember(left.id, dee.id);
-    store.createChannel({ type: "dm", creatorId: ben.id, memberIds: [ben.id, cai.id], dmKey: "x" });
+    store.channels.removeMember(left.id, dee.id);
+    store.channels.create({
+      type: "dm",
+      creatorId: ben.id,
+      memberIds: [ben.id, cai.id],
+      dmKey: "x",
+    });
 
     for (const reader of [ana, ben, cai, dee]) {
-      const listed = store.listChannelsVisibleTo(reader.id);
-      expect(listed).toEqual(listed.map((c) => store.getChannel(c.id)));
+      const listed = store.channels.visibleTo(reader.id);
+      expect(listed).toEqual(listed.map((c) => store.channels.get(c.id)));
     }
-    const ana_ = store.listChannelsVisibleTo(ana.id);
+    const ana_ = store.channels.visibleTo(ana.id);
     expect(ana_.map((c) => c.name).filter(Boolean)).toEqual(["managed", "nobody-manages", "plans"]);
     expect(ana_.find((c) => c.id === managed.id)?.managerIds).toEqual([ana.id, cai.id].sort());
     expect(ana_.filter((c) => c.type === "dm" || c.type === "group_dm")).toHaveLength(2);

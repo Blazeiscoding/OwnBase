@@ -9,7 +9,6 @@ import { findEarlierNames, findEarlierNamesInRepo } from "./check-product-name.m
 
 const gate = join(dirname(fileURLToPath(import.meta.url)), "check-product-name.mjs");
 
-/** A folder holding `files`. */
 function folder(files) {
   const dir = mkdtempSync(join(tmpdir(), "product-name-"));
   for (const [path, body] of Object.entries(files)) {
