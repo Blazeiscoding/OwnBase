@@ -172,6 +172,30 @@ describe("account and admin changes that are refused", () => {
   });
 });
 
+describe("app changes", () => {
+  it("answers with the server's refusal, or a network error, rather than throwing", async () => {
+    const { client } = signedIn();
+    vi.spyOn(client.api, "createCommand").mockRejectedValue(
+      new ApiError(409, "command_taken", "/deploy is already in use"),
+    );
+    expect(
+      await client.apps.createCommand("A_DEPLOY", { command: "deploy", url: "https://x.test" }),
+    ).toMatchObject({ status: 409, code: "command_taken", message: "/deploy is already in use" });
+    vi.spyOn(client.api, "deleteApp").mockRejectedValue(new TypeError("Failed to fetch"));
+    expect(await client.apps.remove("A_DEPLOY")).toMatchObject({ code: "network_error" });
+  });
+
+  it("gives what was asked for, or null for a change with nothing to give", async () => {
+    const { client } = signedIn();
+    vi.spyOn(client.api, "listApps").mockResolvedValue({ apps: [] });
+    expect(await client.apps.list()).toEqual([]);
+    vi.spyOn(client.api, "replaceAppToken").mockResolvedValue({ token: "xoxb-not-a-credential" });
+    expect(await client.apps.replaceToken("A_DEPLOY")).toBe("xoxb-not-a-credential");
+    vi.spyOn(client.api, "deleteWebhook").mockResolvedValue({ ok: true } as never);
+    expect(await client.apps.removeWebhook("W_1")).toBeNull();
+  });
+});
+
 describe("the largest file a workspace takes", () => {
   it("is asked once, and asked again after the server could not say", async () => {
     const { client } = signedIn();

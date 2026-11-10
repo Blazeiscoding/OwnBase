@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { WorkspaceClient, type AppDetail } from "@ownbase/client-core";
+import { ApiError, WorkspaceClient, type AppDetail } from "@ownbase/client-core";
 import {
   APP_EVENT_TYPES,
   type AppEventType,
@@ -152,9 +152,7 @@ describe("what an app may do", () => {
     });
     for (const type of APP_EVENT_TYPES)
       expect(within(events).getByRole("button", { name: type })).toBeInTheDocument();
-    const subscribe = vi
-      .spyOn(client.apps, "subscribe")
-      .mockResolvedValue({ subscription: subscription(["pin.added"]) });
+    const subscribe = vi.spyOn(client.apps, "subscribe").mockResolvedValue(null);
     await user.click(within(events).getByRole("button", { name: "pin.added" }));
     await user.type(
       within(events).getByRole("textbox", { name: "Request URL" }),
@@ -165,5 +163,39 @@ describe("what an app may do", () => {
       url: "https://bot.example.com/events",
       eventTypes: ["pin.added"],
     });
+  });
+});
+
+describe("taking things off an app", () => {
+  it("says so when a command or a subscription could not be removed, and keeps it listed", async () => {
+    const deploy = {
+      id: "C_1",
+      appId: "A_DEPLOY",
+      command: "deploy",
+      url: "https://bot.example.com/deploy",
+      description: "",
+      usageHint: "",
+      createdAt: 0,
+    };
+    const { client, listApps, user } = appsDialog([
+      app({ commands: [deploy], subscriptions: [subscription(["pin.added"])] }),
+    ]);
+    const shown = await card("Deploy Bot");
+    const loads = listApps.mock.calls.length;
+    vi.spyOn(client.api, "deleteCommand").mockRejectedValue(new TypeError("Failed to fetch"));
+    const commands = within(shown).getByRole("group", { name: "Slash commands" });
+    await user.click(within(commands).getByRole("button", { name: "Remove" }));
+    expect(await within(commands).findByRole("alert")).toHaveTextContent(
+      "Could not remove /deploy. Check your connection and try again.",
+    );
+    expect(within(commands).getByText("/deploy")).toBeVisible();
+
+    vi.spyOn(client.api, "deleteSubscription").mockRejectedValue(new ApiError(404, "not_found"));
+    const events = within(shown).getByRole("group", { name: "Event subscriptions" });
+    await user.click(within(events).getByRole("button", { name: "Remove" }));
+    expect(await within(events).findByRole("alert")).toHaveTextContent(
+      "Could not remove the subscription.",
+    );
+    expect(listApps).toHaveBeenCalledTimes(loads);
   });
 });

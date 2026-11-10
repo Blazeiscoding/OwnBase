@@ -29,6 +29,7 @@ import {
 } from "@ownbase/protocol";
 import { ApiError, type AppDetail } from "@ownbase/client-core";
 import { useClient, useWorkspace } from "../context.js";
+import { failureText } from "../lib/failure.js";
 import { Dialog } from "./Dialog.js";
 import { inputCls, TextField } from "./TextField.js";
 import { Select } from "./Select.js";
@@ -1110,7 +1111,12 @@ function CommandList({ app, onChanged }: { app: AppDetail; onChanged: () => void
             </span>
             <button
               onClick={async () => {
-                if (await client.apps.removeCommand(c.id)) return;
+                setError(null);
+                const failed = await client.apps.removeCommand(c.id);
+                if (failed) {
+                  setError(failureText(`Could not remove /${c.command}.`, failed));
+                  return;
+                }
                 onChanged();
                 void client.loadCommands();
               }}
@@ -1318,8 +1324,7 @@ function missingScopes(app: AppDetail, sub: EventSubscription): AppScope[] {
  */
 function DeliveryStatus({ delivery }: { delivery: EventSubscription["delivery"] }) {
   if (!delivery) return null;
-  const { pending, failed, dropped, lastError } = delivery;
-  const retrying = delivery.retrying ?? 0;
+  const { pending, failed, retrying, dropped, lastError } = delivery;
   if (pending === 0 && failed === 0 && dropped === 0 && retrying === 0) return null;
   const parts = [
     pending > 0 ? `${pending} waiting` : null,
@@ -1418,7 +1423,10 @@ function SubscriptionList({ app, onChanged }: { app: AppDetail; onChanged: () =>
               )}
               <button
                 onClick={async () => {
-                  if (!(await client.apps.removeSubscription(sub.id))) onChanged();
+                  setError(null);
+                  const failed = await client.apps.removeSubscription(sub.id);
+                  if (failed) setError(failureText("Could not remove the subscription.", failed));
+                  else onChanged();
                 }}
                 className="text-ink-faint hover:text-alert"
               >
