@@ -20,7 +20,6 @@ export interface WorkspaceOwner {
   port: number | null;
 }
 
-/** Another process already has this workspace open for writing. */
 export class WorkspaceInUseError extends Error {
   readonly code = "workspace_in_use";
   readonly dataDir: string;

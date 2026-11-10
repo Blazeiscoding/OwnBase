@@ -105,7 +105,6 @@ export type SettingName = keyof typeof SETTINGS;
 export type SettingValue<K extends SettingName> =
   (typeof SETTINGS)[K] extends Setting<infer T> ? T : never;
 
-/** Reads and writes the workspace's settings, by their declarations in `SETTINGS`. */
 export class Settings {
   constructor(private readonly rows: MetaRows) {}
 
