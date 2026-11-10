@@ -87,8 +87,9 @@ export function registerReminders(ctx: ServerContext) {
     return { reminders: store.reminders.list(me.id) };
   });
 
+  ctx.lifecycle.onStart(() => timer.arm());
+
   return {
-    start: () => timer.arm(),
     snapshot: (user: User): { reminders: Reminder[] } => ({
       reminders: store.reminders.reachable(user.id),
     }),

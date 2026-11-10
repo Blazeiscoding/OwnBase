@@ -437,8 +437,8 @@
       "concepts": ["data portability", "download ticket", "backup", "P4"]
     },
     {
-      "path": "packages/server/src/admin/workspaceIcon.ts",
-      "plain": "Checks a workspace's icon before it is kept: only a small PNG, JPEG or WebP picture, judged by what the file really is rather than by what it says it is.",
+      "path": "packages/server/src/core/workspaceIcon.ts",
+      "plain": "Checks a workspace's icon or a profile picture before it is kept: only a small PNG, JPEG or WebP picture, judged by what the file really is rather than by what it says it is.",
       "summary": "Validates, versions and stores the workspace icon without decoding it (UX-60).",
       "details": [
         "iconTypeOf reads the first bytes for the PNG, JPEG and WebP signatures. checkIcon refuses a declared type that is not one of those three (415, so SVG and its script never get in), a body over WORKSPACE_ICON_MAX_BYTES (413), bytes that are none of them or disagree with the declared type (400), and a header claiming more than 1024 pixels a side, which every client would have to decode.",
@@ -679,6 +679,15 @@
         "No-referrer reduces URL-token leakage on external navigation; nosniff and X-Frame-Options supplement the CSP."
       ],
       "concepts": ["CSP", "browser security", "multi-workspace"]
+    },
+    {
+      "path": "packages/server/src/options.ts",
+      "plain": "Lists every choice a workspace server is started with, by the command line, the desktop app or a test.",
+      "summary": "ServerOptions, apart from server.ts so core/ can name it without importing the composition root.",
+      "details": [
+        "Each option says its default and why it is off or on by default. Options that only tests set are marked as such."
+      ],
+      "concepts": ["server options"]
     },
     {
       "path": "packages/server/src/server.ts",

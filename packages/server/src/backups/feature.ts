@@ -10,7 +10,7 @@ import type { ServerContext } from "../core/context.js";
 import { bearerToken } from "../core/network.js";
 import { DOWNLOAD_TOKEN_TTL_MS, type Files } from "../files/feature.js";
 import { HttpError } from "../httpError.js";
-import type { ServerOptions } from "../server.js";
+import type { ServerOptions } from "../options.js";
 import { backupWorkspace, separateDirectories } from "./backup.js";
 import { BackupSchedule, type ScheduledBackups } from "./backupSchedule.js";
 import { WorkspaceCopies } from "./workspaceCopy.js";
@@ -181,37 +181,38 @@ export function registerBackups(
       .send(zip.stream);
   });
 
+  // Starts the schedule and clears copies a previous run left.
+  ctx.lifecycle.onStart(async () => {
+    const takeBackup =
+      opts.takeBackup ?? ((out: string) => backupWorkspace({ dataDir: opts.dataDir, out }));
+    backups = scheduled
+      ? new BackupSchedule({
+          ...scheduled,
+          run: files.holdingRemovals(scheduled.run ?? takeBackup),
+          log: ctx.log,
+        })
+      : null;
+    await backups?.start();
+    if (opts.dataDir === ":memory:") return;
+    copies = new WorkspaceCopies({
+      root:
+        opts.copiesDir ??
+        (scheduled
+          ? join(scheduled.dir, ".copies")
+          : join(
+              tmpdir(),
+              "ownbase-copies",
+              createHash("sha256").update(resolve(opts.dataDir)).digest("hex").slice(0, 16),
+            )),
+      take: files.holdingRemovals(takeBackup),
+      log: ctx.log,
+    });
+    await copies.start().catch((err: unknown) => {
+      ctx.log.error({ err }, "copies left from before could not be removed");
+    });
+  });
+
   return {
-    /** Starts the schedule and clears copies a previous run left; once the server is listening. */
-    async start() {
-      const takeBackup =
-        opts.takeBackup ?? ((out: string) => backupWorkspace({ dataDir: opts.dataDir, out }));
-      backups = scheduled
-        ? new BackupSchedule({
-            ...scheduled,
-            run: files.holdingRemovals(scheduled.run ?? takeBackup),
-            log: ctx.log,
-          })
-        : null;
-      await backups?.start();
-      if (opts.dataDir === ":memory:") return;
-      copies = new WorkspaceCopies({
-        root:
-          opts.copiesDir ??
-          (scheduled
-            ? join(scheduled.dir, ".copies")
-            : join(
-                tmpdir(),
-                "ownbase-copies",
-                createHash("sha256").update(resolve(opts.dataDir)).digest("hex").slice(0, 16),
-              )),
-        take: files.holdingRemovals(takeBackup),
-        log: ctx.log,
-      });
-      await copies.start().catch((err: unknown) => {
-        ctx.log.error({ err }, "copies left from before could not be removed");
-      });
-    },
     status: () => backups?.status() ?? null,
     runNow: () => backups?.runNow() ?? Promise.resolve(),
     /** Scheduled backups for admin status: times and counts, never the folder or an error's text. */

@@ -18,7 +18,7 @@ import {
   type WorkspaceChange,
   type WorkspaceServer,
 } from "../src/server.js";
-import { checkIcon, iconTypeOf, readStoredIcon } from "../src/admin/workspaceIcon.js";
+import { checkIcon, iconTypeOf, readStoredIcon } from "../src/core/workspaceIcon.js";
 import { discoveryTxt } from "../src/mdns.js";
 
 // The announcement on the local network, caught here rather than sent.

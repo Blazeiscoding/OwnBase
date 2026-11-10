@@ -5,6 +5,7 @@ import type { registerMessages } from "../messages/feature.js";
 import { createAppCalls } from "./calls.js";
 import { registerCommands } from "./commands.js";
 import { createEventDeliveries } from "./deliveries.js";
+import { enqueueAppDeliveries } from "./delivery.js";
 import { registerAppManagement } from "./manage.js";
 import { registerAppReplies } from "./replies.js";
 import { registerSlackApi } from "./slackApi.js";
@@ -29,6 +30,17 @@ export function registerApps(
   const { posting } = deps.messages;
   const calls = createAppCalls(ctx);
   const deliveries = createEventDeliveries(ctx, calls);
+  ctx.onRecorded((envelope) =>
+    enqueueAppDeliveries(ctx.store, envelope, (subscriptionId) =>
+      ctx.log.warn(
+        { subscriptionId, eventSeq: envelope.seq },
+        "event subscription backlog full, event dropped",
+      ),
+    ),
+  );
+  ctx.onPublished(deliveries.soon);
+  ctx.lifecycle.onStart(deliveries.start);
+  ctx.lifecycle.hourly(deliveries.hourly);
 
   registerAppManagement(ctx, { accounts: deps.accounts, calls, deliveries });
   registerSlackApi(ctx, { posting });
@@ -44,9 +56,5 @@ export function registerApps(
   return {
     /** Delivers what is due to apps' event subscriptions; resolves once this round ends. */
     flushEventDeliveries: deliveries.flush,
-    /** Starts a delivery round in the background, as a commit does. */
-    deliverSoon: deliveries.soon,
-    start: deliveries.start,
-    hourly: deliveries.hourly,
   };
 }

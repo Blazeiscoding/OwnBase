@@ -45,6 +45,9 @@ export function registerAccounts(
   const { opts, store, settings, gateway, route, requireUser, ration, mutate, network, limiter } =
     ctx;
   const extensions = opts.extensions ?? [];
+  ctx.lifecycle.hourly(() =>
+    ctx.background.maintain("sessions", () => store.accounts.pruneSessions()),
+  );
 
   /**
    * Clears what a handle has spent on authentication. Called when a password

@@ -326,6 +326,20 @@ export function registerFiles(ctx: ServerContext) {
   });
   lifecycle.onDrain(() => flushFileDeletions());
 
+  // Each queue on its own, so one failing neither stops the server starting nor skips the others.
+  lifecycle.onStart(() => {
+    background.run("orphaned attachments", reconcileOrphanedBlobs);
+    background.run("abandoned uploads", expireAbandonedUploads);
+    background.run("attachment cleanup", flushFileDeletions);
+    lifecycle.every(15_000, () => background.run("attachment cleanup", flushFileDeletions));
+  });
+  lifecycle.hourly(() => {
+    background.maintain("download tokens", () => store.files.pruneDownloadTokens());
+    background.maintain("abandoned uploads", () => {
+      if (expireAbandonedUploads() > 0) void flushFileDeletions();
+    });
+  });
+
   return {
     storage,
     flushFileDeletions,
@@ -346,24 +360,6 @@ export function registerFiles(ctx: ServerContext) {
           background.run("attachment cleanup", flushFileDeletions);
         }
       },
-    /** Each queue on its own, so one failing neither stops the server starting nor skips the others. */
-    start() {
-      background.run("orphaned attachments", reconcileOrphanedBlobs);
-      background.run("abandoned uploads", expireAbandonedUploads);
-      background.run("attachment cleanup", flushFileDeletions);
-      lifecycle.every(15_000, () => background.run("attachment cleanup", flushFileDeletions));
-    },
-    /**
-     * After the scheduled queue's prune, so a scheduled message that has just
-     * gone stops holding its attachments in the same round rather than an
-     * hour later.
-     */
-    hourly() {
-      background.maintain("download tokens", () => store.files.pruneDownloadTokens());
-      background.maintain("abandoned uploads", () => {
-        if (expireAbandonedUploads() > 0) void flushFileDeletions();
-      });
-    },
   };
 }
 

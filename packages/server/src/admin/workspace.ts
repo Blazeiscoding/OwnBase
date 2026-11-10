@@ -12,7 +12,7 @@ import {
 } from "@ownbase/protocol";
 import type { ServerContext } from "../core/context.js";
 import { secretToken } from "../ids.js";
-import type { WorkspaceIcon } from "./workspaceIcon.js";
+import type { WorkspaceIcon } from "../core/workspaceIcon.js";
 
 /** A change to the workspace itself, as `WorkspaceServer.onWorkspaceChange` reports it. */
 export interface WorkspaceChange {

@@ -175,17 +175,19 @@ export function registerScheduled(ctx: ServerContext, { posting }: { posting: Po
     if (scheduledDrain) clearImmediate(scheduledDrain);
   });
 
+  // What came due while the server was stopped, then every 15 seconds.
+  lifecycle.onStart(() => {
+    background.run("scheduled messages", flushScheduled);
+    lifecycle.every(15_000, () => background.run("scheduled messages", flushScheduled));
+  });
+  lifecycle.hourly(() =>
+    background.maintain("scheduled", () =>
+      store.scheduled.prune(Date.now() - SCHEDULED_RETENTION_MS),
+    ),
+  );
+
   return {
     /** Posts anything now due. Runs on a timer; exposed so tests need not wait. */
     flush: flushScheduled,
-    /** Posts what came due while the server was stopped, then every 15 seconds. */
-    start() {
-      background.run("scheduled messages", flushScheduled);
-      lifecycle.every(15_000, () => background.run("scheduled messages", flushScheduled));
-    },
-    hourly: () =>
-      background.maintain("scheduled", () =>
-        store.scheduled.prune(Date.now() - SCHEDULED_RETENTION_MS),
-      ),
   };
 }

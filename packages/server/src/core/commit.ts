@@ -1,6 +1,5 @@
 import type { FastifyBaseLogger } from "fastify";
 import type { EventEnvelope, WorkspaceEvent } from "@ownbase/protocol";
-import { enqueueAppDeliveries } from "../apps/delivery.js";
 import { eventChannel, writeEffects } from "../events/registry.js";
 import type { Audiences } from "../events/outbox.js";
 import type { Gateway } from "../gateway.js";
@@ -22,7 +21,12 @@ export type Mutate = <T>(
 export interface Commits {
   recordEvent: RecordEvent;
   mutate: Mutate;
-  /** Calls `listener` after committed events have gone out, such as to deliver them to apps. */
+  /**
+   * Calls `listener` with each event as it is recorded, inside its
+   * transaction, so what it writes commits or rolls back with the event.
+   */
+  onRecorded(listener: (envelope: EventEnvelope) => void): void;
+  /** Calls `listener` after committed events have gone out. */
   onPublished(listener: () => void): void;
 }
 
@@ -33,17 +37,13 @@ export function createCommits(deps: {
   background: BackgroundWork;
 }): Commits {
   const { store, gateway, log, background } = deps;
+  const recorded: ((envelope: EventEnvelope) => void)[] = [];
   const published: (() => void)[] = [];
 
   const recordEvent: RecordEvent = (event) => {
     const envelope = store.appendEvent(event, eventChannel(event));
     writeEffects(event, envelope.seq, store);
-    enqueueAppDeliveries(store, envelope, (subscriptionId) =>
-      log.warn(
-        { subscriptionId, eventSeq: envelope.seq },
-        "event subscription backlog full, event dropped",
-      ),
-    );
+    for (const listener of recorded) listener(envelope);
     return envelope;
   };
 
@@ -98,5 +98,10 @@ export function createCommits(deps: {
     }, audiences);
   };
 
-  return { recordEvent, mutate, onPublished: (listener) => published.push(listener) };
+  return {
+    recordEvent,
+    mutate,
+    onRecorded: (listener) => recorded.push(listener),
+    onPublished: (listener) => published.push(listener),
+  };
 }

@@ -432,6 +432,13 @@ export function registerMessages(ctx: ServerContext, { files }: { files: Files }
     return { messages: store.messages.latestDirect(me.id) };
   });
 
+  lifecycle.hourly(() => {
+    background.maintain("removed messages' send keys", () =>
+      store.messages.pruneRequestsPurged(Date.now() - PURGED_SEND_KEYS_MS),
+    );
+    void sweepRetention();
+  });
+
   return {
     posting,
     updateMessage,
@@ -442,9 +449,5 @@ export function registerMessages(ctx: ServerContext, { files }: { files: Files }
     sweepRetention,
     retention,
     retentionOn: retentionMs > 0,
-    hourly: () =>
-      background.maintain("removed messages' send keys", () =>
-        store.messages.pruneRequestsPurged(Date.now() - PURGED_SEND_KEYS_MS),
-      ),
   };
 }

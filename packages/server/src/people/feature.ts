@@ -149,9 +149,10 @@ export function registerPeople(ctx: ServerContext) {
     });
   });
 
+  // Statuses that ended while the server was stopped clear as it starts.
+  ctx.lifecycle.onStart(() => statusExpiry.arm());
+
   return {
-    /** Statuses that ended while the server was stopped clear as it starts. */
-    start: () => statusExpiry.arm(),
     snapshot: (user: User) => ({
       users: store.people.list(),
       friends: store.people.friends(user.id),
