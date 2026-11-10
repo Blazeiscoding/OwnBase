@@ -37,7 +37,7 @@ interface Props {
   savedServers: SavedServer[];
   /** The icons this device keeps for saved workspaces, by address. */
   savedIcons?: Record<string, string>;
-  /** Probe this address immediately on mount (used after "Open to LAN" starts). */
+  /** Probe this address immediately on mount. */
   autoProbe?: string;
   /** Prefilled from an invite link. */
   inviteCode?: string;
@@ -730,7 +730,6 @@ function SectionLabel({ children }: { children: React.ReactNode }) {
 
 function ServerRow(props: {
   title: string;
-  /** The workspace's icon, when there is one to show. */
   icon?: string | null;
   subtitle: string;
   meta: string;

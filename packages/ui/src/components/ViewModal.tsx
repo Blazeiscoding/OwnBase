@@ -245,7 +245,6 @@ function AppForm(props: {
     }
   }
 
-  /** One field, drawn where the app put it. */
   const renderField = (field: ModalField) => {
     const id = fieldId(field);
     const error = errors[field.blockId];

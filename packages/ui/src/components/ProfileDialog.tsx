@@ -50,7 +50,6 @@ export function ProfileDialog(props: {
   const now = useMinute();
   const [opening, setOpening] = useState(false);
   const [dmError, setDmError] = useState<string | null>(null);
-  // Blocking is offered where the server blocks (E12).
   const blockedThem = useWorkspace((s) => s.blocked.includes(props.userId));
   const [blockError, setBlockError] = useState<string | null>(null);
   // A deactivated account reads nothing new: its card says so, and offers
@@ -96,7 +95,6 @@ export function ProfileDialog(props: {
     }
   }
 
-  /** Blocks them, after saying what that does, or unblocks them (E12). */
   async function toggleBlock(userId: ID, name: string) {
     if (!blockedThem) {
       const go = await confirm({
@@ -123,7 +121,6 @@ export function ProfileDialog(props: {
       : away
         ? "Away"
         : "Offline";
-  // Their clock, where their zone is known (E9).
   const local = theirTime(user, self, now);
   return (
     // Discord's profile card: a band of the person's colour, their picture

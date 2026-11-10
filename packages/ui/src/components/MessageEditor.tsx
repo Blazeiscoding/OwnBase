@@ -71,7 +71,6 @@ export function MessageEditor({ message, onClose }: { message: Message; onClose:
     const type = s.channels[message.channelId]?.type;
     return type === "public" || type === "private";
   });
-  // Names, channels and emoji finish here as they do in the composer.
   const suggestions = useSuggestions({
     field,
     box,

@@ -149,7 +149,6 @@ const MessageRow = memo(function MessageRow({
   const [forwarding, setForwarding] = useState<ForwardSource | null>(null);
   const threadMuted = useWorkspace((s) => s.threadFollows[message.id]?.muted === true);
   const reminder = useWorkspace((s) => s.reminders[message.id] ?? null);
-  /** Choosing when to be reminded, from the menu. */
   const [reminding, setReminding] = useState(false);
   const [reporting, setReporting] = useState(false);
   const [deleting, setDeleting] = useState(false);
@@ -185,7 +184,6 @@ const MessageRow = memo(function MessageRow({
   const author = users[message.userId];
   const profileLabel = author ? `View ${author.displayName}'s profile` : "View profile";
   const mine = message.userId === selfId;
-  // People voted on a poll's question as it was, so it is not edited.
   // A poll's question was voted on as it was; a call's note says what happened.
   const editable = mine && !message.poll && !message.call;
   // The Drafts list asks for this to finish an unsaved edit.

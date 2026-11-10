@@ -1366,7 +1366,6 @@ function ChannelRow(props: {
   actions?: RowAction[];
   /** More, after the actions; a right-click on the row opens it too. */
   menu?: RowMenu;
-  /** Lets a pointer drag the row to another section (E8). */
   onDragStart?: (event: React.DragEvent) => void;
   onDragEnd?: () => void;
 }) {

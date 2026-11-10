@@ -199,7 +199,6 @@ function MenuPanel({
   const panel = useRef<HTMLDivElement>(null);
   const close = useRef(onClose);
   close.current = onClose;
-  // Phones without a pointer get the sheet; everything else, a dropdown.
   const [asSheet] = useState(() => sheet && wantsSheet());
 
   // Sit under the trigger, aligned to its end; above it when the bottom

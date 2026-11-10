@@ -328,7 +328,6 @@ function useViewContext(): ViewContext {
   return { nav, channelId, shell, schedules };
 }
 
-/** The side panel open now, beside the conversation. */
 export function SidePanel() {
   const ctx = useViewContext();
   const panel = useNavigationState((s) => s.panel);

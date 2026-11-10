@@ -31,7 +31,6 @@ export function changeNotice(
   return `${name}'s account is updated.`;
 }
 
-/** Someone on the admin list: when last here, and whether they have two-step sign-in (E11). */
 type Person = User & { lastSeenAt: number | null; twoStep?: boolean };
 type Action = "reset" | "twoStep" | "transfer";
 
@@ -555,7 +554,6 @@ function PersonMenu({
       label: "Reset password",
       onSelect: () => onBeginAction("reset", person),
     });
-    // Only for someone who has it.
     if (person.twoStep) {
       items.push({
         id: "two-step",

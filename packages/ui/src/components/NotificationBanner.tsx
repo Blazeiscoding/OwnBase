@@ -6,7 +6,6 @@ import { Icon } from "./Icon.js";
 export const NOTIFICATION_PROMPT_SNOOZE_MS = 14 * 24 * 60 * 60 * 1000;
 const SNOOZED_AT = "notificationPromptSnoozedAt";
 
-/** What the browser currently allows, or that it cannot ask at all. */
 function current(): NotificationPermission | "unsupported" {
   if (typeof Notification === "undefined") return "unsupported";
   return Notification.permission;

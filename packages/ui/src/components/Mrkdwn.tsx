@@ -219,7 +219,6 @@ function renderInline(
     if (m.index > last) out.push(ctx.highlight(text.slice(last, m.index)));
     const tok = m[0];
     if (m[1]) {
-      // An escaped formatting character is simply that character.
       out.push(ctx.highlight(tok.slice(1)));
     } else if (m[2]) {
       out.push(

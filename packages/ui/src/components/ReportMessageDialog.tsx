@@ -9,7 +9,6 @@ import { Swap } from "./Motion.js";
 import { useToast } from "./Toast.js";
 import { REPORT_REASON_LABELS } from "../lib/blocking.js";
 
-/** What each reason covers, under its name. */
 const REASONS: { value: ReportReason; hint: string }[] = [
   { value: "spam", hint: "Ads, scams or the same thing over and over." },
   { value: "harassment", hint: "Aimed at someone to hurt, threaten or shame them." },
