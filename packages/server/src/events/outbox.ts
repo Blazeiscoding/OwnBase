@@ -130,7 +130,6 @@ export class Outbox {
     }
   }
 
-  /** Sends the notices that go ahead of a change's events. */
   flushAhead(): void {
     const ahead = this.pending.filter(isAhead);
     if (ahead.length === 0) return;
