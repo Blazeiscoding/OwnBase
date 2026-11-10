@@ -97,9 +97,8 @@ describe("a workspace opened to all while it runs", () => {
   it("asks for an invite code once told to, and stops asking once told not to", async () => {
     await start();
     const { token } = (await (await register("owner")).json()) as { token: string };
-    expect(server!.inviteOnly()).toBe(false);
-    server!.setInviteOnly(true);
-    expect(server!.inviteOnly()).toBe(true);
+    expect(server!.accessPolicy()).toBe("account_required");
+    server!.setAccessPolicy("invite_only");
     expect((await serverInfo()).requiresInvite).toBe(true);
     const refused = await register("stranger");
     expect(refused.status).toBe(403);
@@ -112,15 +111,15 @@ describe("a workspace opened to all while it runs", () => {
       })
     ).json()) as { invite: { code: string } };
     expect((await register("friend", { inviteCode: invite.code })).status).toBe(201);
-    server!.setInviteOnly(false);
+    server!.setAccessPolicy("account_required");
     expect((await serverInfo()).requiresInvite).toBe(false);
     expect((await register("anyone")).status).toBe(201);
   });
 
-  it("refuses a non-boolean invite policy without changing the current one", async () => {
+  it("refuses a rule that is not one without changing the current one", async () => {
     await start();
-    server!.setInviteOnly(true);
-    expect(() => (server!.setInviteOnly as (value: unknown) => void)("false")).toThrow(/boolean/);
-    expect(server!.inviteOnly()).toBe(true);
+    server!.setAccessPolicy("invite_only");
+    expect(() => server!.setAccessPolicy("everyone" as never)).toThrow(/policy must be one of/);
+    expect(server!.accessPolicy()).toBe("invite_only");
   });
 });

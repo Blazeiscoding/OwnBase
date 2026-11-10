@@ -221,7 +221,6 @@ export function createWorkspace(ctx: ServerContext) {
 
   return {
     accessPolicy,
-    withInvites,
     icon: () => icon,
     rename,
     changeAccessPolicy,

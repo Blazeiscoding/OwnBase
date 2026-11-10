@@ -145,18 +145,13 @@ describe("who may join", () => {
     expect((await joinAsGuest()).user.role).toBe("guest");
   });
 
-  it("keeps accounts open alongside guests, and invites off never lets guests in", async () => {
+  it("keeps accounts open alongside guests, and asks for invites again once told to", async () => {
     await start({ inviteOnly: true });
     await register("owner");
-    server!.setInviteOnly(false);
-    expect((await serverInfo()).accessPolicy).toBe("account_required");
     server!.setAccessPolicy("guest_allowed");
     expect((await serverInfo()).requiresInvite).toBe(false);
     await register("member");
-    // A host that knows only about invites, turning them off again, keeps guests.
-    server!.setInviteOnly(false);
-    expect((await serverInfo()).accessPolicy).toBe("guest_allowed");
-    server!.setInviteOnly(true);
+    server!.setAccessPolicy("invite_only");
     expect(await serverInfo()).toMatchObject({ accessPolicy: "invite_only", requiresInvite: true });
   });
 });

@@ -70,7 +70,7 @@ describe("atomic registration", () => {
 
   it("returns a consumed invitation when a later registration write fails", async () => {
     await owner();
-    server.setInviteOnly(true);
+    server.setAccessPolicy("invite_only");
     const code = (await request("/api/invites", { maxUses: 1 })).body.invite.code;
     const seq = server.store.currentSeq();
     const publish = vi.spyOn(server.gateway, "publish");
@@ -88,7 +88,7 @@ describe("atomic registration", () => {
 
   it("allows exactly one concurrent registration to consume the final invite use", async () => {
     await owner();
-    server.setInviteOnly(true);
+    server.setAccessPolicy("invite_only");
     const code = (await request("/api/invites", { maxUses: 1 })).body.invite.code;
     const results = await Promise.all([register("one", code), register("two", code)]);
     expect(results.map((result) => result.status).sort()).toEqual([201, 403]);
