@@ -11,10 +11,8 @@ export function isPort(value: unknown): value is number {
   return typeof value === "number" && Number.isInteger(value) && value >= 1 && value <= 65535;
 }
 
-/** What a person is told when a port they chose is not one. */
 export const PORT_RULE = "Choose a port from 1 to 65535.";
 
-/** A port as typed, or null when it is not one. */
 export function portFromText(text: string): number | null {
   const trimmed = text.trim();
   if (!/^\d{1,5}$/.test(trimmed)) return null;
@@ -293,7 +291,6 @@ export interface SystemMicrophoneDevice {
   name: string;
 }
 
-/** Every microphone the system has, and its default. */
 export interface SystemMicrophones {
   defaultId: string | null;
   microphones: SystemMicrophoneDevice[];
@@ -306,7 +303,6 @@ export interface DiscoveredServer {
   host: string;
   port: number;
   serverVersion: string;
-  /** The announcing server's instance id. */
   instanceId?: string;
   /** The version of its icon; absent when it has none. */
   iconVersion?: string;
