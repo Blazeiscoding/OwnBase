@@ -51,7 +51,6 @@ export class ReportStore {
     this.store.outbox.admins("reports", () => ({ type: "reports", open: this.openCount() }));
   }
 
-  /** How many reported messages wait for an admin. */
   openCount(): number {
     return countOf(
       this.db.prepare(

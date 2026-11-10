@@ -47,7 +47,6 @@ export function registerMemberAdmin(
       users: store.people.list().map((u) => ({
         ...u,
         lastSeenAt: lastSeen[u.id] ?? null,
-        // Who has two-step sign-in, for an admin who may reset it (E11).
         twoStep: twoStepIds.has(u.id),
       })),
     };
