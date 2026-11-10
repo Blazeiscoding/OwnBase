@@ -18,14 +18,14 @@ import { existsSync } from "node:fs";
 import { dirname, isAbsolute, join, relative, resolve } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import { z } from "zod";
-import { SCHEMA_VERSION } from "./db.js";
+import { SCHEMA_VERSION } from "../db.js";
 import {
   holdFolder,
   holdWorkspacePath,
   WorkspaceInUseError,
   type WorkspaceHold,
-} from "./ownership.js";
-import { SERVER_VERSION } from "./version.js";
+} from "../core/ownership.js";
+import { SERVER_VERSION } from "../version.js";
 
 /** What a backup directory contains, and what it must still look like on restore. */
 export interface BackupManifest {

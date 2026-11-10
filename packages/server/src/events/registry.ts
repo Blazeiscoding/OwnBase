@@ -6,6 +6,11 @@ import { channelDurable, channelEphemeral } from "../channels/events.js";
 import { huddleEphemeral } from "../huddles/events.js";
 import { messageDurable, messageEphemeral } from "../messages/events.js";
 import { peopleDurable, peopleEphemeral } from "../people/events.js";
+import { pollEphemeral } from "../polls/events.js";
+import { reminderEphemeral } from "../reminders/events.js";
+import { savedDurable, savedEphemeral } from "../saved/events.js";
+import { scheduledEphemeral } from "../scheduled/events.js";
+import { threadEphemeral } from "../threads/events.js";
 
 /**
  * Every event the server sends, by type: who hears it, and for the durable
@@ -57,6 +62,7 @@ export const DURABLE_EVENTS: DurableRegistry = {
   ...messageDurable,
   ...channelDurable,
   ...peopleDurable,
+  ...savedDurable,
 };
 
 export const EPHEMERAL_AUDIENCE = {
@@ -66,6 +72,11 @@ export const EPHEMERAL_AUDIENCE = {
   ...adminEphemeral,
   ...huddleEphemeral,
   ...appsEphemeral,
+  ...reminderEphemeral,
+  ...pollEphemeral,
+  ...savedEphemeral,
+  ...scheduledEphemeral,
+  ...threadEphemeral,
 } as const satisfies EphemeralRegistry;
 
 type Audiences = typeof EPHEMERAL_AUDIENCE;

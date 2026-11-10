@@ -109,8 +109,8 @@ describe("a starred conversation", () => {
       sectionId: null,
       hiddenSeq: null,
     });
-    expect(ctx.server.store.getChannelPrefs(general, owner.id)?.starred).toBe(true);
-    expect(ctx.server.store.getChannelPrefs(general, peer.id)?.starred).toBe(false);
+    expect(ctx.server.store.channels.prefs(general, owner.id)?.starred).toBe(true);
+    expect(ctx.server.store.channels.prefs(general, peer.id)?.starred).toBe(false);
 
     // Each account's snapshot carries its own.
     const mine = ready(await listen(ctx.base, owner.token));
@@ -161,13 +161,13 @@ describe("a starred conversation", () => {
     });
     const dm = body.channel.id as string;
     expect((await ctx.star(dm, owner.token, { starred: true })).body.prefs.starred).toBe(true);
-    expect(ctx.server.store.getChannelPrefs(dm, peer.id)?.starred).toBe(false);
+    expect(ctx.server.store.channels.prefs(dm, peer.id)?.starred).toBe(false);
   });
 
   it("refuses what is not a yes or no, and a conversation the account is not in", async () => {
     const bad = await ctx.star(general, owner.token, { starred: "yes" });
     expect(bad.status).toBe(400);
-    expect(ctx.server.store.getChannelPrefs(general, owner.id)?.starred).toBe(false);
+    expect(ctx.server.store.channels.prefs(general, owner.id)?.starred).toBe(false);
 
     const { body } = await ctx.call("/api/channels", owner.token, {
       name: "plans",
@@ -175,7 +175,7 @@ describe("a starred conversation", () => {
     });
     const hidden = await ctx.star(body.channel.id, peer.token, { starred: true });
     expect(hidden.status).toBeGreaterThanOrEqual(400);
-    expect(ctx.server.store.getChannelPrefs(body.channel.id, peer.id)).toBeNull();
+    expect(ctx.server.store.channels.prefs(body.channel.id, peer.id)).toBeNull();
 
     // A public channel can still be looked into after leaving; starring needs
     // being in it.
@@ -198,15 +198,15 @@ describe("a starred conversation", () => {
     await ctx.call(`/api/channels/${channel}/join`, peer.token);
     await ctx.star(channel, peer.token, { starred: true });
     await ctx.call(`/api/channels/${channel}/leave`, peer.token);
-    expect(ctx.server.store.getChannelPrefs(channel, peer.id)).toBeNull();
+    expect(ctx.server.store.channels.prefs(channel, peer.id)).toBeNull();
     await ctx.call(`/api/channels/${channel}/join`, peer.token);
-    expect(ctx.server.store.getChannelPrefs(channel, peer.id)?.starred).toBe(false);
+    expect(ctx.server.store.channels.prefs(channel, peer.id)?.starred).toBe(false);
   });
 
   it("stays through archiving, so a channel brought back is starred again", async () => {
     await ctx.star(general, peer.token, { starred: true });
     await ctx.call(`/api/channels/${general}`, owner.token, { archived: true }, "PATCH");
-    expect(ctx.server.store.getChannelPrefs(general, peer.id)?.starred).toBe(true);
+    expect(ctx.server.store.channels.prefs(general, peer.id)?.starred).toBe(true);
     await ctx.call(`/api/channels/${general}`, owner.token, { archived: false }, "PATCH");
     const snapshot = ready(await listen(ctx.base, peer.token));
     expect(snapshot.memberships.find((m) => m.channelId === general)?.prefs.starred).toBe(true);
@@ -236,7 +236,7 @@ describe("upgrading a workspace to stars (v40)", () => {
     const db = openDb(file, undefined, { backupBeforeUpgrade: false });
     try {
       const store = new Store(db);
-      expect(store.getChannelPrefs("C1", "U1")).toEqual({
+      expect(store.channels.prefs("C1", "U1")).toEqual({
         notifyLevel: "all",
         notifyChosen: true,
         muted: true,
@@ -244,7 +244,7 @@ describe("upgrading a workspace to stars (v40)", () => {
         sectionId: null,
         hiddenSeq: null,
       });
-      expect(store.memberships("U2")[0]?.prefs).toEqual({
+      expect(store.channels.memberships("U2")[0]?.prefs).toEqual({
         notifyLevel: "mentions",
         notifyChosen: false,
         muted: false,
@@ -252,8 +252,8 @@ describe("upgrading a workspace to stars (v40)", () => {
         sectionId: null,
         hiddenSeq: null,
       });
-      expect(store.setChannelPrefs("C1", "U2", { starred: true })?.starred).toBe(true);
-      expect(store.getChannelPrefs("C1", "U1")?.starred).toBe(false);
+      expect(store.channels.setPrefs("C1", "U2", { starred: true })?.starred).toBe(true);
+      expect(store.channels.prefs("C1", "U1")?.starred).toBe(false);
     } finally {
       db.close();
     }

@@ -55,12 +55,12 @@ describe("atomic registration", () => {
   it("restores the claim, owner, default channel and events when session creation fails", async () => {
     const claim = server.store.getMeta("claim_code");
     const publish = vi.spyOn(server.gateway, "publish");
-    vi.spyOn(server.store, "createSession").mockImplementationOnce(() => {
+    vi.spyOn(server.store.accounts, "createSession").mockImplementationOnce(() => {
       throw new Error("session write failed");
     });
     expect((await register("owner")).status).toBe(500);
-    expect(server.store.userCount()).toBe(0);
-    expect(server.store.getChannelByName("general")).toBeNull();
+    expect(server.store.people.count()).toBe(0);
+    expect(server.store.channels.byName("general")).toBeNull();
     expect(server.store.getMeta("claim_code")).toBe(claim);
     expect(server.store.currentSeq()).toBe(0);
     expect(publish).not.toHaveBeenCalled();
@@ -73,16 +73,16 @@ describe("atomic registration", () => {
     const code = (await request("/api/invites", { maxUses: 1 })).body.invite.code;
     const seq = server.store.currentSeq();
     const publish = vi.spyOn(server.gateway, "publish");
-    vi.spyOn(server.store, "createSession").mockImplementationOnce(() => {
+    vi.spyOn(server.store.accounts, "createSession").mockImplementationOnce(() => {
       throw new Error("session write failed");
     });
     expect((await register("guest", code)).status).toBe(500);
-    expect(server.store.getInvite(code)!.uses).toBe(0);
-    expect(server.store.getUserAuthByHandle("guest")).toBeNull();
+    expect(server.store.accounts.getInvite(code)!.uses).toBe(0);
+    expect(server.store.people.authByHandle("guest")).toBeNull();
     expect(server.store.currentSeq()).toBe(seq);
     expect(publish).not.toHaveBeenCalled();
     expect((await register("guest", code)).status).toBe(201);
-    expect(server.store.getInvite(code)!.uses).toBe(1);
+    expect(server.store.accounts.getInvite(code)!.uses).toBe(1);
   });
 
   it("allows exactly one concurrent registration to consume the final invite use", async () => {
@@ -91,8 +91,8 @@ describe("atomic registration", () => {
     const code = (await request("/api/invites", { maxUses: 1 })).body.invite.code;
     const results = await Promise.all([register("one", code), register("two", code)]);
     expect(results.map((result) => result.status).sort()).toEqual([201, 403]);
-    expect(server.store.getInvite(code)!.uses).toBe(1);
-    expect(server.store.userCount()).toBe(2);
+    expect(server.store.accounts.getInvite(code)!.uses).toBe(1);
+    expect(server.store.people.count()).toBe(2);
   });
 });
 
@@ -108,7 +108,7 @@ describe("atomic channel and account changes", () => {
         })
       ).status,
     ).toBe(400);
-    expect(server.store.getChannelByName("private-room")).toBeNull();
+    expect(server.store.channels.byName("private-room")).toBeNull();
     expect((await request("/api/channels", { type: "private", name: "private-room" })).status).toBe(
       201,
     );
@@ -124,7 +124,7 @@ describe("atomic channel and account changes", () => {
       expect(
         (await request("/api/channels", { type: "private", name: "private-room" })).status,
       ).toBe(500);
-      expect(server.store.getChannelByName("private-room")).toBeNull();
+      expect(server.store.channels.byName("private-room")).toBeNull();
       expect(server.store.currentSeq()).toBe(seq);
       expect(publish).not.toHaveBeenCalled();
       failure.mockRestore();
@@ -136,12 +136,12 @@ describe("atomic channel and account changes", () => {
 
   it("keeps old channel metadata when its event cannot be written", async () => {
     await owner();
-    const channel = server.store.getChannelByName("general")!;
+    const channel = server.store.channels.byName("general")!;
     failEvent();
     expect(
       (await request(`/api/channels/${channel.id}`, { topic: "uncommitted" }, "PATCH")).status,
     ).toBe(500);
-    expect(server.store.getChannel(channel.id)!.topic).toBe(channel.topic);
+    expect(server.store.channels.get(channel.id)!.topic).toBe(channel.topic);
   });
 
   it("does not grant private access or announce an invitation that rolled back", async () => {
@@ -154,7 +154,7 @@ describe("atomic channel and account changes", () => {
     expect(
       (await request(`/api/channels/${channel.id}/invite-member`, { userId: guest.id })).status,
     ).toBe(500);
-    expect(server.store.isMember(channel.id, guest.id)).toBe(false);
+    expect(server.store.channels.isMember(channel.id, guest.id)).toBe(false);
     expect(notify).not.toHaveBeenCalled();
   });
 
@@ -165,7 +165,7 @@ describe("atomic channel and account changes", () => {
     const notify = vi.spyOn(server.gateway, "updateChannelAccess");
     failEvent();
     expect((await request(`/api/channels/${channel.id}/leave`)).status).toBe(500);
-    expect(server.store.isMember(channel.id, me.id)).toBe(true);
+    expect(server.store.channels.isMember(channel.id, me.id)).toBe(true);
     expect(notify).not.toHaveBeenCalled();
   });
 
@@ -176,8 +176,8 @@ describe("atomic channel and account changes", () => {
     const publish = vi.spyOn(server.gateway, "publish");
     failEvent(2);
     expect((await request(`/api/admin/users/${guest.id}/owner`)).status).toBe(500);
-    expect(server.store.getUser(me.id)!.role).toBe("owner");
-    expect(server.store.getUser(guest.id)!.role).toBe("member");
+    expect(server.store.people.get(me.id)!.role).toBe("owner");
+    expect(server.store.people.get(guest.id)!.role).toBe("member");
     expect(server.store.currentSeq()).toBe(seq);
     expect(publish).not.toHaveBeenCalled();
   });
@@ -190,7 +190,7 @@ describe("atomic channel and account changes", () => {
     expect(
       (await request(`/api/admin/users/${guest.user.id}`, { deactivated: true }, "PATCH")).status,
     ).toBe(500);
-    expect(server.store.getUser(guest.user.id)!.deactivated).toBe(false);
+    expect(server.store.people.get(guest.user.id)!.deactivated).toBe(false);
     expect((await request("/api/me", undefined, "GET", guest.token)).status).toBe(200);
     expect(disconnect).not.toHaveBeenCalled();
   });
@@ -201,13 +201,13 @@ describe("atomic messages and integrations", () => {
     "rolls back %s when its event fails",
     async (action) => {
       await owner();
-      const channelId = server.store.getChannelByName("general")!.id;
+      const channelId = server.store.channels.byName("general")!.id;
       const message = (await request(`/api/channels/${channelId}/messages`, { text: "original" }))
         .body.message;
       if (action === "remove reaction")
         await request(`/api/messages/${message.id}/reactions/yes`, undefined, "PUT");
       if (action === "unpin") await request(`/api/messages/${message.id}/pin`, undefined, "PUT");
-      const before = server.store.getMessage(message.id);
+      const before = server.store.messages.get(message.id);
       const seq = server.store.currentSeq();
       const publish = vi.spyOn(server.gateway, "publish");
       failEvent();
@@ -223,7 +223,7 @@ describe("atomic messages and integrations", () => {
       expect(
         (await request(path, action === "edit" ? { text: "changed" } : undefined, method)).status,
       ).toBe(500);
-      expect(server.store.getMessage(message.id)).toEqual(before);
+      expect(server.store.messages.get(message.id)).toEqual(before);
       expect(server.store.currentSeq()).toBe(seq);
       expect(publish).not.toHaveBeenCalled();
     },
@@ -231,14 +231,14 @@ describe("atomic messages and integrations", () => {
 
   it("does not leave a bot account behind when app-token creation fails", async () => {
     await owner();
-    const count = server.store.listUsers().length;
+    const count = server.store.people.list().length;
     const seq = server.store.currentSeq();
-    vi.spyOn(server.store, "addAppToken").mockImplementationOnce(() => {
+    vi.spyOn(server.store.apps, "addToken").mockImplementationOnce(() => {
       throw new Error("token write failed");
     });
     expect((await request("/api/apps", { name: "Test App" })).status).toBe(500);
-    expect(server.store.listUsers()).toHaveLength(count);
-    expect(server.store.listApps()).toHaveLength(0);
+    expect(server.store.people.list()).toHaveLength(count);
+    expect(server.store.apps.list()).toHaveLength(0);
     expect(server.store.currentSeq()).toBe(seq);
     expect((await request("/api/apps", { name: "Test App" })).status).toBe(201);
   });
@@ -246,25 +246,25 @@ describe("atomic messages and integrations", () => {
   it("rolls back a webhook and bot membership together", async () => {
     await owner();
     const app = (await request("/api/apps", { name: "Test App" })).body.app;
-    const channelId = server.store.getChannelByName("general")!.id;
+    const channelId = server.store.channels.byName("general")!.id;
     failEvent();
     expect((await request(`/api/apps/${app.id}/webhooks`, { channelId })).status).toBe(500);
-    expect(server.store.listWebhooks(app.id)).toHaveLength(0);
-    expect(server.store.isMember(channelId, app.botUserId)).toBe(false);
+    expect(server.store.apps.listWebhooks(app.id)).toHaveLength(0);
+    expect(server.store.channels.isMember(channelId, app.botUserId)).toBe(false);
   });
 
   it("restores all app resources if deletion fails after removing them", async () => {
     await owner();
     const app = (await request("/api/apps", { name: "Test App" })).body.app;
-    const channelId = server.store.getChannelByName("general")!.id;
+    const channelId = server.store.channels.byName("general")!.id;
     const hook = (await request(`/api/apps/${app.id}/webhooks`, { channelId })).body.webhook;
-    const remove = server.store.deleteApp.bind(server.store);
-    vi.spyOn(server.store, "deleteApp").mockImplementationOnce((id) => {
+    const remove = server.store.apps.delete.bind(server.store);
+    vi.spyOn(server.store.apps, "delete").mockImplementationOnce((id) => {
       remove(id);
       throw new Error("final write failed");
     });
     expect((await request(`/api/apps/${app.id}`, undefined, "DELETE")).status).toBe(500);
-    expect(server.store.getApp(app.id)).toEqual(app);
-    expect(server.store.listWebhooks(app.id)).toEqual([hook]);
+    expect(server.store.apps.get(app.id)).toEqual(app);
+    expect(server.store.apps.listWebhooks(app.id)).toEqual([hook]);
   });
 });

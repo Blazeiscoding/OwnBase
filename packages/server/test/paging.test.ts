@@ -77,7 +77,7 @@ beforeEach(async () => {
   base = `http://127.0.0.1:${server.port}`;
   owner = await register("owner");
   member = await register("member");
-  general = server.store.getChannelByName("general")!.id;
+  general = server.store.channels.byName("general")!.id;
 });
 
 afterEach(async () => {

@@ -11,7 +11,7 @@ import {
   restoreWorkspace,
   verifyBackup,
   type BackupManifest,
-} from "../src/backup.js";
+} from "../src/backups/backup.js";
 import { SCHEMA_VERSION } from "../src/db.js";
 import { createWorkspaceServer, type ServerOptions, type WorkspaceServer } from "../src/server.js";
 
@@ -82,7 +82,7 @@ async function populate() {
       inviteCode: code,
     })
   ).body;
-  const general = server!.store.getChannelByName("general")!.id;
+  const general = server!.store.channels.byName("general")!.id;
   const private_ = (
     await api("/api/channels", owner.token, "POST", { type: "private", name: "leadership" })
   ).body.channel;
@@ -132,7 +132,7 @@ describe("backup and restore", () => {
       sql: string,
     ) {
       if (sql === "VACUUM INTO ?") {
-        server!.store.createChannel({
+        server!.store.channels.create({
           type: "public",
           name: "during-backup",
           creatorId: world.owner.user.id,
@@ -341,7 +341,7 @@ describe("an isolated restore", () => {
       url: `${appOrigin}/deploy`,
     });
     expect(command.status).toBe(201);
-    server!.store.addMember(world.general, made.botUser.id);
+    server!.store.channels.addMember(world.general, made.botUser.id);
     // Refused, so the event is still waiting when the backup is taken.
     answer = 503;
     await api(`/api/channels/${world.general}/messages`, world.owner.token, "POST", {

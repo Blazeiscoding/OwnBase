@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { CapabilityMap } from "../src/capabilities.js";
+import { CapabilityMap } from "../src/core/capabilities.js";
 
 /**
  * The short-lived capabilities handed to apps (INT-01): each lives its time,

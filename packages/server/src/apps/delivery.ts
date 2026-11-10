@@ -28,7 +28,7 @@ export function enqueueAppDeliveries(
   const event = envelope.event;
   const type = event.type;
   if (!isAppEventType(type)) return;
-  const subs = store.listAllSubscriptions();
+  const subs = store.apps.allSubscriptions();
   if (subs.length === 0) return;
   const delivery = appDelivery(event)!;
   const payload = delivery.slack(event);
@@ -38,13 +38,13 @@ export function enqueueAppDeliveries(
   // What an app must be allowed to read to be sent this (E18c).
   const needed = eventScope(
     type,
-    channelId === null ? null : (store.getChannel(channelId)?.type ?? null),
+    channelId === null ? null : (store.channels.get(channelId)?.type ?? null),
   );
   const inChannel = new Map<ID, boolean>();
   const botInChannel = (botUserId: ID, channel: ID): boolean => {
     let member = inChannel.get(botUserId);
     if (member === undefined)
-      inChannel.set(botUserId, (member = store.isMember(channel, botUserId)));
+      inChannel.set(botUserId, (member = store.channels.isMember(channel, botUserId)));
     return member;
   };
   let body: string | null = null;
@@ -53,7 +53,7 @@ export function enqueueAppDeliveries(
       type: "event_callback",
       event_id: `Ev${envelope.seq}`,
       event_time: Math.floor(Date.now() / 1000),
-      team_id: store.workspaceId(),
+      team_id: store.settings.get("workspaceId"),
       event: payload,
       // Our own event beside Slack's shape, so a native app need not
       // reverse-engineer the mapping.
@@ -71,7 +71,7 @@ export function enqueueAppDeliveries(
     // subscribing does not quietly expose every private conversation.
     if (channelId !== null && !botInChannel(app.botUserId, channelId)) continue;
 
-    const queued = store.enqueueEventDelivery(
+    const queued = store.deliveries.enqueue(
       subscription.id,
       channelId,
       envelope.seq,

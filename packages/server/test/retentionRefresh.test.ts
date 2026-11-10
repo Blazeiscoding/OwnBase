@@ -111,7 +111,7 @@ describe("retention and the people connected", () => {
   it("sends a reader their mention count afresh, and which threads went", async () => {
     const owner = await register("owner");
     const reader = await register("reader");
-    const general = server!.store.getChannelByName("general")!.id;
+    const general = server!.store.channels.byName("general")!.id;
     await call(reader.token, `/api/channels/${general}/join`, "POST");
     const live = await connect(reader.token);
     const { message } = await call(owner.token, `/api/channels/${general}/messages`, "POST", {
@@ -128,7 +128,7 @@ describe("retention and the people connected", () => {
     expect(server!.applyRetention()).toBe(2);
     await settle();
     // The count the server now has, where it used to stay at 1 until a reconnect.
-    expect(server!.store.unreadMentionCounts(reader.id)).toEqual({});
+    expect(server!.store.channels.unreadMentionCounts(reader.id)).toEqual({});
     expect(live.events("mentions").at(-1)?.counts).toEqual({});
     // And one event naming the thread, not one per message.
     expect(live.events("history.removed")).toEqual([
@@ -169,7 +169,7 @@ describe("retention and the people connected", () => {
 
   it("sends one event per conversation per pass, however many messages went", async () => {
     const owner = await register("owner");
-    const general = server!.store.getChannelByName("general")!.id;
+    const general = server!.store.channels.byName("general")!.id;
     const { channel: other } = await call(owner.token, "/api/channels", "POST", {
       type: "public",
       name: "other",
@@ -194,7 +194,7 @@ describe("retention and the people connected", () => {
 
   it("is heard by a reader who was away, when they catch up", async () => {
     const owner = await register("owner");
-    const general = server!.store.getChannelByName("general")!.id;
+    const general = server!.store.channels.byName("general")!.id;
     const { message } = await call(owner.token, `/api/channels/${general}/messages`, "POST", {
       text: "said before the reader left",
     });

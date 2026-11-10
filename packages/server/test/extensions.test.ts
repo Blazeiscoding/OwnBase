@@ -328,7 +328,7 @@ describe("an extension that signs people in (P9)", () => {
     // Joined to the public channels, as anyone joining is.
     const channels = (await call("/api/channels", owner.token, undefined, "GET")).data.channels;
     const general = channels.find((c: { name: string }) => c.name === "general");
-    expect(server!.store.isMember(general.id, made.id)).toBe(true);
+    expect(server!.store.channels.isMember(general.id, made.id)).toBe(true);
 
     const fake = { headers: { "user-agent": "Acme ID test" } } as unknown as Parameters<
       ExtensionContext["startSession"]

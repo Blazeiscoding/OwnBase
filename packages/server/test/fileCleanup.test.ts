@@ -65,7 +65,7 @@ beforeEach(async () => {
       password: "password123",
     })
   ).body.token;
-  channelId = server.store.getChannelByName("general")!.id;
+  channelId = server.store.channels.byName("general")!.id;
 });
 afterEach(async () => {
   vi.restoreAllMocks();
@@ -80,12 +80,12 @@ describe("committed file cleanup", () => {
       throw new Error("event write failed");
     });
     expect((await request(`/api/messages/${item.message.id}`, "DELETE")).status).toBe(500);
-    expect(server.store.getMessage(item.message.id)!.files[0]!.id).toBe(item.fileId);
+    expect(server.store.messages.get(item.message.id)!.files[0]!.id).toBe(item.fileId);
     expect(readFileSync(item.path, "utf8")).toBe("original attachment");
-    expect(server.store.pendingFileDeletions()).toEqual([]);
+    expect(server.store.files.pendingDeletions()).toEqual([]);
     expect((await request(`/api/messages/${item.message.id}`, "DELETE")).status).toBe(200);
     expect(existsSync(item.path)).toBe(false);
-    expect(server.store.pendingFileDeletions()).toEqual([]);
+    expect(server.store.files.pendingDeletions()).toEqual([]);
   });
 
   it("retains failed cleanup across restart and removes the blob on retry", async () => {
@@ -94,18 +94,18 @@ describe("committed file cleanup", () => {
     rmSync(item.path);
     mkdirSync(item.path);
     expect((await request(`/api/messages/${item.message.id}`, "DELETE")).status).toBe(200);
-    expect(server.store.getMessage(item.message.id)).toBeNull();
-    expect(server.store.pendingFileDeletions()).toEqual([item.fileId]);
+    expect(server.store.messages.get(item.message.id)).toBeNull();
+    expect(server.store.files.pendingDeletions()).toEqual([item.fileId]);
     await server.stop();
     await start();
     // Its wait after failing outlasts the restart: it is not tried again yet.
-    expect(server.store.dueFileDeletions(Date.now(), 100)).toEqual([]);
-    expect(server.store.fileDeletionCounts()).toMatchObject({ waiting: 0, retrying: 1 });
+    expect(server.store.files.dueDeletions(Date.now(), 100)).toEqual([]);
+    expect(server.store.files.deletionCounts()).toMatchObject({ waiting: 0, retrying: 1 });
     rmdirSync(item.path);
     writeFileSync(item.path, "original attachment");
     await server.flushFileDeletions(Date.now() + 3_600_000);
     expect(existsSync(item.path)).toBe(false);
-    expect(server.store.pendingFileDeletions()).toEqual([]);
+    expect(server.store.files.pendingDeletions()).toEqual([]);
   });
 
   describe("removing many, some of which fail (REV-02)", () => {
@@ -123,8 +123,8 @@ describe("committed file cleanup", () => {
     /** Deletes an upload's row and queues its blob, as removing its message does. */
     function forget(id: string) {
       server.store.transaction(() => {
-        server.store.deleteFiles([id]);
-        server.store.queueFileDeletions([id]);
+        server.store.files.delete([id]);
+        server.store.files.queueDeletions([id]);
       });
     }
     const status = async () => (await request("/api/admin/status", "GET")).body.attachments;
@@ -133,7 +133,7 @@ describe("committed file cleanup", () => {
       // Directories where files should be make every removal fail, on every platform.
       const failing = Array.from({ length: 100 }, (_, n) => `00${String(n).padStart(24, "0")}`);
       for (const id of failing) mkdirSync(join(directory, "files", id));
-      server.store.queueFileDeletions(failing);
+      server.store.files.queueDeletions(failing);
       const healthy = await uploaded("healthy.txt");
       const counted = (await status()).bytes;
       expect(counted).toBeGreaterThan(0);
@@ -148,27 +148,27 @@ describe("committed file cleanup", () => {
       // A restart keeps them waiting, not first in line again.
       await server.stop();
       await start();
-      expect(server.store.dueFileDeletions(Date.now(), 100)).toEqual([]);
+      expect(server.store.files.dueDeletions(Date.now(), 100)).toEqual([]);
       expect((await status()).removal).toMatchObject({ waiting: 0, retrying: 100 });
     });
 
     it("sets aside a name the server never gives a file, and says so", async () => {
-      server.store.queueFileDeletions(["../outside"]);
+      server.store.files.queueDeletions(["../outside"]);
       await server.flushFileDeletions(Date.now() + 86_400_000);
-      expect(server.store.pendingFileDeletions()).toEqual(["../outside"]);
-      expect(server.store.dueFileDeletions(Date.now() + 86_400_000, 100)).toEqual([]);
+      expect(server.store.files.pendingDeletions()).toEqual(["../outside"]);
+      expect(server.store.files.dueDeletions(Date.now() + 86_400_000, 100)).toEqual([]);
       expect((await status()).removal).toMatchObject({ rejected: 1, waiting: 0, retrying: 0 });
     });
 
     it("drains a thousand removals page after page, without waiting for the timer", async () => {
       const ids = Array.from({ length: 1_000 }, (_, n) => ulid(n));
       for (const id of ids) writeFileSync(join(directory, "files", id), "x");
-      server.store.queueFileDeletions(ids);
+      server.store.files.queueDeletions(ids);
       await server.flushFileDeletions();
       // The timer comes every fifteen seconds; the pages follow each other at
       // once, so this gives up well before the timer could have drained them.
       await expect
-        .poll(() => server.store.pendingFileDeletions().length, { timeout: 10_000 })
+        .poll(() => server.store.files.pendingDeletions().length, { timeout: 10_000 })
         .toBe(0);
       expect(readdirSync(join(directory, "files")).filter((name) => ids.includes(name))).toEqual(
         [],
@@ -198,7 +198,7 @@ describe("committed file cleanup", () => {
         '--upload-test\r\nContent-Disposition: form-data; name="file"; filename="test.txt"\r\nContent-Type: text/plain\r\n\r\nfirst bytes',
       );
       await expect.poll(() => readdirSync(join(directory, "files")).length).toBe(1);
-      server.store.deleteSession(hashToken(token));
+      server.store.accounts.deleteSession(hashToken(token));
       req.end("\r\n--upload-test--\r\n");
       expect(await result).toBe(401);
       expect(readdirSync(join(directory, "files"))).toEqual([]);

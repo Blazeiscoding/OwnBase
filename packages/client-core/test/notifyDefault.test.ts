@@ -59,7 +59,7 @@ beforeAll(async () => {
   token = (
     await new Api(base).register({ handle: "sam", displayName: "Sam", password: "password123" })
   ).token;
-  general = server.store.getChannelByName("general")!.id;
+  general = server.store.channels.byName("general")!.id;
 });
 
 afterAll(async () => {
@@ -99,7 +99,7 @@ describe("the default for what notifies", () => {
     client.setChannelPrefs(general, { notifyLevel: "all" });
     expect(client.state.prefs[general]).toMatchObject({ notifyLevel: "all", notifyChosen: true });
     await until(client, (s) => !s.prefsWrites[general], "the save");
-    expect(server.store.getChannelPrefs(general, client.state.self!.id)).toMatchObject({
+    expect(server.store.channels.prefs(general, client.state.self!.id)).toMatchObject({
       notifyChosen: true,
     });
     client.setChannelPrefs(general, { notifyChosen: false });

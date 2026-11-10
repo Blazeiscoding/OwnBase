@@ -146,7 +146,7 @@ describe("the administrative record", () => {
     const newToken = (await call(`/api/apps/${appId}/token`, owner.token, "POST")).data.token;
     const newSecret = (await call(`/api/apps/${appId}/signing-secret`, owner.token, "POST")).data
       .signingSecret;
-    const channelId = server!.store.getChannelByName("general")!.id;
+    const channelId = server!.store.channels.byName("general")!.id;
     const hook = await call<{ webhook: { id: string }; url: string }>(
       `/api/apps/${appId}/webhooks`,
       owner.token,
@@ -246,7 +246,7 @@ describe("the administrative record", () => {
 
     // Read from the store: the recovered account must choose a new password
     // before the API will answer it, and the old owner is no longer the owner.
-    const [entry] = server!.store.listAudit({ limit: 10 });
+    const [entry] = server!.store.audit.list({ limit: 10 });
     expect(entry).toMatchObject({
       action: "account.recovered",
       // Nobody signed in did this; the host did, with the workspace file.
@@ -261,7 +261,7 @@ describe("the administrative record", () => {
     // so ordering by id would get this exactly right about once in 3.6 million.
     const at = Date.now();
     for (let n = 0; n < 10; n++) {
-      server!.store.recordAudit(
+      server!.store.audit.record(
         {
           actorId: owner.id,
           action: "user.deactivated",
@@ -273,10 +273,10 @@ describe("the administrative record", () => {
       );
     }
     const newestFirst = [9, 8, 7, 6, 5, 4, 3, 2, 1, 0];
-    const listed = server!.store.listAudit({ limit: 10 });
+    const listed = server!.store.audit.list({ limit: 10 });
     expect(listed.map((e) => e.details.n)).toEqual(newestFirst);
     // And paging from any entry continues from the right place.
-    const rest = server!.store.listAudit({ before: listed[3]!.id, limit: 10 });
+    const rest = server!.store.audit.list({ before: listed[3]!.id, limit: 10 });
     expect(rest.map((e) => e.details.n)).toEqual(newestFirst.slice(4));
   });
 

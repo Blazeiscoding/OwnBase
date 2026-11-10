@@ -104,7 +104,7 @@ beforeEach(async () => {
   base = `http://127.0.0.1:${server.port}`;
   author = await register("author");
   reader = await register("reader");
-  channelId = server.store.getChannelByName("general")!.id;
+  channelId = server.store.channels.byName("general")!.id;
 });
 
 afterEach(async () => {
@@ -119,7 +119,7 @@ describe("publishing what has committed (REV-10)", () => {
     await expect.poll(() => watcher.frames.some((f) => f.type === "ready")).toBe(true);
     const { root, ids } = await thread();
     await watcher.settle();
-    vi.spyOn(server.store, "unreadMentionCounts").mockImplementation(() => {
+    vi.spyOn(server.store.channels, "unreadMentionCounts").mockImplementation(() => {
       throw new Error("disk read failed");
     });
 

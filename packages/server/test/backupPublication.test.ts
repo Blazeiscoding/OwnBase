@@ -16,9 +16,9 @@ import {
 import * as fsPromises from "node:fs/promises";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
-import { backupWorkspace, verifyBackup } from "../src/backup.js";
+import { backupWorkspace, verifyBackup } from "../src/backups/backup.js";
 import { createWorkspaceServer } from "../src/server.js";
-import { holdFolder } from "../src/ownership.js";
+import { holdFolder } from "../src/core/ownership.js";
 
 const hooks = vi.hoisted(() => ({
   copy: null as ((from: string, to: string) => Promise<void> | void) | null,
@@ -53,8 +53,8 @@ beforeEach(async () => {
       body: JSON.stringify({ handle: "owner", displayName: "Owner", password: "password123" }),
     });
     const owner = (await response.json()) as { user: { id: string } };
-    fileId = server.store.createFile({
-      channelId: server.store.getChannelByName("general")!.id,
+    fileId = server.store.files.create({
+      channelId: server.store.channels.byName("general")!.id,
       userId: owner.user.id,
       name: "kept.txt",
       mime: "text/plain",
@@ -219,7 +219,7 @@ describe("publishing a verified backup", () => {
         await new Promise(() => {});
       };
       syncBuiltinESMExports();
-      const { backupWorkspace } = await import(${JSON.stringify(new URL("../src/backup.ts", import.meta.url).href)});
+      const { backupWorkspace } = await import(${JSON.stringify(new URL("../src/backups/backup.ts", import.meta.url).href)});
       await backupWorkspace(${JSON.stringify({ dataDir, out })});
       clearInterval(keepAlive);
     `,

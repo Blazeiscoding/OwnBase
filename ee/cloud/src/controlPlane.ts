@@ -6,6 +6,7 @@ import { join } from "node:path";
 import { promisify } from "node:util";
 import Fastify, { type FastifyInstance, type FastifyRequest } from "fastify";
 import { z } from "zod";
+import { CLOUD_ENV, serverArgs } from "@ownbase/server/cliFlags";
 import { caddyConfig, loadCaddyConfig, type CaddyOptions } from "./caddy.js";
 import {
   newClaimCode,
@@ -43,7 +44,11 @@ export interface ControlPlaneOptions {
   log?: (message: string) => void;
 }
 
-/** The environment a workspace server is given: the system's, and its relay. */
+/**
+ * The environment a workspace server is given: the system's, its relay, its
+ * license and its offsite backups' keys. The bucket itself is passed as
+ * --backup-offsite, a folder per workspace.
+ */
 const PASSED_ON = [
   /^PATH$/i,
   /^SYSTEMROOT$/i,
@@ -52,13 +57,10 @@ const PASSED_ON = [
   /^HOME$/,
   /^LANG$/,
   /^TZ$/,
-  /^OWNBASE_ICE_SERVERS$/,
-  /^OWNBASE_TURN_(URLS|SECRET)$/,
-  /^OWNBASE_CLOUDFLARE_TURN_(KEY_ID|API_TOKEN)$/,
   /^OWNBASE_LICENSE(_FILE)?$/,
-  // The bucket itself is passed as --backup-offsite, a folder per workspace.
-  /^OWNBASE_BACKUP_OFFSITE_(ACCESS_KEY_ID|SECRET_ACCESS_KEY|REGION)$/,
 ];
+const passedOn = (key: string) =>
+  CLOUD_ENV.includes(key) || PASSED_ON.some((pattern) => pattern.test(key));
 
 const createBody = z.object({
   slug: z.string(),
@@ -138,7 +140,7 @@ export class ControlPlane {
     const folder = this.folder(workspace.slug);
     const env: NodeJS.ProcessEnv = {};
     for (const [key, value] of Object.entries(this.opts.env ?? process.env))
-      if (PASSED_ON.some((pattern) => pattern.test(key))) env[key] = value;
+      if (passedOn(key)) env[key] = value;
     env.OWNBASE_CLAIM_CODE = workspace.claimCode;
     const offsite = (this.opts.env ?? process.env).OWNBASE_BACKUP_OFFSITE_URL?.trim();
     return {
@@ -146,37 +148,24 @@ export class ControlPlane {
       port: workspace.port,
       folder,
       env,
-      args: [
-        "--data",
-        join(folder, "data"),
-        "--port",
-        String(workspace.port),
-        "--host",
-        "127.0.0.1",
-        "--name",
-        workspace.name,
-        "--public-url",
-        this.url(workspace.slug),
-        "--trust-proxy",
-        "--no-mdns",
-        "--storage-limit-mb",
-        String(plan.storageMb),
-        "--member-notice",
-        String(plan.members),
-        "--plan-name",
-        plan.name,
-        ...(this.opts.upgradeUrl ? ["--upgrade-url", this.opts.upgradeUrl] : []),
-        "--backup-dir",
-        join(folder, "backups"),
-        "--backup-every-hours",
-        "24",
-        "--backup-keep",
-        "7",
+      args: serverArgs({
+        data: join(folder, "data"),
+        port: String(workspace.port),
+        host: "127.0.0.1",
+        name: workspace.name,
+        "public-url": this.url(workspace.slug),
+        "trust-proxy": true,
+        "no-mdns": true,
+        "storage-limit-mb": String(plan.storageMb),
+        "member-notice": String(plan.members),
+        "plan-name": plan.name,
+        "upgrade-url": this.opts.upgradeUrl,
+        "backup-dir": join(folder, "backups"),
+        "backup-every-hours": "24",
+        "backup-keep": "7",
         // Each workspace's backups also go to the operator's bucket, in its own folder.
-        ...(offsite
-          ? ["--backup-offsite", `${offsite.replace(/\/+$/, "")}/${workspace.slug}`]
-          : []),
-      ],
+        "backup-offsite": offsite ? `${offsite.replace(/\/+$/, "")}/${workspace.slug}` : undefined,
+      }),
     };
   }
 

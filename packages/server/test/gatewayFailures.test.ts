@@ -84,7 +84,7 @@ async function start() {
         })
       ).data,
     );
-  general = server.store.getChannelByName("general")!.id;
+  general = server.store.channels.byName("general")!.id;
 }
 
 afterEach(async () => {
@@ -101,7 +101,9 @@ describe("socket callbacks that fail (F03)", () => {
     const [person] = people as [Person];
     const device = await connect(person.token);
     const before = device.frames.length;
-    const check = vi.spyOn(server.store, "isSessionActive").mockImplementation(failing("disk"));
+    const check = vi
+      .spyOn(server.store.accounts, "isSessionActive")
+      .mockImplementation(failing("disk"));
 
     device.ws.send(JSON.stringify({ type: "ping" }));
     await expect.poll(() => device.closed()).toBe(1011);
@@ -120,7 +122,7 @@ describe("socket callbacks that fail (F03)", () => {
     const [person, watcher] = people as [Person, Person];
     const observer = await connect(watcher.token);
     const read = vi
-      .spyOn(server.store, "listChannelsVisibleTo")
+      .spyOn(server.store.channels, "visibleTo")
       .mockImplementationOnce(failing("disk"));
 
     const device = open(person.token);
@@ -147,7 +149,7 @@ describe("socket callbacks that fail (F03)", () => {
     const [author, reader] = people as [Person, Person];
     const device = await connect(reader.token);
     const check = vi
-      .spyOn(server.store, "isSessionActive")
+      .spyOn(server.store.accounts, "isSessionActive")
       .mockImplementation((tokenHash, userId) => {
         if (userId === reader.user.id) throw new Error("disk");
         return true;
@@ -186,7 +188,7 @@ describe("socket callbacks that fail (F03)", () => {
     const limit = Error.stackTraceLimit;
     Error.stackTraceLimit = Infinity;
     onTestFinished(() => void (Error.stackTraceLimit = limit));
-    const check = vi.spyOn(server.store, "isSessionActive").mockImplementation(() => {
+    const check = vi.spyOn(server.store.accounts, "isSessionActive").mockImplementation(() => {
       depths.push(new Error().stack!.split("\n").length);
       throw new Error("disk");
     });
@@ -207,7 +209,7 @@ describe("socket callbacks that fail (F03)", () => {
     device.ws.send(JSON.stringify({ type: "huddle.join", channelId: general, requestId: "j1" }));
     await expect.poll(() => server.gateway.huddleParticipants(general)).toEqual([person.user.id]);
 
-    vi.spyOn(server.store, "getChannel").mockImplementation(failing("disk"));
+    vi.spyOn(server.store.channels, "get").mockImplementation(failing("disk"));
     device.ws.close();
     await expect.poll(() => server.gateway.isOnline(person.user.id)).toBe(false);
     await expect.poll(() => server.gateway.huddleParticipants(general)).toEqual([]);
@@ -222,7 +224,9 @@ describe("the heartbeat when a session read fails (F03)", () => {
     const [person, other] = people as [Person, Person];
     const device = await connect(person.token);
     const elsewhere = await connect(other.token);
-    const check = vi.spyOn(server.store, "isSessionActive").mockImplementation(failing("disk"));
+    const check = vi
+      .spyOn(server.store.accounts, "isSessionActive")
+      .mockImplementation(failing("disk"));
 
     vi.advanceTimersByTime(30_000);
     await expect.poll(() => device.closed()).toBe(1011);
@@ -241,7 +245,7 @@ describe("the heartbeat when a session read fails (F03)", () => {
     await start();
     const [person] = people as [Person];
     const device = await connect(person.token);
-    vi.spyOn(server.store, "isSessionActive").mockReturnValue(false);
+    vi.spyOn(server.store.accounts, "isSessionActive").mockReturnValue(false);
 
     vi.advanceTimersByTime(30_000);
     await expect.poll(() => device.closed()).toBe(4003);

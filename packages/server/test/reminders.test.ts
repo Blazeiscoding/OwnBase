@@ -107,7 +107,7 @@ beforeEach(async () => {
     password: "password123",
   });
   peer = { token: second.body.token, id: second.body.user.id };
-  channelId = server!.store.getChannelByName("general")!.id;
+  channelId = server!.store.channels.byName("general")!.id;
 });
 
 afterEach(async () => {
@@ -222,7 +222,7 @@ describe("a reminder", () => {
     const message = await post("Gone soon");
     await remind(message.id, Date.now() + 60_000);
     // The row alone, without the deletion's events, which drop it.
-    server!.store.deleteMessage(message.id);
+    server!.store.messages.delete(message.id);
     expect(await listed()).toEqual([]);
     expect(ready(await connect(owner.token)).reminders).toEqual([]);
   });
@@ -267,8 +267,8 @@ describe("a reminder", () => {
         .poll(() => told(frames).at(-1))
         .toEqual({ type: "reminder.removed", messageId: message.id });
     }
-    expect(server!.store.getReminder(owner.id, message.id)).toBeNull();
-    expect(server!.store.getReminder(owner.id, reply.id)).toBeNull();
+    expect(server!.store.reminders.get(owner.id, message.id)).toBeNull();
+    expect(server!.store.reminders.get(owner.id, reply.id)).toBeNull();
     expect(told(mine)).toContainEqual({ type: "reminder.removed", messageId: reply.id });
     expect(await listed(peer.token)).toEqual([]);
   });
@@ -280,7 +280,7 @@ describe("a reminder", () => {
       (await request(`/api/admin/users/${peer.id}`, { deactivated: true }, "PATCH")).status,
     ).toBe(200);
     await expect
-      .poll(() => server!.store.getReminder(peer.id, message.id), { timeout: 5_000 })
+      .poll(() => server!.store.reminders.get(peer.id, message.id), { timeout: 5_000 })
       .toBeNull();
   });
 
@@ -302,7 +302,7 @@ describe("a reminder", () => {
     expect(told(theirs).some((e) => e.type === "reminder" && e.reminder.dueAt !== null)).toBe(
       false,
     );
-    expect(server!.store.getReminder(peer.id, message.id)).toBeNull();
+    expect(server!.store.reminders.get(peer.id, message.id)).toBeNull();
   });
 
   it("refuses a time past or too far off, a message it cannot see, and one too many", async () => {

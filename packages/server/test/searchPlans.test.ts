@@ -91,7 +91,7 @@ function everyPage(reader: string, text: string, size: number, opts: { channelId
   const ids: string[] = [];
   let cursor: string | undefined;
   for (let pages = 0; pages < 1000; pages++) {
-    const page = store.searchMessages(reader, parsed, size, { ...opts, cursor });
+    const page = store.search.search(reader, parsed, size, { ...opts, cursor });
     ids.push(...page.map((m) => m.id));
     if (page.length < size) return ids;
     cursor = page.at(-1)!.id;
@@ -101,29 +101,35 @@ function everyPage(reader: string, text: string, size: number, opts: { channelId
 
 function seed() {
   const people = ["ana", "ben", "cai"].map((handle) =>
-    store.createUser({ handle, displayName: handle, passwordHash: "", salt: "", role: "member" }),
+    store.people.create({
+      handle,
+      displayName: handle,
+      passwordHash: "",
+      salt: "",
+      role: "member",
+    }),
   );
   const ana = people[0]!;
   const ben = people[1]!;
-  const general = store.createChannel({
+  const general = store.channels.create({
     type: "public",
     name: "general",
     creatorId: ana.id,
     memberIds: [ana.id],
   });
-  const small = store.createChannel({
+  const small = store.channels.create({
     type: "public",
     name: "small",
     creatorId: ana.id,
     memberIds: [ana.id],
   });
-  const team = store.createChannel({
+  const team = store.channels.create({
     type: "private",
     name: "team",
     creatorId: ana.id,
     memberIds: [ana.id, ben.id],
   });
-  const hidden = store.createChannel({
+  const hidden = store.channels.create({
     type: "private",
     name: "hidden",
     creatorId: ben.id,
@@ -246,7 +252,7 @@ describe("a search, whichever way it goes", () => {
       id: string;
     };
     const parsed = parseSearchQuery("common", { timeZone: "UTC" });
-    const found = store.searchMessages(ana.id, parsed, 1000);
+    const found = store.search.search(ana.id, parsed, 1000);
     expect(found.length).toBeGreaterThan(0);
     expect(found.some((m) => m.channelId === hidden.id)).toBe(false);
   });
@@ -268,10 +274,16 @@ describe("a search, whichever way it goes", () => {
  */
 function seedMatrix() {
   const [ana, ben, cai] = ["ana", "ben", "cai"].map((handle) =>
-    store.createUser({ handle, displayName: handle, passwordHash: "", salt: "", role: "member" }),
+    store.people.create({
+      handle,
+      displayName: handle,
+      passwordHash: "",
+      salt: "",
+      role: "member",
+    }),
   );
   const room = (type: "public" | "private" | "dm", name: string, members: string[]) =>
-    store.createChannel({ type, name, creatorId: members[0]!, memberIds: members }).id;
+    store.channels.create({ type, name, creatorId: members[0]!, memberIds: members }).id;
   const where = {
     general: room("public", "general", [ana!.id, ben!.id, cai!.id]),
     lobby: room("public", "lobby", [cai!.id]),

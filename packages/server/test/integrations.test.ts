@@ -180,8 +180,8 @@ beforeAll(async () => {
   });
   bobToken = b.data.token;
   bob = b.data.user;
-  channelId = server.store.getChannelByName("general")!.id;
-  server.store.addMember(channelId, bob.id);
+  channelId = server.store.channels.byName("general")!.id;
+  server.store.channels.addMember(channelId, bob.id);
 });
 
 afterAll(async () => {
@@ -271,8 +271,7 @@ describe("slash commands", () => {
       body: { text: "/shrug well then" },
     });
     expect(res.status).toBe(200);
-    const messages = server.store.listMessages({ channelId, limit: 1 });
-    // Stored pre-escaped for the renderer; the UI test pins how it displays.
+    const messages = server.store.messages.list({ channelId, limit: 1 });
     // Stored escaped for the renderer; the ui package pins how that displays.
     expect(messages[0]!.text).toBe(`well then ${escapeMrkdwn("¯\\_(ツ)_/¯")}`);
     expect(messages[0]!.userId).toBe(alice.id);
@@ -336,7 +335,7 @@ describe("slash commands", () => {
 
     // Private means private: it is not in the channel, and Bob never saw it.
     expect(
-      server.store.listMessages({ channelId, limit: 5 }).some((m) => m.text.includes("deploying")),
+      server.store.messages.list({ channelId, limit: 5 }).some((m) => m.text.includes("deploying")),
     ).toBe(false);
     expect(
       b.received.some((m) => m.type === "ephemeral" && m.event.type === "ephemeral.message"),
@@ -354,9 +353,9 @@ describe("slash commands", () => {
       token: aliceToken,
       body: { text: "/deploy prod" },
     });
-    const latest = server.store.listMessages({ channelId, limit: 1 })[0]!;
+    const latest = server.store.messages.list({ channelId, limit: 1 })[0]!;
     expect(latest.text).toBe("build 412 is green");
-    expect(server.store.getUser(latest.userId)!.isBot).toBe(true);
+    expect(server.store.people.get(latest.userId)!.isBot).toBe(true);
   });
 
   it("accepts a late reply on the response_url, then stops accepting them", async () => {
@@ -380,7 +379,7 @@ describe("slash commands", () => {
 
     expect((await post("done, took 61s")).status).toBe(200);
     await eventually(
-      () => server.store.listMessages({ channelId, limit: 1 })[0]!.text === "done, took 61s",
+      () => server.store.messages.list({ channelId, limit: 1 })[0]!.text === "done, took 61s",
     );
 
     // Slack allows five; the sixth is gone.
@@ -464,9 +463,10 @@ describe("slash commands", () => {
 describe("outgoing event subscriptions", () => {
   it("does not create a subscription after the verifying admin loses that role", async () => {
     const created = await newApp("Demoted Subscription Admin");
-    server.store.updateUser(bob.id, { role: "admin" });
+    server.store.people.update(bob.id, { role: "admin" });
     stub.handler = (req) => {
-      if (req.url === "/demoted-subscription") server.store.updateUser(bob.id, { role: "member" });
+      if (req.url === "/demoted-subscription")
+        server.store.people.update(bob.id, { role: "member" });
       return {
         body: JSON.stringify({
           challenge: (JSON.parse(req.body) as { challenge: string }).challenge,
@@ -481,16 +481,16 @@ describe("outgoing event subscriptions", () => {
       });
       expect(result.status).toBe(403);
       expect(result.data.error).toBe("admin_only");
-      expect(server.store.listSubscriptions(created.id)).toEqual([]);
+      expect(server.store.apps.listSubscriptions(created.id)).toEqual([]);
     } finally {
-      server.store.updateUser(bob.id, { role: "member" });
+      server.store.people.update(bob.id, { role: "member" });
     }
   });
 
   it("does not create a subscription for an app deleted during verification", async () => {
     const created = await newApp("Deleted Subscription App");
     stub.handler = (req) => {
-      if (req.url === "/deleted-subscription") server.store.deleteApp(created.id);
+      if (req.url === "/deleted-subscription") server.store.apps.delete(created.id);
       return {
         body: JSON.stringify({
           challenge: (JSON.parse(req.body) as { challenge: string }).challenge,
@@ -504,7 +504,7 @@ describe("outgoing event subscriptions", () => {
     });
     expect(result.status).toBe(404);
     expect(result.data.error).toBe("not_found");
-    expect(server.store.listSubscriptions(created.id)).toEqual([]);
+    expect(server.store.apps.listSubscriptions(created.id)).toEqual([]);
   });
 
   it("refuses a subscription to an event no app is sent, before calling its address", async () => {
@@ -525,7 +525,7 @@ describe("outgoing event subscriptions", () => {
     expect(result.status).toBe(400);
     expect(result.data.error).toBe("invalid_request");
     expect(called).toBe(false);
-    expect(server.store.listSubscriptions(created.id)).toEqual([]);
+    expect(server.store.apps.listSubscriptions(created.id)).toEqual([]);
   });
 
   it("requires the url_verification handshake before subscribing", async () => {
@@ -574,7 +574,7 @@ describe("outgoing event subscriptions", () => {
     await new Promise((r) => setTimeout(r, 150));
     expect(stub.received.filter((r) => r.url === "/echo")).toHaveLength(0);
 
-    server.store.addMember(channelId, created.botUser.id);
+    server.store.channels.addMember(channelId, created.botUser.id);
     stub.received.length = 0;
     await api(`/api/channels/${channelId}/messages`, {
       token: aliceToken,
@@ -630,7 +630,7 @@ describe("outgoing event subscriptions", () => {
       body: { url: stub.url("/reactions"), eventTypes: ["reaction.added"] },
     });
     stub.handler = () => ({ body: "" });
-    server.store.addMember(channelId, created.botUser.id);
+    server.store.channels.addMember(channelId, created.botUser.id);
 
     stub.received.length = 0;
     const posted = await api<{ message: { id: string } }>(`/api/channels/${channelId}/messages`, {
@@ -665,7 +665,7 @@ describe("outgoing event subscriptions", () => {
       body: { url: stub.url("/gone") },
     });
     stub.handler = () => ({ body: "" });
-    server.store.addMember(channelId, created.botUser.id);
+    server.store.channels.addMember(channelId, created.botUser.id);
 
     await api(`/api/apps/${created.id}`, { token: aliceToken, method: "DELETE" });
     stub.received.length = 0;
@@ -734,7 +734,7 @@ describe("durable event delivery", () => {
       { token: aliceToken, body: { url: stub.url(path), eventTypes: ["message.created"] } },
     );
     expect(sub.status).toBe(201);
-    server.store.addMember(channelId, created.botUser.id);
+    server.store.channels.addMember(channelId, created.botUser.id);
     return { ...created, subscriptionId: sub.data.subscription.id };
   }
 
@@ -898,11 +898,11 @@ describe("durable event delivery", () => {
     server.store.transaction(() => {
       for (let i = 0; i < cap; i++) {
         expect(
-          server.store.enqueueEventDelivery(bot.subscriptionId, channelId, 900_000 + i, "{}"),
+          server.store.deliveries.enqueue(bot.subscriptionId, channelId, 900_000 + i, "{}"),
         ).toBe(true);
       }
     });
-    expect(server.store.enqueueEventDelivery(bot.subscriptionId, channelId, 999_999, "{}")).toBe(
+    expect(server.store.deliveries.enqueue(bot.subscriptionId, channelId, 999_999, "{}")).toBe(
       false,
     );
     expect(queued(bot.subscriptionId)).toHaveLength(cap);
@@ -930,7 +930,7 @@ describe("durable event delivery", () => {
     // so no attempt is still in flight when membership ends.
     await eventually(() => queued(bot.subscriptionId).some((r) => r.attempts > 0));
 
-    server.store.removeMember(channelId, bot.botUser.id);
+    server.store.channels.removeMember(channelId, bot.botUser.id);
     // Emptied when membership ends rather than paused, so being added back
     // cannot replay what was said while the bot was out.
     expect(queued(bot.subscriptionId)).toHaveLength(0);
@@ -939,7 +939,7 @@ describe("durable event delivery", () => {
     // could be a replay.
     stub.received.length = 0;
     stub.handler = () => ({ body: "" });
-    server.store.addMember(channelId, bot.botUser.id);
+    server.store.channels.addMember(channelId, bot.botUser.id);
     await server.flushEventDeliveries();
     expect(bodiesAt("/evicted")).toHaveLength(0);
     await api(`/api/apps/${bot.id}`, { token: aliceToken, method: "DELETE" });
@@ -974,7 +974,7 @@ describe("durable event delivery", () => {
         },
       );
       expect(sub.status).toBe(201);
-      server.store.addMember(channelId, created.botUser.id);
+      server.store.channels.addMember(channelId, created.botUser.id);
       failOnly(path);
       return { ...created, subscriptionId: sub.data.subscription.id };
     }
@@ -1091,8 +1091,8 @@ describe("durable event delivery", () => {
         url: stub.url("/restart"),
         eventTypes: ["message.created"],
       });
-      const room = current.store.getChannelByName("general")!.id;
-      current.store.addMember(room, made.botUser.id);
+      const room = current.store.channels.byName("general")!.id;
+      current.store.channels.addMember(room, made.botUser.id);
 
       failOnly("/restart", 500);
       stub.received.length = 0;
@@ -1147,9 +1147,10 @@ describe("interactive buttons", () => {
     });
     expect(initial.status).toBe(200);
 
-    server.store.updateUser(bob.id, { role: "admin" });
+    server.store.people.update(bob.id, { role: "admin" });
     stub.handler = (req) => {
-      if (req.url === "/demoted-interactivity") server.store.updateUser(bob.id, { role: "member" });
+      if (req.url === "/demoted-interactivity")
+        server.store.people.update(bob.id, { role: "member" });
       return {
         body: JSON.stringify({
           challenge: (JSON.parse(req.body) as { challenge: string }).challenge,
@@ -1165,16 +1166,16 @@ describe("interactive buttons", () => {
       });
       expect(result.status).toBe(403);
       expect(result.data.error).toBe("admin_only");
-      expect(server.store.getApp(created.id)?.interactivityUrl).toBe(previousUrl);
+      expect(server.store.apps.get(created.id)?.interactivityUrl).toBe(previousUrl);
     } finally {
-      server.store.updateUser(bob.id, { role: "member" });
+      server.store.people.update(bob.id, { role: "member" });
     }
   });
 
   it("does not save an interactivity URL for an app deleted during verification", async () => {
     const created = await newApp("Deleted Interactivity App");
     stub.handler = (req) => {
-      if (req.url === "/deleted-interactivity") server.store.deleteApp(created.id);
+      if (req.url === "/deleted-interactivity") server.store.apps.delete(created.id);
       return {
         body: JSON.stringify({
           challenge: (JSON.parse(req.body) as { challenge: string }).challenge,
@@ -1189,7 +1190,7 @@ describe("interactive buttons", () => {
     });
     expect(result.status).toBe(404);
     expect(result.data.error).toBe("not_found");
-    expect(server.store.getApp(created.id)).toBeNull();
+    expect(server.store.apps.get(created.id)).toBeNull();
   });
 
   it("carries a Block Kit actions block through to a pressable button", async () => {
@@ -1318,7 +1319,7 @@ describe("interactive buttons", () => {
       token: aliceToken,
       body: { url: stub.url("/interactions") },
     });
-    server.store.addMember(channelId, created.botUser.id);
+    server.store.channels.addMember(channelId, created.botUser.id);
     const posted = await api<{ ts: string }>("/api/chat.postMessage", {
       token: created.token,
       body: {
@@ -1360,7 +1361,7 @@ describe("interactive buttons", () => {
       body: JSON.stringify({ replace_original: true, text: "Shipped 413." }),
     });
     expect(res.status).toBe(200);
-    const updated = server.store.getMessage(messageId)!;
+    const updated = server.store.messages.get(messageId)!;
     expect(updated.text).toBe("Shipped 413.");
     expect(updated.actions).toEqual([]);
   });
@@ -1369,7 +1370,7 @@ describe("interactive buttons", () => {
     const { messageId, responseUrl } = await buttonMessage("Mention Update Bot");
     const reader = connectWs(bobToken);
     await reader.next((frame) => frame.type === "ready");
-    const baseline = server.store.unreadMentionCounts(bob.id)[channelId] ?? 0;
+    const baseline = server.store.channels.unreadMentionCounts(bob.id)[channelId] ?? 0;
     reader.received.length = 0;
     try {
       const replace = (text: string) =>
@@ -1393,8 +1394,8 @@ describe("interactive buttons", () => {
           frame.event.type === "mentions" &&
           (frame.event.counts[channelId] ?? 0) === baseline,
       );
-      expect(server.store.getMessage(messageId)?.text).toBe("Review no longer needed");
-      expect(server.store.getMessage(messageId)?.actions).toEqual([]);
+      expect(server.store.messages.get(messageId)?.text).toBe("Review no longer needed");
+      expect(server.store.messages.get(messageId)?.actions).toEqual([]);
     } finally {
       reader.ws.terminate();
     }
@@ -1408,7 +1409,60 @@ describe("interactive buttons", () => {
       body: JSON.stringify({ delete_original: true }),
     });
     expect(res.status).toBe(200);
-    expect(server.store.getMessage(messageId)).toBeNull();
+    expect(server.store.messages.get(messageId)).toBeNull();
+  });
+
+  it("tells the presser, and only them, when the app answers a press with an error", async () => {
+    const created = await newApp("Failing Button Bot");
+    acceptVerification();
+    await api(`/api/apps/${created.id}/interactivity`, {
+      method: "PUT",
+      token: aliceToken,
+      body: { url: stub.url("/interactions") },
+    });
+    const posted = await api<{ ts: string }>("/api/chat.postMessage", {
+      token: created.token,
+      body: {
+        channel: channelId,
+        text: "Ship 414?",
+        blocks: [
+          {
+            type: "actions",
+            elements: [
+              { type: "button", action_id: "go", text: { type: "plain_text", text: "Go" } },
+            ],
+          },
+        ],
+      },
+    });
+    // Pressed by Alice: the modal tests below spend most of Bob's app-call budget.
+    const presser = connectWs(aliceToken);
+    const bystander = connectWs(bobToken);
+    await presser.next((frame) => frame.type === "ready");
+    await bystander.next((frame) => frame.type === "ready");
+    try {
+      stub.handler = () => ({ status: 500, body: "boom" });
+      const pressed = await api<{ ok: boolean; error: string }>(
+        `/api/messages/${posted.data.ts}/actions`,
+        { token: aliceToken, body: { actionId: "go" } },
+      );
+      expect(pressed.data).toEqual({ ok: false, error: "action_failed" });
+      const note = (await presser.next(
+        (frame) => frame.type === "ephemeral" && frame.event.type === "ephemeral.message",
+      )) as { type: "ephemeral"; event: { text: string } };
+      expect(note.event.text).toBe("That button failed: the app answered 500.");
+      expect(
+        bystander.received.some(
+          (frame) => frame.type === "ephemeral" && frame.event.type === "ephemeral.message",
+        ),
+      ).toBe(false);
+      expect(server.store.messages.get(posted.data.ts)!.text).toBe("Ship 414?");
+    } finally {
+      // Anything else refused meanwhile would come back as a retry in a later test.
+      stub.handler = () => ({ body: "" });
+      presser.ws.terminate();
+      bystander.ws.terminate();
+    }
   });
 
   it("refuses a button on a message the presser cannot see", async () => {
@@ -1423,7 +1477,7 @@ describe("interactive buttons", () => {
       token: aliceToken,
       body: { type: "private", name: "war-room" },
     });
-    server.store.addMember(madeChannel.channel.id, created.botUser.id);
+    server.store.channels.addMember(madeChannel.channel.id, created.botUser.id);
 
     const posted = await api<{ ts: string }>("/api/chat.postMessage", {
       token: created.token,
@@ -1546,7 +1600,7 @@ describe("revoking an app while it is being used", () => {
   }
 
   function said(text: string, room = channelId) {
-    return server.store.listMessages({ channelId: room, limit: 50 }).some((m) => m.text === text);
+    return server.store.messages.list({ channelId: room, limit: 50 }).some((m) => m.text === text);
   }
 
   /** Captures what the command handed the app, then answers with nothing. */
@@ -1585,7 +1639,7 @@ describe("revoking an app while it is being used", () => {
     // on its way back at the moment the app stops existing.
     stub.handler = (req) => {
       if (req.url === "/doomed") {
-        server.store.transaction(() => server.store.deleteApp(created.id));
+        server.store.transaction(() => server.store.apps.delete(created.id));
         return { body: JSON.stringify({ response_type: "in_channel", text: "from a ghost" }) };
       }
       return { body: "" };
@@ -1603,7 +1657,7 @@ describe("revoking an app while it is being used", () => {
     let silence = true;
     stub.handler = (req) => {
       if (req.url === "/muted") {
-        if (silence) server.store.updateUser(created.botUser.id, { deactivated: true });
+        if (silence) server.store.people.update(created.botUser.id, { deactivated: true });
         return { body: JSON.stringify({ response_type: "in_channel", text: "while muted" }) };
       }
       return { body: "" };
@@ -1614,7 +1668,7 @@ describe("revoking an app while it is being used", () => {
 
     // Turning it back on is all it takes: deactivation silences the app, it
     // does not break the command.
-    server.store.updateUser(created.botUser.id, { deactivated: false });
+    server.store.people.update(created.botUser.id, { deactivated: false });
     silence = false;
     stub.handler = (req) =>
       req.url === "/muted"
@@ -1662,7 +1716,7 @@ describe("revoking an app while it is being used", () => {
     expect((await late(got.url!, "while inside")).status).toBe(200);
     await eventually(() => said("while inside", room));
 
-    server.store.removeMember(room, created.botUser.id);
+    server.store.channels.removeMember(room, created.botUser.id);
     const after = await late(got.url!, "after eviction");
     expect(after.status).toBe(404);
     expect(after.body.error).toBe("expired_url");
@@ -1677,7 +1731,7 @@ describe("revoking an app while it is being used", () => {
     await run("departed");
     expect(got.url).toBeDefined();
 
-    server.store.transaction(() => server.store.deleteApp(created.id));
+    server.store.transaction(() => server.store.apps.delete(created.id));
     const after = await late(got.url!, "once the app had gone");
     expect(after.status).toBe(404);
     expect(after.body.error).toBe("expired_url");
@@ -2409,7 +2463,7 @@ describe("modals", () => {
         },
       });
       personToken = made.data.token;
-      server.store.addMember(channelId, made.data.user.id);
+      server.store.channels.addMember(channelId, made.data.user.id);
     });
 
     type ViewAnswer = {
@@ -2716,7 +2770,7 @@ describe("replacing an app's credentials", () => {
 
   it("gives a working bot token and stops the old one at once", async () => {
     const created = await newApp("Rotating Bot");
-    server.store.addMember(channelId, created.botUser.id);
+    server.store.channels.addMember(channelId, created.botUser.id);
     expect((await postAs(created.token, "before")).data.ok).toBe(true);
 
     const replaced = await api<{ token: string }>(`/api/apps/${created.id}/token`, {
@@ -2790,7 +2844,7 @@ describe("replacing an app's credentials", () => {
       },
     );
     expect(sub.status).toBe(201);
-    server.store.addMember(channelId, created.botUser.id);
+    server.store.channels.addMember(channelId, created.botUser.id);
 
     const db = (
       server.store as unknown as {
@@ -2883,7 +2937,7 @@ describe("replacing an app's credentials", () => {
       expect(refused.status, path).toBe(403);
     }
     // And a refusal replaced nothing.
-    server.store.addMember(channelId, created.botUser.id);
+    server.store.channels.addMember(channelId, created.botUser.id);
     expect((await postAs(created.token, "still mine")).data.ok).toBe(true);
   });
 
@@ -2980,7 +3034,7 @@ describe("scopes on bot tokens (E18c)", () => {
       needed: "chat:write.public",
     });
     expect(outside.scopes).toBe("chat:write");
-    server.store.addMember(channelId, inside.botUser.id);
+    server.store.channels.addMember(channelId, inside.botUser.id);
     expect(
       (await slack("chat.postMessage", inside.token, { channel: channelId, text: "now a member" }))
         .data.ok,
@@ -3006,7 +3060,7 @@ describe("scopes on bot tokens (E18c)", () => {
       body: { url: stub.url("/scoped") },
     });
     stub.handler = () => ({ body: "" });
-    server.store.addMember(channelId, made.botUser.id);
+    server.store.channels.addMember(channelId, made.botUser.id);
     stub.received.length = 0;
     const scoped = () =>
       stub.received

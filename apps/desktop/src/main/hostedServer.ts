@@ -64,7 +64,7 @@ export async function startHostedServer(
   return {
     port: server.port,
     instanceId: server.instanceId,
-    workspaceId: () => server.store.getMeta("workspace_id") ?? null,
+    workspaceId: () => server.workspaceId(),
     workspaceName: () => server.workspaceName(),
     setWorkspaceName: (name) => server.setWorkspaceName(name),
     workspaceIcon: () => server.workspaceIcon(),
@@ -85,6 +85,6 @@ export async function startHostedServer(
     setIceServers: (servers) => server.setIceServers(servers),
     accessPolicy: () => server.accessPolicy(),
     setAccessPolicy: (policy) => server.setAccessPolicy(policy),
-    accountCount: () => server.store.userCount(),
+    accountCount: () => server.store.people.count(),
   };
 }

@@ -49,7 +49,7 @@ beforeEach(async () => {
   base = `http://127.0.0.1:${server.port}`;
   owner = await register("owner");
   reader = await register("reader");
-  general = server.store.getChannelByName("general")!.id;
+  general = server.store.channels.byName("general")!.id;
   await call(reader.token, `/api/channels/${general}/join`, "POST");
 });
 
@@ -69,10 +69,10 @@ async function surfaces(replyId: string) {
   const activity = await call(reader.token, "/api/activity?mode=unread");
   const followed = await call(reader.token, "/api/threads/followed?unreadOnly=true&limit=30");
   return {
-    mentions: server.store.unreadMentionCounts(reader.id)[general] ?? 0,
+    mentions: server.store.channels.unreadMentionCounts(reader.id)[general] ?? 0,
     inActivity: activity.body.messages.some((m: { id: string }) => m.id === replyId),
     followedUnread: followed.body.threads.length,
-    badge: server.store.unreadThreadCount(reader.id),
+    badge: server.store.threads.unreadCount(reader.id),
   };
 }
 const unread = { mentions: 1, inActivity: true, followedUnread: 1, badge: 1 };
@@ -125,7 +125,7 @@ describe("a thread marked unread at a reply already read in the channel", () => 
     const later = await post("something new in the channel");
     await readChannel(later.seq);
     expect(await surfaces(reply.id)).toEqual(read);
-    expect(server.store.threadFollow(reader.id, root.id)?.unreadHold).toBeUndefined();
+    expect(server.store.threads.follow(reader.id, root.id)?.unreadHold).toBeUndefined();
   });
 
   it("leaves a quiet reply read only through its thread", async () => {

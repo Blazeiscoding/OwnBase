@@ -19,7 +19,7 @@ let channelId: string;
 async function start() {
   server = await createWorkspaceServer({ dataDir, host: "127.0.0.1", port: 0, mdns: false });
   base = `http://127.0.0.1:${server.port}`;
-  const existing = server.store.getUserAuthByHandle("owner");
+  const existing = server.store.people.authByHandle("owner");
   const res = await fetch(`${base}/api/auth/${existing ? "login" : "register"}`, {
     method: "POST",
     headers: { "content-type": "application/json" },
@@ -30,7 +30,7 @@ async function start() {
     }),
   });
   token = ((await res.json()) as { token: string }).token;
-  channelId = server.store.getChannelByName("general")!.id;
+  channelId = server.store.channels.byName("general")!.id;
 }
 
 async function request(path: string, body?: unknown, method = "POST") {
@@ -63,9 +63,9 @@ const send = (body: Record<string, unknown>) =>
   request(`/api/channels/${channelId}/messages`, body);
 /** Brings a queued row forward instead of idling the test until it is due. */
 const deliverNow = (id: string) => {
-  server!.store.rescheduleMessage(id, Date.now() - 1000);
+  server!.store.scheduled.reschedule(id, Date.now() - 1000);
   server!.flushScheduled();
-  return server!.store.getScheduled(id)!;
+  return server!.store.scheduled.get(id)!;
 };
 
 beforeEach(async () => {
@@ -91,7 +91,7 @@ describe("a file waiting in a scheduled message", () => {
 
     const delivered = deliverNow(queued.body.scheduled.id);
     expect(delivered.status).toBe("sent");
-    const message = server!.store.getMessage(delivered.messageId!)!;
+    const message = server!.store.messages.get(delivered.messageId!)!;
     expect(message.files.map((f) => f.id)).toEqual([file]);
   });
 
@@ -136,10 +136,20 @@ describe("a file waiting in a scheduled message", () => {
     expect(deliverNow(queued.body.scheduled.id).status).toBe("sent");
   });
 
+  it("reads as no files when the stored list is damaged", async () => {
+    const { body } = await schedule({ text: "later" });
+    for (const damaged of ["not json", '{"0":"F1"}']) {
+      server!.store.db
+        .prepare("UPDATE scheduled_messages SET file_ids = ? WHERE id = ?")
+        .run(damaged, body.scheduled.id);
+      expect(server!.store.scheduled.get(body.scheduled.id)!.fileIds).toEqual([]);
+    }
+  });
+
   it("is not swept away as an abandoned upload", async () => {
     const file = await upload();
     await schedule({ text: "Later", fileIds: [file] });
-    expect(server!.store.abandonedFileIds(Date.now() + 1000)).not.toContain(file);
+    expect(server!.store.files.abandonedIds(Date.now() + 1000)).not.toContain(file);
   });
 });
 
@@ -157,9 +167,9 @@ describe("a scheduled reply also sent to the channel", () => {
     );
 
     const delivered = deliverNow(queued.body.scheduled.id);
-    const message = server!.store.getMessage(delivered.messageId!)!;
+    const message = server!.store.messages.get(delivered.messageId!)!;
     expect(message).toMatchObject({ threadRootId: root.id, broadcast: true });
-    const timeline = server!.store.listMessages({ channelId, limit: 50 });
+    const timeline = server!.store.messages.list({ channelId, limit: 50 });
     expect(timeline.map((m) => m.text)).toContain("For everyone");
   });
 
@@ -170,7 +180,7 @@ describe("a scheduled reply also sent to the channel", () => {
     expect(quiet.body.scheduled.broadcast).toBe(false);
     expect(loose.body.scheduled.broadcast).toBe(false);
     deliverNow(quiet.body.scheduled.id);
-    const timeline = server!.store.listMessages({ channelId, limit: 50 });
+    const timeline = server!.store.messages.list({ channelId, limit: 50 });
     expect(timeline.map((m) => m.text)).not.toContain("Just the thread");
   });
 

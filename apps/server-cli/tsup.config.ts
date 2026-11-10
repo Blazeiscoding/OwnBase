@@ -17,8 +17,6 @@ export default defineConfig({
   platform: "node",
   target: "node24",
   noExternal: [/.*/],
-  // One file: ee/src/main.ts imports the server's main.ts dynamically, which
-  // would otherwise become a second file beside it.
   splitting: false,
   external: [/^node:/],
   banner: {

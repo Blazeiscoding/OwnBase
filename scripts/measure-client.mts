@@ -204,7 +204,7 @@ try {
     displayName: "Reader",
     password: "password123",
   });
-  const general = server.store.getChannelByName("general")!.id;
+  const general = server.store.channels.byName("general")!.id;
   const gallery = (await call("/api/channels", owner.token, { type: "public", name: "gallery" }))
     .channel.id as string;
   await call(`/api/channels/${gallery}/join`, reader.token, {});

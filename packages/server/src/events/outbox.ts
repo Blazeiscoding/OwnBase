@@ -1,5 +1,6 @@
 import type { ID } from "@ownbase/protocol";
 import type { EventTo } from "./registry.js";
+import { contain } from "../core/contain.js";
 
 type PersonEvent = EventTo<"person">;
 type AdminEvent = EventTo<"admins">;
@@ -199,11 +200,7 @@ export class Outbox {
 
   /** Each notice fails alone: the change it follows has happened. */
   private contained(what: string, work: () => void): void {
-    try {
-      work();
-    } catch (err) {
-      this.failed(err, what);
-    }
+    contain(work, (err) => this.failed(err, what));
   }
 }
 

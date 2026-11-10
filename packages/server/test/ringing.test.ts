@@ -136,7 +136,7 @@ describe("a direct message's huddle", () => {
     const alice = await register("alice");
     const bob = await register("bob");
     const channelId = await dm(alice, bob);
-    const general = server.store.getChannelByName("general")!.id;
+    const general = server.store.channels.byName("general")!.id;
     const caller = await connect(alice.token);
     const callee = await connect(bob.token);
 
@@ -321,7 +321,7 @@ describe("a group direct message's huddle", () => {
     const alice = await register("alice");
     const bob = await register("bob");
     const carol = await register("carol");
-    const bot = server.store.createBotUser("helper", "Helper", "x", "y");
+    const bot = server.store.apps.createBotUser("helper", "Helper", "x", "y");
     const channelId = await dm(alice, bob, carol, { user: { id: bot.id } });
     const caller = await connect(alice.token);
     const bobs = await connect(bob.token);
@@ -351,7 +351,7 @@ describe("a group direct message's huddle", () => {
     const bob = await register("bob");
     const carol = await register("carol");
     const channelId = await dm(alice, bob, carol);
-    server.store.updateUser(carol.user.id, { deactivated: true });
+    server.store.people.update(carol.user.id, { deactivated: true });
     const caller = await connect(alice.token);
     caller.send({ type: "huddle.join", channelId, requestId: "a" });
     await expect.poll(() => last(caller.rings())?.ringing).toEqual([bob.user.id]);

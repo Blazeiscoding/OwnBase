@@ -78,7 +78,7 @@ describe("huddle transition admission", () => {
     const observer = await register("observer");
     const sender = await connect(person.token);
     const reader = await connect(observer.token);
-    const channelId = server.store.getChannelByName("general")!.id;
+    const channelId = server.store.channels.byName("general")!.id;
 
     for (let i = 0; i < 20; i++) {
       sender.ws.send(JSON.stringify({ type: "huddle.join", channelId, requestId: `join-${i}` }));
@@ -113,7 +113,7 @@ describe("huddle transition admission", () => {
     const person = await register("caller");
     const sender = await connect(person.token);
     const otherDevice = await connect(person.token);
-    const firstChannel = server.store.getChannelByName("general")!.id;
+    const firstChannel = server.store.channels.byName("general")!.id;
     const secondChannel = (
       await request("/api/channels", person.token, { type: "public", name: "second-room" })
     ).data.channel.id;
@@ -168,7 +168,7 @@ describe("huddle transition admission", () => {
     const person = await register("caller");
     const existingDevice = await connect(person.token);
     const joiningDevice = await connect(person.token);
-    const firstChannel = server.store.getChannelByName("general")!.id;
+    const firstChannel = server.store.channels.byName("general")!.id;
     const secondChannel = (
       await request("/api/channels", person.token, { type: "public", name: "second-room" })
     ).data.channel.id;

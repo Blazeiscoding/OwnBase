@@ -90,7 +90,7 @@ describe("the newest message in each direct conversation", () => {
     const withSam = await conversation([sam.id]);
     const group = await conversation([sam.id, priya.id]);
     const between = await conversation([priya.id], sam.token);
-    const general = server.store.getChannelByName("general")!.id;
+    const general = server.store.channels.byName("general")!.id;
     await post(withSam, "Morning", sam.token);
     await post(withSam, "Morning! Coffee?", owner.token);
     await post(group, "Release at 4", priya.token);
@@ -131,7 +131,7 @@ describe("the newest message in each direct conversation", () => {
 
 describe("how many people each channel holds", () => {
   it("counts active members of every public channel and of private ones the caller is in", async () => {
-    const general = server.store.getChannelByName("general")!.id;
+    const general = server.store.channels.byName("general")!.id;
     const mine = (
       await request("/api/channels", { type: "private", name: "leads", memberIds: [sam.id] })
     ).body.channel.id as string;
@@ -159,7 +159,7 @@ describe("how many people each channel holds", () => {
 
 describe("a followed thread's newest reply", () => {
   it("comes with the thread, leaving out deleted replies and what a blocked person wrote", async () => {
-    const general = server.store.getChannelByName("general")!.id;
+    const general = server.store.channels.byName("general")!.id;
     const root = await post(general, "Where should the offsite be?", owner.token);
     await post(general, "Somewhere warm", sam.token, root.id);
     const lisbon = await post(general, "Lisbon", priya.token, root.id);

@@ -84,7 +84,7 @@ afterEach(async () => {
 
 describe("download tickets", () => {
   it("downloads once as an attachment, then never again", async () => {
-    const general = server.store.getChannelByName("general")!.id;
+    const general = server.store.channels.byName("general")!.id;
     const fileId = await upload(general, owner.token);
     const issued = await issue(fileId, member.token);
     expect(issued.status).toBe(200);
@@ -105,7 +105,7 @@ describe("download tickets", () => {
   });
 
   it("is spent by two requests at once only once", async () => {
-    const general = server.store.getChannelByName("general")!.id;
+    const general = server.store.channels.byName("general")!.id;
     const fileId = await upload(general, owner.token);
     const { data } = await issue(fileId, member.token);
     const results = await Promise.all([spend(fileId, data.token), spend(fileId, data.token)]);
@@ -113,7 +113,7 @@ describe("download tickets", () => {
   });
 
   it("opens only the file it was issued for, and only when well formed", async () => {
-    const general = server.store.getChannelByName("general")!.id;
+    const general = server.store.channels.byName("general")!.id;
     const fileId = await upload(general, owner.token);
     const otherId = await upload(general, owner.token, "something else");
     const { data } = await issue(fileId, member.token);
@@ -131,7 +131,7 @@ describe("download tickets", () => {
   });
 
   it("expires sixty seconds after it was issued", async () => {
-    const general = server.store.getChannelByName("general")!.id;
+    const general = server.store.channels.byName("general")!.id;
     const fileId = await upload(general, owner.token);
     const early = (await issue(fileId, member.token)).data.token;
     const late = (await issue(fileId, member.token)).data.token;
@@ -144,7 +144,7 @@ describe("download tickets", () => {
   });
 
   it("dies with the session that asked for it, but not with the account's others", async () => {
-    const general = server.store.getChannelByName("general")!.id;
+    const general = server.store.channels.byName("general")!.id;
     const fileId = await upload(general, owner.token);
     const laptop = member.token;
     const phone = (
@@ -164,12 +164,12 @@ describe("download tickets", () => {
   });
 
   it("is refused once the account has to change its password", async () => {
-    const general = server.store.getChannelByName("general")!.id;
+    const general = server.store.channels.byName("general")!.id;
     const fileId = await upload(general, owner.token);
     const ticket = (await issue(fileId, member.token)).data.token;
     // A forced change keeps the session only so the password can be changed.
-    const auth = server.store.getUserAuthByHandle("member")!;
-    server.store.setPassword(member.id, auth.passwordHash, auth.salt, true);
+    const auth = server.store.people.authByHandle("member")!;
+    server.store.accounts.setPassword(member.id, auth.passwordHash, auth.salt, true);
     expect((await spend(fileId, ticket)).status).toBe(404);
     expect((await issue(fileId, member.token)).status).toBe(403);
   });
@@ -205,7 +205,7 @@ describe("download tickets", () => {
   });
 
   it("is refused once the file is deleted", async () => {
-    const general = server.store.getChannelByName("general")!.id;
+    const general = server.store.channels.byName("general")!.id;
     const fileId = await upload(general, owner.token);
     const sent = await request(`/api/channels/${general}/messages`, owner.token, "POST", {
       text: "",
@@ -219,7 +219,7 @@ describe("download tickets", () => {
   });
 
   it("keeps an account's 64 newest tickets, and drops the oldest past that", async () => {
-    const general = server.store.getChannelByName("general")!.id;
+    const general = server.store.channels.byName("general")!.id;
     const fileId = await upload(general, owner.token);
     const realNow = Date.now.bind(Date);
     let step = 0;

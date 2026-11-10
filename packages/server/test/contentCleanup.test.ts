@@ -58,7 +58,7 @@ beforeEach(async () => {
   });
   token = registered.body.token;
   owner = registered.body.user.id;
-  channel = server.store.getChannelByName("general")!.id;
+  channel = server.store.channels.byName("general")!.id;
 });
 
 afterEach(async () => {
@@ -145,7 +145,7 @@ describe("complete message content cleanup (N06/N07)", () => {
         actions: [],
       });
       expect(replayed.find((m) => m.id === live.id)?.actions).toEqual(actions);
-      expect(server.store.getMessage(live.id)?.actions).toEqual(actions);
+      expect(server.store.messages.get(live.id)?.actions).toEqual(actions);
       expect(
         (await api("GET", `/api/channels/${channel}/messages`)).body.messages.map(
           (m: Message) => m.id,
@@ -155,7 +155,7 @@ describe("complete message content cleanup (N06/N07)", () => {
   );
 
   it("strips superseded buttons while preserving the current message's actions", async () => {
-    const message = server.store.createMessage({
+    const message = server.store.messages.create({
       channelId: channel,
       userId: owner,
       text: "Earlier agenda",
@@ -165,7 +165,7 @@ describe("complete message content cleanup (N06/N07)", () => {
     });
     const before = server.store.appendEvent({ type: "message.created", message }, channel).seq - 1;
     server.store.transaction(() => {
-      const edited = server.store.editMessage(message.id, "Updated agenda");
+      const edited = server.store.messages.edit(message.id, "Updated agenda");
       server.store.appendEvent({ type: "message.updated", message: edited }, channel);
     });
     const versions = (await replay(before)).filter((m) => m.id === message.id);
@@ -175,7 +175,7 @@ describe("complete message content cleanup (N06/N07)", () => {
   });
 
   it("keeps completion identity without retaining sent text or files across edit/delete/retention", async () => {
-    const file = server.store.createFile({
+    const file = server.store.files.create({
       channelId: channel,
       userId: owner,
       name: "agenda.txt",
@@ -194,16 +194,16 @@ describe("complete message content cleanup (N06/N07)", () => {
     const queued = await api("POST", path, body);
     expect(queued.status).toBe(201);
     const id = queued.body.scheduled.id;
-    server.store.rescheduleMessage(id, Date.now() - 1);
+    server.store.scheduled.reschedule(id, Date.now() - 1);
     server.flushScheduled();
-    const completed = server.store.getScheduled(id)!;
+    const completed = server.store.scheduled.get(id)!;
     expect(completed).toMatchObject({
       status: "sent",
       text: "",
       fileIds: [],
       messageId: expect.any(String),
     });
-    expect(server.store.getMessage(completed.messageId!)?.files.map((f) => f.id)).toEqual([
+    expect(server.store.messages.get(completed.messageId!)?.files.map((f) => f.id)).toEqual([
       file.id,
     ]);
     const retried = await api("POST", path, body);
@@ -223,8 +223,8 @@ describe("complete message content cleanup (N06/N07)", () => {
       .prepare("UPDATE messages SET created_at = ? WHERE id = ?")
       .run(Date.now() - 2 * 86400_000, completed.messageId);
     expect(server.applyRetention()).toBe(1);
-    server.store.pruneScheduled(Date.now() - 7 * 86400_000);
-    expect(server.store.getScheduled(id)).toMatchObject({
+    server.store.scheduled.prune(Date.now() - 7 * 86400_000);
+    expect(server.store.scheduled.get(id)).toMatchObject({
       status: "sent",
       text: "",
       fileIds: [],
@@ -232,7 +232,7 @@ describe("complete message content cleanup (N06/N07)", () => {
     });
     expect((await api("GET", "/api/scheduled")).body.scheduled).toEqual([]);
     expect((await api("POST", path, body)).status).toBe(200);
-    expect(server.store.listMessages({ channelId: channel, limit: 10 })).toEqual([]);
+    expect(server.store.messages.list({ channelId: channel, limit: 10 })).toEqual([]);
   });
 
   it("upgrades old content copies without changing live buttons or outstanding work", () => {
@@ -242,14 +242,14 @@ describe("complete message content cleanup (N06/N07)", () => {
     try {
       db = openDbAtVersion(path, 36);
       const store = new Store(db);
-      const user = store.createUser({
-        handle: "owner",
-        displayName: "Owner",
-        passwordHash: "unused",
-        salt: "unused",
-        role: "owner",
-      });
-      const room = store.createChannel({
+      // A v36 account has none of the profile columns added since, so it is
+      // written as v36 wrote it rather than through today's store.
+      const user = { id: ulid() };
+      db.prepare(
+        `INSERT INTO users (id, handle, display_name, password_hash, salt, role, created_at)
+         VALUES (?, 'owner', 'Owner', 'unused', 'unused', 'owner', ?)`,
+      ).run(user.id, Date.now());
+      const room = store.channels.create({
         type: "public",
         name: "meetings",
         creatorId: user.id,
@@ -312,7 +312,7 @@ describe("complete message content cleanup (N06/N07)", () => {
       db.prepare(
         "UPDATE events SET payload = json_set(payload, '$.message.text', '', '$.message.files', json('[]')) WHERE seq < ?",
       ).run(latest.seq);
-      const sent = store.scheduleMessage({
+      const sent = store.scheduled.schedule({
         channelId: room.id,
         userId: user.id,
         text: "Old sent words",
@@ -324,7 +324,7 @@ describe("complete message content cleanup (N06/N07)", () => {
         "UPDATE scheduled_messages SET status = 'sent', file_ids = '[\"old-file\"]' WHERE id = ?",
       ).run(sent.id);
       const outstanding = ["queued", "held", "failed"].map((status) => {
-        const scheduled = store.scheduleMessage({
+        const scheduled = store.scheduled.schedule({
           channelId: room.id,
           userId: user.id,
           text: `${status} words`,
@@ -344,7 +344,7 @@ describe("complete message content cleanup (N06/N07)", () => {
       expect(db.prepare("SELECT actions FROM messages WHERE id = ?").get(deleted.id)).toEqual({
         actions: "[]",
       });
-      expect(upgraded.getMessage(live.id)?.actions).toEqual(actions);
+      expect(upgraded.messages.get(live.id)?.actions).toEqual(actions);
       const events = upgraded.eventsSince(0, user.id)!;
       const versions = events.flatMap(({ event }) =>
         event.type === "message.created" || event.type === "message.updated" ? [event.message] : [],
@@ -357,15 +357,15 @@ describe("complete message content cleanup (N06/N07)", () => {
       expect(versions.find((m) => m.id === live.id && m.text === "Current")?.actions).toEqual(
         actions,
       );
-      expect(upgraded.getScheduled(sent.id)).toMatchObject({
+      expect(upgraded.scheduled.get(sent.id)).toMatchObject({
         status: "sent",
         text: "",
         fileIds: [],
       });
-      for (const id of outstanding) expect(upgraded.getScheduled(id)?.text).toMatch(/words$/);
+      for (const id of outstanding) expect(upgraded.scheduled.get(id)?.text).toMatch(/words$/);
       db.close();
       db = openDb(path);
-      expect(new Store(db).getScheduled(sent.id)?.text).toBe("");
+      expect(new Store(db).scheduled.get(sent.id)?.text).toBe("");
     } finally {
       db?.close();
       if (

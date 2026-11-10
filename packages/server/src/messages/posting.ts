@@ -130,16 +130,16 @@ export function createPosting({
   /** Where the poster may write: the conversation, or why not. */
   const writableChannel = (poster: Poster, channelId: ID): Channel => {
     const userId = userIdOf(poster);
-    const channel = store.getChannel(channelId);
+    const channel = store.channels.get(channelId);
     if (!channel) throw new HttpError(404, "channel_not_found");
     if (poster.kind === "person" && !store.canAccess(channel.id, userId))
       throw new HttpError(404, "channel_not_found");
-    if (store.getUser(userId)?.deactivated) throw new HttpError(403, "account_deactivated");
+    if (store.people.get(userId)?.deactivated) throw new HttpError(403, "account_deactivated");
     if (channel.archived) throw new HttpError(400, "channel_archived");
     // An app's bot posts where it was added. A public channel it was never
     // added to takes Slack's chat:write.public through the Web API; a webhook
     // or an answer to someone there is posting where it was asked to.
-    if (poster.kind !== "person" && !store.isMember(channel.id, userId)) {
+    if (poster.kind !== "person" && !store.channels.isMember(channel.id, userId)) {
       if (channel.type !== "public") throw new HttpError(403, "not_in_channel");
       if (poster.kind === "bot" && !poster.app.scopes?.includes("chat:write.public"))
         throw new ScopeNeeded("not_in_channel", "chat:write.public");
@@ -149,7 +149,7 @@ export function createPosting({
 
   const requireThreadRoot = (channel: Channel, threadRootId: ID | null): void => {
     if (!threadRootId) return;
-    const root = store.getMessage(threadRootId);
+    const root = store.messages.get(threadRootId);
     if (!root || root.channelId !== channel.id || root.threadRootId)
       throw new HttpError(400, "bad_thread_root");
   };
@@ -171,7 +171,7 @@ export function createPosting({
     const message = mutate((record) => {
       const channel = writableChannel(poster, input.channelId);
       // As with uploads: a guest takes part, and votes, but does not make polls.
-      if (input.poll && store.getUser(userId)?.role === "guest")
+      if (input.poll && store.people.get(userId)?.role === "guest")
         throw new HttpError(
           403,
           "guest_not_allowed",
@@ -192,9 +192,9 @@ export function createPosting({
         ]),
       );
       if (input.nonce !== null) {
-        const previous = store.messageRequest(userId, input.nonce);
+        const previous = store.messages.request(userId, input.nonce);
         if (previous) {
-          const existing = store.getMessage(previous.messageId);
+          const existing = store.messages.get(previous.messageId);
           if (!existing) throw new HttpError(409, "message_deleted");
           if (
             (previous.requestHash !== null && previous.requestHash !== requestHash) ||
@@ -206,7 +206,7 @@ export function createPosting({
           return existing;
         }
         // Posted once, then removed with the workspace's older history.
-        if (store.messageRequestPurged(userId, input.nonce))
+        if (store.messages.requestPurged(userId, input.nonce))
           throw new HttpError(
             409,
             "message_deleted",
@@ -221,7 +221,7 @@ export function createPosting({
       // the channel shows; in a thread, its first message or another reply.
       // Deleted since it was chosen, it still goes and says so; removed with
       // older history, it goes as an ordinary message.
-      const target = input.replyToId ? store.replyTarget(input.replyToId) : null;
+      const target = input.replyToId ? store.messages.replyTarget(input.replyToId) : null;
       if (
         target &&
         (target.channelId !== channel.id ||
@@ -230,12 +230,12 @@ export function createPosting({
             : target.threadRootId !== null && !target.broadcast))
       )
         throw new HttpError(400, "bad_reply_target");
-      if (channel.type === "public" && !store.isMember(channel.id, userId)) {
-        store.addMember(channel.id, userId);
+      if (channel.type === "public" && !store.channels.isMember(channel.id, userId)) {
+        store.channels.addMember(channel.id, userId);
         record({ type: "member.joined", channelId: channel.id, userId });
       }
       // A file a scheduled message is waiting to send is already promised.
-      if (store.filesHeldBySchedule(input.fileIds, input.scheduledId ?? null))
+      if (store.files.heldBySchedule(input.fileIds, input.scheduledId ?? null))
         throw new HttpError(
           409,
           "attachments_scheduled",
@@ -247,7 +247,7 @@ export function createPosting({
       let forwardedFromId: ID | null = null;
       if (input.forwardFromId) {
         const readable = (id: ID) => {
-          const found = store.forwardSource(id);
+          const found = store.messages.forwardSource(id);
           return found && !found.deleted && store.canAccess(found.channelId, userId) ? found : null;
         };
         const picked = readable(input.forwardFromId);
@@ -269,7 +269,7 @@ export function createPosting({
           );
         forwardedFromId = source.id;
       }
-      const created = store.createMessage({
+      const created = store.messages.create({
         channelId: input.channelId,
         userId,
         text: input.text,
@@ -282,9 +282,9 @@ export function createPosting({
         forwardedFromId,
         call: input.call,
       });
-      if (input.poll) store.createPoll(created.id, input.poll);
+      if (input.poll) store.polls.create(created.id, input.poll);
       if (
-        !store.attachFiles(
+        !store.files.attach(
           input.fileIds,
           created.id,
           input.channelId,
@@ -293,10 +293,10 @@ export function createPosting({
         )
       )
         throw new HttpError(400, "invalid_attachments");
-      const hydrated = store.getMessage(created.id)!;
+      const hydrated = store.messages.get(created.id)!;
       if (input.nonce !== null)
-        store.recordMessageRequest(userId, input.nonce, created.id, requestHash);
-      if (input.scheduledId) store.markScheduledSent(input.scheduledId, created.id);
+        store.messages.recordRequest(userId, input.nonce, created.id, requestHash);
+      if (input.scheduledId) store.scheduled.markSent(input.scheduledId, created.id);
       record({ type: "message.created", message: hydrated });
       return hydrated;
     });
@@ -320,10 +320,10 @@ export function createPosting({
     return mutate(() => {
       const channel = writableChannel(poster, input.channelId);
       if (input.nonce) {
-        const previous = store.scheduledRequest(input.userId, input.nonce);
+        const previous = store.scheduled.request(input.userId, input.nonce);
         if (previous) {
           if (previous.requestHash !== requestHash) throw new HttpError(409, "nonce_conflict");
-          const scheduled = store.getScheduled(previous.scheduledId);
+          const scheduled = store.scheduled.get(previous.scheduledId);
           if (!scheduled)
             throw new HttpError(
               410,
@@ -342,25 +342,25 @@ export function createPosting({
       requireThreadRoot(channel, input.threadRootId);
       if (
         new Set(input.fileIds).size !== input.fileIds.length ||
-        !store.unattachedFiles(input.fileIds, channel.id, input.userId)
+        !store.files.unattached(input.fileIds, channel.id, input.userId)
       ) {
         throw new HttpError(400, "invalid_attachments");
       }
-      if (store.filesHeldBySchedule(input.fileIds)) {
+      if (store.files.heldBySchedule(input.fileIds)) {
         throw new HttpError(
           409,
           "attachments_scheduled",
           "One of these files is already part of another scheduled message.",
         );
       }
-      if (store.outstandingScheduled(input.userId) >= scheduledLimits.perAccount) {
+      if (store.scheduled.outstanding(input.userId) >= scheduledLimits.perAccount) {
         throw new HttpError(
           409,
           "scheduled_limit",
           `You already have ${scheduledLimits.perAccount} messages waiting to be sent. Send or cancel some before scheduling more.`,
         );
       }
-      if (store.outstandingScheduled() >= scheduledLimits.perWorkspace) {
+      if (store.scheduled.outstanding() >= scheduledLimits.perWorkspace) {
         throw new HttpError(
           409,
           "scheduled_limit",
@@ -369,7 +369,7 @@ export function createPosting({
       }
       // Spent here, once: a replay has already returned, and delivery spends nothing.
       spend(poster);
-      const scheduled = store.scheduleMessage({
+      const scheduled = store.scheduled.schedule({
         channelId: channel.id,
         userId: input.userId,
         text: input.text,
@@ -379,7 +379,7 @@ export function createPosting({
         broadcast: input.broadcast,
       });
       if (input.nonce)
-        store.recordScheduledRequest(input.userId, input.nonce, scheduled.id, requestHash);
+        store.scheduled.recordRequest(input.userId, input.nonce, scheduled.id, requestHash);
       return { scheduled, replayed: false };
     });
   };
