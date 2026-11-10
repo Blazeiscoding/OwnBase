@@ -32,8 +32,8 @@ const TABS: readonly Tab[] = ["about", "members", "notifications"];
  * carry a code and, often, no message of their own, so without this the
  * dialog showed "name_taken" or "Failed to fetch".
  */
-function channelError(err: unknown, fallback: string): string {
-  if (!(err instanceof ApiError)) return `${fallback} Check your connection and try again.`;
+function channelError(err: ApiError, fallback: string): string {
+  if (err.status === 0) return `${fallback} Check your connection and try again.`;
   switch (err.code) {
     case "name_taken":
       return "Another channel already has that name.";
@@ -112,21 +112,17 @@ export function ChannelDetailsDialog(props: {
   useEffect(() => {
     let active = true;
     setMembersLoading(true);
-    void client
-      .channelMembers(props.channelId)
-      .then((r) => {
-        if (active) {
-          setMemberIds(r.memberIds);
-          setMembersLoaded(true);
-          setMembersError(false);
-        }
-      })
-      .catch(() => {
-        if (active) setMembersError(true);
-      })
-      .finally(() => {
-        if (active) setMembersLoading(false);
-      });
+    void client.channelMembers(props.channelId).then((ids) => {
+      if (!active) return;
+      setMembersLoading(false);
+      if (ids instanceof ApiError) {
+        setMembersError(true);
+        return;
+      }
+      setMemberIds(ids);
+      setMembersLoaded(true);
+      setMembersError(false);
+    });
     return () => {
       active = false;
     };
@@ -157,99 +153,91 @@ export function ChannelDetailsDialog(props: {
       return;
     }
     setBusy(true);
-    try {
-      await client.updateChannel(props.channelId, { name: name.trim(), topic, description });
-      setAboutNote("saved");
-    } catch (err) {
-      // A name in use belongs to the name; anything else to the whole form.
-      if (err instanceof ApiError && err.code === "name_taken") {
-        setNameProblem(channelError(err, ""));
-        nameField.current?.focus();
-      } else setError(channelError(err, "Could not save channel details."));
-    } finally {
-      setBusy(false);
-    }
+    const refused = await client.updateChannel(props.channelId, {
+      name: name.trim(),
+      topic,
+      description,
+    });
+    setBusy(false);
+    if (!refused) setAboutNote("saved");
+    // A name in use belongs to the name; anything else to the whole form.
+    else if (refused.code === "name_taken") {
+      setNameProblem(channelError(refused, ""));
+      nameField.current?.focus();
+    } else setError(channelError(refused, "Could not save channel details."));
   }
 
   async function addMember(userId: ID): Promise<boolean> {
     if (!permissions.invite || busy) return false;
     setBusy(true);
     setError(null);
-    try {
-      await client.addToChannel(props.channelId, userId);
-      setMemberIds((prev) => [...new Set([...prev, userId])]);
-      return true;
-    } catch (err) {
+    const refused = await client.addToChannel(props.channelId, userId);
+    setBusy(false);
+    if (refused) {
       const name = users[userId]?.displayName;
-      setError(channelError(err, name ? `Could not add ${name}.` : "Could not add this person."));
+      setError(
+        channelError(refused, name ? `Could not add ${name}.` : "Could not add this person."),
+      );
       return false;
-    } finally {
-      setBusy(false);
     }
+    setMemberIds((prev) => [...new Set([...prev, userId])]);
+    return true;
   }
 
   async function setArchived(archived: boolean) {
     if (!permissions.manage || busy) return;
     setBusy(true);
     setError(null);
-    try {
-      await client.updateChannel(props.channelId, { archived });
-      setConfirmArchive(false);
-    } catch (err) {
+    const refused = await client.updateChannel(props.channelId, { archived });
+    setBusy(false);
+    if (!refused) setConfirmArchive(false);
+    else
       setError(
         channelError(
-          err,
+          refused,
           archived ? "Could not archive the channel." : "Could not reopen the channel.",
         ),
       );
-    } finally {
-      setBusy(false);
-    }
   }
 
   async function removeMember(userId: ID) {
     if (busy) return;
     setBusy(true);
     setError(null);
-    try {
-      await client.removeFromChannel(props.channelId, userId);
-      setMemberIds((ids) => ids.filter((id) => id !== userId));
-      setRemovingId(null);
-    } catch (err) {
-      setError(channelError(err, "Could not remove this person."));
-    } finally {
-      setBusy(false);
+    const refused = await client.removeFromChannel(props.channelId, userId);
+    setBusy(false);
+    if (refused) {
+      setError(channelError(refused, "Could not remove this person."));
+      return;
     }
+    setMemberIds((ids) => ids.filter((id) => id !== userId));
+    setRemovingId(null);
   }
 
   async function changeManager(userId: ID, manager: boolean) {
     if (busy) return;
     setBusy(true);
     setError(null);
-    try {
-      await client.setChannelManager(props.channelId, userId, manager);
-      setManagerChange(null);
-    } catch (err) {
-      setError(channelError(err, "Could not change channel manager."));
-    } finally {
-      setBusy(false);
-    }
+    const refused = await client.setChannelManager(props.channelId, userId, manager);
+    setBusy(false);
+    if (refused) setError(channelError(refused, "Could not change channel manager."));
+    else setManagerChange(null);
   }
 
   async function leave() {
     if (busy) return;
     setBusy(true);
     setError(null);
-    try {
-      await client.leaveChannel(props.channelId);
-      props.onLeft();
-    } catch (err) {
+    const refused = await client.leaveChannel(props.channelId);
+    setBusy(false);
+    if (!refused) props.onLeft();
+    else
       setError(
-        channelError(err, isRoom ? "Could not leave channel." : "Could not leave conversation."),
+        channelError(
+          refused,
+          isRoom ? "Could not leave channel." : "Could not leave conversation.",
+        ),
       );
-    } finally {
-      setBusy(false);
-    }
   }
 
   const notMembers = Object.values(users).filter(

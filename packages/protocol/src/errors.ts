@@ -178,6 +178,7 @@ export const ERROR_CODES = [
   "http_error",
   "invalid_response",
   "network_error",
+  "not_connected",
   "upload_timeout",
 ] as const;
 

@@ -1,3 +1,4 @@
+import { ApiError } from "@ownbase/client-core";
 import { useEffect, useMemo, useState } from "react";
 import type { ID, User } from "@ownbase/protocol";
 import { useClient, useWorkspace } from "../context.js";
@@ -36,10 +37,11 @@ export function MembersPanel(props: {
     }
     let active = true;
     setFailed(false);
-    client
-      .channelMembers(props.channelId)
-      .then((r) => active && setLoaded(r.memberIds))
-      .catch(() => active && setFailed(true));
+    void client.channelMembers(props.channelId).then((ids) => {
+      if (!active) return;
+      if (ids instanceof ApiError) setFailed(true);
+      else setLoaded(ids);
+    });
     return () => {
       active = false;
     };

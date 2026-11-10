@@ -13,7 +13,7 @@ import {
 import { writeClipboard } from "../lib/useCopy.js";
 import { browserLink } from "../lib/deeplink.js";
 import type { FileMeta, ID, Message } from "@ownbase/protocol";
-import { forwardSource, type ApiError, type ForwardSource } from "@ownbase/client-core";
+import { ApiError, forwardSource, type ForwardSource } from "@ownbase/client-core";
 import { failureText } from "../lib/failure.js";
 import { OpenMessageContext, useClient, useWorkspace } from "../context.js";
 import { onlyEmoji } from "../lib/emoji.js";
@@ -316,14 +316,10 @@ const MessageRow = memo(function MessageRow({
     if (!go) return;
     setDeleting(true);
     setDeleteError(false);
-    try {
-      await client.deleteMessage(message.id);
-      afterDeletion.current = box;
-    } catch {
-      setDeleteError(true);
-    } finally {
-      setDeleting(false);
-    }
+    const refused = await client.deleteMessage(message.id);
+    setDeleting(false);
+    if (refused) setDeleteError(true);
+    else afterDeletion.current = box;
   }
   function copyLink() {
     // The menu has closed by now, so a notice says whether it worked.
@@ -858,14 +854,9 @@ function MessageActions({ message }: { message: Message }) {
   async function press(actionId: string) {
     setError(null);
     setPending(actionId);
-    try {
-      const res = await client.runMessageAction(message.id, actionId);
-      if (!res.ok) setError("That did not go through. Try again.");
-    } catch {
-      setError("That did not go through. Try again.");
-    } finally {
-      setPending(null);
-    }
+    const answer = await client.runMessageAction(message.id, actionId);
+    setPending(null);
+    if (answer instanceof ApiError || !answer.ok) setError("That did not go through. Try again.");
   }
 
   return (

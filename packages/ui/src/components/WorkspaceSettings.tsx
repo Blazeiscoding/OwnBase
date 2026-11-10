@@ -137,33 +137,36 @@ function IconSection() {
   async function choose(file: File) {
     setBusy("uploading");
     setProblem(null);
+    let refused: unknown;
     try {
-      await client.setWorkspaceIcon(await prepareIcon(file));
-      if (alive.current) saved();
-    } catch (err) {
-      if (!alive.current) return;
-      setProblem(iconProblem(err));
-      upload.current?.focus();
-    } finally {
-      if (alive.current) setBusy(null);
+      refused = await client.setWorkspaceIcon(await prepareIcon(file));
+    } catch (problem) {
+      refused = problem;
     }
+    if (!alive.current) return;
+    setBusy(null);
+    if (!refused) {
+      saved();
+      return;
+    }
+    setProblem(iconProblem(refused));
+    upload.current?.focus();
   }
 
   async function remove() {
     if (busy) return;
     setBusy("removing");
     setProblem(null);
-    try {
-      await client.removeWorkspaceIcon();
-      if (!alive.current) return;
-      saved();
-      // Remove goes with the icon, so focus stays on the section.
-      upload.current?.focus();
-    } catch (err) {
-      if (alive.current) setProblem(iconProblem(err));
-    } finally {
-      if (alive.current) setBusy(null);
+    const refused = await client.removeWorkspaceIcon();
+    if (!alive.current) return;
+    setBusy(null);
+    if (refused) {
+      setProblem(iconProblem(refused));
+      return;
     }
+    saved();
+    // Remove goes with the icon, so focus stays on the section.
+    upload.current?.focus();
   }
 
   return (
@@ -234,11 +237,10 @@ function IconSection() {
 }
 
 /** What went wrong renaming, said under the name. */
-function renameProblem(err: unknown): string {
-  if (err instanceof ApiError && err.code === "invalid_request")
+function renameProblem(err: ApiError): string {
+  if (err.code === "invalid_request")
     return `A workspace name has 1 to ${WORKSPACE_NAME_MAX} characters, without tabs or line breaks.`;
-  if (err instanceof ApiError && err.code === "admin_only")
-    return "Only the workspace's owner and admins can rename it.";
+  if (err.code === "admin_only") return "Only the workspace's owner and admins can rename it.";
   return "Could not rename the workspace. Check your connection and try again.";
 }
 
@@ -274,19 +276,17 @@ function NameSection() {
       return;
     }
     setBusy(true);
-    try {
-      const kept = await client.renameWorkspace(next);
-      if (!alive.current) return;
-      setDraft(kept);
-      setTyped(false);
-      saved();
-    } catch (err) {
-      if (!alive.current) return;
-      setProblem(renameProblem(err));
+    const kept = await client.renameWorkspace(next);
+    if (!alive.current) return;
+    setBusy(false);
+    if (kept instanceof ApiError) {
+      setProblem(renameProblem(kept));
       field.current?.focus();
-    } finally {
-      if (alive.current) setBusy(false);
+      return;
     }
+    setDraft(kept);
+    setTyped(false);
+    saved();
   }
 
   return (
@@ -335,19 +335,16 @@ function PreviewsSection() {
     const ticket = ++request.current;
     setChoosing(enabled);
     setError(null);
-    try {
-      await client.setLinkPreviews(enabled);
-      if (alive.current && ticket === request.current) saved();
-    } catch (err) {
-      if (!alive.current || ticket !== request.current) return;
+    const refused = await client.setLinkPreviews(enabled);
+    if (!alive.current || ticket !== request.current) return;
+    setChoosing(null);
+    if (!refused) saved();
+    else
       setError(
-        err instanceof ApiError && err.code === "admin_only"
+        refused.code === "admin_only"
           ? "Only the workspace's owner and admins can change link previews."
           : "Link previews were not changed. Check your connection and try again.",
       );
-    } finally {
-      if (alive.current && ticket === request.current) setChoosing(null);
-    }
   }
 
   return (
@@ -437,11 +434,8 @@ function CopySection() {
     if (!owner) return;
     let stop = false;
     void (async () => {
-      try {
-        if (!(await client.serverInfo()).workspaceCopies) return;
-      } catch {
-        return;
-      }
+      const info = await client.serverInfo();
+      if (info instanceof ApiError || !info.workspaceCopies) return;
       const copy = await client.admin.workspaceCopy();
       // One that fails is offered again next time the window opens; nothing here is urgent.
       if (stop || copy instanceof ApiError) return;
@@ -596,19 +590,16 @@ function JoiningSection({ hostedHere }: { hostedHere: boolean }) {
     const ticket = ++request.current;
     setChoosing(next);
     setError(null);
-    try {
-      await client.setAccessPolicy(next);
-      if (alive.current && ticket === request.current) saved();
-    } catch (err) {
-      if (!alive.current || ticket !== request.current) return;
+    const refused = await client.setAccessPolicy(next);
+    if (!alive.current || ticket !== request.current) return;
+    setChoosing(null);
+    if (!refused) saved();
+    else
       setError(
-        err instanceof ApiError && err.code === "admin_only"
+        refused.code === "admin_only"
           ? "Only the workspace's owner and admins can change who can join."
           : "Who can join was not changed. Check your connection and try again.",
       );
-    } finally {
-      if (alive.current && ticket === request.current) setChoosing(null);
-    }
   }
 
   return (

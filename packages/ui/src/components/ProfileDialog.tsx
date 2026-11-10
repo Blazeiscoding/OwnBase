@@ -82,17 +82,14 @@ export function ProfileDialog(props: {
     const mine = ++press.current;
     setOpening(true);
     setDmError(null);
-    try {
-      const channel = await client.openDm([userId]);
-      if (press.current === mine) props.onOpenDm(channel.id);
-    } catch {
-      if (press.current === mine)
-        setDmError(
-          `Could not open a conversation with ${name}. Check your connection and try again.`,
-        );
-    } finally {
-      if (press.current === mine) setOpening(false);
-    }
+    const channel = await client.openDm([userId]);
+    if (press.current !== mine) return;
+    setOpening(false);
+    if (channel instanceof ApiError)
+      setDmError(
+        `Could not open a conversation with ${name}. Check your connection and try again.`,
+      );
+    else props.onOpenDm(channel.id);
   }
 
   async function toggleBlock(userId: ID, name: string) {

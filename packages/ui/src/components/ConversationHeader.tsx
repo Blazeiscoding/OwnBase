@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import type { ID, Message, User } from "@ownbase/protocol";
-import { notificationBody, type WorkspaceClient } from "@ownbase/client-core";
+import { ApiError, notificationBody, type WorkspaceClient } from "@ownbase/client-core";
 import { useClient, useWorkspace } from "../context.js";
 import { Avatar } from "./Avatar.js";
 import { Icon } from "./Icon.js";
@@ -42,14 +42,12 @@ export function MemberStack(props: { channelId: ID; pressed: boolean; onToggle: 
   useEffect(() => {
     if (known || !online) return;
     let active = true;
-    client.channelMembers(props.channelId).then(
-      (r) => {
-        remembered(client).set(key, r.memberIds);
-        if (active) setAnswer({ key, ids: r.memberIds });
-      },
+    void client.channelMembers(props.channelId).then((ids) => {
       // The list it opens says what went wrong, and offers Retry.
-      () => undefined,
-    );
+      if (ids instanceof ApiError) return;
+      remembered(client).set(key, ids);
+      if (active) setAnswer({ key, ids });
+    });
     return () => {
       active = false;
     };
@@ -208,14 +206,12 @@ export function PinnedBar(props: { channelId: ID; open: boolean; onToggle: () =>
   useEffect(() => {
     if (!online) return;
     const controller = new AbortController();
-    client.lists.pinSummary(props.channelId, controller.signal).then(
-      (pins) => {
-        remembered(client).set(key, pins);
-        if (!controller.signal.aborted) setAnswer({ key, pins });
-      },
+    void client.lists.pinSummary(props.channelId, controller.signal).then((pins) => {
       // Nothing to show is the quiet answer; the menu still opens the panel.
-      () => undefined,
-    );
+      if (pins instanceof ApiError) return;
+      remembered(client).set(key, pins);
+      if (!controller.signal.aborted) setAnswer({ key, pins });
+    });
     return () => controller.abort();
   }, [client, props.channelId, key, changed, online]);
 

@@ -1,6 +1,6 @@
 import type { AppScope, CreateCommandBody, CreateSubscriptionBody, ID } from "@ownbase/protocol";
 import type { Api } from "./api.js";
-import { answerOf, doneOf } from "./optimisticWrites.js";
+import { answerOf, doneOf } from "./answers.js";
 
 /**
  * The workspace's apps and what each is given: tokens, webhooks, commands,

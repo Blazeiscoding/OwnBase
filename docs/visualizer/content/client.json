@@ -268,9 +268,20 @@
       "concepts": ["normalized cache", "reducer", "exhaustive switch", "untangle U3"]
     },
     {
+      "path": "packages/client-core/src/answers.ts",
+      "plain": "How every action that asks the server says how it went: the answer, or why there was none, which the screen words as a sentence.",
+      "summary": "failureOf, answerOf, doneOf, notConnected and refusalReason: every WorkspaceClient, AccountActions, AdminActions and AppActions call answers T | ApiError or ApiError | null instead of throwing.",
+      "details": [
+        "answerOf resolves with what the server answered or the ApiError saying why not; doneOf with null once it is done. A request this client stopped is `aborted`; no answer at all is `network_error`.",
+        "notConnected is this client's own refusal, before it has a session or snapshot to send with, so the screen does not tell the person to check a connection that is fine.",
+        "refusalReason words any ApiError as a sentence (the server's own words when it gave some), or null when nothing is known; the UI's failureText and a slash command that could not run both use it."
+      ],
+      "concepts": ["errors as values", "untangle round 1"]
+    },
+    {
       "path": "packages/client-core/src/optimisticWrites.ts",
       "plain": "Shows a choice such as a pin, a reaction or a notification setting at once, sends it, and puts things back if the server refuses, without an earlier failure undoing a later choice.",
-      "summary": "OptimisticWrites, keyed by a typed WriteKey; failureOf turns any failure into an ApiError.",
+      "summary": "OptimisticWrites, keyed by a typed WriteKey.",
       "details": [
         "Pins, saves, poll votes, reactions, link preview removals, Do Not Disturb, the default notification level, the order of sidebar sections, channel preferences, and thread follows, mutes and reads all go through write(key, change, spec).",
         "Per key one request is out at a time, so the server takes them in the order chosen. Changes made meanwhile wait, merged, and go as one request. What is shown is the server's last word with every change still out on top.",

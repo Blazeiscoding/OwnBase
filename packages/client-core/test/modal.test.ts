@@ -148,7 +148,7 @@ describe("app form ownership across real socket pushes and callbacks (N05)", () 
           ? JSON.stringify({ response_action: "errors", errors: { details: "App A's error" } })
           : "",
       );
-      expect((await submitting).ok).toBe(outcome === "success");
+      expect(await submitting).toMatchObject({ ok: outcome === "success" });
       expect(client.state.modal?.id).toBe(b.viewId);
       expect(await client.submitModal({ details: { value: "Words for B" } }, b.viewId)).toEqual({
         ok: true,

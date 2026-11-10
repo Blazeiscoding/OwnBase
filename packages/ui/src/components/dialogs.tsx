@@ -32,22 +32,22 @@ export function NewChannelDialog(props: { onClose: () => void; onCreated: (ch: C
     }
     setBusy(true);
     setError(null);
-    try {
-      const channel = await client.createChannel({
-        type: isPrivate ? "private" : "public",
-        name: slug,
-        ...(description.trim() ? { description: description.trim() } : {}),
-      });
+    const channel = await client.createChannel({
+      type: isPrivate ? "private" : "public",
+      name: slug,
+      ...(description.trim() ? { description: description.trim() } : {}),
+    });
+    if (!(channel instanceof ApiError)) {
       props.onCreated(channel);
-    } catch (err) {
-      setBusy(false);
-      setError(
-        err instanceof ApiError && err.code === "name_taken"
-          ? `#${slug} already exists. Choose another name.`
-          : "Couldn't create the channel. Check your connection and try again.",
-      );
-      nameInput.current?.focus();
+      return;
     }
+    setBusy(false);
+    setError(
+      channel.code === "name_taken"
+        ? `#${slug} already exists. Choose another name.`
+        : "Couldn't create the channel. Check your connection and try again.",
+    );
+    nameInput.current?.focus();
   }
 
   const choice = (value: boolean, icon: "hash" | "lock", title: string, hint: string) => (
@@ -307,10 +307,9 @@ export function BrowseChannelsDialog(props: { onClose: () => void; onOpen: (id: 
   const [counts, setCounts] = useState<Record<ID, number>>({});
   useEffect(() => {
     const controller = new AbortController();
-    client
-      .browseChannels(controller.signal)
-      .then((answer) => setCounts(answer.memberCounts ?? {}))
-      .catch(() => {});
+    void client.browseChannels(controller.signal).then((answer) => {
+      if (!(answer instanceof ApiError)) setCounts(answer.memberCounts);
+    });
     return () => controller.abort();
   }, [client]);
   // Active and archived are two lists, not one with more in it, so they are
@@ -348,13 +347,12 @@ export function BrowseChannelsDialog(props: { onClose: () => void; onOpen: (id: 
     if (joining) return;
     setJoining(channel.id);
     setError(null);
-    try {
-      await client.joinChannel(channel.id);
+    if (!(await client.joinChannel(channel.id))) {
       props.onOpen(channel.id);
-    } catch {
-      setError(`Could not join #${channel.name}. Check your connection and try again.`);
-      setJoining(null);
+      return;
     }
+    setError(`Could not join #${channel.name}. Check your connection and try again.`);
+    setJoining(null);
   }
 
   return (
@@ -510,20 +508,19 @@ export function NewDmDialog(props: {
     }
     setBusy(true);
     setError(null);
-    try {
-      const channel = await client.openDm(picked);
+    const channel = await client.openDm(picked);
+    setBusy(false);
+    if (!(channel instanceof ApiError)) {
       if (mounted.current) props.onOpen(channel.id);
-    } catch (err) {
-      // A refusal the server explained in words is said as it is; anything
-      // else (a code, a network error) in plain words.
-      setError(
-        err instanceof ApiError && err.message && /\s/.test(err.message)
-          ? err.message
-          : "Could not open the conversation. Check your connection and try again.",
-      );
-    } finally {
-      setBusy(false);
+      return;
     }
+    // A refusal the server explained in words is said as it is; anything
+    // else (a code, a network error) in plain words.
+    setError(
+      channel.status !== 0 && /\s/.test(channel.message)
+        ? channel.message
+        : "Could not open the conversation. Check your connection and try again.",
+    );
   }
 
   const search = useRef<HTMLInputElement>(null);

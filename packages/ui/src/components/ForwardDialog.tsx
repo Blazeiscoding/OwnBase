@@ -1,6 +1,6 @@
 import { useId, useRef, useState, type FormEvent } from "react";
 import { MESSAGE_TEXT_MAX, type ID } from "@ownbase/protocol";
-import { blockedPartner, forwardOf, type ForwardSource } from "@ownbase/client-core";
+import { ApiError, blockedPartner, forwardOf, type ForwardSource } from "@ownbase/client-core";
 import { useClient, useWorkspace } from "../context.js";
 import { matchTier } from "../lib/switcherRank.js";
 import { useListbox } from "../lib/useListbox.js";
@@ -105,14 +105,13 @@ export function ForwardDialog({ source, onClose }: { source: ForwardSource; onCl
     let channelId = target.channelId;
     if (!channelId) {
       setSending(true);
-      try {
-        channelId = (await client.openDm([target.userId!])).id;
-      } catch {
-        setSending(false);
+      const dm = await client.openDm([target.userId!]);
+      setSending(false);
+      if (dm instanceof ApiError) {
         setProblem(`Could not start a conversation with ${target.label}. Try again.`);
         return;
       }
-      setSending(false);
+      channelId = dm.id;
     }
     const sent = client.send(channelId, comment.trim(), {
       forward: forwardOf(source, channelId, fromPublic),

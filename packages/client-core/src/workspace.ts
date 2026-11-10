@@ -65,7 +65,8 @@ import {
   type MessageCache,
   type MessageEvent,
 } from "./messageCache.js";
-import { OptimisticWrites, failureOf, type WriteSpec } from "./optimisticWrites.js";
+import { answerOf, doneOf, failureOf, notConnected, refusalReason } from "./answers.js";
+import { OptimisticWrites, type WriteSpec } from "./optimisticWrites.js";
 import { pollChoicesKey, pollChoicesOfKey, serverPollChoices, type PollDraft } from "./polls.js";
 import type {
   CallLogLine,
@@ -182,14 +183,6 @@ function isRefusal(error: unknown): boolean {
     error.status < 500 &&
     ![401, 408, 429].includes(error.status)
   );
-}
-
-/** Why a slash command did not run, as a sentence: the server's words when it gave some. */
-function commandFailure(err: unknown): string {
-  if (!(err instanceof ApiError)) return "The workspace did not answer. Check your connection.";
-  const text = err.message && err.message !== err.code && /\s/.test(err.message) ? err.message : "";
-  if (!text) return "The workspace turned it down.";
-  return text.charAt(0).toUpperCase() + text.slice(1) + (/[.!?]$/.test(text) ? "" : ".");
 }
 
 function sendFailureReason(error: unknown): string {
@@ -1646,15 +1639,15 @@ export class WorkspaceClient {
   async submitModal(
     values: Record<string, Record<string, string | string[]>>,
     viewId = this.state.modal?.id,
-  ): Promise<ViewSubmitted> {
+  ): Promise<ViewSubmitted | ApiError> {
     const modal = this.state.modal;
     if (!modal || modal.id !== viewId)
       return { ok: false, errors: {}, message: "This form is no longer available." };
-    const result = await this.api.submitView(modal.id, values);
+    const result = await answerOf(() => this.api.submitView(modal.id, values));
     // The server names what closed: none when the app changed the form or
     // stacked another on it. Only ever closing keeps a late answer from
     // reopening one.
-    if (result.ok) this.forgetModals(result.closedViewIds);
+    if (!(result instanceof ApiError) && result.ok) this.forgetModals(result.closedViewIds);
     return result;
   }
 
@@ -2544,7 +2537,7 @@ export class WorkspaceClient {
    */
   toggleReaction(message: Message, emoji: string): Promise<ApiError | null> {
     const selfId = this.state.self?.id;
-    if (!selfId) return Promise.resolve(failureOf(new Error("Not signed in.")));
+    if (!selfId) return Promise.resolve(notConnected());
     const mine = (m: Message) =>
       m.reactions.some((g) => g.emoji === emoji && g.userIds.includes(selfId));
     return this.writes.write(
@@ -2601,18 +2594,15 @@ export class WorkspaceClient {
   }
 
   /** Its author closes a poll for good. Resolves with the server's refusal, or null. */
-  async closePoll(message: Message): Promise<ApiError | null> {
-    try {
+  closePoll(message: Message): Promise<ApiError | null> {
+    return doneOf(async () => {
       const { message: closed } = await this.api.closePoll(message.id);
       const closedAt = closed.poll?.closedAt ?? null;
       // Only that it closed: the counts are whatever was last heard.
       this.showOnMessage(message.id, (m) =>
         m.poll && m.poll.closedAt === null ? { ...m, poll: { ...m.poll, closedAt } } : m,
       );
-      return null;
-    } catch (error) {
-      return failureOf(error);
-    }
+    });
   }
 
   /** What the server has as this account's choices in a poll, from what is held of it. */
@@ -2787,14 +2777,11 @@ export class WorkspaceClient {
    * Sets a reminder about a message, or moves the one there, once the server
    * has it. Resolves with its refusal, such as for a time already past, or null.
    */
-  async setReminder(messageId: ID, at: number): Promise<ApiError | null> {
-    try {
+  setReminder(messageId: ID, at: number): Promise<ApiError | null> {
+    return doneOf(async () => {
       const { reminder } = await this.api.setReminder(messageId, at);
       this.store.setState((s) => ({ reminders: { ...s.reminders, [messageId]: reminder } }));
-      return null;
-    } catch (error) {
-      return failureOf(error);
-    }
+    });
   }
 
   /** Removes a reminder, done or cancelled. One already gone counts as removed. */
@@ -2904,27 +2891,31 @@ export class WorkspaceClient {
    * Renames the workspace, for its owner and admins, and shows the name the
    * server kept as soon as it answers, rather than when its event arrives.
    */
-  async renameWorkspace(name: string): Promise<string> {
-    const { workspaceName } = await this.api.renameWorkspace(name);
-    if (!this.stopped) this.store.setState({ workspaceName });
-    return workspaceName;
+  renameWorkspace(name: string): Promise<string | ApiError> {
+    return answerOf(async () => {
+      const { workspaceName } = await this.api.renameWorkspace(name);
+      if (!this.stopped) this.store.setState({ workspaceName });
+      return workspaceName;
+    });
   }
 
   /**
    * Changes who may join, for its owner and admins, and shows what the server
    * kept as soon as it answers. Leaving guests allowed signs every guest out.
    */
-  async setAccessPolicy(policy: AccessPolicy): Promise<AccessPolicy> {
-    const { accessPolicy } = await this.api.setAccessPolicy(policy);
-    if (!this.stopped) this.store.setState({ accessPolicy });
-    return accessPolicy;
+  setAccessPolicy(policy: AccessPolicy): Promise<ApiError | null> {
+    return doneOf(async () => {
+      const { accessPolicy } = await this.api.setAccessPolicy(policy);
+      if (!this.stopped) this.store.setState({ accessPolicy });
+    });
   }
 
   /** Turns link previews on or off, for its owner and admins, and shows the answer at once. */
-  async setLinkPreviews(enabled: boolean): Promise<boolean> {
-    const answer = await this.api.setLinkPreviews(enabled);
-    if (!this.stopped) this.store.setState({ linkPreviews: answer.enabled });
-    return answer.enabled;
+  setLinkPreviews(enabled: boolean): Promise<ApiError | null> {
+    return doneOf(async () => {
+      const answer = await this.api.setLinkPreviews(enabled);
+      if (!this.stopped) this.store.setState({ linkPreviews: answer.enabled });
+    });
   }
 
   /**
@@ -2953,47 +2944,36 @@ export class WorkspaceClient {
    * Sets the workspace's icon, for its owner and admins, and shows the new
    * one as soon as the server keeps it, rather than when its event arrives.
    */
-  async setWorkspaceIcon(image: Blob): Promise<string> {
-    const { iconVersion } = await this.api.setWorkspaceIcon(image);
-    if (!this.stopped) this.store.setState({ iconVersion });
-    return iconVersion;
+  setWorkspaceIcon(image: Blob): Promise<ApiError | null> {
+    return doneOf(async () => {
+      const { iconVersion } = await this.api.setWorkspaceIcon(image);
+      if (!this.stopped) this.store.setState({ iconVersion });
+    });
   }
 
   /**
    * Adds a section to this account's sidebar, last, and gives it once the
    * server has it; the refusal instead, such as at the limit (E8).
    */
-  async createSidebarSection(name: string): Promise<SidebarSection | ApiError> {
-    try {
+  createSidebarSection(name: string): Promise<SidebarSection | ApiError> {
+    return answerOf(async () => {
       const { section, sections } = await this.api.createSidebarSection(name);
       this.keepSections(sections);
       return section;
-    } catch (error) {
-      return failureOf(error);
-    }
+    });
   }
 
-  /** Renames one of this account's sections; resolves with the server's refusal, or null. */
-  async renameSidebarSection(id: ID, name: string): Promise<ApiError | null> {
-    try {
-      this.keepSections((await this.api.renameSidebarSection(id, name)).sections);
-      return null;
-    } catch (error) {
-      return failureOf(error);
-    }
+  renameSidebarSection(id: ID, name: string): Promise<ApiError | null> {
+    return doneOf(async () =>
+      this.keepSections((await this.api.renameSidebarSection(id, name)).sections),
+    );
   }
 
-  /**
-   * Deletes one of this account's sections; its conversations go back where
-   * they would be. Resolves with the server's refusal, or null.
-   */
-  async deleteSidebarSection(id: ID): Promise<ApiError | null> {
-    try {
-      this.keepSections((await this.api.deleteSidebarSection(id)).sections);
-      return null;
-    } catch (error) {
-      return failureOf(error);
-    }
+  /** Deletes one of this account's sections; its conversations go back where they would be. */
+  deleteSidebarSection(id: ID): Promise<ApiError | null> {
+    return doneOf(async () =>
+      this.keepSections((await this.api.deleteSidebarSection(id)).sections),
+    );
   }
 
   /**
@@ -3020,9 +3000,11 @@ export class WorkspaceClient {
   }
 
   /** Removes the workspace's icon, for its owner and admins, at once here too. */
-  async removeWorkspaceIcon(): Promise<void> {
-    await this.api.removeWorkspaceIcon();
-    if (!this.stopped) this.store.setState({ iconVersion: null });
+  removeWorkspaceIcon(): Promise<ApiError | null> {
+    return doneOf(async () => {
+      await this.api.removeWorkspaceIcon();
+      if (!this.stopped) this.store.setState({ iconVersion: null });
+    });
   }
 
   /**
@@ -3083,7 +3065,7 @@ export class WorkspaceClient {
    * now is.
    */
   snoozeNotificationsUntil(dndUntil: number | null): Promise<ApiError | null> {
-    if (!this.state.self) return Promise.resolve(failureOf(new Error("Not signed in.")));
+    if (!this.state.self) return Promise.resolve(notConnected());
     return this.writes.write({ kind: "dnd" }, dndUntil, {
       read: () => this.state.self?.dndUntil ?? null,
       show: (until) =>
@@ -3616,7 +3598,7 @@ export class WorkspaceClient {
       const message =
         err instanceof ApiError && err.code === "unknown_command"
           ? `\`/${name}\` is not a command here.`
-          : `\`/${name}\` could not run. ${commandFailure(err)}`;
+          : `\`/${name}\` could not run. ${refusalReason(failureOf(err)) ?? "The workspace turned it down."}`;
       this.addEphemeral({
         id: `local-${Date.now()}-${++this.nonceCounter}`,
         channelId,
@@ -3680,16 +3662,13 @@ export class WorkspaceClient {
    * server's refusal, or null. The list is kept from the answer, before the
    * socket says it.
    */
-  async setBlocked(userId: ID, blocked: boolean): Promise<ApiError | null> {
-    try {
+  setBlocked(userId: ID, blocked: boolean): Promise<ApiError | null> {
+    return doneOf(async () => {
       const result = blocked
         ? await this.api.blockUser(userId)
         : await this.api.unblockUser(userId);
       if (!this.stopped) this.store.setState({ blocked: result.blocked });
-      return null;
-    } catch (error) {
-      return failureOf(error);
-    }
+    });
   }
 
   /**
@@ -3697,8 +3676,7 @@ export class WorkspaceClient {
    * shown at once; put back when the server refused, resolving with why.
    */
   setNotifyDefault(level: NotifyLevel): Promise<ApiError | null> {
-    if (this.state.notifyDefault === null)
-      return Promise.resolve(failureOf(new Error("Not connected yet.")));
+    if (this.state.notifyDefault === null) return Promise.resolve(notConnected());
     return this.writes.write<NotifyLevel | null>({ kind: "notifyDefault" }, level, {
       read: () => this.state.notifyDefault,
       show: (notifyDefault) => this.store.setState({ notifyDefault }),
@@ -3706,14 +3684,8 @@ export class WorkspaceClient {
     });
   }
 
-  /** Changes this account's own profile; resolves with the server's refusal, or null. */
-  private async changeSelf(request: () => Promise<{ user: User }>): Promise<ApiError | null> {
-    try {
-      this.keepUser((await request()).user);
-      return null;
-    } catch (error) {
-      return failureOf(error);
-    }
+  private changeSelf(request: () => Promise<{ user: User }>): Promise<ApiError | null> {
+    return doneOf(async () => this.keepUser((await request()).user));
   }
 
   /** Away by hand, until set back (E9). */
@@ -3765,18 +3737,11 @@ export class WorkspaceClient {
     return this.changeSelf(() => this.api.updateMe(body));
   }
 
-  /** Asks, accepts or ends a friendship; resolves with the server's refusal, or null. */
-  async setFriendship(
-    userId: ID,
-    action: "request" | "accept" | "remove",
-  ): Promise<ApiError | null> {
-    try {
+  setFriendship(userId: ID, action: "request" | "accept" | "remove"): Promise<ApiError | null> {
+    return doneOf(async () => {
       const { friends } = await this.api.updateFriend(userId, action);
       if (!this.stopped) this.store.setState({ friends });
-      return null;
-    } catch (error) {
-      return failureOf(error);
-    }
+    });
   }
 
   private signingOut = false;
@@ -3786,14 +3751,11 @@ export class WorkspaceClient {
    * sign-in that ended, often before the answer arrives; `signedOutOnPurpose`
    * tells the two apart.
    */
-  async signOut(): Promise<void> {
+  async signOut(): Promise<ApiError | null> {
     this.signingOut = true;
-    try {
-      await this.api.logout();
-    } catch (error) {
-      this.signingOut = false;
-      throw error;
-    }
+    const refused = await doneOf(() => this.api.logout());
+    if (refused) this.signingOut = false;
+    return refused;
   }
 
   get signedOutOnPurpose(): boolean {
@@ -3801,7 +3763,7 @@ export class WorkspaceClient {
   }
 
   serverInfo() {
-    return this.api.serverInfo();
+    return answerOf(() => this.api.serverInfo());
   }
 
   private fileLimit: Promise<number | null> | null = null;
@@ -3822,31 +3784,31 @@ export class WorkspaceClient {
   }
 
   search(q: string, limit?: number, opts?: { cursor?: ID; channelId?: ID; signal?: AbortSignal }) {
-    return this.api.search(q, limit, opts);
+    return answerOf(() => this.api.search(q, limit, opts));
   }
 
   /** One message, for the card under a link to it; a 404 when it is gone or not readable. */
   getMessage(channelId: ID, messageId: ID, signal?: AbortSignal) {
-    return this.api.getMessage(channelId, messageId, signal);
+    return answerOf(async () => (await this.api.getMessage(channelId, messageId, signal)).message);
   }
 
   /** Refused as `message_changed` if the words are no longer `expectedText`. */
   editMessage(messageId: ID, text: string, expectedText: string) {
-    return this.api.editMessage(messageId, text, expectedText);
+    return doneOf(() => this.api.editMessage(messageId, text, expectedText));
   }
 
   deleteMessage(messageId: ID) {
-    return this.api.deleteMessage(messageId);
+    return doneOf(() => this.api.deleteMessage(messageId));
   }
 
   /** Presses a button an app put on a message. */
   runMessageAction(messageId: ID, actionId: string) {
-    return this.api.runMessageAction(messageId, actionId);
+    return answerOf(() => this.api.runMessageAction(messageId, actionId));
   }
 
   /** Reports a message to the workspace's admins (E12), with why and anything to add. */
   reportMessage(messageId: ID, reason: ReportReason, note?: string) {
-    return this.api.reportMessage(messageId, reason, note);
+    return doneOf(() => this.api.reportMessage(messageId, reason, note));
   }
 
   /** Uploads one file to a channel; attach the returned id to a message. */
@@ -3865,55 +3827,55 @@ export class WorkspaceClient {
 
   /** An address that downloads the file once, within a minute, by a browser's navigation. */
   downloadUrl(fileId: ID) {
-    return this.api.downloadUrl(fileId);
+    return answerOf(() => this.api.downloadUrl(fileId));
   }
 
   reminders(signal?: AbortSignal) {
-    return this.api.listReminders(signal);
+    return answerOf(async () => (await this.api.listReminders(signal)).reminders);
   }
 
   latestDirectMessages(signal?: AbortSignal) {
-    return this.api.latestDirectMessages(signal);
+    return answerOf(() => this.api.latestDirectMessages(signal));
   }
 
   /** Every channel this account can see, with how many active people each room holds. */
   browseChannels(signal?: AbortSignal) {
-    return this.api.listChannels(signal);
+    return answerOf(() => this.api.listChannels(signal));
   }
 
   updateChannel(channelId: ID, body: UpdateChannelBody) {
-    return this.api.updateChannel(channelId, body);
+    return doneOf(() => this.api.updateChannel(channelId, body));
   }
 
   joinChannel(channelId: ID) {
-    return this.api.joinChannel(channelId);
+    return doneOf(() => this.api.joinChannel(channelId));
   }
 
   leaveChannel(channelId: ID) {
-    return this.api.leaveChannel(channelId);
+    return doneOf(() => this.api.leaveChannel(channelId));
   }
 
   channelMembers(channelId: ID) {
-    return this.api.channelMembers(channelId);
+    return answerOf(async () => (await this.api.channelMembers(channelId)).memberIds);
   }
 
   addToChannel(channelId: ID, userId: ID) {
-    return this.api.inviteMember(channelId, userId);
+    return doneOf(() => this.api.inviteMember(channelId, userId));
   }
 
   removeFromChannel(channelId: ID, userId: ID) {
-    return this.api.removeChannelMember(channelId, userId);
+    return doneOf(() => this.api.removeChannelMember(channelId, userId));
   }
 
   setChannelManager(channelId: ID, userId: ID, manager: boolean) {
-    return this.api.setChannelManager(channelId, userId, manager);
+    return doneOf(() => this.api.setChannelManager(channelId, userId, manager));
   }
 
   sendTyping(channelId: ID): void {
     this.sendSocket({ type: "typing", channelId });
   }
 
-  openDm(userIds: ID[]): Promise<Channel> {
+  openDm(userIds: ID[]): Promise<Channel | ApiError> {
     return this.createChannel({
       type: userIds.length === 1 ? "dm" : "group_dm",
       memberIds: userIds,
@@ -3921,16 +3883,20 @@ export class WorkspaceClient {
   }
 
   /** Makes a conversation this account is in, shown at once rather than when its event comes. */
-  async createChannel(body: CreateChannelBody): Promise<Channel> {
-    const { channel } = await this.api.createChannel(body);
-    if (this.stopped) return channel;
-    this.store.setState((s) => ({
-      channels: { ...s.channels, [channel.id]: channel },
-      memberships: { ...s.memberships, [channel.id]: s.memberships[channel.id] ?? 0 },
-      repliesRead:
-        channel.id in s.memberships ? s.repliesRead : joined(s.repliesRead, channel.id, s.lastSeq),
-    }));
-    return channel;
+  createChannel(body: CreateChannelBody): Promise<Channel | ApiError> {
+    return answerOf(async () => {
+      const { channel } = await this.api.createChannel(body);
+      if (this.stopped) return channel;
+      this.store.setState((s) => ({
+        channels: { ...s.channels, [channel.id]: channel },
+        memberships: { ...s.memberships, [channel.id]: s.memberships[channel.id] ?? 0 },
+        repliesRead:
+          channel.id in s.memberships
+            ? s.repliesRead
+            : joined(s.repliesRead, channel.id, s.lastSeq),
+      }));
+      return channel;
+    });
   }
 }
 

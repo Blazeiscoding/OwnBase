@@ -256,13 +256,11 @@ function useLatestDirectMessages(active: boolean): Record<ID, Message> {
     const controller = new AbortController();
     const timer = setTimeout(
       () => {
-        client
-          .latestDirectMessages(controller.signal)
-          .then(({ messages }) => {
-            read.current = true;
-            setLatest(Object.fromEntries(messages.map((m) => [m.channelId, m])));
-          })
-          .catch(() => {});
+        void client.latestDirectMessages(controller.signal).then((answer) => {
+          if (answer instanceof ApiError) return;
+          read.current = true;
+          setLatest(Object.fromEntries(answer.messages.map((m) => [m.channelId, m])));
+        });
       },
       read.current ? LATEST_DELAY_MS : 0,
     );

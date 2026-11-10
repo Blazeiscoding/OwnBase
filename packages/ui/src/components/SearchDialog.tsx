@@ -319,37 +319,37 @@ export function SearchDialog(props: {
       }
       const known = client.state.changedContent;
       const question = keyOf(asked);
-      try {
-        const found = await client.search(asked.query, PAGE_SIZE, {
-          cursor,
-          channelId: asked.channelId,
-          signal,
-        });
-        if (signal.aborted) return { items: [], nextCursor: null };
-        // Measured against what was known when this was asked: a change that
-        // arrived while it was out may not be in the answer, and asks once more.
-        const latest = latestChange(found.messages, known);
-        heard.current = cursor ? Math.max(heard.current, latest) : latest;
-        if (!cursor) {
-          answered.current = question;
-          setShownQuery(asked.query);
-          setSearchError(null);
-          // Only a search someone settled on is kept, not each one typed on the way.
-          if (committed.current === question) {
-            committed.current = null;
-            recent.remember(asked);
-          }
-        }
-        return { items: found.messages, nextCursor: found.nextCursor };
-      } catch (err) {
-        if (!signal.aborted && !cursor)
+      const found = await client.search(asked.query, PAGE_SIZE, {
+        cursor,
+        channelId: asked.channelId,
+        signal,
+      });
+      if (signal.aborted) return { items: [], nextCursor: null };
+      if (found instanceof ApiError) {
+        if (!cursor)
           setSearchError(
-            err instanceof ApiError && err.code === "invalid_search_date"
-              ? err.message
+            found.code === "invalid_search_date"
+              ? found.message
               : "Could not search this workspace. Check your connection and try again.",
           );
-        throw err;
+        // A paged list keeps what it showed and offers Retry when a page fails.
+        throw found;
       }
+      // Measured against what was known when this was asked: a change that
+      // arrived while it was out may not be in the answer, and asks once more.
+      const latest = latestChange(found.messages, known);
+      heard.current = cursor ? Math.max(heard.current, latest) : latest;
+      if (!cursor) {
+        answered.current = question;
+        setShownQuery(asked.query);
+        setSearchError(null);
+        // Only a search someone settled on is kept, not each one typed on the way.
+        if (committed.current === question) {
+          committed.current = null;
+          recent.remember(asked);
+        }
+      }
+      return { items: found.messages, nextCursor: found.nextCursor };
     },
     askedKey,
     // The answer to the last question stays on show until the next one's comes.

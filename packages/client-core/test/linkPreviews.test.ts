@@ -120,7 +120,7 @@ describe("link previews on the client", () => {
     expect(after.changedContent[general.id]).toBe(changedBefore);
 
     // Alice is the workspace's owner: the first to register.
-    expect(await client.setLinkPreviews(false)).toBe(false);
+    expect(await client.setLinkPreviews(false)).toBeNull();
     expect(client.state.linkPreviews).toBe(false);
     const other = await online(bobToken);
     await until(other.client, (s) => s.linkPreviews === false, "the setting reaching Bob");

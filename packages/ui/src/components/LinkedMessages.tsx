@@ -120,13 +120,10 @@ function useLinkedMessage({ channelId, messageId }: LinkedMessage): Message | nu
   useEffect(() => {
     if (held || !readable) return;
     let live = true;
-    askFor(client, channelId, messageId, changed).then(
-      (message) => {
-        if (live) setAsked({ id: messageId, message });
-      },
+    void askFor(client, channelId, messageId, changed).then((message) => {
       // Not heard, as when offline: what was shown stays.
-      () => {},
-    );
+      if (live && message !== undefined) setAsked({ id: messageId, message });
+    });
     return () => {
       live = false;
     };
@@ -141,32 +138,30 @@ function useLinkedMessage({ channelId, messageId }: LinkedMessage): Message | nu
 /** Answers per client and message, kept until its conversation changes again. */
 const answers = new WeakMap<
   WorkspaceClient,
-  Map<ID, { changed: number; answer: Promise<Message | null> }>
+  Map<ID, { changed: number; answer: Promise<Message | null | undefined> }>
 >();
 
 /**
  * Asks the server for one message, once for each change of its conversation
  * however many cards show it. Gone or unreadable is an answer, null; anything
- * else, such as being offline, fails and is asked again the next time.
+ * else, such as being offline, is undefined and asked again the next time.
  */
 function askFor(
   client: WorkspaceClient,
   channelId: ID,
   messageId: ID,
   changed: number,
-): Promise<Message | null> {
+): Promise<Message | null | undefined> {
   let known = answers.get(client);
   if (!known) answers.set(client, (known = new Map()));
   const held = known.get(messageId);
   if (held && held.changed === changed) return held.answer;
-  const answer: Promise<Message | null> = client.getMessage(channelId, messageId).then(
-    ({ message }) => (message.channelId === channelId ? message : null),
-    (error: unknown) => {
-      if (error instanceof ApiError && error.status === 404) return null;
-      if (known.get(messageId)?.answer === answer) known.delete(messageId);
-      throw error;
-    },
-  );
+  const answer = client.getMessage(channelId, messageId).then((message) => {
+    if (!(message instanceof ApiError)) return message.channelId === channelId ? message : null;
+    if (message.status === 404) return null;
+    if (known.get(messageId)?.answer === answer) known.delete(messageId);
+    return undefined;
+  });
   known.set(messageId, { changed, answer });
   return answer;
 }

@@ -52,90 +52,79 @@ export async function runAppCommand(
   if (ROOM_ONLY.has(name) && !room)
     return { ok: false, said: `/${name} works in channels, not in direct messages.` };
   const offline = "Check your connection and try again.";
-  try {
-    switch (name) {
-      case "away":
-      case "active": {
-        const away = name === "away";
-        const error = await client.setAway(away);
-        if (error) return { ok: false, said: failureText("Your presence was not changed.", error) };
-        return { ok: true, said: away ? "You are shown as away." : "You are shown as active." };
-      }
-      case "status": {
-        if (!args)
-          return { ok: false, said: "Say what you're doing after /status, or /status clear." };
-        if (args.toLowerCase() === "clear") {
-          const error = await client.updateProfile({
-            statusEmoji: "",
-            statusText: "",
-            statusExpiresAt: null,
-          });
-          if (error) return { ok: false, said: `/status did not go through. ${offline}` };
-          return { ok: true, said: "Your status was cleared." };
-        }
-        const first = firstGrapheme(args);
-        const emoji = /\p{Extended_Pictographic}/u.test(first) ? first : "";
-        const words = (emoji ? args.slice(first.length) : args).trim();
-        if (words.length > 120) return { ok: false, said: "A status can be up to 120 characters." };
+  switch (name) {
+    case "away":
+    case "active": {
+      const away = name === "away";
+      const error = await client.setAway(away);
+      if (error) return { ok: false, said: failureText("Your presence was not changed.", error) };
+      return { ok: true, said: away ? "You are shown as away." : "You are shown as active." };
+    }
+    case "status": {
+      if (!args)
+        return { ok: false, said: "Say what you're doing after /status, or /status clear." };
+      if (args.toLowerCase() === "clear") {
         const error = await client.updateProfile({
-          statusEmoji: emoji,
-          statusText: words,
+          statusEmoji: "",
+          statusText: "",
           statusExpiresAt: null,
         });
         if (error) return { ok: false, said: `/status did not go through. ${offline}` };
-        return { ok: true, said: `Your status is now ${`${emoji} ${words}`.trim()}.` };
+        return { ok: true, said: "Your status was cleared." };
       }
-      case "topic": {
-        if (!args) return { ok: false, said: "Write the new topic after /topic." };
-        if (args.length > 250) return { ok: false, said: "A topic can be up to 250 characters." };
-        await client.updateChannel(channelId, { topic: args });
-        return { ok: true, said: `Topic of ${where} set.` };
-      }
-      case "invite": {
-        const ids = [...userMentionsIn(args)];
-        if (ids.length === 0)
-          return { ok: false, said: "Mention the people to add after /invite, as /invite @Sam." };
-        const added: string[] = [];
-        const missed: string[] = [];
-        for (const id of ids) {
-          const person = state.users[id]?.displayName ?? "someone";
-          try {
-            await client.addToChannel(channelId, id);
-            added.push(person);
-          } catch {
-            missed.push(person);
-          }
-        }
-        if (missed.length)
-          return {
-            ok: false,
-            said: `${added.length ? `Added ${added.join(", ")}. ` : ""}Could not add ${missed.join(", ")} to ${where}.`,
-          };
-        return { ok: true, said: `Added ${added.join(", ")} to ${where}.` };
-      }
-      case "leave": {
-        await client.leaveChannel(channelId);
-        return { ok: true, said: `You left ${where}.` };
-      }
-      case "mute":
-      case "unmute": {
-        client.setChannelPrefs(channelId, { muted: name === "mute" });
-        return {
-          ok: true,
-          said: name === "mute" ? `${cap(where)} is muted.` : `${cap(where)} is no longer muted.`,
-        };
-      }
+      const first = firstGrapheme(args);
+      const emoji = /\p{Extended_Pictographic}/u.test(first) ? first : "";
+      const words = (emoji ? args.slice(first.length) : args).trim();
+      if (words.length > 120) return { ok: false, said: "A status can be up to 120 characters." };
+      const error = await client.updateProfile({
+        statusEmoji: emoji,
+        statusText: words,
+        statusExpiresAt: null,
+      });
+      if (error) return { ok: false, said: `/status did not go through. ${offline}` };
+      return { ok: true, said: `Your status is now ${`${emoji} ${words}`.trim()}.` };
     }
-  } catch {
-    return {
-      ok: false,
-      said:
-        name === "topic"
-          ? `The topic was not changed. Only someone who can manage ${where} can set it, or the connection is down.`
-          : name === "leave"
-            ? `You are still in ${where}. ${offline}`
-            : `/${name} did not go through. ${offline}`,
-    };
+    case "topic": {
+      if (!args) return { ok: false, said: "Write the new topic after /topic." };
+      if (args.length > 250) return { ok: false, said: "A topic can be up to 250 characters." };
+      if (await client.updateChannel(channelId, { topic: args }))
+        return {
+          ok: false,
+          said: `The topic was not changed. Only someone who can manage ${where} can set it, or the connection is down.`,
+        };
+      return { ok: true, said: `Topic of ${where} set.` };
+    }
+    case "invite": {
+      const ids = [...userMentionsIn(args)];
+      if (ids.length === 0)
+        return { ok: false, said: "Mention the people to add after /invite, as /invite @Sam." };
+      const added: string[] = [];
+      const missed: string[] = [];
+      for (const id of ids) {
+        const person = state.users[id]?.displayName ?? "someone";
+        if (await client.addToChannel(channelId, id)) missed.push(person);
+        else added.push(person);
+      }
+      if (missed.length)
+        return {
+          ok: false,
+          said: `${added.length ? `Added ${added.join(", ")}. ` : ""}Could not add ${missed.join(", ")} to ${where}.`,
+        };
+      return { ok: true, said: `Added ${added.join(", ")} to ${where}.` };
+    }
+    case "leave": {
+      if (await client.leaveChannel(channelId))
+        return { ok: false, said: `You are still in ${where}. ${offline}` };
+      return { ok: true, said: `You left ${where}.` };
+    }
+    case "mute":
+    case "unmute": {
+      client.setChannelPrefs(channelId, { muted: name === "mute" });
+      return {
+        ok: true,
+        said: name === "mute" ? `${cap(where)} is muted.` : `${cap(where)} is no longer muted.`,
+      };
+    }
   }
   return { ok: false, said: `/${name} is not a command here.` };
 }

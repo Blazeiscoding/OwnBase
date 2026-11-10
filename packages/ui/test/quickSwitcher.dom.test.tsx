@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 import { act, cleanup, screen, within } from "@testing-library/react";
 import { render } from "./render.js";
 import userEvent from "@testing-library/user-event";
-import { WorkspaceClient } from "@ownbase/client-core";
+import { ApiError, WorkspaceClient } from "@ownbase/client-core";
 import type { Channel, User } from "@ownbase/protocol";
 import { ClientContext } from "../src/context.js";
 import { accessibilityProblems } from "./accessibility.js";
@@ -221,7 +221,7 @@ describe("jumping to a conversation", () => {
   it("keeps what was typed when a new conversation cannot start, and tries again", async () => {
     const user = userEvent.setup();
     const { onOpen, openDm } = switcherWith();
-    openDm.mockRejectedValueOnce(new Error("offline"));
+    openDm.mockResolvedValueOnce(new ApiError(0, "network_error"));
     const input = screen.getByPlaceholderText("Channel or person");
     await user.type(input, "pri");
     await user.click(screen.getByRole("option", { name: "Priya Natarajan, person" }));

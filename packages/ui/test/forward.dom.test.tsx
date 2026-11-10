@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import { fireEvent, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { WorkspaceClient } from "@ownbase/client-core";
+import { ApiError, WorkspaceClient } from "@ownbase/client-core";
 import type { Channel, ForwardReference, Message, User } from "@ownbase/protocol";
 import { ClientContext, OpenMessageContext } from "../src/context.js";
 import { MessageItem } from "../src/components/MessageItem.js";
@@ -179,7 +179,7 @@ describe("forwarding a message", () => {
 
   it("says so when the conversation with someone cannot be started", async () => {
     const { client, send, user } = shown(message());
-    vi.spyOn(client, "openDm").mockRejectedValue(new Error("offline"));
+    vi.spyOn(client, "openDm").mockResolvedValue(new ApiError(0, "network_error"));
     const dialog = await openForward(user);
     await user.type(within(dialog).getByRole("combobox", { name: "Forward to" }), "Priya");
     await user.keyboard("{Enter}");

@@ -1,6 +1,6 @@
 import type { ID, SignInConnection, SignInMethod } from "@ownbase/protocol";
 import { ApiError, type Api } from "./api.js";
-import { answerOf, doneOf } from "./optimisticWrites.js";
+import { answerOf, doneOf } from "./answers.js";
 
 /** Where the server may send a browser to link a way of signing in (P9). */
 const LINK = /^\/api\/[A-Za-z0-9/_-]+(\?[A-Za-z0-9=&_-]*)?$/;

@@ -1,6 +1,6 @@
 import type { CreateInviteBody, ID, ReportResolution, User } from "@ownbase/protocol";
 import type { Api } from "./api.js";
-import { answerOf, doneOf } from "./optimisticWrites.js";
+import { answerOf, doneOf } from "./answers.js";
 
 /**
  * Looking after the workspace: its people, reports, invites, history of
