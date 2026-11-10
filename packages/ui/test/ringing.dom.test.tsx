@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { act, cleanup, render, screen, within } from "@testing-library/react";
+import { act, cleanup, screen, within } from "@testing-library/react";
+import { render } from "./render.js";
 import userEvent from "@testing-library/user-event";
 import { WorkspaceClient, type HuddleState } from "@ownbase/client-core";
 import type { Channel, HuddleRing, Message, User } from "@ownbase/protocol";
@@ -16,11 +17,18 @@ import { ringContent } from "../src/lib/notificationPreview.js";
 import { accessibilityProblems } from "./accessibility.js";
 
 const joinHuddle = vi.fn(async () => {});
-vi.mock("../src/lib/callPreferences.js", async (original) => ({
-  ...(await original<typeof import("../src/lib/callPreferences.js")>()),
-  // Joining asks for devices and a microphone, which jsdom has neither of.
-  useCallPreferences: () => ({ joinHuddle, devices: {} }),
-}));
+vi.mock("../src/lib/callPreferences.js", async (original) => {
+  const { SCREEN_SHARE_QUALITY } = await import("@ownbase/client-core");
+  return {
+    ...(await original<typeof import("../src/lib/callPreferences.js")>()),
+    // Joining asks for devices and a microphone, which jsdom has neither of.
+    useCallPreferences: () => ({
+      joinHuddle,
+      devices: {},
+      screenShare: { quality: SCREEN_SHARE_QUALITY, sound: true },
+    }),
+  };
+});
 const stopRinging = vi.fn();
 const startRingTone = vi.fn(() => stopRinging);
 vi.mock("../src/lib/ringTone.js", () => ({ startRingTone: () => startRingTone() }));
