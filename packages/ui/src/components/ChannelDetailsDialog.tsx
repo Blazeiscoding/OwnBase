@@ -696,7 +696,7 @@ function NotificationSettings({ channelId }: { channelId: ID }) {
   const write = useWorkspace((s) => s.prefsWrites[channelId]);
   // A refused star or mute says so in a notice; this speaks for the level only.
   const failed = write?.failed && ("notifyLevel" in write.failed || "notifyChosen" in write.failed);
-  // Where the server keeps a default (v53), a conversation not set on its own follows it.
+  // A conversation not set on its own follows the account's default (v53).
   const notifyDefault = useWorkspace((s) => s.notifyDefault);
   const following = notifyDefault !== null && prefs.notifyChosen === false;
   const options: { value: NotifyLevel | "default"; label: string; hint: string }[] = [

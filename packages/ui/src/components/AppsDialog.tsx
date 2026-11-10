@@ -485,7 +485,6 @@ const rowField = "min-w-0 flex-1 basis-40";
 interface TemplateChoice {
   /** The app chosen to post as, or null for a new one. */
   app: AppDetail | null;
-  /** What a new app would be called. */
   newName: string;
   channel: Channel | null;
   /** The chosen app, made first when it is to be a new one. */

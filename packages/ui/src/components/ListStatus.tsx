@@ -3,7 +3,6 @@ import type { IconName } from "./Icon.js";
 import { EmptyAction, EmptyState, type EmptyStateAction } from "./EmptyState.js";
 
 interface Props {
-  /** A load is running. */
   loading?: boolean;
   /**
    * Nothing is on screen yet. A load then shows rows shaped like what is
@@ -14,7 +13,6 @@ interface Props {
   loadingLabel: string;
   /** Set when the last load failed: what happened. */
   error?: ReactNode;
-  /** Sends the load again. */
   onRetry?: () => void;
   retryLabel?: string;
   /** Set when a finished load found nothing: what the list is for, and how to fill it. */

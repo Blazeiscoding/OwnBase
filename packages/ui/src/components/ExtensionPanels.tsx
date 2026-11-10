@@ -13,7 +13,7 @@ import { TextField } from "./TextField.js";
  * Settings the server's extensions add (P9), such as single sign-on in the
  * Enterprise edition. The server says what each panel holds; this draws it
  * as any settings form, and saves it where the panel says. A server without
- * any, or from before them, has none, so nothing is offered.
+ * any has none, so nothing is offered.
  */
 export function useExtensionPanels(enabled: boolean) {
   const client = useClient();

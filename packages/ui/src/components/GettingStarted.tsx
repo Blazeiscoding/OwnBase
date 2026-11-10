@@ -54,7 +54,7 @@ function keepCopy(key: string, saved: Saved) {
       JSON.stringify({ ...copies(), [key]: cleaned(saved) }),
     );
   } catch {
-    // Without it the list is drawn once the store is read, as before.
+    // Without it the list is drawn once the store is read.
   }
 }
 
@@ -97,7 +97,6 @@ export function GettingStarted(props: {
     const scoped = workspaceStorageKey(client.baseUrl, workspaceId, self?.id, "getting-started");
     return scoped && { key: scoped.key };
   }, [client.baseUrl, workspaceId, self?.id]);
-  // What is stored, with the key it is stored under.
   const [saved, setSaved] = useState<{ key: string; value: Saved } | null>(null);
   // Drawn from with the sidebar until the store is read. None on a device
   // that has never shown the list, which then appears once it is read.

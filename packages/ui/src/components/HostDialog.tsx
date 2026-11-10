@@ -725,7 +725,7 @@ export function hostedListError(reason: unknown): string {
 
 /**
  * Every workspace hosted on this computer, read again whenever hosting
- * starts or stops. Null until read, and on an app with no list to read.
+ * starts or stops. Null until read, and when it cannot be read.
  */
 function useHostedWorkspaces(hosting: Hosting, phase: string, revision: number) {
   const [hosted, setHosted] = useState<HostedWorkspaces | null>(null);
@@ -865,7 +865,7 @@ export function HostDialog(props: {
   }, [refresh]);
 
   // Once cloudflared is installed, the install button that had focus is gone,
-  // and Open to all, which took its place, is what comes next.
+  // and Get a public link, which took its place, is what comes next.
   const openButton = useRef<HTMLButtonElement>(null);
   const tunnelWasMissing = useRef(false);
   useEffect(() => {
@@ -2234,7 +2234,7 @@ export function HostDialog(props: {
 const INSTALLED_WITH = { winget: "winget", homebrew: "Homebrew" } as const;
 
 /**
- * Installs cloudflared for Open to all with what this computer has, or by
+ * Installs cloudflared for a public link with what this computer has, or by
  * downloading Cloudflare's own release, and shows how far it has got. The
  * install is the main process's, so a window opened again while it runs
  * shows it too.

@@ -137,8 +137,7 @@ export function HuddleControls({
 
   /**
    * A closed picker says nothing. A blocked permission, a missing device or a
-   * page that cannot ask says what to do about it, where it used to say
-   * nothing either (CALL-01).
+   * page that cannot ask says what to do about it (CALL-01).
    */
   const guarded = async (which: "screen" | "camera" | "microphone", run: () => Promise<void>) => {
     setBusy(which);

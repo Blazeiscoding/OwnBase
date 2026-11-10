@@ -166,12 +166,6 @@ function HuddlePeople({ people }: { people: Person[] }) {
 }
 
 /**
- * The bar shown in a huddle while the chat is on show: who is there, the
- * controls, and the way to the call. While the call shows instead, it has the
- * controls, and only the call's sound plays from here, in the same place, so
- * moving between the two never cuts it.
- */
-/**
  * Tells everyone in a call that has grown past what it holds up with, in a
  * notice that goes by itself, as it gets that big: again only once it has
  * shrunk and grown again, since the line it says changes only then. Here
@@ -188,6 +182,12 @@ function BigCallNotice({ huddle }: { huddle: HuddleState }) {
   return null;
 }
 
+/**
+ * The bar shown in a huddle while the chat is on show: who is there, the
+ * controls, and the way to the call. While the call shows instead, it has the
+ * controls, and only the call's sound plays from here, in the same place, so
+ * moving between the two never cuts it.
+ */
 export function HuddleBar({
   view = "chat",
   onViewChange,

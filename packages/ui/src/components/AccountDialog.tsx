@@ -715,8 +715,7 @@ function NotificationSettings() {
 
 /**
  * What every conversation notifies about unless it was set on its own (v53).
- * Saved at once, as the other choices on this page are; a server without a
- * default keeps only each conversation's own, so this says where those are.
+ * Saved at once, as the other choices on this page are.
  */
 function DefaultLevelSettings() {
   const client = useClient();
