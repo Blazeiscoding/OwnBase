@@ -3,8 +3,8 @@ import type { WorkspaceClient } from "@ownbase/client-core";
 
 /**
  * The largest file this workspace takes, so one over it is turned away as it
- * is attached rather than after it has uploaded. Null until known, or where
- * the server does not say.
+ * is attached rather than after it has uploaded. Null until known, or when it
+ * could not be read.
  */
 export function useMaxFileBytes(client: WorkspaceClient, enabled = true): number | null {
   const [max, setMax] = useState<number | null>(null);

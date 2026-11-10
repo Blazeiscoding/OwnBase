@@ -22,8 +22,6 @@ export function useLastConversation() {
   const workspaceId = useWorkspace((s) => s.workspaceId);
   const key = useMemo(() => {
     const scoped = workspaceStorageKey(client.baseUrl, workspaceId, selfId, "last-conversation");
-    // Nothing was saved under an address before workspace IDs, so there is
-    // no older slot to migrate from.
     return scoped && { key: scoped.key };
   }, [client.baseUrl, workspaceId, selfId]);
   const [read, setRead] = useState<{ key: string; value: ID | null } | null>(null);

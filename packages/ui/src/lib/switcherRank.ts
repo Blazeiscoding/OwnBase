@@ -6,7 +6,6 @@ export interface PlaceStanding {
   channelId?: ID;
   /** This account is in it. A public channel it is not in comes after one it is. */
   member: boolean;
-  /** Something in it is unread. */
   unread: boolean;
   /** The event seq of its newest message: higher is more recent. 0 for none. */
   activity: number;

@@ -427,7 +427,6 @@ export interface KeyBinding {
   describe: string;
   /** Works inside a dialog and over a busy form too. */
   anywhere?: true;
-  /** Whether this press is this binding's. */
   match: (e: KeyboardEvent, ctx: ActionContext) => boolean;
   /**
    * Does it, and says whether the press was used: a key with nothing to do

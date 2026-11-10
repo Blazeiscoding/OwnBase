@@ -49,7 +49,6 @@ export function failureCode(reason: unknown): DesktopErrorCode | undefined {
   return typeof code === "string" ? (code as DesktopErrorCode) : undefined;
 }
 
-/** What a failure says, or `fallback` when it says nothing. */
 export function failureMessage(reason: unknown, fallback: string): string {
   return reason instanceof Error && reason.message ? reason.message : fallback;
 }
@@ -67,9 +66,7 @@ export interface OpenedSystemMicrophone {
   /** Its sound: mono Float32Arrays at `sampleRate`, then `{ ended }` if the device goes. */
   port: MessagePort;
   sampleRate: number;
-  /** The device's name, as the system gives it. */
   name: string;
-  /** Lets the device go. */
   close: () => void;
 }
 
@@ -145,12 +142,10 @@ export interface Platform {
   /** Subscribe to LAN server discovery. Returns unsubscribe. Desktop only. */
   discoverLan?: (cb: (servers: DiscoveredServer[]) => void) => () => void;
   /**
-   * Links to join a workspace or open a message: ownbase:// ones (the
-   * previous ownbase:// form still reads) in the desktop app, and the
-   * address a browser was opened at.
+   * Links to join a workspace or open a message: ownbase:// ones in the
+   * desktop app, and the address a browser was opened at.
    */
   deepLinks?: {
-    /** A link that launched the app, consumed once. */
     consumePending: () => Promise<string | null>;
     /** Links arriving while the app is already running. */
     subscribe: (cb: (url: string) => void) => () => void;
@@ -192,7 +187,6 @@ export interface Platform {
     };
     /** The workspace this computer hosted last, if it remembers. */
     lastHosted: () => Promise<LastHosted | null>;
-    /** Every workspace hosted on this computer. */
     list: () => Promise<HostedWorkspaces>;
     /**
      * Asks where to save a backup of a hosted workspace, running or not, and
@@ -206,7 +200,6 @@ export interface Platform {
      * Resolves to the name it now has.
      */
     rename: (folder: string, name: string) => Promise<{ folder: string; name: string }>;
-    /** Shows a hosted workspace's folder in the system's file manager. */
     openFolder: (folder: string) => Promise<void>;
     /**
      * A hosted workspace's icon as a data URL, read from its own database
