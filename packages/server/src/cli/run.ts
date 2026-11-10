@@ -1,5 +1,5 @@
 import { parseArgs } from "node:util";
-import { flagOrEnv, flagsHelp, parseArgsOptions } from "./flags.js";
+import { envName, envSetting, flagOrEnv, flagsHelp, parseArgsOptions } from "./flags.js";
 import { networkInterfaces } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { existsSync } from "node:fs";
@@ -21,7 +21,6 @@ import { parseIceServers } from "../rtc.js";
 import {
   ConfigError,
   describeStartupError,
-  envSetting,
   keptSettingsNotes,
   parseClaimCode,
   parseMemberNotice,
@@ -364,7 +363,10 @@ ${extensions.map((extension) => `\n${extension.help.replace(/\n+$/, "")}\n`).joi
     relay = relayFromEnvironment(envSetting);
     for (const extension of extensions) {
       made.push(
-        await extension.create(values as Record<string, string | boolean | undefined>, envSetting),
+        await extension.create(
+          values as Record<string, string | boolean | undefined>,
+          (name) => process.env[envName(name)],
+        ),
       );
     }
   } catch (err) {

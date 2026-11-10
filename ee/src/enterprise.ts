@@ -7,6 +7,7 @@ import {
   type ServerExtension,
 } from "@ownbase/server/extensions";
 import { trustedLicenseKeys } from "./keys.js";
+import { LICENSE_ENV } from "./licenseEnv.js";
 import { featuresOn, readLicense, type LicenseClaims, type LicenseState } from "./license.js";
 import { singleSignOn } from "./sso.js";
 import { eeEndpoints } from "./endpoints.js";
@@ -177,8 +178,9 @@ export function enterprise(opts: {
  * any setting it cannot use does; one that has ended does not, since chat
  * never depends on it.
  */
-export const enterpriseCommandLine: CommandLineExtension = {
+export const enterpriseCommandLine: CommandLineExtension<(typeof LICENSE_ENV)[number]> = {
   options: { license: { type: "string" } },
+  env: LICENSE_ENV,
   help: `Enterprise
 
   --license <file>  An OwnBase Enterprise license, the file OwnBase sends. It

@@ -6,7 +6,9 @@ import { join } from "node:path";
 import { promisify } from "node:util";
 import Fastify, { type FastifyInstance, type FastifyRequest } from "fastify";
 import { z } from "zod";
-import { CLOUD_ENV, serverArgs } from "@ownbase/server/cliFlags";
+import { endpoints, workspaceNameSchema, type ServerInfo } from "@ownbase/protocol";
+import { LICENSE_ENV } from "@ownbase/ee/licenseEnv";
+import { CLOUD_ENV, envName, FLAGS, serverArgs } from "@ownbase/server/cliFlags";
 import { caddyConfig, loadCaddyConfig, type CaddyOptions } from "./caddy.js";
 import {
   newClaimCode,
@@ -48,22 +50,14 @@ export interface ControlPlaneOptions {
  * license and its offsite backups' keys. The bucket itself is passed as
  * --backup-offsite, a folder per workspace.
  */
-const PASSED_ON = [
-  /^PATH$/i,
-  /^SYSTEMROOT$/i,
-  /^TEMP$/i,
-  /^TMP$/i,
-  /^HOME$/,
-  /^LANG$/,
-  /^TZ$/,
-  /^OWNBASE_LICENSE(_FILE)?$/,
-];
+const PASSED_ON = [/^PATH$/i, /^SYSTEMROOT$/i, /^TEMP$/i, /^TMP$/i, /^HOME$/, /^LANG$/, /^TZ$/];
+const PASSED_ON_ENV = [...CLOUD_ENV, ...LICENSE_ENV.map(envName)];
 const passedOn = (key: string) =>
-  CLOUD_ENV.includes(key) || PASSED_ON.some((pattern) => pattern.test(key));
+  PASSED_ON_ENV.includes(key) || PASSED_ON.some((pattern) => pattern.test(key));
 
 const createBody = z.object({
   slug: z.string(),
-  name: z.string().trim().min(1).max(80),
+  name: workspaceNameSchema,
   ownerEmail: z.email(),
   plan: z.enum(Object.keys(PLANS) as [Plan, ...Plan[]]).default("team"),
 });
@@ -140,7 +134,7 @@ export class ControlPlane {
     for (const [key, value] of Object.entries(this.opts.env ?? process.env))
       if (passedOn(key)) env[key] = value;
     env.OWNBASE_CLAIM_CODE = workspace.claimCode;
-    const offsite = (this.opts.env ?? process.env).OWNBASE_BACKUP_OFFSITE_URL?.trim();
+    const offsite = (this.opts.env ?? process.env)[envName(FLAGS["backup-offsite"].env)]?.trim();
     return {
       slug: workspace.slug,
       port: workspace.port,
@@ -216,11 +210,15 @@ export class ControlPlane {
   private async claimed(workspace: HostedWorkspace): Promise<boolean | null> {
     if (workspace.state !== "active") return null;
     try {
-      const response = await fetch(`http://127.0.0.1:${workspace.port}/api/server-info`, {
-        signal: AbortSignal.timeout(2_000),
-      });
-      const info = (await response.json()) as { userCount?: number };
-      return typeof info.userCount === "number" ? info.userCount > 0 : null;
+      const response = await fetch(
+        `http://127.0.0.1:${workspace.port}${endpoints.serverInfo.path}`,
+        {
+          signal: AbortSignal.timeout(2_000),
+        },
+      );
+      if (!response.ok) return null;
+      const info = (await response.json()) as ServerInfo;
+      return info.userCount > 0;
     } catch {
       return null;
     }

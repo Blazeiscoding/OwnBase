@@ -1017,6 +1017,15 @@
       "concepts": ["license keys", "Ed25519", "offline", "P6"]
     },
     {
+      "path": "ee/src/licenseEnv.ts",
+      "plain": "Names the environment variables a license is read from, so the hosting control plane passes the same ones on.",
+      "summary": "LICENSE_ENV: LICENSE_FILE and LICENSE, read as OWNBASE_<name> by the command-line extension.",
+      "details": [
+        "Kept apart from enterprise.ts so ee/cloud can import the names without bundling the edition itself."
+      ],
+      "concepts": ["license keys", "P6"]
+    },
+    {
       "path": "ee/src/keys.ts",
       "plain": "Lists the public keys whose licenses this build accepts. The private keys are kept elsewhere, never here.",
       "summary": "TRUSTED_LICENSE_KEYS, base64url raw Ed25519 public keys, empty until the first key is made.",
