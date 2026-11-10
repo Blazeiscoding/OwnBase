@@ -218,7 +218,6 @@ export function MessageListPanel(props: Props) {
   );
 }
 
-/** Pinned messages for one channel. */
 export function PinsPanel(props: {
   channelId: ID;
   onClose: () => void;

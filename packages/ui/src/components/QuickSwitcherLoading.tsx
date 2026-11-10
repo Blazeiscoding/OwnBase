@@ -18,7 +18,6 @@ export const SWITCHER_CLOSE =
 export const switcherPlaceholder = (actions: boolean) =>
   actions ? "Channel, person or action" : "Channel or person";
 
-/** What was typed into Jump to while it loaded, and whether Enter was pressed. */
 export interface EarlyTyping {
   query: string;
   entered: boolean;
