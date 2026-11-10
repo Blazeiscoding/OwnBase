@@ -318,8 +318,7 @@ function NameSection() {
 
 /**
  * Link previews for new messages (E2), on or off, saved the moment it is
- * changed. A server without previews says nothing about them, so nothing is
- * shown there.
+ * changed.
  */
 function PreviewsSection() {
   const client = useClient();

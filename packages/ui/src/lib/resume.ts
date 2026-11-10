@@ -41,7 +41,7 @@ export function resumeTarget(
 /**
  * Whether opening this workspace would only ever reconnect: it is the one
  * this computer hosted last and hosting is stopped. Anything unreadable
- * answers no, keeping the previous behavior of trying to connect.
+ * answers no, so the app tries to connect.
  */
 export async function hostedButStopped(
   server: SavedServer,

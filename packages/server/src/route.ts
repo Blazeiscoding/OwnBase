@@ -89,10 +89,8 @@ export type Route = <E extends Endpoint, H extends RouteHandler<E>>(
 export interface RouterOptions {
   app: FastifyInstance;
   log: FastifyBaseLogger;
-  /** The account a session token's hash belongs to. */
   sessionUser(tokenHash: string): User | null;
   mustChangePassword(userId: string): boolean;
-  /** The app a bot token's hash belongs to. */
   appForToken(tokenHash: string): App | null;
 }
 
@@ -106,7 +104,6 @@ export interface Router {
   signedIn(req: FastifyRequest): User;
 }
 
-/** The schema an endpoint names, from the protocol's request schemas. */
 function schemaFor(ref: SchemaRef | undefined): ZodType | undefined {
   if (ref === undefined || typeof ref !== "string") return ref;
   const found = (requestSchemas as Record<string, unknown>)[ref];

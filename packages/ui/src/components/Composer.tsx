@@ -83,7 +83,6 @@ export function Composer({ channelId, threadRootId, placeholder, autoFocus, onLe
   const guest = useWorkspace((s) => s.self?.role === "guest");
   /** The question the poll window opens with; null while it is closed. */
   const [pollQuestion, setPollQuestion] = useState<string | null>(null);
-  // Threads keep their own draft slot so a channel draft isn't clobbered.
   const draftKey = conversationKey(channelId, threadRootId);
   /** The message the next send answers in place, chosen with Reply. */
   const replyTarget = useReplyTarget(client, draftKey);
@@ -542,7 +541,6 @@ export function Composer({ channelId, threadRootId, placeholder, autoFocus, onLe
     if (box.current) box.current.style.height = "auto";
   }
 
-  /** Queues the current draft for later instead of sending it now. */
   async function schedule(at: Date) {
     if (archived) return;
     if (!Number.isFinite(at.getTime()) || at.getTime() <= Date.now()) {
@@ -1240,10 +1238,6 @@ export function Composer({ channelId, threadRootId, placeholder, autoFocus, onLe
   );
 }
 
-/**
- * A file waiting to be sent: a picture shows itself, so the right one is
- * attached before it goes, and anything else shows its kind.
- */
 /** How long the connection may be down before the message box says so: a blip says nothing. */
 export const CONNECTION_NOTICE_MS = 3000;
 
@@ -1283,6 +1277,10 @@ function ConnectionNotice() {
   );
 }
 
+/**
+ * A file waiting to be sent: a picture shows itself, so the right one is
+ * attached before it goes, and anything else shows its kind.
+ */
 function StagedFile({ file, onRemove }: { file: File; onRemove: () => void }) {
   const [url, setUrl] = useState<string | null>(null);
   useEffect(() => {

@@ -126,7 +126,6 @@ export function EmojiPicker(props: {
   const count = starts.length ? starts.at(-1)! + sections.at(-1)!.emoji.length : 0;
   const list = useListbox(count);
 
-  /** The section an option is in, and its place there. */
   function locate(i: number): [section: number, place: number] {
     let s = 0;
     while (s + 1 < starts.length && starts[s + 1]! <= i) s++;

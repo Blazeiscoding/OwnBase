@@ -67,7 +67,6 @@ export function HuddleButton({ channelId }: { channelId: ID }) {
   const count = inside.length;
 
   async function join() {
-    // The last try's failure is old news, whether this one works or not.
     notice.clear();
     if (!(await confirmHuddleSwitch(client, confirm, channelId))) return;
     setJoining(true);

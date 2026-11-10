@@ -16,7 +16,6 @@ export interface CaddyOptions {
   email?: string;
 }
 
-/** The page a suspended workspace's address shows. */
 export const SUSPENDED_PAGE = `<!doctype html>
 <html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
 <title>This workspace is paused</title>
@@ -97,7 +96,6 @@ export function caddyConfig(workspaces: HostedWorkspace[], opts: CaddyOptions): 
   };
 }
 
-/** Loads a whole config into Caddy through its admin API. */
 export async function loadCaddyConfig(adminUrl: string, config: unknown): Promise<void> {
   const response = await fetch(new URL("/load", adminUrl), {
     method: "POST",

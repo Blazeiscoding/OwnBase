@@ -11,10 +11,8 @@ export type DraftPlace =
   | { kind: "edit"; channelId: ID; messageId: ID }
   | { kind: "scheduled-edit"; channelId: ID; scheduledId: ID };
 
-/** The key an unsaved edit of a message is kept under. */
 export const editDraftKey = (channelId: ID, messageId: ID) => `${channelId}:edit:${messageId}`;
 
-/** The key an unsaved edit of a scheduled message is kept under. */
 export const scheduledEditDraftKey = (channelId: ID, scheduledId: ID) =>
   `${channelId}:scheduled-edit:${scheduledId}`;
 

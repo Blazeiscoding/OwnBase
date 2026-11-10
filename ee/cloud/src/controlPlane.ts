@@ -25,7 +25,6 @@ export interface ControlPlaneOptions {
   dataDir: string;
   /** Workspaces live at https://<slug>.<domain>. */
   domain: string;
-  /** How to run the OwnBase server. */
   server: ServerCommand;
   /** The operator's token for /api/*. */
   token: string;
@@ -134,7 +133,6 @@ export class ControlPlane {
     return next;
   }
 
-  /** The server's arguments and environment for a workspace. */
   private spec(workspace: HostedWorkspace) {
     const plan = PLANS[workspace.plan];
     const folder = this.folder(workspace.slug);
@@ -163,7 +161,6 @@ export class ControlPlane {
         "backup-dir": join(folder, "backups"),
         "backup-every-hours": "24",
         "backup-keep": "7",
-        // Each workspace's backups also go to the operator's bucket, in its own folder.
         "backup-offsite": offsite ? `${offsite.replace(/\/+$/, "")}/${workspace.slug}` : undefined,
       }),
     };
@@ -202,7 +199,6 @@ export class ControlPlane {
     await loadCaddyConfig(caddy.adminUrl, config);
   }
 
-  /** A free loopback port in the range: not a workspace's, and nothing else listening. */
   private async freePort(): Promise<number> {
     const taken = this.registry.portsInUse();
     for (let port = this.opts.ports.from; port <= this.opts.ports.to; port++) {
@@ -367,7 +363,6 @@ export class ControlPlane {
     });
   }
 
-  /** Starts every active workspace and tells Caddy about them. */
   async start(): Promise<void> {
     for (const workspace of this.registry.list()) {
       if (workspace.state !== "active") continue;

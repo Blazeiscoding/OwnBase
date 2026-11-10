@@ -264,7 +264,6 @@ export class AccountStore {
     );
   }
 
-  /** Drops sessions nobody can use any more. */
   pruneSessions(now = Date.now()): void {
     this.db.prepare("DELETE FROM sessions WHERE expires_at <= ?").run(now);
   }
@@ -395,7 +394,6 @@ export class AccountStore {
     );
   }
 
-  /** Validates and consumes one use. Returns false for anything but an active invite. */
   consumeInvite(code: string): boolean {
     if (this.getInvite(code)?.status !== "active") return false;
     this.db.prepare("UPDATE invites SET uses = uses + 1 WHERE code = ?").run(code);

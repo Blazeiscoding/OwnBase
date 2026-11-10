@@ -22,7 +22,6 @@ export type CallRelay =
  */
 export type SharedSecretRelay = { kind: "shared-secret"; urls: string[]; secret: string };
 
-/** Every relay a server can give calls. */
 export type ServerRelay = CallRelay | SharedSecretRelay;
 
 const secret = (max: number) =>

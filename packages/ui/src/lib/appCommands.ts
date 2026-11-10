@@ -40,7 +40,6 @@ const firstGrapheme = (text: string) => {
   return first?.segment ?? "";
 };
 
-/** Runs one of the commands the app runs itself. */
 export async function runAppCommand(
   name: string,
   args: string,

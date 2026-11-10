@@ -154,7 +154,6 @@ function createPreferences(platform: Platform) {
     return writing;
   };
   const write = (patch: Omit<Kept, "screenShare">): Promise<boolean> => {
-    // Another choice is being kept, so this one is not.
     if (store.getState().saving) return initialization.then(() => false);
     // An explicit acknowledged choice supersedes every older preference read.
     const version = ++loadVersion;

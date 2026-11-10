@@ -24,7 +24,6 @@ export const NOTIFICATION_PREVIEWS: readonly {
   { id: "none", label: "Nothing about it", example: "New message" },
 ];
 
-/** What a notification says under each choice. */
 export function notificationContent(
   preview: NotificationPreview,
   message: { from: string; channelName?: string; body: string },

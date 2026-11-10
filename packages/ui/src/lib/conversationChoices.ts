@@ -37,7 +37,7 @@ function choose(
 /**
  * Star or Unstar, named by what choosing it does now, as Mute and Unmute are
  * (UX-20). Offer it only where a star is kept: a conversation this account is
- * in, on a server that keeps stars (`WorkspaceState.stars`).
+ * in.
  */
 export function starItem(
   client: WorkspaceClient,
@@ -129,8 +129,7 @@ export function isClosed(prefs: ChannelPrefs | undefined, lastSeq: number | unde
 
 /**
  * Close a direct conversation: out of the sidebar until someone writes in it,
- * or it is opened again, as Slack's does. Offer it only where the server
- * keeps it, which says so by sending `hiddenSeq` at all.
+ * or it is opened again, as Slack's does.
  */
 export function closeItem(
   client: WorkspaceClient,

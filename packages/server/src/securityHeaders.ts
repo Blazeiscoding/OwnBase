@@ -35,7 +35,6 @@ const DIRECTIVES: Record<string, string> = {
   "frame-ancestors": "'none'",
 };
 
-/** The policy as one header value. */
 export const CONTENT_SECURITY_POLICY = Object.entries(DIRECTIVES)
   .map(([name, value]) => `${name} ${value}`)
   .join("; ");

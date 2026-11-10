@@ -15,7 +15,6 @@ import { crc32, createInflateRaw } from "node:zlib";
  * a small copy is a plain zip and a 25 GB one still opens.
  */
 
-/** One file to put in a zip. */
 export interface ZipSource {
   /** The name inside the zip, with forward slashes. */
   name: string;

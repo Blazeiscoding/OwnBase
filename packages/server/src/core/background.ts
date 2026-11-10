@@ -62,7 +62,6 @@ export class BackgroundWork {
     );
   }
 
-  /** The queues failing now. */
   failures(): [queue: string, failure: BackgroundFailure][] {
     return [...this.failing];
   }

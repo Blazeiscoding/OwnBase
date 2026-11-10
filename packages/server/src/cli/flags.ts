@@ -377,7 +377,6 @@ export const ENV_SETTINGS = {
   BACKUP_OFFSITE_REGION: { cloud: true },
 } satisfies Record<string, { cloud?: true }>;
 
-/** The environment variable's full name. */
 export const envName = (name: string) => `OWNBASE_${name}`;
 
 /** The options `node:util` parseArgs takes, for every flag. */
@@ -397,7 +396,6 @@ export function parseArgsOptions() {
 type ParseOption<F> = (F extends { type: "boolean" } ? { type: "boolean" } : { type: "string" }) &
   (F extends { default: infer D } ? { default: D } : unknown) & { short?: string };
 
-/** A flag's value as given, or else its environment variable's. */
 export function flagOrEnv(
   values: Partial<Record<FlagName, string | boolean | undefined>>,
   name: FlagName,
@@ -435,7 +433,6 @@ export function serverArgs(values: { [K in CloudFlag]?: string | true }): string
   );
 }
 
-/** The environment variables hosting passes on from its own environment. */
 export const CLOUD_ENV: readonly string[] = Object.entries(
   ENV_SETTINGS as Record<string, { cloud?: true }>,
 )

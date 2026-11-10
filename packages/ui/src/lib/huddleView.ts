@@ -60,7 +60,6 @@ export function useHuddleView(): [HuddleView, (view: HuddleView) => void] {
   return [view, choose];
 }
 
-/** Who is in a channel's huddle, by name: you first, as "you", then everyone else. */
 /**
  * Who a call's ring still rings (E10), such as "Ringing Maya…", for whoever is
  * in that call; null without one. The workspace keeps a ring only while it
@@ -112,6 +111,7 @@ export function bigCallLine(people: number, cameras: number): string | null {
   return null;
 }
 
+/** Who is in a channel's huddle, by name: you first, as "you", then everyone else. */
 export function huddleNames(
   ids: readonly ID[],
   users: Record<ID, User>,

@@ -57,7 +57,6 @@ export const HUDDLE_GRACE_MS = 30_000;
  */
 export const HUDDLE_RING_MS = 30_000;
 
-/** A ring as the gateway keeps it: its state as told, everyone it rang, and its end. */
 interface Ring {
   state: HuddleRing;
   /** Everyone it rang, who hear each change, whether or not it still rings them. */
@@ -163,7 +162,6 @@ export class Gateway implements OutboxSink {
     }
   }
 
-  /** What the features give the startup snapshot, each its own slice. */
   useSnapshot(snapshot: (user: User) => FeatureSnapshot): void {
     this.featureSnapshot = snapshot;
   }
@@ -613,7 +611,6 @@ export class Gateway implements OutboxSink {
     if (!room) this.huddles.set(channelId, (room = new Map()));
     room.set(userId, { client, released: null });
     this.calls.add({ channelId, userId, kind: "joined" });
-    // The first one in a direct message's huddle rings the others (E10).
     if (started) this.contained("huddle ring", () => this.startRing(channelId, userId));
     this.publishHuddle(channelId);
     reply({ type: "huddle.join.result", channelId, requestId, accepted: true });
@@ -686,7 +683,6 @@ export class Gateway implements OutboxSink {
     if (!told) this.resynchronizeUser(userId);
   }
 
-  /** Tells the channel who is in its huddle now, and brings its ring up to date (E10). */
   private publishHuddle(channelId: ID, authorized?: SessionCheck): void {
     this.tellChannel(
       channelId,
@@ -762,7 +758,6 @@ export class Gateway implements OutboxSink {
     else this.tellRing(ring);
   }
 
-  /** Someone it is ringing says no, which the caller hears. */
   private declineRing(channelId: ID, userId: ID): void {
     const ring = this.rings.get(channelId);
     if (!ring || !ring.state.ringing.includes(userId)) return;
@@ -791,14 +786,12 @@ export class Gateway implements OutboxSink {
       );
   }
 
-  /** Tells the caller and everyone it rang how a ring stands, on all their devices. */
   private tellRing(ring: Ring): void {
     const event: EventTo<"person"> = { type: "huddle.ring", ring: { ...ring.state } };
     for (const userId of [ring.state.callerId, ...ring.rang])
       this.contained("huddle ring", () => this.tellPerson(userId, event));
   }
 
-  /** The rings this account is part of, calling or called, for its snapshot. */
   private ringsFor(userId: ID): HuddleRing[] {
     return [...this.rings.values()]
       .filter((ring) => ring.state.callerId === userId || ring.rang.includes(userId))
@@ -989,7 +982,6 @@ export class Gateway implements OutboxSink {
     this.fanOut({ type: "ephemeral", event }, null, authorized);
   }
 
-  /** The owner and admins whose accounts are active. */
   tellAdmins(event: EventTo<"admins">): void {
     const admins = new Set<ID>();
     for (const userId of this.byUser.keys()) {
@@ -999,7 +991,6 @@ export class Gateway implements OutboxSink {
     if (admins.size > 0) this.fanOut({ type: "ephemeral", event }, admins);
   }
 
-  /** The one socket an event answers, never fanned out. */
   private tellDevice(ws: WebSocket, event: EventTo<"device">): void {
     this.send(ws, { type: "ephemeral", event });
   }

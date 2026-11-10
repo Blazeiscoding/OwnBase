@@ -24,7 +24,6 @@ export class AdminActions {
     return answerOf(async () => (await this.api.listAllUsers()).users);
   }
 
-  /** Changes someone's role, or takes their access away. */
   changePerson(
     userId: ID,
     patch: { role?: "member" | "admin"; deactivated?: boolean; canInvite?: boolean },

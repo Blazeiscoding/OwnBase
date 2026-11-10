@@ -378,7 +378,6 @@ ${extensions.map((extension) => `\n${extension.help.replace(/\n+$/, "")}\n`).joi
     process.exit(1);
   }
 
-  /** --backup-dir and its two companions. */
   function scheduledBackupsOption(): ScheduledBackups | undefined {
     const dir = flagOrEnv(values, "backup-dir", envSetting);
     const everyRaw = flagOrEnv(values, "backup-every-hours", envSetting);

@@ -32,8 +32,7 @@ const stores = new WeakMap<Platform, ReturnType<typeof createAppearance>>();
  * document from `<head>`, so a page whose chosen theme is not the device's
  * does not show the other one first. The choice itself stays in the
  * platform's storage; the copy follows it.
- */
-/**
+ *
  * Kept in localStorage itself, outside the device store and its "ownbase:"
  * names, where the choice is kept as "appearance".
  */

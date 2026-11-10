@@ -50,7 +50,6 @@ export function MembersPanel(props: {
       .map((id) => users[id])
       .filter((u): u is User => !!u && !u.deactivated)
       .sort((a, b) => a.displayName.localeCompare(b.displayName));
-    // Away is here too (E9), with its own mark.
     const here = (u: User) => presence[u.id] === "online" || presence[u.id] === "away";
     return {
       online: people.filter(here),
@@ -110,7 +109,6 @@ function MemberGroup(props: {
   title: string;
   people: User[];
   online: boolean;
-  /** Who of those here is away (E9). */
   away?: (id: ID) => boolean;
   onOpen: (userId: ID) => void;
 }) {

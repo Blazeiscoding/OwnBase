@@ -106,7 +106,6 @@ function parseCached(value: unknown): CachedIcon | null {
   return { version, iconVersion, image };
 }
 
-/** Whoever shows kept icons, told when one changes. */
 const cacheListeners = new Set<() => void>();
 function cacheChanged() {
   for (const listener of [...cacheListeners]) listener();

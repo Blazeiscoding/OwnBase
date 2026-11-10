@@ -58,7 +58,6 @@ export function SettingsWindow<S extends string>({
   onChoose: (section: S) => void;
   /** Starts the ids of the tabs and the panel, so a tab can be found to focus. */
   tabsId: string;
-  /** A search above the sections. */
   search?: ReactNode;
   /** What the search found, shown in place of the sections while searching. */
   found?: ReactNode;

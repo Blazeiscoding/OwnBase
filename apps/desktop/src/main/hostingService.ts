@@ -97,7 +97,6 @@ export interface HostingServiceOptions {
   /** The main process's own settings, out of the page's reach. */
   settings: SettingsStorage;
   credentials: CredentialProtector;
-  /** Where hosted workspaces' folders are. */
   dataRoot: string;
   /** Where OwnBase keeps the cloudflared it downloads. */
   cloudflaredFolder: string;
@@ -110,12 +109,10 @@ export interface HostingServiceOptions {
   freeBytes(dir: string): Promise<number>;
   /** Shows a folder in the system's file manager; resolves to why it could not, or "". */
   openPath(path: string): Promise<string>;
-  /** Asks the system for a folder; null when none was chosen. */
   chooseFolder(dialog: FolderDialog): Promise<string | null>;
   /** Whether closing the window can keep hosting in the system tray. */
   backgroundAvailable(): boolean;
   loginItem: LoginItem | null;
-  /** Something in the status changed. */
   onChange(): void;
   /** Starts a workspace's server; tests replace it. */
   createServer?: typeof createWorkspaceServer;
@@ -435,7 +432,6 @@ export function createHostingService(options: HostingServiceOptions) {
     },
   };
 
-  /** Every hosting call, each refused while OwnBase quits unless it only reads or stops. */
   const handlers = Object.fromEntries(
     Object.entries(calls).map(([channel, handler]) => [
       channel,
@@ -487,7 +483,6 @@ export function createHostingService(options: HostingServiceOptions) {
     backupAttention: () => controller.backupAttention(),
     runDueBackups: (retryFailed = false) => controller.runDueBackups(retryFailed),
     startForLaunch: () => controller.startForLaunch(),
-    /** Whether a stop asked for from the tray is still under way. */
     stoppingFromTray: () => trayStopping,
     async stopFromTray(): Promise<void> {
       if (trayStopping || quitting) return;

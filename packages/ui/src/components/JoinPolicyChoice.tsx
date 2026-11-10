@@ -23,7 +23,7 @@ export const JOIN_POLICIES: { id: AccessPolicy; title: string; hint: string }[] 
 /**
  * The one control for who may join, in Workspace settings and in Manage
  * hosting alike: the three rules as cards, each with what it lets in. What a
- * choice does, saving at once or waiting for Open to all, is the caller's.
+ * choice does, saving at once or waiting for Get a public link, is the caller's.
  */
 export function JoinPolicyChoice(props: {
   value: AccessPolicy;

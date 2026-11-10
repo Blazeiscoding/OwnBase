@@ -87,7 +87,6 @@ function Matched({ label, query }: { label: string; query: string }) {
   );
 }
 
-/** The heading a row is listed under. */
 function sectionOf(row: SwitcherRow, query: string): string {
   if (row.kind === "command") return "Actions";
   if (row.kind === "search") return "Messages";

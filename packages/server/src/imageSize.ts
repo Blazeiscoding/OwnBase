@@ -1,8 +1,3 @@
-/**
- * Reads pixel dimensions straight out of image headers — no native decoder.
- * Clients use these to reserve space before the image loads, so timelines
- * don't jump. Returns null for anything unrecognized.
- */
 export type ImageType = "image/png" | "image/jpeg" | "image/webp" | "image/gif";
 
 /** The type an image's first bytes say it is, or null for anything else. */
@@ -17,6 +12,11 @@ export function imageTypeOf(bytes: Uint8Array): ImageType | null {
   return null;
 }
 
+/**
+ * Reads pixel dimensions straight out of image headers — no native decoder.
+ * Clients use these to reserve space before the image loads, so timelines
+ * don't jump. Returns null for anything unrecognized.
+ */
 export function imageSize(buf: Buffer): { width: number; height: number } | null {
   if (buf.length < 24) return null;
   const type = imageTypeOf(buf);

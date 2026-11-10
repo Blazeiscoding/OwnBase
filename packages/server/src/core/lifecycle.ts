@@ -18,7 +18,6 @@ export class Lifecycle {
     return this.shutdown.signal;
   }
 
-  /** Runs `work` every `ms` until the server stops. */
   every(ms: number, work: () => void): void {
     const timer = setInterval(work, ms);
     this.onClose(() => clearInterval(timer));

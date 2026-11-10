@@ -253,7 +253,6 @@ export interface WorkspaceServer {
    * failure is logged and recorded in `retentionStatus`.
    */
   sweepRetention: () => Promise<number>;
-  /** Whether the last retention sweep succeeded, and if not, why. */
   retentionStatus: () => RetentionStatus;
   /** How scheduled backups are going; null when they are off. */
   backupStatus: () => BackupScheduleStatus | null;
@@ -289,7 +288,6 @@ export interface WorkspaceServer {
   setAccessPolicy: (policy: AccessPolicy) => void;
   /** The workspace's id: made once, kept through renames, moves and restores. */
   workspaceId: () => ID;
-  /** The workspace's name now. */
   workspaceName: () => string;
   /**
    * Renames the workspace while it runs, as the host, by the same rule as an
@@ -298,7 +296,6 @@ export interface WorkspaceServer {
    * and the name is stored for the next start.
    */
   setWorkspaceName: (name: string) => void;
-  /** The workspace's icon now, or null when it has none. */
   workspaceIcon: () => WorkspaceIcon | null;
   /**
    * Sets the workspace's icon, as the host, by the same rule as an owner or
@@ -490,35 +487,15 @@ async function startWorkspaceServer(
   });
   registerAdmin(ctx, { instanceId, workspace, accounts, messages, files, backups });
 
-  // ---------- me / users ----------
-
   const people = registerPeople(ctx);
-
-  // ---------- channels ----------
-
-  // ---------- messages ----------
 
   const threads = registerThreads(ctx);
 
-  // ---------- link previews ----------
-
-  // ---------- files ----------
-
-  // ---------- reactions ----------
-
-  // ---------- apps, webhooks and the Slack-compatible API ----------
-
   const apps = registerApps(ctx, { accounts, messages, files });
-
-  // ---------- people ----------
-
-  // ---------- scheduled messages ----------
 
   const scheduledMessages = registerScheduled(ctx, { posting });
 
   const saved = registerSaved(ctx);
-
-  // ---------- invites & search ----------
 
   registerSearch(ctx);
 
@@ -533,11 +510,8 @@ async function startWorkspaceServer(
     ...people.snapshot(user),
     ...workspace.snapshot(user),
   }));
-  // ---------- extensions (P6) ----------
 
   await registerExtensions(ctx, { joinPublicChannels });
-
-  // ---------- start ----------
 
   const port = opts.port ?? DEFAULT_PORT;
   const host = opts.host ?? "0.0.0.0";
@@ -566,7 +540,6 @@ async function startWorkspaceServer(
   if (announcing) {
     mdnsHandle = advertise(announcement());
   }
-  /** Replaces the announcement with one made now, under the current name and icon. */
   const announce = () => {
     if (!announcing || lifecycle.closing) return;
     mdnsHandle?.stop();
@@ -623,7 +596,6 @@ async function startWorkspaceServer(
     instanceId,
     store,
     gateway,
-    /** Set only while the workspace still has no owner. */
     claimCode: settings.get("claimCode"),
     upgradeBackup,
     flushScheduled: scheduledMessages.flush,
