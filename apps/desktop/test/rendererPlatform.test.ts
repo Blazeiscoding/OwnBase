@@ -73,12 +73,12 @@ describe("a desktop call", () => {
 
   it("rejects with the failure's code and the main process's own words", async () => {
     const { bridge } = fakeBridge(() => {
-      throw { code: "registry-newer", message: "A newer version of OwnBase saved the list." };
+      throw { code: "registry-unreadable", message: "A newer version of OwnBase saved the list." };
     });
     const failure = await failureOf(electronPlatform(bridge).hosting!.list());
     expect(failure).toBeInstanceOf(DesktopCallError);
     expect(failure).toMatchObject({
-      code: "registry-newer",
+      code: "registry-unreadable",
       message: "A newer version of OwnBase saved the list.",
     });
   });

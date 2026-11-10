@@ -50,7 +50,7 @@ export const HOSTING_KEYS = [
 
 /**
  * While OwnBase quits it starts no new work: these alone are answered, since
- * they only read or stop. Anything else is refused with "quitting".
+ * they only read or stop. Anything else is refused.
  */
 const ANSWERED_WHILE_QUITTING = new Set<HostingChannel>([
   "hosting:status",
@@ -436,10 +436,7 @@ export function createHostingService(options: HostingServiceOptions) {
       channel,
       (event: unknown, ...args: unknown[]) => {
         if (quitting && !ANSWERED_WHILE_QUITTING.has(channel as HostingChannel))
-          throw new DesktopError(
-            "quitting",
-            "OwnBase is shutting down. Try again after reopening it.",
-          );
+          throw new Error("OwnBase is shutting down. Try again after reopening it.");
         return (handler as (event: unknown, ...args: unknown[]) => unknown)(event, ...args);
       },
     ]),

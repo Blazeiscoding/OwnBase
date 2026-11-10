@@ -491,17 +491,12 @@ describe("hosting a workspace from the host dialog", () => {
     );
   });
 
-  // The desktop app names the registry's problem by its code; until U7 the
-  // dialog matched words the main process no longer wrote, so every one of
-  // these read as the generic "settings file" message.
-  it.each([
-    ["registry-newer", /newer version of OwnBase\. Update OwnBase/],
-    ["registry-unsupported", /version this OwnBase cannot read\. Use a compatible version/],
-    ["registry-damaged", /is invalid\. Restore or repair the settings file/],
-  ])("explains a hosted-workspace list it cannot use (%s)", async (code, said) => {
+  it("says why the app cannot use a hosted-workspace list, in the app's words", async () => {
     const { hosting } = fakeHosting(stopped, { workspaces: [], unreadable: [] });
+    const said =
+      "A newer version of OwnBase saved the list of hosted workspaces. Update OwnBase to open it.";
     hosting.list.mockRejectedValueOnce(
-      Object.assign(new Error("Words the dialog does not read."), { code }),
+      Object.assign(new Error(said), { code: "registry-unreadable" }),
     );
     render(<Harness hosting={hosting} />);
 

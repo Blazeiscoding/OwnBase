@@ -220,7 +220,9 @@ describe("the call relay in Manage hosting", () => {
     const token = screen.getByLabelText("API token");
 
     relay.test.mockRejectedValueOnce(
-      new Error("Cloudflare refused the API token for this TURN key."),
+      Object.assign(new Error("Cloudflare refused the API token for this TURN key."), {
+        code: "relay-api-token",
+      }),
     );
     await user.click(test);
     expect(

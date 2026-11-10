@@ -147,11 +147,7 @@ const FOLDER = /^[a-z0-9-]{1,64}$/;
 export class RegistryFormatError extends DesktopError {
   constructor(kind: "newer" | "unsupported" | "invalid") {
     super(
-      kind === "newer"
-        ? "registry-newer"
-        : kind === "unsupported"
-          ? "registry-unsupported"
-          : "registry-damaged",
+      "registry-unreadable",
       kind === "newer"
         ? "A newer version of OwnBase saved the list of hosted workspaces. Update OwnBase to open it. The list was not changed."
         : kind === "unsupported"

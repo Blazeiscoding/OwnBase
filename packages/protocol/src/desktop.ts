@@ -38,17 +38,14 @@ export type DesktopErrorCode =
   | "refused"
   /** The bridge itself broke: nothing the main process chose to say. */
   | "internal"
-  /** The app is quitting, so it starts nothing new. */
-  | "quitting"
-  /** The list of hosted workspaces was saved by a newer version. */
-  | "registry-newer"
-  /** The list of hosted workspaces has a version this one cannot read. */
-  | "registry-unsupported"
-  /** The list of hosted workspaces is damaged. */
-  | "registry-damaged"
+  /**
+   * The list of hosted workspaces cannot be read as it is: saved by a newer
+   * version, or damaged. The message says which, and what to do.
+   */
+  | "registry-unreadable"
   /** A public link waits for the workspace's owner account. */
   | "owner-account-missing"
-  /** A call relay was refused for one of its fields. */
+  /** A call relay was refused for one of its fields, which the window marks. */
   | "relay-key-id"
   | "relay-api-token"
   | "relay-urls"

@@ -142,12 +142,12 @@ describe("an answered call", () => {
       () => mainWindow(),
       trusted,
       () => {
-        throw new DesktopError("quitting", "OwnBase is shutting down.");
+        throw new DesktopError("owner-account-missing", "Create the owner account first.");
       },
     );
     await expect(coded(request())).resolves.toEqual({
       ok: false,
-      error: { code: "quitting", message: "OwnBase is shutting down." },
+      error: { code: "owner-account-missing", message: "Create the owner account first." },
     });
     const plain = answering(
       () => mainWindow(),

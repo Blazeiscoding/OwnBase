@@ -64,7 +64,7 @@ describe("the hosting service", () => {
     });
   });
 
-  it("while OwnBase quits, answers only what reads or stops, and refuses the rest by code", async () => {
+  it("while OwnBase quits, answers only what reads or stops, and refuses the rest", async () => {
     const { hosting } = service();
     hosting.setQuitting(true);
     for (const call of [
@@ -73,7 +73,7 @@ describe("the hosting service", () => {
       () => hosting.handlers["hosting:restore"](event),
       () => hosting.handlers["hosting:installCloudflared"](event),
     ])
-      await expect(Promise.resolve().then(call)).rejects.toMatchObject({ code: "quitting" });
+      await expect(Promise.resolve().then(call)).rejects.toThrow("OwnBase is shutting down");
 
     await expect(hosting.handlers["hosting:list"](event)).resolves.toEqual({
       workspaces: [],
