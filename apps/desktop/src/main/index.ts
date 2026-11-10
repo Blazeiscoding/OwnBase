@@ -29,7 +29,11 @@ import {
   isLinkableAddress,
   type DiscoveryTxt,
 } from "@ownbase/protocol";
-import type { DesktopCapabilities, DiscoveredServer } from "@ownbase/protocol/desktop";
+import {
+  TITLE_BAR_HEIGHT,
+  type DesktopCapabilities,
+  type DiscoveredServer,
+} from "@ownbase/protocol/desktop";
 import type { OutboxChanges } from "@ownbase/client-core/outbox";
 import type { DraftChanges } from "@ownbase/client-core/drafts";
 import { applyRecordChanges, isRecordChanges } from "@ownbase/client-core/records";
@@ -293,7 +297,11 @@ function paintWindow(): void {
   win.setBackgroundColor(colours.background);
   // Only Windows and Linux draw the window buttons on an overlay.
   if (process.platform !== "darwin")
-    win.setTitleBarOverlay({ color: colours.background, symbolColor: colours.symbols, height: 40 });
+    win.setTitleBarOverlay({
+      color: colours.background,
+      symbolColor: colours.symbols,
+      height: TITLE_BAR_HEIGHT,
+    });
 }
 nativeTheme.on("updated", paintWindow);
 
@@ -741,7 +749,7 @@ function createWindow(): void {
     titleBarOverlay: {
       color: colours.background,
       symbolColor: colours.symbols,
-      height: 40,
+      height: TITLE_BAR_HEIGHT,
     },
     webPreferences: {
       preload: join(import.meta.dirname, "../preload/index.cjs"),
@@ -961,10 +969,7 @@ function createWindow(): void {
 function loadRenderer(win: BrowserWindow): void {
   rendererReady = false;
   // A failure is reported through did-fail-load, which decides what to do.
-  const loading = isDev
-    ? win.loadURL(process.env.ELECTRON_RENDERER_URL!)
-    : win.loadFile(join(import.meta.dirname, "../renderer/index.html"));
-  loading.catch(() => {});
+  win.loadURL(rendererUrl).catch(() => {});
 }
 
 void app.whenReady().then(async () => {

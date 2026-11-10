@@ -1,5 +1,6 @@
 import { lazy, Suspense, useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import { normalizeServerUrl, WorkspaceClient } from "@ownbase/client-core";
+import { TITLE_BAR_HEIGHT } from "@ownbase/protocol/desktop";
 import { PlatformContext } from "./context.js";
 import type { Platform, SavedServer } from "./platform.js";
 import { parseDeepLink } from "./lib/deeplink.js";
@@ -492,7 +493,10 @@ export function App({ platform }: { platform: Platform }) {
         <div className="flex h-full flex-col">
           {platform.kind === "desktop" &&
             (saveErrorAbove || session.view === "loading" || session.view === "restore_failed") && (
-              <div className="titlebar-drag h-10 shrink-0 border-b border-edge" />
+              <div
+                className="titlebar-drag shrink-0 border-b border-edge"
+                style={{ height: TITLE_BAR_HEIGHT }}
+              />
             )}
           {saveErrorAbove && (
             <div

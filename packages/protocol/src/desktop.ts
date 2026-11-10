@@ -13,6 +13,13 @@ export function isPort(value: unknown): value is number {
 
 export const PORT_RULE = "Choose a port from 1 to 65535.";
 
+/**
+ * The height in CSS pixels of the strip at the top of the desktop window: the
+ * system's window buttons are drawn over it on Windows and Linux, and the
+ * page leaves it empty for dragging the window.
+ */
+export const TITLE_BAR_HEIGHT = 40;
+
 export function portFromText(text: string): number | null {
   const trimmed = text.trim();
   if (!/^\d{1,5}$/.test(trimmed)) return null;
