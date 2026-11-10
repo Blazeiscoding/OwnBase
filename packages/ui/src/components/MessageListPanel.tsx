@@ -12,6 +12,7 @@ import { LoadMore } from "./LoadMore.js";
 import { useToast } from "./Toast.js";
 import { Tooltip } from "./Tooltip.js";
 import { usePanelFocus } from "../lib/usePanelFocus.js";
+import { useFocusWhenGone } from "../lib/keys.js";
 import { useOpenList } from "../lib/pagedList.js";
 import { dropRepeatClick } from "../lib/repeatClick.js";
 import { When } from "./When.js";
@@ -64,17 +65,18 @@ export function MessageListPanel(props: Props) {
   const { panel, heading } = usePanelFocus({ takeFocus: true });
   const shown = (messages ?? []).filter((m) => channels[m.channelId] && (props.keep?.(m) ?? true));
 
+  const focusWhenGone = useFocusWhenGone();
   /** Takes the row out and keeps keyboard focus nearby rather than on the page. */
   function remove(message: Message, from: HTMLElement) {
     const rows = [...(scroller.current?.querySelectorAll<HTMLElement>("[data-list-row]") ?? [])];
     const at = rows.indexOf(from.closest<HTMLElement>("[data-list-row]")!);
     const next = rows[at + 1] ?? rows[at - 1] ?? null;
+    focusWhenGone(
+      () =>
+        (next?.isConnected ? next.querySelector<HTMLElement>("[data-list-open]") : null) ??
+        heading.current,
+    );
     props.remove!.run(message);
-    setTimeout(() => {
-      if (document.activeElement && document.activeElement !== document.body) return;
-      const open = next?.isConnected ? next.querySelector<HTMLElement>("[data-list-open]") : null;
-      (open ?? heading.current)?.focus();
-    });
   }
 
   return (

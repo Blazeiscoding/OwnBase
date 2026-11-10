@@ -44,3 +44,31 @@ export function useFocusAfterRender(): (target: () => HTMLElement | null | undef
     pending.current = target;
   };
 }
+
+/**
+ * Keeps keyboard focus near a control that is about to go, such as a row's
+ * Mark read: once a render has taken away the element that held focus, focus
+ * moves to what `fallback` names. It waits as many renders as the removal
+ * takes, which may be a server's answer, and gives up once focus has moved
+ * anywhere else.
+ */
+export function useFocusWhenGone(): (fallback: () => HTMLElement | null | undefined) => void {
+  const pending = useRef<{
+    from: Element | null;
+    fallback: () => HTMLElement | null | undefined;
+  } | null>(null);
+  useLayoutEffect(() => {
+    const ask = pending.current;
+    if (!ask) return;
+    const active = document.activeElement;
+    if (active && active !== document.body) {
+      if (active !== ask.from) pending.current = null;
+      return;
+    }
+    pending.current = null;
+    ask.fallback()?.focus();
+  });
+  return (fallback) => {
+    pending.current = { from: document.activeElement, fallback };
+  };
+}
