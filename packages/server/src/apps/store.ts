@@ -1,5 +1,6 @@
 import {
   APP_SCOPES,
+  isAppEventType,
   type App,
   type AppEventType,
   type AppScope,
@@ -9,56 +10,48 @@ import {
   type User,
   type Webhook,
 } from "@ownbase/protocol";
-import type { DatabaseSync } from "node:sqlite";
+import type { DatabaseSync, SQLOutputValue } from "node:sqlite";
+import { shape, type RowOf } from "../core/rows.js";
 import { ulid } from "../ids.js";
 import type { Store } from "../store.js";
 
-interface AppRow {
-  id: string;
-  name: string;
-  bot_user_id: string;
-  created_by: string;
-  created_at: number;
-  signing_secret: string;
-  interactivity_url: string;
-  scopes: string;
-}
-
-interface WebhookRow {
-  id: string;
-  app_id: string;
-  channel_id: string;
-  token_hash: string;
-  created_at: number;
-}
-
-interface CommandRow {
-  id: string;
-  app_id: string;
-  command: string;
-  url: string;
-  description: string;
-  usage_hint: string;
-  created_at: number;
-}
-
-interface SubscriptionRow {
-  id: string;
-  app_id: string;
-  url: string;
-  event_types: string;
-  created_at: number;
-  dropped_count: number;
-}
-
+const appRow = shape({
+  id: "text",
+  name: "text",
+  bot_user_id: "text",
+  created_by: "text",
+  created_at: "number",
+  signing_secret: "text",
+  interactivity_url: "text",
+  scopes: "text",
+});
+const signingSecretRow = appRow.pick("signing_secret");
+const webhookRow = shape({ id: "text", app_id: "text", channel_id: "text", created_at: "number" });
+const commandRow = shape({
+  id: "text",
+  app_id: "text",
+  command: "text",
+  url: "text",
+  description: "text",
+  usage_hint: "text",
+  created_at: "number",
+});
+const subscriptionRow = shape({
+  id: "text",
+  app_id: "text",
+  url: "text",
+  event_types: "text",
+  created_at: "number",
+  dropped_count: "number",
+});
 /** A subscription with how its deliveries are going, as the Apps dialog shows it. */
-interface SubscriptionStatusRow extends SubscriptionRow {
-  pending_count: number;
-  failed_count: number;
-  retrying_count: number;
-  last_error: string | null;
-  last_failed_at: number | null;
-}
+const subscriptionStatusRow = subscriptionRow.with({
+  pending_count: "number",
+  failed_count: "number",
+  retrying_count: "number",
+  last_error: "text?",
+  last_failed_at: "number?",
+});
 
 /** Known scopes only, each once, in one order, so two lists compare as text. */
 function scopeList(scopes: readonly unknown[]): AppScope[] {
@@ -75,7 +68,7 @@ function parseJsonArray(text: string): unknown[] {
   }
 }
 
-const toApp = (r: AppRow): App => ({
+const toApp = (r: RowOf<typeof appRow.columns>): App => ({
   id: r.id,
   name: r.name,
   botUserId: r.bot_user_id,
@@ -85,14 +78,14 @@ const toApp = (r: AppRow): App => ({
   scopes: scopeList(parseJsonArray(r.scopes)),
 });
 
-const toWebhook = (r: WebhookRow): Webhook => ({
+const toWebhook = (r: RowOf<typeof webhookRow.columns>): Webhook => ({
   id: r.id,
   appId: r.app_id,
   channelId: r.channel_id,
   createdAt: r.created_at,
 });
 
-const toCommand = (r: CommandRow): SlashCommand => ({
+const toCommand = (r: RowOf<typeof commandRow.columns>): SlashCommand => ({
   id: r.id,
   appId: r.app_id,
   command: r.command,
@@ -102,40 +95,32 @@ const toCommand = (r: CommandRow): SlashCommand => ({
   createdAt: r.created_at,
 });
 
-const toSubscription = (r: SubscriptionRow): EventSubscription => ({
+const toSubscription = (r: RowOf<typeof subscriptionRow.columns>): EventSubscription => ({
   id: r.id,
   appId: r.app_id,
   url: r.url,
-  eventTypes: JSON.parse(r.event_types) as AppEventType[],
+  eventTypes: parseJsonArray(r.event_types).filter(
+    (type): type is AppEventType => typeof type === "string" && isAppEventType(type),
+  ),
   createdAt: r.created_at,
 });
 
 /** The app columns under an `a_` prefix, for a query that joins them to another table. */
-const APP_COLUMNS_AS_A = [
-  "id",
-  "name",
-  "bot_user_id",
-  "created_by",
-  "created_at",
-  "signing_secret",
-  "interactivity_url",
-  "scopes",
-]
+const APP_COLUMNS_AS_A = Object.keys(appRow.columns)
   .map((column) => `a.${column} AS a_${column}`)
   .join(", ");
 
-type PrefixedAppRow = { [K in keyof AppRow as `a_${K}`]: AppRow[K] };
-
-const unprefixApp = (r: PrefixedAppRow): AppRow => ({
-  id: r.a_id,
-  name: r.a_name,
-  bot_user_id: r.a_bot_user_id,
-  created_by: r.a_created_by,
-  created_at: r.a_created_at,
-  signing_secret: r.a_signing_secret,
-  interactivity_url: r.a_interactivity_url,
-  scopes: r.a_scopes,
-});
+/** The columns of a joined row named with `prefix`, without it. */
+function unprefixed(
+  raw: Record<string, SQLOutputValue>,
+  prefix: string,
+): Record<string, SQLOutputValue> {
+  return Object.fromEntries(
+    Object.entries(raw)
+      .filter(([column]) => column.startsWith(prefix))
+      .map(([column, value]) => [column.slice(prefix.length), value]),
+  );
+}
 
 /**
  * Apps and what they are reached by: their bot users and tokens, incoming
@@ -211,8 +196,7 @@ export class AppStore {
 
   /** The app a bot user posts as, for tracing a message back to its owner. */
   forBotUser(botUserId: ID): App | null {
-    const r = this.db.prepare("SELECT * FROM apps WHERE bot_user_id = ?").get(botUserId) as
-      AppRow | undefined;
+    const r = appRow.get(this.db.prepare("SELECT * FROM apps WHERE bot_user_id = ?"), botUserId);
     return r ? toApp(r) : null;
   }
 
@@ -221,8 +205,10 @@ export class AppStore {
    * needs it to verify, exactly as Slack shows a signing secret in app config.
    */
   signingSecret(id: ID): string | null {
-    const r = this.db.prepare("SELECT signing_secret FROM apps WHERE id = ?").get(id) as
-      Pick<AppRow, "signing_secret"> | undefined;
+    const r = signingSecretRow.get(
+      this.db.prepare("SELECT signing_secret FROM apps WHERE id = ?"),
+      id,
+    );
     return r?.signing_secret ?? null;
   }
 
@@ -234,15 +220,12 @@ export class AppStore {
   }
 
   get(id: ID): App | null {
-    const r = this.db.prepare("SELECT * FROM apps WHERE id = ?").get(id) as AppRow | undefined;
+    const r = appRow.get(this.db.prepare("SELECT * FROM apps WHERE id = ?"), id);
     return r ? toApp(r) : null;
   }
 
   list(): App[] {
-    const rows = this.db
-      .prepare("SELECT * FROM apps ORDER BY created_at DESC")
-      .all() as unknown as AppRow[];
-    return rows.map(toApp);
+    return appRow.all(this.db.prepare("SELECT * FROM apps ORDER BY created_at DESC")).map(toApp);
   }
 
   delete(id: ID): void {
@@ -277,14 +260,15 @@ export class AppStore {
    * mean deleting it and losing its configuration.
    */
   forToken(tokenHash: string): App | null {
-    const r = this.db
-      .prepare(
+    const r = appRow.get(
+      this.db.prepare(
         `SELECT a.* FROM app_tokens t
          JOIN apps a ON a.id = t.app_id
          JOIN users u ON u.id = a.bot_user_id
          WHERE t.token_hash = ? AND u.deactivated = 0`,
-      )
-      .get(tokenHash) as AppRow | undefined;
+      ),
+      tokenHash,
+    );
     return r ? toApp(r) : null;
   }
 
@@ -312,8 +296,10 @@ export class AppStore {
 
   /** Resolves an incoming webhook secret to its app and target channel. */
   webhookForToken(tokenHash: string): { webhook: Webhook; app: App } | null {
-    const r = this.db.prepare("SELECT * FROM webhooks WHERE token_hash = ?").get(tokenHash) as
-      WebhookRow | undefined;
+    const r = webhookRow.get(
+      this.db.prepare("SELECT * FROM webhooks WHERE token_hash = ?"),
+      tokenHash,
+    );
     if (!r) return null;
     const app = this.get(r.app_id);
     // Same as a bot token: a deactivated bot's webhooks go quiet too.
@@ -322,16 +308,14 @@ export class AppStore {
   }
 
   getWebhook(id: ID): Webhook | null {
-    const r = this.db.prepare("SELECT * FROM webhooks WHERE id = ?").get(id) as
-      WebhookRow | undefined;
+    const r = webhookRow.get(this.db.prepare("SELECT * FROM webhooks WHERE id = ?"), id);
     return r ? toWebhook(r) : null;
   }
 
   listWebhooks(appId: ID): Webhook[] {
-    const rows = this.db
-      .prepare("SELECT * FROM webhooks WHERE app_id = ? ORDER BY created_at")
-      .all(appId) as unknown as WebhookRow[];
-    return rows.map(toWebhook);
+    return webhookRow
+      .all(this.db.prepare("SELECT * FROM webhooks WHERE app_id = ? ORDER BY created_at"), appId)
+      .map(toWebhook);
   }
 
   deleteWebhook(id: ID): boolean {
@@ -359,32 +343,31 @@ export class AppStore {
 
   /** Looks a command up by the word the user typed, without its slash. */
   commandByName(command: string): { command: SlashCommand; app: App } | null {
-    const r = this.db.prepare("SELECT * FROM slash_commands WHERE command = ?").get(command) as
-      CommandRow | undefined;
+    const r = commandRow.get(
+      this.db.prepare("SELECT * FROM slash_commands WHERE command = ?"),
+      command,
+    );
     if (!r) return null;
     const app = this.get(r.app_id);
     return app ? { command: toCommand(r), app } : null;
   }
 
   getCommand(id: ID): SlashCommand | null {
-    const r = this.db.prepare("SELECT * FROM slash_commands WHERE id = ?").get(id) as
-      CommandRow | undefined;
+    const r = commandRow.get(this.db.prepare("SELECT * FROM slash_commands WHERE id = ?"), id);
     return r ? toCommand(r) : null;
   }
 
   listCommands(appId: ID): SlashCommand[] {
-    const rows = this.db
-      .prepare("SELECT * FROM slash_commands WHERE app_id = ? ORDER BY command")
-      .all(appId) as unknown as CommandRow[];
-    return rows.map(toCommand);
+    return commandRow
+      .all(this.db.prepare("SELECT * FROM slash_commands WHERE app_id = ? ORDER BY command"), appId)
+      .map(toCommand);
   }
 
   /** Every command in the workspace — what the composer's hint list shows. */
   listAllCommands(): SlashCommand[] {
-    const rows = this.db
-      .prepare("SELECT * FROM slash_commands ORDER BY command")
-      .all() as unknown as CommandRow[];
-    return rows.map(toCommand);
+    return commandRow
+      .all(this.db.prepare("SELECT * FROM slash_commands ORDER BY command"))
+      .map(toCommand);
   }
 
   deleteCommand(id: ID): boolean {
@@ -410,8 +393,8 @@ export class AppStore {
 
   /** An app's subscriptions, each with how its deliveries are going. */
   listSubscriptions(appId: ID): EventSubscription[] {
-    const rows = this.db
-      .prepare(
+    const rows = subscriptionStatusRow.all(
+      this.db.prepare(
         `SELECT s.*,
           (SELECT COUNT(*) FROM event_deliveries d
            WHERE d.subscription_id = s.id AND d.failed_at IS NULL) AS pending_count,
@@ -427,8 +410,9 @@ export class AppStore {
            WHERE d.subscription_id = s.id AND d.failed_at IS NOT NULL
            ORDER BY d.failed_at DESC, d.id DESC LIMIT 1) AS last_failed_at
          FROM event_subscriptions s WHERE s.app_id = ? ORDER BY s.created_at`,
-      )
-      .all(appId) as unknown as SubscriptionStatusRow[];
+      ),
+      appId,
+    );
     return rows.map((r) => ({
       ...toSubscription(r),
       delivery: {
@@ -443,8 +427,10 @@ export class AppStore {
   }
 
   getSubscription(id: ID): EventSubscription | null {
-    const row = this.db.prepare("SELECT * FROM event_subscriptions WHERE id = ?").get(id) as
-      SubscriptionRow | undefined;
+    const row = subscriptionRow.get(
+      this.db.prepare("SELECT * FROM event_subscriptions WHERE id = ?"),
+      id,
+    );
     return row ? toSubscription(row) : null;
   }
 
@@ -456,8 +442,11 @@ export class AppStore {
          FROM event_subscriptions s JOIN apps a ON a.id = s.app_id
          JOIN users u ON u.id = a.bot_user_id WHERE u.deactivated = 0`,
       )
-      .all() as unknown as (SubscriptionRow & PrefixedAppRow)[];
-    return rows.map((r) => ({ subscription: toSubscription(r), app: toApp(unprefixApp(r)) }));
+      .all();
+    return rows.map((r) => ({
+      subscription: toSubscription(subscriptionRow.read(r)),
+      app: toApp(appRow.read(unprefixed(r, "a_"))),
+    }));
   }
 
   deleteSubscription(id: ID): boolean {
