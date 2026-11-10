@@ -5,44 +5,16 @@ import { failureText } from "./failure.js";
 /**
  * Slash commands the app runs itself, as Slack's built-in ones: the small
  * things otherwise a menu or two away. The server reserves their names, so no
- * app can claim one, and lists them; this list is for a server too old to.
- * An app's own command of the same name, kept from before, still wins.
+ * app can claim one, and lists them with its own. An app's own command of the
+ * same name, kept from before, still wins.
  */
-export const APP_COMMANDS: CommandHint[] = [
-  { command: "away", description: "Show yourself as away", usageHint: "", builtin: true },
-  { command: "active", description: "Show yourself as active", usageHint: "", builtin: true },
-  {
-    command: "status",
-    description: "Set your status, or clear it",
-    usageHint: "[emoji] [what you're doing] | clear",
-    builtin: true,
-  },
-  {
-    command: "topic",
-    description: "Set this channel's topic",
-    usageHint: "[topic]",
-    builtin: true,
-  },
-  {
-    command: "invite",
-    description: "Add people to this channel",
-    usageHint: "@person [@person…]",
-    builtin: true,
-  },
-  { command: "leave", description: "Leave this channel", usageHint: "", builtin: true },
-  { command: "mute", description: "Mute this conversation", usageHint: "", builtin: true },
-  { command: "unmute", description: "Unmute this conversation", usageHint: "", builtin: true },
-];
-
-const NAMES = new Set(APP_COMMANDS.map((c) => c.command));
+const NAMES = new Set(["away", "active", "status", "topic", "invite", "leave", "mute", "unmute"]);
 /** Commands that only mean something in a channel, not in a DM. */
 const ROOM_ONLY = new Set(["topic", "invite", "leave"]);
 
-/** The commands the hint list offers: the server's, and this app's it does not list yet. */
-export function withAppCommands(fromServer: readonly CommandHint[], room: boolean) {
-  const listed = new Set(fromServer.map((c) => c.command));
-  const ours = APP_COMMANDS.filter((c) => !listed.has(c.command));
-  return [...fromServer, ...ours].filter((c) => room || !ROOM_ONLY.has(c.command) || !c.builtin);
+/** The server's commands the hint list offers here: in a DM, not the built-in channel ones. */
+export function offeredCommands(fromServer: readonly CommandHint[], room: boolean) {
+  return fromServer.filter((c) => room || !ROOM_ONLY.has(c.command) || !c.builtin);
 }
 
 /** `/name args` when the name is one the app runs and no app of the server's has it. */
@@ -68,7 +40,7 @@ const firstGrapheme = (text: string) => {
   return first?.segment ?? "";
 };
 
-/** Runs one of `APP_COMMANDS`. */
+/** Runs one of the commands the app runs itself. */
 export async function runAppCommand(
   name: string,
   args: string,

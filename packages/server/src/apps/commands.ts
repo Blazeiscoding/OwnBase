@@ -18,11 +18,8 @@ export interface BuiltinCommand {
   description: string;
   usageHint: string;
   run: (text: string, user: User) => string | null;
-  /**
-   * Set for a command the app runs itself, which the server only lists and
-   * reserves: what it says to a client that sends the command here instead.
-   */
-  inApp?: string;
+  /** Run by the app itself: the server only lists the name and reserves it. */
+  inApp?: true;
 }
 
 /**
@@ -54,9 +51,9 @@ export const BUILTIN_COMMANDS = new Map<string, BuiltinCommand>([
     {
       description: "Ask a question with choices to vote on",
       usageHint: "[question]",
-      // The app opens its poll window for this; only an older one sends it here.
+      // The app opens its poll window for this.
       run: () => null,
-      inApp: "Polls are made in the poll window. Update OwnBase to open it with /poll.",
+      inApp: true,
     },
   ],
   // Run by the app itself, as Slack's own are (U4): listed and reserved here,
@@ -78,7 +75,7 @@ export const BUILTIN_COMMANDS = new Map<string, BuiltinCommand>([
       description,
       usageHint,
       run: () => null,
-      inApp: `Update OwnBase to use /${command}.`,
+      inApp: true,
     },
   ]),
 ]);
@@ -171,7 +168,8 @@ export function registerCommands(
 
     const builtin = BUILTIN_COMMANDS.get(name);
     if (builtin) {
-      if (builtin.inApp) throw new HttpError(400, "in_app_command", builtin.inApp);
+      if (builtin.inApp)
+        throw new HttpError(400, "in_app_command", `/${name} is run by the app, not the server.`);
       const text = builtin.run(argText, me);
       if (text === null)
         throw new HttpError(400, "usage", `Use it like this: /${name} ${builtin.usageHint}`);

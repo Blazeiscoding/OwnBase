@@ -1,12 +1,7 @@
 import { ApiError, WorkspaceClient } from "@ownbase/client-core";
 import type { Channel, User } from "@ownbase/protocol";
 import { describe, expect, it, vi } from "vitest";
-import {
-  APP_COMMANDS,
-  appCommand,
-  runAppCommand,
-  withAppCommands,
-} from "../src/lib/appCommands.js";
+import { appCommand, offeredCommands, runAppCommand } from "../src/lib/appCommands.js";
 
 const person = (id: string, displayName: string) => ({ id, displayName }) as unknown as User;
 const channel = (id: string, type: Channel["type"], name: string) =>
@@ -36,15 +31,23 @@ describe("the commands the app runs", () => {
     expect(appCommand("/topic hi", [appTopic])).toBeNull();
   });
 
-  it("are offered beside the server's, without the channel ones in a DM", () => {
-    const names = (room: boolean) => withAppCommands([appTopic], room).map((c) => c.command);
-    expect(names(true)).toEqual([
-      "topic",
-      ...APP_COMMANDS.map((c) => c.command).filter((c) => c !== "topic"),
-    ]);
-    expect(names(false)).not.toContain("invite");
-    expect(names(false)).not.toContain("leave");
-    expect(names(false)).toContain("mute");
+  it("are offered as the server lists them, without the built-in channel ones in a DM", () => {
+    const builtin = (command: string) => ({
+      command,
+      description: "",
+      usageHint: "",
+      builtin: true,
+    });
+    const listed = [
+      builtin("shrug"),
+      builtin("invite"),
+      builtin("leave"),
+      builtin("mute"),
+      appTopic,
+    ];
+    const names = (room: boolean) => offeredCommands(listed, room).map((c) => c.command);
+    expect(names(true)).toEqual(["shrug", "invite", "leave", "mute", "topic"]);
+    expect(names(false)).toEqual(["shrug", "mute", "topic"]);
   });
 
   it("set and clear a status, its emoji apart from its words", async () => {
