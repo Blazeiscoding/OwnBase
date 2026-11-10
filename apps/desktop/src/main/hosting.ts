@@ -1,7 +1,13 @@
 import { existsSync } from "node:fs";
 import { mkdir, readdir, rm, stat } from "node:fs/promises";
 import { isAbsolute, join } from "node:path";
-import { ACCESS_POLICIES, type AccessPolicy } from "@ownbase/protocol";
+import {
+  ACCESS_POLICIES,
+  isAccessPolicy,
+  WORKSPACE_NAME_MAX,
+  workspaceNameSchema,
+  type AccessPolicy,
+} from "@ownbase/protocol";
 import {
   isPort,
   PORT_RULE,
@@ -235,14 +241,12 @@ function startFailure(error: unknown): Error {
 
 /** A name as typed, trimmed, for a new workspace or a rename alike. */
 function workspaceNameOf(value: unknown): string {
-  if (
-    typeof value !== "string" ||
-    !value.trim() ||
-    value.trim().length > 80 ||
-    /\p{Cc}/u.test(value)
-  )
-    throw new Error("Use a workspace name of 1 to 80 characters, without line breaks or tabs.");
-  return value.trim();
+  const name = workspaceNameSchema.safeParse(value);
+  if (!name.success)
+    throw new Error(
+      `Use a workspace name of 1 to ${WORKSPACE_NAME_MAX} characters, without line breaks or tabs.`,
+    );
+  return name.data;
 }
 
 /**
@@ -1118,7 +1122,7 @@ export function createHostingController(options: HostingOptions) {
         ...(listed ?? {
           id,
           folder: newFolder(),
-          name: manifest.workspaceName.trim().slice(0, 80) || "Restored workspace",
+          name: manifest.workspaceName.trim().slice(0, WORKSPACE_NAME_MAX) || "Restored workspace",
           port: options.defaultPort,
           lastHostedAt: now(),
         }),
@@ -1169,7 +1173,7 @@ export function createHostingController(options: HostingOptions) {
         }
         throw error;
       }
-      const name = manifest.workspaceName.trim().slice(0, 80) || entry.name;
+      const name = manifest.workspaceName.trim().slice(0, WORKSPACE_NAME_MAX) || entry.name;
       updateEntry(entry.folder, { name });
       await keepRegistry();
       const inventory = options.inventoryBackup
@@ -1323,7 +1327,7 @@ export function createHostingController(options: HostingOptions) {
         throw error;
       }
       const aside = (restored as { supersededDir?: unknown } | null)?.supersededDir;
-      const name = manifest.workspaceName.trim().slice(0, 80) || listed.name;
+      const name = manifest.workspaceName.trim().slice(0, WORKSPACE_NAME_MAX) || listed.name;
       updateEntry(listed.folder, { name });
       await keepRegistry();
       const inventory = options.inventoryBackup
@@ -2318,6 +2322,3 @@ export function createHostingController(options: HostingOptions) {
     setPublicAddress,
   };
 }
-
-const isAccessPolicy = (value: unknown): value is AccessPolicy =>
-  ACCESS_POLICIES.includes(value as AccessPolicy);

@@ -3,6 +3,7 @@ import { existsSync } from "node:fs";
 import { readdir, stat } from "node:fs/promises";
 import { isAbsolute, join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
+import { WORKSPACE_NAME_MAX } from "@ownbase/protocol";
 import { holdWorkspace } from "@ownbase/server/ownership";
 import { ICON_META_KEYS, readStoredIcon } from "@ownbase/server/workspaceIcon";
 import type { AutoBackup as AutoBackupView, BackupFailureKind } from "@ownbase/protocol/desktop";
@@ -220,7 +221,8 @@ export function parseRegistry(value: unknown): HostedWorkspace[] {
       if (held) throw new RegistryFormatError("invalid");
       continue;
     }
-    const validName = typeof name === "string" && !!name.trim() && name.length <= 80;
+    const validName =
+      typeof name === "string" && !!name.trim() && name.length <= WORKSPACE_NAME_MAX;
     const validPort =
       typeof port === "number" && Number.isInteger(port) && port >= 0 && port <= 65535;
     const validTime = typeof lastHostedAt === "number" && Number.isFinite(lastHostedAt);
@@ -399,7 +401,7 @@ export async function adoptFolders(options: {
     adopted.push({
       id: found.id,
       folder,
-      name: found.name?.trim().slice(0, 80) || folder,
+      name: found.name?.trim().slice(0, WORKSPACE_NAME_MAX) || folder,
       port: last ? options.lastHosted!.port : options.defaultPort,
       lastHostedAt: last
         ? options.now

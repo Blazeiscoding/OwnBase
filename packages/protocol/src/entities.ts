@@ -33,6 +33,9 @@ export const ACCESS_POLICIES: readonly AccessPolicy[] = [
   "guest_allowed",
 ];
 
+export const isAccessPolicy = (value: unknown): value is AccessPolicy =>
+  typeof value === "string" && (ACCESS_POLICIES as readonly string[]).includes(value);
+
 export interface User {
   id: ID;
   handle: string;

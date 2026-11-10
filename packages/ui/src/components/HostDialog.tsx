@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useId, useRef, useState } from "react";
-import { DEFAULT_PORT, type AccessPolicy } from "@ownbase/protocol";
+import { DEFAULT_PORT, WORKSPACE_NAME_MAX, type AccessPolicy } from "@ownbase/protocol";
 import { PORT_RULE, portFromText } from "@ownbase/protocol/desktop";
 import {
   failureCode,
@@ -666,7 +666,7 @@ function RenameForm(props: {
           ref={field}
           autoFocus
           aria-label={`New name for ${props.name}`}
-          maxLength={80}
+          maxLength={WORKSPACE_NAME_MAX}
           value={draft}
           // Read-only rather than disabled while saving, so focus stays here.
           readOnly={props.saving}
@@ -2161,7 +2161,7 @@ export function HostDialog(props: {
                   <input
                     ref={nameInput}
                     autoFocus
-                    maxLength={80}
+                    maxLength={WORKSPACE_NAME_MAX}
                     value={name}
                     disabled={!!busy}
                     onChange={(e) => setName(e.target.value)}
