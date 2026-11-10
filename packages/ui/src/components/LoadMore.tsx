@@ -11,16 +11,13 @@ const AHEAD = "0px 0px 320px 0px";
  * and it stays one element while it reads, so focus on it is not lost.
  */
 export function LoadMore(props: {
-  /** Another page is there to read. */
   more: boolean;
-  /** It is being read. */
   loading: boolean;
   /** Reading it failed; the button reads "Try again", and nothing asks by itself. */
   failed: boolean;
   /** How many rows are shown, so the end is looked at again whenever that changes. */
   count: number;
   onMore: () => void;
-  /** The element the list scrolls in. */
   scroller: RefObject<HTMLElement | null>;
 }) {
   const home = useRef<HTMLDivElement>(null);

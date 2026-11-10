@@ -17,7 +17,6 @@ const VARIANTS: Record<ButtonVariant, string> = {
     "inline-flex h-9 items-center justify-center gap-2 rounded-lg px-3.5 text-sm font-medium text-ink-dim transition-colors hover:bg-ink/[0.06] hover:text-ink disabled:opacity-40",
 };
 
-/** The classes for a button of this kind, with any the caller adds for layout. */
 export function buttonClass(variant: ButtonVariant = "secondary", extra?: string): string {
   return extra ? `${VARIANTS[variant]} ${extra}` : VARIANTS[variant];
 }
