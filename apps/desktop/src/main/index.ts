@@ -51,6 +51,7 @@ import {
   appRecipients,
   rendererUrlTrust,
   settingKey,
+  ticketDownloadUrl,
   type Handlers,
 } from "./ipcBoundary.js";
 import { writeGateReport } from "./releaseGate.js";
@@ -451,18 +452,8 @@ const capabilities: Omit<DesktopCapabilities, "readerLocale"> = {
 
 const handlers: Handlers<IpcMainInvokeEvent> = {
   "file:download": (_event, value) => {
-    if (!mainWindow || typeof value !== "string") throw new Error("Invalid download request");
-    const url = new URL(value);
-    if (
-      !/^https?:$/.test(url.protocol) ||
-      url.username ||
-      url.password ||
-      !/\/api\/files\/[0-9A-HJKMNP-TV-Z]{26}$/.test(url.pathname) ||
-      !/^[a-f0-9]{64}$/.test(url.searchParams.get("download") ?? "") ||
-      [...url.searchParams.keys()].some((key) => key !== "download")
-    )
-      throw new Error("Invalid download URL");
-    mainWindow.webContents.downloadURL(url.toString());
+    if (!mainWindow) throw new Error("Invalid download request");
+    mainWindow.webContents.downloadURL(ticketDownloadUrl(value));
   },
   "storage:get": (_event, key, options) =>
     settings.get(settingKey(key), {

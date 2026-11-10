@@ -7,6 +7,7 @@ import {
   REFUSED,
   rendererUrlTrust,
   settingKey,
+  ticketDownloadUrl,
   type IpcSender,
   type TrustedWindow,
 } from "../src/main/ipcBoundary.js";
@@ -209,5 +210,33 @@ describe("who hears what the main process pushes", () => {
     expect(appRecipients(recipient("https://example.com/"), trusted)).toEqual([]);
     expect(appRecipients(recipient(PAGE, { destroyed: true }), trusted)).toEqual([]);
     expect(appRecipients(null, trusted)).toEqual([]);
+  });
+});
+
+describe("which addresses the window may have the app download", () => {
+  const TICKET = "a".repeat(64);
+
+  it("is a ticketed file or a workspace copy, also below a path prefix", () => {
+    for (const url of [
+      `https://chat.example.com/api/files/01JABCDEFGHJKMNPQRSTVWXYZ0?download=${TICKET}`,
+      `http://192.168.1.4:4000/api/admin/copy/7f0c2a1e-58c9-4b5e-9d0e-2c4ab1f8e6d3?download=${TICKET}`,
+      `https://example.com/team/api/admin/copy/7f0c2a1e?download=${TICKET}`,
+    ])
+      expect(ticketDownloadUrl(url)).toBe(url);
+  });
+
+  it("is refused for any other address, scheme, sign-in or query", () => {
+    for (const url of [
+      `https://example.com/api/me?download=${TICKET}`,
+      `https://example.com/api/admin/copy?download=${TICKET}`,
+      `https://example.com/api/files/01J/extra?download=${TICKET}`,
+      `file:///api/files/01J?download=${TICKET}`,
+      `https://user:pass@example.com/api/files/01J?download=${TICKET}`,
+      "https://example.com/api/files/01J?download=short",
+      `https://example.com/api/files/01J?download=${TICKET}&next=1`,
+      "https://example.com/api/files/01J",
+    ])
+      expect(() => ticketDownloadUrl(url)).toThrow("Invalid download URL");
+    expect(() => ticketDownloadUrl(42)).toThrow("Invalid download request");
   });
 });
