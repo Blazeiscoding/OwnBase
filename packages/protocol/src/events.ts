@@ -148,7 +148,6 @@ export type EphemeralEvent =
   | { type: "prefs"; channelId: ID; prefs: ChannelPrefs }
   /** This user's unread mention count per conversation, replacing what it had. */
   | { type: "mentions"; counts: Record<ID, number> }
-  /** Who is in a channel's huddle right now. */
   | { type: "huddle.participants"; channelId: ID; userIds: ID[] }
   /** Sender-only admission result, correlated to this device's join attempt. */
   | { type: "huddle.join.result"; channelId: ID; requestId: string; accepted: true }
@@ -224,9 +223,7 @@ export interface ReadySnapshot {
   channelLastSeq: Record<ID, number>;
   /** Who is online. Anyone missing is offline. */
   presence: Record<ID, Presence>;
-  /** Message ids this user has saved for later. */
   savedMessageIds: ID[];
-  /** Unread mentions per conversation. */
   mentionCounts: Record<ID, number>;
   /** Follow state and thread read cursors. */
   threadFollows: ThreadFollow[];
@@ -249,7 +246,6 @@ export interface ReadySnapshot {
   sidebarSections: SidebarSection[];
   /** What this account's conversations notify about unless one was set on its own (v53). */
   notifyDefault: NotifyLevel;
-  /** Who may join now. */
   accessPolicy: AccessPolicy;
   /** The workspace icon's version, which changes with its image, or null when there is none. */
   iconVersion: string | null;
@@ -259,7 +255,6 @@ export interface ReadySnapshot {
   /** Stable across address/name changes and backup restores. */
   workspaceId: ID;
   friends: Friendship[];
-  /** The people this account has blocked (E12). */
   blocked: ID[];
   /** How many reported messages wait for an admin (E12). Given to the owner and admins only. */
   openReports?: number;
@@ -294,7 +289,6 @@ export const SOCKET_REFUSALS = [
 ] as const;
 export type SocketRefusal = (typeof SOCKET_REFUSALS)[number];
 
-/** Everything the server can push over the socket. */
 export type ServerToClient =
   | ReadySnapshot
   | { type: "synced"; seq: number }

@@ -20,7 +20,6 @@ export interface MicrophoneSettings {
   autoGainControl?: boolean;
 }
 
-/** Whether the microphone's sound goes through the strong noise filter. */
 export function wantsNoiseFilter(settings: MicrophoneSettings = {}): boolean {
   return settings.noiseSuppression !== false && settings.noiseFilter !== false;
 }
@@ -143,7 +142,6 @@ export function microphoneConstraints(
   };
 }
 
-/** What a huddle asks the browser for when it opens the camera. */
 export function cameraConstraints(deviceId?: string): MediaStreamConstraints {
   // TypeScript's DOM types do not know resizeMode yet; every engine that does
   // not either ignores it.

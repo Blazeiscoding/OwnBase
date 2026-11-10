@@ -216,11 +216,9 @@ describe("the time zones kept for dates", () => {
 describe("fileKind", () => {
   it("sorts files as the file browser's filter does (E7)", () => {
     expect(fileKind("image/png", "shot.png")).toBe("image");
-    // A picture is a picture, whatever its name ends with.
     expect(fileKind("IMAGE/PNG", "scan.pdf")).toBe("image");
     expect(fileKind("application/pdf", "brief")).toBe("document");
     expect(fileKind("text/plain", "notes.txt")).toBe("document");
-    // Sent as anything at all, a file is known by its name's ending.
     expect(fileKind("application/octet-stream", "Budget.XLSX")).toBe("document");
     expect(fileKind("", "deck.pptx")).toBe("document");
     expect(

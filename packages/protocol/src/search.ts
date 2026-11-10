@@ -271,7 +271,6 @@ function startOfDay([year, month, day]: [number, number, number], timeZone: stri
   return atOrAfter;
 }
 
-/** The calendar day after this one. */
 function nextDay([year, month, day]: [number, number, number]): [number, number, number] {
   const next = new Date(Date.UTC(year, month - 1, day + 1));
   return [next.getUTCFullYear(), next.getUTCMonth() + 1, next.getUTCDate()];
@@ -303,7 +302,6 @@ export function parseSearchQuery(raw: string, options: SearchQueryOptions = {}):
     }
     const key = m[1]!.toLowerCase();
     const value = m[2]!;
-    // A bare "from:" with nothing after it is just noise, not a filter.
     if (!value) continue;
 
     switch (key) {
@@ -353,7 +351,6 @@ export function parseSearchQuery(raw: string, options: SearchQueryOptions = {}):
   return result;
 }
 
-/** True when the query has something to act on. */
 export function hasSearchCriteria(p: ParsedSearch): boolean {
   return (
     p.terms.length > 0 ||

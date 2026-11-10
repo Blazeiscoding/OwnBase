@@ -32,7 +32,6 @@ export const huddleSignal = z.discriminatedUnion("kind", [
     kind: z.literal("media"),
     camera: z.boolean(),
     screen: z.boolean(),
-    /** Whether their microphone is muted. */
     muted: z.boolean().optional(),
     /**
      * Whether their share sends its sound, in a fourth slot after the
@@ -130,7 +129,6 @@ export const callReport = z.object({
       protocol: z.enum(["udp", "tcp"]),
     })
     .optional(),
-  /** How many times this side has tried again. */
   retries: z.number().int().nonnegative().max(100),
   cause: callCause.optional(),
 });
@@ -150,7 +148,6 @@ export interface CallLogEntry {
   report?: CallReport;
 }
 
-/** Who is currently in a channel's huddle. */
 export interface HuddleState {
   channelId: ID;
   userIds: ID[];
@@ -165,16 +162,13 @@ export interface HuddleState {
  */
 export interface HuddleRing {
   channelId: ID;
-  /** Who started the huddle. */
   callerId: ID;
   startedAt: number;
   /** When whoever is still ringing has missed it. */
   endsAt: number;
-  /** Who it is ringing still. */
   ringing: ID[];
   /** Who answered by joining. */
   answered: ID[];
-  /** Who said no. */
   declined: ID[];
 }
 

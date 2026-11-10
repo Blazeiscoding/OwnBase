@@ -134,7 +134,6 @@ export function unreadRemovalCount(state: Pick<WorkspaceState, "channelRemovals"
 export interface OnScreen {
   /** The window has focus and is visible. */
   focused: boolean;
-  /** The conversation selected, if any. */
   channelId: ID | null;
   /** Whether its timeline can be seen, rather than being covered. */
   channelVisible: boolean;

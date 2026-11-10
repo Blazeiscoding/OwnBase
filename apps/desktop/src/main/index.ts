@@ -81,7 +81,6 @@ import { appMenuTemplate } from "./appMenu.js";
 import { readerLocale, systemHourCycle } from "./regionalFormat.js";
 
 const isDev = !!process.env.ELECTRON_RENDERER_URL;
-/** A setting from the environment, as OWNBASE_<name>. */
 const appEnv = (name: string): string | undefined => process.env[`OWNBASE_${name}`];
 const isTest = appEnv("TEST") === "1";
 app.setName("OwnBase");

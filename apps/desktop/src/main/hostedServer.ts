@@ -9,7 +9,6 @@ export interface HostedServerHost {
   savedRelay(): Promise<CallRelay | null>;
   /** Running workspaces that calls can be given a relay by, so a change reaches them at once. */
   relayServers: Set<WorkspaceServer>;
-  /** Whether a stable public address is set for this computer. */
   publicAddressConfigured(): boolean;
 }
 

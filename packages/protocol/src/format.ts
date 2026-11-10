@@ -27,7 +27,6 @@ export type Broadcast = "channel" | "here";
 
 const BROADCAST_RE = /<!(channel|here|everyone)>/g;
 
-/** Which room-wide mentions a message contains, if any. */
 export function broadcastsIn(text: string): Set<Broadcast> {
   const found = new Set<Broadcast>();
   for (const m of text.matchAll(BROADCAST_RE)) {
@@ -39,7 +38,6 @@ export function broadcastsIn(text: string): Set<Broadcast> {
 /** `<@id>`, the wire form of naming a person. Global: use with matchAll or replaceAll. */
 export const USER_MENTION = /<@([A-Za-z0-9_-]+)>/g;
 
-/** The people a message names, by id. */
 export function userMentionsIn(text: string): Set<ID> {
   return new Set([...text.matchAll(USER_MENTION)].map((m) => m[1]!));
 }

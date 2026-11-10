@@ -9,12 +9,10 @@ import type { WorkspaceState } from "./workspace.js";
 
 type ReadState = Pick<WorkspaceState, "memberships" | "channelLastSeq">;
 
-/** Whether a conversation has messages newer than this account has read. */
 export function isUnread(state: ReadState, channelId: ID): boolean {
   return (state.channelLastSeq[channelId] ?? 0) > (state.memberships[channelId] ?? 0);
 }
 
-/** Whether a followed thread has replies this account has not read. */
 export function isThreadUnread(follow: ThreadFollow): boolean {
   return follow.following && follow.lastSeq > follow.lastReadSeq;
 }
@@ -88,12 +86,10 @@ export function snoozedUntil(dndUntil: number | null | undefined, now = Date.now
   return dndUntil != null && dndUntil > now ? dndUntil : null;
 }
 
-/** Whether Do Not Disturb is on at `now`. */
 export function isSnoozed(dndUntil: number | null | undefined, now = Date.now()): boolean {
   return snoozedUntil(dndUntil, now) !== null;
 }
 
-/** Whether the signed-in account runs the workspace. */
 export function selfIsAdministrator(state: Pick<WorkspaceState, "self">): boolean {
   return isAdministrator(state.self?.role);
 }
