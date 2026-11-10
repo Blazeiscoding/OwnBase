@@ -136,7 +136,6 @@ export function ConversationMenu(props: {
   channelId: ID;
   isRoom: boolean;
   onPins: () => void;
-  /** The files shared here, where the server lists shared files (E7). */
   onFiles?: () => void;
   /** Absent for a channel this account only looks into, which has no settings of its own. */
   onNotifications?: () => void;
