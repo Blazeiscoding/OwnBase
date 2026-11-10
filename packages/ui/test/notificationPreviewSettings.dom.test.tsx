@@ -43,7 +43,7 @@ describe("what notifications show", () => {
     render(
       <PlatformContext.Provider value={platform}>
         <ClientContext.Provider value={client}>
-          <AccountDialog onClose={() => {}} onSignedOut={() => {}} section="notifications" />
+          <AccountDialog onClose={() => {}} section="notifications" />
         </ClientContext.Provider>
       </PlatformContext.Provider>,
     );

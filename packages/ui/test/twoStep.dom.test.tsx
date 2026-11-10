@@ -9,6 +9,7 @@ import { JoinScreen } from "../src/screens/JoinScreen.js";
 import { ClientContext, PlatformContext } from "../src/context.js";
 import type { HostingStatus, Platform, SavedServer } from "../src/platform.js";
 import { accessibilityProblems } from "./accessibility.js";
+import { workspaceParts } from "./workspaceParts.js";
 
 /**
  * Two-step sign-in in the app (E11): set up in Account settings under
@@ -83,11 +84,9 @@ function security(enabled = false, recoveryCodesLeft = 0) {
     disable: vi.spyOn(client.api, "disableTwoStep").mockResolvedValue({ ok: true }),
   };
   render(
-    <PlatformContext.Provider value={platform}>
-      <ClientContext.Provider value={client}>
-        <AccountDialog onClose={() => {}} onSignedOut={() => {}} section="security" />
-      </ClientContext.Provider>
-    </PlatformContext.Provider>,
+    workspaceParts(client, { shell: { platform } }).wrap(
+      <AccountDialog onClose={() => {}} section="security" />,
+    ),
   );
   const root = screen.getByRole("dialog", { name: "Account settings" });
   const section = () => within(within(root).getByRole("region", { name: "Two-step sign-in" }));
@@ -240,11 +239,9 @@ describe("two-step sign-in once on", () => {
     vi.spyOn(client.api, "listSessions").mockResolvedValue({ sessions: [] });
     const status = vi.spyOn(client.api, "twoStep");
     render(
-      <PlatformContext.Provider value={platform}>
-        <ClientContext.Provider value={client}>
-          <AccountDialog onClose={() => {}} onSignedOut={() => {}} section="security" />
-        </ClientContext.Provider>
-      </PlatformContext.Provider>,
+      workspaceParts(client, { shell: { platform } }).wrap(
+        <AccountDialog onClose={() => {}} section="security" />,
+      ),
     );
     expect(await screen.findByRole("heading", { name: "Change password" })).toBeVisible();
     expect(screen.queryByRole("region", { name: "Two-step sign-in" })).toBeNull();

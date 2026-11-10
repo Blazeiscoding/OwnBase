@@ -56,7 +56,7 @@ describe("joining huddles with the microphone off", () => {
     const user = userEvent.setup();
     const { client, set, wrap } = setup();
     vi.spyOn(client.api, "listSessions").mockResolvedValue({ sessions: [] });
-    render(wrap(<AccountDialog onClose={() => {}} onSignedOut={() => {}} section="calls" />));
+    render(wrap(<AccountDialog onClose={() => {}} section="calls" />));
     const panel = screen.getByRole("tabpanel", { name: "Voice & video" });
     const box = within(panel).getByRole("checkbox", {
       name: "Join huddles with my microphone off",

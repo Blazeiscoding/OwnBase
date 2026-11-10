@@ -2,12 +2,12 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { act, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { WorkspaceClient } from "@ownbase/client-core";
-import type { User } from "@ownbase/protocol";
+import type { SessionInfo, User } from "@ownbase/protocol";
 import { ClientContext, PlatformContext } from "../src/context.js";
 import { AccountDialog, type AccountSection } from "../src/components/AccountDialog.js";
-import { ToastProvider } from "../src/components/Toast.js";
 import type { Platform } from "../src/platform.js";
 import { accessibilityProblems } from "./accessibility.js";
+import { workspaceParts } from "./workspaceParts.js";
 
 const sam: User = {
   id: "U_SAM",
@@ -40,10 +40,14 @@ function browserNotifications(permission: NotificationPermission) {
   return requestPermission;
 }
 
-function settings(section?: AccountSection, kind: Platform["kind"] = "web") {
+function settings(
+  section?: AccountSection,
+  kind: Platform["kind"] = "web",
+  sessions: SessionInfo[] = [],
+) {
   const client = new WorkspaceClient("http://127.0.0.1:9", "test-token-not-a-credential");
   client.store.setState({ self: sam, users: { [sam.id]: sam }, status: "online" });
-  vi.spyOn(client.api, "listSessions").mockResolvedValue({ sessions: [] });
+  vi.spyOn(client.api, "listSessions").mockResolvedValue({ sessions });
   vi.spyOn(client.api, "storageUsage").mockResolvedValue({
     usedBytes: 0,
     limitBytes: null,
@@ -57,20 +61,9 @@ function settings(section?: AccountSection, kind: Platform["kind"] = "web") {
     notify: () => {},
   };
   const onSectionChange = vi.fn();
-  const view = (at?: AccountSection) => (
-    <PlatformContext.Provider value={platform}>
-      <ClientContext.Provider value={client}>
-        <ToastProvider>
-          <AccountDialog
-            onClose={() => {}}
-            onSignedOut={() => {}}
-            section={at}
-            onSectionChange={onSectionChange}
-          />
-        </ToastProvider>
-      </ClientContext.Provider>
-    </PlatformContext.Provider>
-  );
+  const parts = workspaceParts(client, { shell: { platform } });
+  const view = (at?: AccountSection) =>
+    parts.wrap(<AccountDialog onClose={() => {}} section={at} onSectionChange={onSectionChange} />);
   const { rerender } = render(view(section));
   const dialog = screen.getByRole("dialog", { name: "Account settings" });
   return {
@@ -194,15 +187,27 @@ describe("account settings, a section at a time", () => {
   });
 
   it("leaves a confirmation behind with the section it belonged to", async () => {
-    const { dialog, user } = settings("security");
-    await user.click(within(dialog).getByRole("button", { name: "Sign out of this workspace" }));
+    const session = (id: string, current: boolean): SessionInfo => ({
+      id,
+      current,
+      userAgent: "Mozilla/5.0 (iPhone)",
+      createdAt: 0,
+      lastSeenAt: 0,
+      expiresAt: 0,
+    });
+    const { dialog, user } = settings("devices", "web", [
+      session("S1", true),
+      session("S2", false),
+    ]);
+    const others = () => within(dialog).getByRole("button", { name: "Sign out all other devices" });
+    await user.click(
+      await within(dialog).findByRole("button", { name: "Sign out all other devices" }),
+    );
     expect(within(dialog).getByRole("region", { name: "Confirm sign out" })).toBeVisible();
     await user.click(within(dialog).getByRole("tab", { name: "Composing" }));
     expect(within(dialog).queryByRole("region", { name: "Confirm sign out" })).toBeNull();
-    await user.click(within(dialog).getByRole("tab", { name: "Security" }));
-    expect(
-      within(dialog).getByRole("button", { name: "Sign out of this workspace" }),
-    ).toBeEnabled();
+    await user.click(within(dialog).getByRole("tab", { name: "Devices" }));
+    expect(others()).toBeEnabled();
   });
 
   it("saves your profile and says so, without closing", async () => {

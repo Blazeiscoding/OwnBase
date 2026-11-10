@@ -37,9 +37,9 @@ import { useOptionalToast } from "./Toast.js";
 import { failureText } from "../lib/failure.js";
 import { isImeKey } from "../lib/textInput.js";
 import { When } from "./When.js";
+import { runAction, useActionContext } from "../lib/actions.js";
 
-type Confirmation =
-  { kind: "device"; session: SessionInfo } | { kind: "others" } | { kind: "signout" };
+type Confirmation = { kind: "device"; session: SessionInfo } | { kind: "others" };
 
 export type { AccountSection };
 
@@ -58,12 +58,10 @@ const HEADINGS = "h3, h4, legend, label";
  */
 export function AccountDialog({
   onClose,
-  onSignedOut,
   section: initialSection = "profile",
   onSectionChange,
 }: {
   onClose: () => void;
-  onSignedOut: () => void;
   /** The section to open on, and to move to when it changes, as Back and Forward do. */
   section?: AccountSection;
   /** Told when someone chooses another section, so the address can follow. */
@@ -169,11 +167,6 @@ export function AccountDialog({
     setError(null);
     setNotice(null);
     try {
-      if (confirmation.kind === "signout") {
-        await client.signOut();
-        onSignedOut();
-        return;
-      }
       if (confirmation.kind === "device")
         await client.account.signOutDevice(confirmation.session.id);
       else await client.account.signOutOtherDevices();
@@ -464,13 +457,7 @@ export function AccountDialog({
                 Switching workspaces keeps you signed in. Signing out removes this device's saved
                 sign-in.
               </p>
-              <button
-                className={buttonClass("secondary")}
-                disabled={busy || confirmation !== null}
-                onClick={() => askToConfirm({ kind: "signout" })}
-              >
-                Sign out of this workspace
-              </button>
+              <SignOutButton disabled={busy || confirmation !== null} />
             </section>
           </>
         )}
@@ -567,18 +554,14 @@ export function AccountDialog({
             className="mt-4 rounded-xl border border-alert/40 bg-ground p-4"
           >
             <h3 className="font-semibold">
-              {confirmation.kind === "signout"
-                ? "Sign out of this workspace?"
-                : confirmation.kind === "others"
-                  ? "Sign out your other devices?"
-                  : `Sign out ${deviceLabel(confirmation.session.userAgent)}?`}
+              {confirmation.kind === "others"
+                ? "Sign out your other devices?"
+                : `Sign out ${deviceLabel(confirmation.session.userAgent)}?`}
             </h3>
             <p className="mt-2 text-sm text-ink-dim">
-              {confirmation.kind === "signout"
-                ? "You will need your password to sign in again. Your account's saved drafts stay on this device."
-                : confirmation.kind === "others"
-                  ? "They will need to sign in again. This device stays signed in."
-                  : "It will need to sign in again. This device stays signed in."}
+              {confirmation.kind === "others"
+                ? "They will need to sign in again. This device stays signed in."
+                : "It will need to sign in again. This device stays signed in."}
             </p>
             <div className="mt-4 flex flex-wrap justify-end gap-2">
               <button
@@ -600,6 +583,20 @@ export function AccountDialog({
         )}
       </SettingsWindow>
     </SavedContext.Provider>
+  );
+}
+
+/** The account menu's Sign out, which asks first, here in Security. */
+function SignOutButton({ disabled }: { disabled: boolean }) {
+  const actions = useActionContext();
+  return (
+    <button
+      className={buttonClass("secondary")}
+      disabled={disabled}
+      onClick={() => runAction(actions, "sign-out")}
+    >
+      Sign out of this workspace
+    </button>
   );
 }
 

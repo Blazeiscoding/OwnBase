@@ -68,7 +68,7 @@ function appearance(
     <PlatformContext.Provider value={platform}>
       <ClientContext.Provider value={client}>
         <Applied />
-        <AccountDialog onClose={() => {}} onSignedOut={() => {}} section="appearance" />
+        <AccountDialog onClose={() => {}} section="appearance" />
       </ClientContext.Provider>
     </PlatformContext.Provider>,
   );

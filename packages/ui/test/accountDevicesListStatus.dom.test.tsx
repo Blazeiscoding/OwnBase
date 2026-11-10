@@ -7,6 +7,7 @@ import { ClientContext, PlatformContext } from "../src/context.js";
 import { AccountDialog, type AccountSection } from "../src/components/AccountDialog.js";
 import type { Platform } from "../src/platform.js";
 import { accessibilityProblems } from "./accessibility.js";
+import { workspaceParts } from "./workspaceParts.js";
 
 const sam: User = {
   id: "U_SAM",
@@ -65,11 +66,9 @@ function accountDialog() {
   const user = userEvent.setup();
   function renderDialog(section: AccountSection = "devices") {
     render(
-      <PlatformContext.Provider value={platform}>
-        <ClientContext.Provider value={client}>
-          <AccountDialog onClose={() => {}} onSignedOut={() => {}} section={section} />
-        </ClientContext.Provider>
-      </PlatformContext.Provider>,
+      workspaceParts(client, { shell: { platform } }).wrap(
+        <AccountDialog onClose={() => {}} section={section} />,
+      ),
     );
     const dialog = screen.getByRole("dialog", { name: "Account settings" });
     const devices =

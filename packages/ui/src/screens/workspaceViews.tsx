@@ -482,10 +482,9 @@ const DIALOGS: { [K in Exclude<DialogKind, "none">]: DialogView<K> } = {
   },
   account: {
     loading: "Loading settings",
-    render: (dialog, { nav, shell, close }) => (
+    render: (dialog, { nav, close }) => (
       <AccountDialog
         onClose={close}
-        onSignedOut={shell.onSignedOut}
         section={dialog.section}
         onSectionChange={(section) =>
           nav.navigate({ to: "dialog", dialog: { kind: "account", section }, replace: true })

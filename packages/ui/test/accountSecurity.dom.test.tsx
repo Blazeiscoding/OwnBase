@@ -1,12 +1,11 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { fireEvent, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { ApiError, WorkspaceClient } from "@ownbase/client-core";
 import type { SessionInfo, User } from "@ownbase/protocol";
 import { AccountDialog } from "../src/components/AccountDialog.js";
 import type { AccountSection } from "../src/lib/accountSections.js";
-import { ClientContext, PlatformContext } from "../src/context.js";
-import type { Platform } from "../src/platform.js";
+import { renderPart } from "./workspaceParts.js";
 
 /**
  * Account settings' Security and Devices sections: a password change checked
@@ -62,19 +61,10 @@ function account(section: AccountSection) {
       recoveryCodesLeft: 0,
     }),
   };
-  const platform: Platform = {
-    kind: "web",
-    storage: { get: async () => null, set: async () => {} },
-    notify: () => {},
-  };
   const onSignedOut = vi.fn();
-  render(
-    <PlatformContext.Provider value={platform}>
-      <ClientContext.Provider value={client}>
-        <AccountDialog onClose={() => {}} onSignedOut={onSignedOut} section={section} />
-      </ClientContext.Provider>
-    </PlatformContext.Provider>,
-  );
+  renderPart(client, <AccountDialog onClose={() => {}} section={section} />, {
+    shell: { onSignedOut },
+  });
   const dialog = within(screen.getByRole("dialog", { name: "Account settings" }));
   return { api, dialog, onSignedOut, user: userEvent.setup() };
 }
@@ -129,20 +119,22 @@ describe("changing a password", () => {
 });
 
 describe("signing out", () => {
-  it("asks before signing out of the workspace, and Cancel keeps you signed in", async () => {
+  it("asks before signing out of the workspace, as the account menu does, and Cancel keeps you signed in", async () => {
     const { api, dialog, onSignedOut, user } = account("security");
     await user.click(dialog.getByRole("button", { name: "Sign out of this workspace" }));
-    const asking = dialog.getByRole("region", { name: "Confirm sign out" });
-    expect(asking).toHaveTextContent("Sign out of this workspace?");
-    expect(asking).toHaveFocus();
+    let asking = await screen.findByRole("dialog", { name: "Sign out of this workspace?" });
+    expect(asking).toHaveTextContent("You will need your password to sign in again.");
     await user.click(within(asking).getByRole("button", { name: "Cancel" }));
+    await waitFor(() =>
+      expect(screen.queryByRole("dialog", { name: "Sign out of this workspace?" })).toBeNull(),
+    );
     expect(api.logout).not.toHaveBeenCalled();
-    expect(dialog.queryByRole("region", { name: "Confirm sign out" })).toBeNull();
 
     await user.click(dialog.getByRole("button", { name: "Sign out of this workspace" }));
-    await user.click(dialog.getByRole("button", { name: "Confirm sign out" }));
+    asking = await screen.findByRole("dialog", { name: "Sign out of this workspace?" });
+    await user.click(within(asking).getByRole("button", { name: "Sign out" }));
+    await waitFor(() => expect(onSignedOut).toHaveBeenCalledOnce());
     expect(api.logout).toHaveBeenCalledOnce();
-    expect(onSignedOut).toHaveBeenCalledOnce();
   });
 
   it("asks before signing out every other device, then drops them from the list", async () => {
@@ -166,15 +158,16 @@ describe("signing out", () => {
     );
   });
 
-  it("stays asking, and says the change was not confirmed, when the workspace cannot be reached", async () => {
+  it("stays signed in, and says so, when the workspace cannot be reached", async () => {
     const { api, dialog, onSignedOut, user } = account("security");
     api.logout.mockRejectedValueOnce(new TypeError("Failed to fetch"));
     await user.click(dialog.getByRole("button", { name: "Sign out of this workspace" }));
-    await user.click(dialog.getByRole("button", { name: "Confirm sign out" }));
-    expect(await dialog.findByRole("alert")).toHaveTextContent(
-      "The workspace did not confirm the change. Check your connection and refresh before trying again.",
+    const asking = await screen.findByRole("dialog", { name: "Sign out of this workspace?" });
+    await user.click(within(asking).getByRole("button", { name: "Sign out" }));
+    expect(await screen.findByText(/You are still signed in/)).toHaveTextContent(
+      "You are still signed in. Check your connection and try again.",
     );
     expect(onSignedOut).not.toHaveBeenCalled();
-    expect(dialog.getByRole("region", { name: "Confirm sign out" })).toBeVisible();
+    expect(screen.getByRole("dialog", { name: "Account settings" })).toBeVisible();
   });
 });

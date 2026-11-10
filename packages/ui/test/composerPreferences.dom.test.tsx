@@ -139,7 +139,7 @@ describe("the Composing settings", () => {
     render(
       <PlatformContext.Provider value={platform}>
         <ClientContext.Provider value={workspace()}>
-          <AccountDialog onClose={() => {}} onSignedOut={() => {}} section="composing" />
+          <AccountDialog onClose={() => {}} section="composing" />
         </ClientContext.Provider>
       </PlatformContext.Provider>,
     );

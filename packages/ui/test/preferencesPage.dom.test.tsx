@@ -10,6 +10,7 @@ import { AccountDialog, type AccountSection } from "../src/components/AccountDia
 import { SECTION_LABELS, SETTINGS, findSettings } from "../src/lib/settingsSearch.js";
 import type { Platform } from "../src/platform.js";
 import { accessibilityProblems } from "./accessibility.js";
+import { workspaceParts } from "./workspaceParts.js";
 
 /**
  * Account settings as a window (UX-60): its own list of sections beside the
@@ -61,11 +62,9 @@ function page(
   };
   const onClose = vi.fn();
   render(
-    <PlatformContext.Provider value={platform}>
-      <ClientContext.Provider value={client}>
-        <AccountDialog onClose={onClose} onSignedOut={() => {}} section={options.section} />
-      </ClientContext.Provider>
-    </PlatformContext.Provider>,
+    workspaceParts(client, { shell: { platform } }).wrap(
+      <AccountDialog onClose={onClose} section={options.section} />,
+    ),
   );
   const settings = screen.getByRole("dialog", { name: "Account settings" });
   return {
