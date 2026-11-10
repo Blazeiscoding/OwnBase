@@ -380,8 +380,9 @@ export function TwoStepSettings() {
               type="button"
               className={buttonClass("secondary")}
               onClick={() =>
-                saveCodes(
+                saveText(
                   `Recovery codes for @${self.handle} in ${workspaceName} on OwnBase.\nEach one signs you in once, in place of a code from your authenticator app.\n\n${codesText}\n`,
+                  "ownbase-recovery-codes.txt",
                 )
               }
             >

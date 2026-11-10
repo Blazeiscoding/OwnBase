@@ -131,7 +131,6 @@ function capitalise(text: string): string {
   return text.charAt(0).toUpperCase() + text.slice(1);
 }
 
-
 /**
  * What administrators have changed, for a workspace that has to be able to say
  * who deactivated someone or replaced an app's token. Closed until asked for:

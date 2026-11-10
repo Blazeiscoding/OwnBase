@@ -148,7 +148,7 @@ export function DiagnosticsDialog({
           onClick={() => {
             if (!report) return;
             const name = diagnosticsFileName(report.taken);
-            saveReport(report.text, name);
+            saveText(report.text, name);
             setSaved(name);
           }}
         >
