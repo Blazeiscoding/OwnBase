@@ -116,7 +116,6 @@ export class MessageStore {
       .get(userId, nonce);
   }
 
-  /** Forgets the keys of removed messages posted before `before`. */
   pruneRequestsPurged(before: number): number {
     return Number(
       this.db.prepare("DELETE FROM purged_message_requests WHERE sent_at < ?").run(before).changes,
@@ -354,7 +353,6 @@ export class MessageStore {
     this.db.prepare("DELETE FROM saved_items WHERE message_id = ?").run(id);
     this.db.prepare("DELETE FROM message_mentions WHERE message_id = ?").run(id);
     this.db.prepare("DELETE FROM link_previews WHERE message_id = ?").run(id);
-    // Its votes go with it.
     this.db.prepare("DELETE FROM polls WHERE message_id = ?").run(id);
     this.store.redactMessageEvents(id);
     this.store.requoteEvents([id], null);
