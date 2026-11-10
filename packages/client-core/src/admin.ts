@@ -1,11 +1,13 @@
 import type { CreateInviteBody, ID, ReportResolution, User } from "@ownbase/protocol";
 import type { Api } from "./api.js";
+import { answerOf, doneOf } from "./optimisticWrites.js";
 
 /**
  * Looking after the workspace: its people, reports, invites, history of
  * changes, health and copies, and the settings its extensions add. The
  * server refuses whoever may not; invites are the one list anyone may read,
- * their own.
+ * their own. Each answers what the server said, or the `ApiError` saying why
+ * not.
  */
 export class AdminActions {
   constructor(
@@ -19,92 +21,95 @@ export class AdminActions {
    * have two-step sign-in (E11).
    */
   people() {
-    return this.api.listAllUsers();
+    return answerOf(async () => (await this.api.listAllUsers()).users);
   }
 
   /** Changes someone's role, or takes their access away. */
-  async changePerson(
+  changePerson(
     userId: ID,
     patch: { role?: "member" | "admin"; deactivated?: boolean; canInvite?: boolean },
   ) {
-    const result = await this.api.updateUserAdmin(userId, patch);
-    this.keepUsers([result.user]);
-    return result;
+    return doneOf(async () => {
+      const { user } = await this.api.updateUserAdmin(userId, patch);
+      this.keepUsers([user]);
+    });
   }
 
+  /** A password the person must replace when they next sign in. */
   resetPassword(userId: ID) {
-    return this.api.resetPassword(userId);
+    return answerOf(async () => (await this.api.resetPassword(userId)).temporaryPassword);
   }
 
   /** Turns someone's two-step sign-in off, for one who lost their app and codes. */
   resetTwoStep(userId: ID) {
-    return this.api.resetTwoStep(userId);
+    return doneOf(() => this.api.resetTwoStep(userId));
   }
 
-  async transferOwnership(userId: ID) {
-    const result = await this.api.transferOwnership(userId);
-    this.keepUsers([result.owner, result.previousOwner]);
-    return result;
+  transferOwnership(userId: ID) {
+    return doneOf(async () => {
+      const { owner, previousOwner } = await this.api.transferOwnership(userId);
+      this.keepUsers([owner, previousOwner]);
+    });
   }
 
   /** The reported messages waiting for an admin (E12). */
   reports() {
-    return this.api.listReports();
+    return answerOf(async () => (await this.api.listReports()).reports);
   }
 
   resolveReport(messageId: ID, action: ReportResolution) {
-    return this.api.resolveReport(messageId, action);
+    return doneOf(() => this.api.resolveReport(messageId, action));
   }
 
   /** Every invite for an administrator; one's own for everyone else. Newest first. */
   invites() {
-    return this.api.listInvites();
+    return answerOf(async () => (await this.api.listInvites()).invites);
   }
 
   createInvite(body: CreateInviteBody = {}) {
-    return this.api.createInvite(body);
+    return answerOf(async () => (await this.api.createInvite(body)).invite);
   }
 
   /** Already-revoked is not an error. */
   revokeInvite(code: string) {
-    return this.api.revokeInvite(code);
+    return doneOf(() => this.api.revokeInvite(code));
   }
 
   /** A page of what administrators have changed, newest first. */
   audit(before?: string) {
-    return this.api.listAudit(before);
+    return answerOf(() => this.api.listAudit(before));
   }
 
   /** Whether the server is keeping up: sizes, queues and timings, never what is in them (OPS-10). */
   workspaceStatus() {
-    return this.api.workspaceStatus();
+    return answerOf(() => this.api.workspaceStatus());
   }
 
   /** What happened in huddles lately. The server keeps it in memory only. */
   callLog() {
-    return this.api.callLog();
+    return answerOf(async () => (await this.api.callLog()).entries);
   }
 
   /** The copy of the workspace its owner can download, if one is being made or kept. */
   workspaceCopy() {
-    return this.api.workspaceCopy();
+    return answerOf(async () => (await this.api.workspaceCopy()).copy);
   }
 
   makeWorkspaceCopy() {
-    return this.api.makeWorkspaceCopy();
+    return answerOf(async () => (await this.api.makeWorkspaceCopy()).copy);
   }
 
   /** An address that downloads the ready copy once, within a minute. */
   workspaceCopyUrl(id: string) {
-    return this.api.workspaceCopyUrl(id);
+    return answerOf(() => this.api.workspaceCopyUrl(id));
   }
 
   /** The panels the server's extensions add to Workspace settings (P9). */
   extensionSettings() {
-    return this.api.extensionSettings();
+    return answerOf(async () => (await this.api.extensionSettings()).panels);
   }
 
   saveExtensionSettings(path: string, values: Record<string, string | boolean>) {
-    return this.api.saveExtensionSettings(path, values);
+    return doneOf(() => this.api.saveExtensionSettings(path, values));
   }
 }

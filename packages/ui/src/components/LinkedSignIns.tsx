@@ -2,9 +2,8 @@ import { useCallback, useEffect, useId, useRef, useState } from "react";
 import type { SignInConnection, SignInMethod } from "@ownbase/protocol";
 import { ApiError } from "@ownbase/client-core";
 import { useClient, useWorkspace } from "../context.js";
+import { failureText } from "../lib/failure.js";
 import { buttonClass } from "./Button.js";
-
-/** A path on the workspace's own server, with a query of plain values: nothing else is opened. */
 
 /**
  * The workspace's single sign-on in Account settings, under Security (P9):
@@ -27,14 +26,11 @@ export function LinkedSignIns() {
   const owned = !!self && self.role !== "guest";
 
   const load = useCallback(async () => {
-    try {
-      const linked = await client.account.linkedSignIns();
-      if (!alive.current) return;
-      setMethods(linked.methods);
-      setLinks(linked.links);
-    } catch {
-      // Asked again next time Account settings opens; nothing here is urgent.
-    }
+    const linked = await client.account.linkedSignIns();
+    // One that fails is asked again next time Account settings opens; nothing here is urgent.
+    if (!alive.current || linked instanceof ApiError) return;
+    setMethods(linked.methods);
+    setLinks(linked.links);
   }, [client]);
   useEffect(() => {
     alive.current = true;
@@ -55,29 +51,26 @@ export function LinkedSignIns() {
   async function link(method: SignInMethod) {
     setBusy(true);
     setError(null);
-    try {
-      const url = await client.account.linkSignInUrl(method);
-      // In a new tab, or the system's browser in the desktop app: this window stays signed in.
-      window.open(url, "_blank", "noopener");
-      if (alive.current) setAway(true);
-    } catch (err) {
-      if (alive.current) setError(problem(err, "Linking did not start."));
-    } finally {
-      if (alive.current) setBusy(false);
+    const url = await client.account.linkSignInUrl(method);
+    if (!alive.current) return;
+    setBusy(false);
+    if (url instanceof ApiError) {
+      setError(failureText("Linking did not start.", url, "Try again."));
+      return;
     }
+    // In a new tab, or the system's browser in the desktop app: this window stays signed in.
+    window.open(url, "_blank", "noopener");
+    setAway(true);
   }
 
   async function unlink(method: SignInMethod) {
     setBusy(true);
     setError(null);
-    try {
-      const now = await client.account.unlinkSignIn(method);
-      if (alive.current) setLinks((current) => ({ ...current, [method.id]: now }));
-    } catch (err) {
-      if (alive.current) setError(problem(err, "Could not unlink it."));
-    } finally {
-      if (alive.current) setBusy(false);
-    }
+    const now = await client.account.unlinkSignIn(method);
+    if (!alive.current) return;
+    setBusy(false);
+    if (now instanceof ApiError) setError(failureText("Could not unlink it.", now, "Try again."));
+    else setLinks((current) => ({ ...current, [method.id]: now }));
   }
 
   return (
@@ -130,9 +123,4 @@ export function LinkedSignIns() {
       )}
     </section>
   );
-}
-
-function problem(err: unknown, what: string): string {
-  if (err instanceof ApiError && err.message && err.message !== err.code) return err.message;
-  return `${what} Check your connection and try again.`;
 }

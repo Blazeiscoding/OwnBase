@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useId, useRef, useState } from "react";
 import type { SessionInfo, StorageUsage } from "@ownbase/protocol";
-import { ApiError, snoozedUntil } from "@ownbase/client-core";
+import { ApiError, failureOf, snoozedUntil } from "@ownbase/client-core";
 import { formatBytes, formatFull, formatWhen } from "../lib/format.js";
 import { useClient, usePlatform, useWorkspace } from "../context.js";
 import { accountError, deviceLabel } from "../lib/account.js";
@@ -134,24 +134,20 @@ export function AccountDialog({
   const load = useCallback(async () => {
     const version = ++loadVersion.current;
     setLoading(true);
-    try {
-      const result = await client.account.sessions();
-      if (alive.current && version === loadVersion.current) {
-        setSessions(result.sessions);
-        setLoaded(true);
-        setLoadError(null);
-      }
-    } catch (err) {
-      if (alive.current && version === loadVersion.current) {
-        setLoadError(
-          err instanceof ApiError && err.code === "unauthorized"
-            ? accountError(err)
-            : "Could not load signed-in devices. Check your connection and try again.",
-        );
-      }
-    } finally {
-      if (alive.current && version === loadVersion.current) setLoading(false);
+    const result = await client.account.sessions();
+    if (!alive.current || version !== loadVersion.current) return;
+    setLoading(false);
+    if (result instanceof ApiError) {
+      setLoadError(
+        result.code === "unauthorized"
+          ? accountError(result)
+          : failureText("Could not load signed-in devices.", result, "Try again."),
+      );
+      return;
     }
+    setSessions(result);
+    setLoaded(true);
+    setLoadError(null);
   }, [client]);
   useEffect(() => {
     alive.current = true;
@@ -175,22 +171,20 @@ export function AccountDialog({
       return;
     }
     setBusy(true);
-    try {
-      await client.account.changePassword(currentPassword, newPassword);
-      if (!alive.current) return;
-      setCurrentPassword("");
-      setNewPassword("");
-      setRepeatPassword("");
-      setNotice(
-        "Password changed. Your other devices are signed out. This device stays signed in.",
-      );
-      setSessions((current) => current.filter((session) => session.current));
-      await load();
-    } catch (err) {
-      if (alive.current) setError(accountError(err));
-    } finally {
-      if (alive.current) setBusy(false);
+    const failed = await client.account.changePassword(currentPassword, newPassword);
+    if (!alive.current) return;
+    if (failed) {
+      setError(accountError(failed));
+      setBusy(false);
+      return;
     }
+    setCurrentPassword("");
+    setNewPassword("");
+    setRepeatPassword("");
+    setNotice("Password changed. Your other devices are signed out. This device stays signed in.");
+    setSessions((current) => current.filter((session) => session.current));
+    await load();
+    if (alive.current) setBusy(false);
   }
 
   async function confirm() {
@@ -204,10 +198,15 @@ export function AccountDialog({
         onSignedOut();
         return;
       }
-      if (confirmation.kind === "device")
-        await client.account.signOutDevice(confirmation.session.id);
-      else await client.account.signOutOtherDevices();
+      const failed =
+        confirmation.kind === "device"
+          ? await client.account.signOutDevice(confirmation.session.id)
+          : await client.account.signOutOtherDevices();
       if (!alive.current) return;
+      if (failed) {
+        setError(accountError(failed));
+        return;
+      }
       setNotice(
         confirmation.kind === "device"
           ? "That device has been signed out."
@@ -221,7 +220,7 @@ export function AccountDialog({
       setConfirmation(null);
       await load();
     } catch (err) {
-      if (alive.current) setError(accountError(err));
+      if (alive.current) setError(accountError(failureOf(err)));
     } finally {
       if (alive.current) setBusy(false);
     }
@@ -934,17 +933,13 @@ function WorkspaceStorage() {
     const controller = new AbortController();
     setLoading(true);
     setError(null);
-    void client.account
-      .storageUsage(controller.signal)
-      .then((value) => {
-        if (!controller.signal.aborted) setUsage(value);
-      })
-      .catch(() => {
-        if (!controller.signal.aborted) setError("Could not load storage use. Try again.");
-      })
-      .finally(() => {
-        if (!controller.signal.aborted) setLoading(false);
-      });
+    void client.account.storageUsage(controller.signal).then((usage) => {
+      if (controller.signal.aborted) return;
+      setLoading(false);
+      if (usage instanceof ApiError)
+        setError(failureText("Could not load storage use.", usage, "Try again."));
+      else setUsage(usage);
+    });
     return () => controller.abort();
   }, [client, attempt]);
   return (

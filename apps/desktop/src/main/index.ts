@@ -1035,8 +1035,9 @@ void app.whenReady().then(async () => {
   // "starting" long before the window asks.
   const loginSettings = loginItem && !isTest ? app.getLoginItemSettings() : {};
   if (openedAtLogin(process.platform, process.argv, loginSettings)) {
-    const hosted = await hosting.startForLaunch().catch(() => null);
-    if (!hosted?.running || !tray || hosting.status().launchError) createWindow();
+    await hosting.startForLaunch().catch(() => {});
+    const hosted = hosting.status();
+    if (!hosted.running || !tray || hosted.launchError) createWindow();
   } else {
     void hosting.startForLaunch().catch(() => {});
     createWindow();

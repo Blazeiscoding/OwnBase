@@ -116,6 +116,18 @@ describe("changing a password", () => {
     expect(dialog.getByLabelText("New password")).toHaveValue("new-password-1");
   });
 
+  it("says why in the server's words when it refuses for a reason of its own", async () => {
+    const { api, dialog, user } = account("security");
+    api.password.mockRejectedValueOnce(
+      new ApiError(400, "bad_request", "that password is on the list of leaked ones"),
+    );
+    await fill(dialog, user, "old-password", "new-password-1", "new-password-1");
+    expect(await dialog.findByRole("alert")).toHaveTextContent(
+      "The workspace could not complete this change. That password is on the list of leaked ones.",
+    );
+    expect(dialog.getByLabelText("New password")).toHaveValue("new-password-1");
+  });
+
   it("clears the fields and says the other devices were signed out once it changes", async () => {
     const { api, dialog, user } = account("security");
     await fill(dialog, user, "old-password", "new-password-1", "new-password-1");
@@ -164,6 +176,20 @@ describe("signing out", () => {
       "role",
       "status",
     );
+  });
+
+  it("keeps the other devices listed, still asking, when signing them out is refused", async () => {
+    const { api, dialog, user } = account("devices");
+    api.revokeOthers.mockRejectedValueOnce(new ApiError(401, "unauthorized"));
+    await user.click(await dialog.findByRole("button", { name: "Sign out all other devices" }));
+    await user.click(dialog.getByRole("button", { name: "Confirm sign out" }));
+    expect(await dialog.findByRole("alert")).toHaveTextContent(
+      "You were signed out. Sign in again to continue.",
+    );
+    expect(dialog.getByRole("region", { name: "Confirm sign out" })).toBeVisible();
+    expect(
+      within(dialog.getByRole("list", { name: "Signed-in devices" })).getAllByRole("listitem"),
+    ).toHaveLength(2);
   });
 
   it("stays asking, and says the change was not confirmed, when the workspace cannot be reached", async () => {

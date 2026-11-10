@@ -123,6 +123,55 @@ describe("changes whose answer the client keeps", () => {
   });
 });
 
+describe("account and admin changes that are refused", () => {
+  it("answers with the server's refusal rather than throwing it", async () => {
+    const { client } = signedIn();
+    vi.spyOn(client.api, "changePassword").mockRejectedValue(
+      new ApiError(403, "invalid_credentials"),
+    );
+    expect(await client.account.changePassword("old", "new-password")).toMatchObject({
+      status: 403,
+      code: "invalid_credentials",
+    });
+  });
+
+  it("answers an unreachable workspace as a network error", async () => {
+    const { client } = signedIn();
+    vi.spyOn(client.api, "listReports").mockRejectedValue(new TypeError("Failed to fetch"));
+    expect(await client.admin.reports()).toMatchObject({ code: "network_error" });
+  });
+
+  it("leaves someone as they were when changing them is refused", async () => {
+    const { client, kai } = signedIn();
+    vi.spyOn(client.api, "updateUserAdmin").mockRejectedValue(
+      new ApiError(403, "admins_are_equals"),
+    );
+    expect(await client.admin.changePerson(kai.id, { role: "admin" })).toMatchObject({
+      code: "admins_are_equals",
+    });
+    expect(client.state.users[kai.id]!.role).toBe("member");
+  });
+
+  it("refuses a sign-in link that leaves the workspace's server", async () => {
+    const { client } = signedIn();
+    vi.spyOn(client.api, "connectSignIn").mockResolvedValue({
+      url: "https://elsewhere.example/steal",
+    } as never);
+    const method = { id: "oidc", name: "Okta", connect: "/api/ee/sso/connect" } as never;
+    expect(await client.account.linkSignInUrl(method)).toMatchObject({
+      code: "invalid_response",
+    });
+  });
+
+  it("gives what was asked for once the server answers", async () => {
+    const { client } = signedIn();
+    vi.spyOn(client.api, "resetPassword").mockResolvedValue({ temporaryPassword: "temp-horse" });
+    expect(await client.admin.resetPassword("U_KAI")).toBe("temp-horse");
+    vi.spyOn(client.api, "revokeOtherSessions").mockResolvedValue({ revoked: 2 });
+    expect(await client.account.signOutOtherDevices()).toBeNull();
+  });
+});
+
 describe("the largest file a workspace takes", () => {
   it("is asked once, and asked again after the server could not say", async () => {
     const { client } = signedIn();

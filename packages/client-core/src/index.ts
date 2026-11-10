@@ -1,4 +1,5 @@
 export { Api, ApiError, normalizeServerUrl } from "./api.js";
+export { failureOf } from "./optimisticWrites.js";
 export type { AppDetail, CommandHint, SignedIn } from "./api.js";
 export { previewImageKey } from "./fileCache.js";
 export { forwardOf, forwardSource, quoteOf } from "./replies.js";
