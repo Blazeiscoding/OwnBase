@@ -117,7 +117,6 @@ function isBlocked(address: string, opts: OutboundOptions): boolean {
   return !opts.allowPrivate && isPrivateAddress(address);
 }
 
-/** Why an address may not be asked, or null when it may. */
 function refusal(parsed: URL, opts: OutboundOptions): OutboundError | null {
   if (parsed.protocol !== "http:" && parsed.protocol !== "https:") {
     return new OutboundError("blocked_host", "only http(s) URLs are allowed");

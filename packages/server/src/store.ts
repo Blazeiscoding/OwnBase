@@ -29,7 +29,6 @@ export class Store {
   });
   /** The workspace's settings, kept in `meta`; see core/settings.ts. */
   readonly settings: Settings;
-  // features: fields
   readonly accounts: AccountStore;
   readonly people: PeopleStore;
   readonly channels: ChannelStore;
@@ -48,7 +47,6 @@ export class Store {
 
   constructor(readonly db: DatabaseSync) {
     this.settings = new Settings(this);
-    // features: made
     this.accounts = new AccountStore(db, this);
     this.people = new PeopleStore(db, this);
     this.channels = new ChannelStore(db, this);
@@ -103,7 +101,6 @@ export class Store {
     this.db.prepare("DELETE FROM meta WHERE key = ?").run(key);
   }
 
-  /** Every meta key starting with `prefix`, in key order. */
   listMeta(prefix: string): { key: string; value: string }[] {
     return this.db
       .prepare("SELECT key, value FROM meta WHERE substr(key, 1, ?) = ? ORDER BY key")
