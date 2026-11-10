@@ -8,7 +8,6 @@ export interface ServerCommand {
   args: string[];
 }
 
-/** One workspace's server, as the supervisor runs it. */
 export interface ProcessSpec {
   slug: string;
   port: number;
@@ -126,7 +125,6 @@ export class Supervisor {
         entry.status.state = "stopped";
         return;
       }
-      // Stopped on its own: wait, then start it again.
       if (Date.now() - entry.startedAt >= STEADY_MS) entry.failures = 0;
       const wait = BACKOFF_MS[Math.min(entry.failures, BACKOFF_MS.length - 1)]!;
       entry.failures++;
@@ -146,7 +144,6 @@ export class Supervisor {
     });
   }
 
-  /** Stops a workspace's server: asked first, killed if it does not go. */
   async stop(slug: string): Promise<void> {
     const entry = this.running.get(slug);
     if (!entry) return;
@@ -170,7 +167,6 @@ export class Supervisor {
     await Promise.all([...this.running.keys()].map((slug) => this.stop(slug)));
   }
 
-  /** Waits until the server on `port` answers its health check, unless it is stopped first. */
   private async healthy(port: number, stopped: () => boolean): Promise<void> {
     const deadline = Date.now() + HEALTHY_WITHIN_MS;
     for (;;) {

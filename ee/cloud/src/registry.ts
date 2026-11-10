@@ -10,7 +10,6 @@ export type Plan = keyof typeof PLANS;
 
 export type WorkspaceState = "active" | "suspended" | "deleted";
 
-/** One hosted workspace, as the control plane keeps it. */
 export interface HostedWorkspace {
   /** Its subdomain, <slug>.<domain>, and its folder's name. */
   slug: string;
@@ -43,7 +42,6 @@ const RESERVED = new Set([
   "www",
 ]);
 
-/** Why `slug` cannot name a workspace, or null when it can. */
 export function slugProblem(slug: string): string | null {
   if (!/^[a-z0-9](?:[a-z0-9-]{1,30})[a-z0-9]$/.test(slug))
     return "A workspace's address is 3 to 32 lowercase letters, digits or hyphens, starting and ending with a letter or digit";
@@ -119,7 +117,6 @@ export class Registry {
     return row ? fromRow(row) : null;
   }
 
-  /** Ports taken by workspaces not deleted. */
   portsInUse(): Set<number> {
     const rows = this.db
       .prepare("SELECT port FROM workspaces WHERE state != 'deleted'")
