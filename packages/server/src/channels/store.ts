@@ -18,7 +18,6 @@ const NOTIFY_LEVELS = { all: true, mentions: true, nothing: true } satisfies Rec
   true
 >;
 
-/** A `channels` row. */
 const channelRow = shape({
   id: "text",
   type: oneOf({ public: true, private: true, dm: true, group_dm: true } satisfies Record<
@@ -495,7 +494,6 @@ export class ChannelStore {
     );
   }
 
-  /** Whether this section is one of this account's own. */
   ownsSection(userId: ID, sectionId: ID): boolean {
     return !!this.db
       .prepare("SELECT 1 FROM sidebar_sections WHERE id = ? AND user_id = ?")
