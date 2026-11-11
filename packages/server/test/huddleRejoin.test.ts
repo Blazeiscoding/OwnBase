@@ -93,7 +93,7 @@ async function call() {
   b.send({ type: "huddle.join", channelId: general(), requestId: "b1" });
   await b.settle();
   await a.settle();
-  expect(server.gateway.huddleParticipants(general()).sort()).toEqual(
+  expect(server.huddles.participants(general()).sort()).toEqual(
     [alice.user.id, bob.user.id].sort(),
   );
   return { alice, bob, a, b };
@@ -108,7 +108,7 @@ describe("a place in a huddle when its device's connection drops", () => {
     b.ws.terminate();
     await expect.poll(() => server.gateway.isOnline(bob.user.id)).toBe(false);
     await a.settle();
-    expect(server.gateway.huddleParticipants(general()).sort()).toEqual(
+    expect(server.huddles.participants(general()).sort()).toEqual(
       [alice.user.id, bob.user.id].sort(),
     );
 
@@ -121,7 +121,7 @@ describe("a place in a huddle when its device's connection drops", () => {
     );
     await a.settle();
     expect(a.events("huddle.participants")).toHaveLength(rosters);
-    expect(server.gateway.calls.entries(() => true)).toContainEqual(
+    expect(server.huddles.calls.entries(() => true)).toContainEqual(
       expect.objectContaining({
         userId: bob.user.id,
         kind: "joined",
@@ -146,7 +146,7 @@ describe("a place in a huddle when its device's connection drops", () => {
     await expect
       .poll(() => a.events("huddle.participants").at(-1))
       .toEqual({ type: "huddle.participants", channelId: general(), userIds: [alice.user.id] });
-    expect(server.gateway.calls.entries(() => true).at(-1)).toMatchObject({
+    expect(server.huddles.calls.entries(() => true).at(-1)).toMatchObject({
       userId: bob.user.id,
       kind: "left",
       reason: "disconnected",
@@ -158,7 +158,7 @@ describe("a place in a huddle when its device's connection drops", () => {
     const { alice, bob, b } = await call();
     const phone = await connect((await signIn("bob")).token);
     b.ws.terminate();
-    await expect.poll(() => server.gateway.huddleParticipants(general())).toEqual([alice.user.id]);
+    await expect.poll(() => server.huddles.participants(general())).toEqual([alice.user.id]);
     expect(server.gateway.isOnline(bob.user.id)).toBe(true);
     // The phone was never in the call, so nothing meant for it went there.
     expect(phone.events("huddle.signal")).toEqual([]);
@@ -181,7 +181,7 @@ describe("a place in a huddle when its device's connection drops", () => {
     await a.settle();
     await phone.settle();
     expect(phone.events("huddle.signal")).toEqual([]);
-    expect(server.gateway.calls.entries(() => true).at(-1)).toMatchObject({
+    expect(server.huddles.calls.entries(() => true).at(-1)).toMatchObject({
       kind: "dropped",
       reason: "offer: the other person's connection is down",
     });
@@ -213,7 +213,7 @@ describe("a place in a huddle when the person joins from another device", () => 
     b.send({ type: "huddle.leave", channelId: general() });
     await b.settle();
     await a.settle();
-    expect(server.gateway.huddleParticipants(general()).sort()).toEqual(
+    expect(server.huddles.participants(general()).sort()).toEqual(
       [alice.user.id, bob.user.id].sort(),
     );
     expect(a.events("huddle.participants")).toHaveLength(rosters);
@@ -238,7 +238,7 @@ describe("a place in a huddle when the person joins from another device", () => 
 
     // The phone leaving ends Bob's place.
     phone.send({ type: "huddle.leave", channelId: general() });
-    await expect.poll(() => server.gateway.huddleParticipants(general())).toEqual([alice.user.id]);
+    await expect.poll(() => server.huddles.participants(general())).toEqual([alice.user.id]);
   });
 });
 

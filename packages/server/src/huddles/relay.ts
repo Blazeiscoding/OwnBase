@@ -1,7 +1,7 @@
 import { createHmac } from "node:crypto";
 import { z } from "zod";
-import type { EnvName } from "./cli/flags.js";
-import { ConfigError } from "./config.js";
+import type { EnvName } from "../cli/flags.js";
+import { ConfigError } from "../config.js";
 import { iceServersSchema } from "./rtc.js";
 
 export type IceServer = z.infer<typeof iceServersSchema>[number];

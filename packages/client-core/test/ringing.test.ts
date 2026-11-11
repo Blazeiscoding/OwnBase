@@ -113,14 +113,14 @@ describe("rings on the client", () => {
     const channelId = await directMessage();
     const caller = await socket(alice.token);
     caller({ type: "huddle.join", channelId, requestId: "a" });
-    await expect.poll(() => server.gateway.huddleRing(channelId)).not.toBeNull();
+    await expect.poll(() => server.huddles.ring(channelId)).not.toBeNull();
 
     const late = await online(bob.token);
     expect(late.state.rings?.[channelId]?.ringing).toEqual([bob.id]);
     late.declineRing(channelId);
     // Gone here at once, and the server heard it.
     expect(late.state.rings?.[channelId]).toBeUndefined();
-    await expect.poll(() => server.gateway.huddleRing(channelId)).toBeNull();
+    await expect.poll(() => server.huddles.ring(channelId)).toBeNull();
     caller({ type: "huddle.leave", channelId });
   });
 
@@ -265,7 +265,7 @@ describe("rings on the client", () => {
 
     // Again: Dave answers and Erin lets it ring out. Someone answered, so nothing is said.
     for (const send of [callerSocket, daveSocket]) send({ type: "huddle.leave", channelId });
-    await expect.poll(() => brief.gateway.huddleParticipants(channelId)).toEqual([]);
+    await expect.poll(() => brief.huddles.participants(channelId)).toEqual([]);
     caller.store.setState({ ringNotice: null });
     callerSocket({ type: "huddle.join", channelId, requestId: "c" });
     await until(erins, (s) => !!s.rings?.[channelId], "the second ring");

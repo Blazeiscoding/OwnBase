@@ -116,14 +116,14 @@ describe("huddle join acknowledgement", () => {
   it("rejects a real rate-limited join, releases the microphone and keeps the connection usable", async () => {
     await client.joinHuddle(channelId);
     expect(client.state.huddle?.channelId).toBe(channelId);
-    expect(server.gateway.huddleParticipants(channelId)).toEqual([client.state.self!.id]);
+    expect(server.huddles.participants(channelId)).toEqual([client.state.self!.id]);
     client.leaveHuddle();
     await expect(client.joinHuddle(channelId)).rejects.toThrow(/Wait \d+ seconds, then try again/);
 
     expect(tracks).toHaveLength(2);
     expect(tracks.every((track) => track.stop.mock.calls.length === 1)).toBe(true);
     expect(client.state.huddle).toBeNull();
-    expect(server.gateway.huddleParticipants(channelId)).toEqual([]);
+    expect(server.huddles.participants(channelId)).toEqual([]);
     expect(client.state.status).toBe("online");
     expect(HuddleSession.prototype.syncParticipants).toHaveBeenCalledTimes(1);
   });

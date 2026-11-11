@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { ConfigError } from "./config.js";
+import { ConfigError } from "../config.js";
 
 const iceUrl = z
   .string()

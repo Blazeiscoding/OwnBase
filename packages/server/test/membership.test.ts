@@ -129,7 +129,7 @@ describe("removing someone from a room", () => {
     await benSocket.heard(lostAccess(roomId));
     await anaSocket.heard(left(roomId, ben.id));
     await anaSocket.heard(huddleOf(roomId, [ana.id]));
-    expect(server.gateway.huddleParticipants(roomId)).toEqual([ana.id]);
+    expect(server.huddles.participants(roomId)).toEqual([ana.id]);
     // Asking to sit back down in the call is refused.
     benSocket.ws.send(
       JSON.stringify({ type: "huddle.join", channelId: roomId, requestId: "join-8" }),
@@ -148,7 +148,7 @@ describe("removing someone from a room", () => {
         (f) => f.type === "event" && f.envelope.event.type === "message.created",
       ),
     ).toBe(false);
-    expect(server.gateway.huddleParticipants(roomId)).toEqual([ana.id]);
+    expect(server.huddles.participants(roomId)).toEqual([ana.id]);
     expect((await history(roomId, ben)).status).toBe(404);
   });
 
@@ -165,7 +165,7 @@ describe("removing someone from a room", () => {
     benSocket.ws.send(
       JSON.stringify({ type: "huddle.join", channelId: roomId, requestId: "join-9" }),
     );
-    await expect.poll(() => server.gateway.huddleParticipants(roomId)).toEqual([ben.id]);
+    await expect.poll(() => server.huddles.participants(roomId)).toEqual([ben.id]);
 
     await request(`/api/channels/${roomId}/members/${ben.id}`, owner.token, "DELETE");
     // Told the membership ended, but not that the room went away.
@@ -177,7 +177,7 @@ describe("removing someone from a room", () => {
         f.event.channel?.id === roomId &&
         f.event.membership === null,
     );
-    expect(server.gateway.huddleParticipants(roomId)).toEqual([ben.id]);
+    expect(server.huddles.participants(roomId)).toEqual([ben.id]);
     expect((await history(roomId, ben)).status).toBe(200);
     expect(server.store.channels.isMember(roomId, ben.id)).toBe(false);
   });
@@ -273,7 +273,7 @@ describe("group conversations", () => {
     benSocket.ws.send(
       JSON.stringify({ type: "huddle.join", channelId: group.id, requestId: "join-10" }),
     );
-    await expect.poll(() => server.gateway.huddleParticipants(group.id)).toEqual([ben.id]);
+    await expect.poll(() => server.huddles.participants(group.id)).toEqual([ben.id]);
 
     expect((await request(`/api/channels/${group.id}/leave`, ben.token)).status).toBe(200);
     await benSocket.heard(lostAccess(group.id));
@@ -287,7 +287,7 @@ describe("group conversations", () => {
         [...(f.envelope.event.channel.memberIds ?? [])].sort().join() ===
           [owner.id, ana.id].sort().join(),
     );
-    expect(server.gateway.huddleParticipants(group.id)).toEqual([]);
+    expect(server.huddles.participants(group.id)).toEqual([]);
     expect((await history(group.id, ben)).status).toBe(404);
   });
 

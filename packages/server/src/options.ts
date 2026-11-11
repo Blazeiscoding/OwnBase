@@ -4,7 +4,7 @@ import type { ScheduledBackups } from "./backups/backupSchedule.js";
 import type { ServerExtension } from "./extensions.js";
 import type { Limits } from "./limits.js";
 import type { FetchedPreview } from "./linkPreview.js";
-import type { ServerRelay } from "./relay.js";
+import type { ServerRelay } from "./huddles/relay.js";
 import type { REMINDER_LIMITS } from "./reminders/feature.js";
 import type { SCHEDULED_LIMITS } from "./scheduled/feature.js";
 
