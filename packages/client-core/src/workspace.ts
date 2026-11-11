@@ -741,7 +741,7 @@ export class WorkspaceClient {
     this.admin = new AdminActions(this.api, (users) =>
       users.forEach((user) => this.keepUser(user)),
     );
-    this.apps = new AppActions(this.api);
+    this.apps = new AppActions(this.api, () => void this.loadCommands());
     this.lists = new Lists(this.api, this.store);
     // A session that has ended keeps nothing it downloaded (F07).
     this.store.subscribe((now, before) => {
@@ -3738,14 +3738,10 @@ export class WorkspaceClient {
     });
   }
 
-  /** Loads the `/` hint list. Failure is silent: hints are a convenience. */
-  async loadCommands(): Promise<void> {
-    try {
-      const { commands } = await this.api.listCommands();
-      this.store.setState({ commands });
-    } catch {
-      /* no permission: the composer shows no hints */
-    }
+  /** Loads the `/` hint list. A failure keeps the list there was: hints are a convenience. */
+  private async loadCommands(): Promise<void> {
+    const commands = await answerOf(async () => (await this.api.listCommands()).commands);
+    if (!(commands instanceof ApiError) && !this.stopped) this.store.setState({ commands });
   }
 
   /** Whether this device has gone idle, as it last told the server (E9). */
@@ -3827,13 +3823,9 @@ export class WorkspaceClient {
    */
   private afterReady(snap: ReadySnapshot): void {
     if (this.idle) this.sendSocket({ type: "idle", idle: true });
+    void this.loadCommands();
     if (snap.self.timeZone) return;
-    let zone: string | undefined;
-    try {
-      zone = Intl.DateTimeFormat().resolvedOptions().timeZone;
-    } catch {
-      return;
-    }
+    const zone = Intl.DateTimeFormat().resolvedOptions().timeZone;
     if (zone) void this.setTimeZone(zone);
   }
 

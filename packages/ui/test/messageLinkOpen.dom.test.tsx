@@ -74,7 +74,6 @@ function openAt(
     status: "online",
   });
   const load = vi.spyOn(client, "loadTimeline").mockResolvedValue();
-  vi.spyOn(client, "loadCommands").mockResolvedValue();
   const jump = vi.spyOn(client, "jumpToMessage").mockImplementation(answer);
   render(
     <PlatformContext.Provider value={platform}>

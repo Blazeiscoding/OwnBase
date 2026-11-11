@@ -429,11 +429,6 @@ function WorkspaceLayout(props: { restore: boolean; banner?: ReactNode }) {
   /** A server notice is on show, so the member notice after it waits (P6). */
   const [noticeShowing, setNoticeShowing] = useState(false);
 
-  // The composer's slash-command hints. Re-fetched when an admin adds one.
-  useEffect(() => {
-    void client.loadCommands();
-  }, [client]);
-
   useEffect(() => {
     // Failing here is not final: opening the palette, search, a thread, a hint or an emoji picker fetches it again.
     loadQuickSwitcher().catch(() => undefined);

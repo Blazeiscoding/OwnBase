@@ -94,7 +94,6 @@ async function workspace(
     "replace",
   );
   vi.spyOn(client, "loadTimeline").mockResolvedValue();
-  vi.spyOn(client, "loadCommands").mockResolvedValue();
   const members = vi
     .spyOn(client.api, "channelMembers")
     .mockResolvedValue({ memberIds: opts.members ?? [owner.id, maya.id] });

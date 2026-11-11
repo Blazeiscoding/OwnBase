@@ -283,7 +283,6 @@ async function workspaceAs(
   const workspace = client(person("U_SAM", "Sam Rivera", role), state);
   writeRoute(workspace.baseUrl, { channelId: general.id, threadRootId: null }, "replace");
   vi.spyOn(workspace, "loadTimeline").mockResolvedValue();
-  vi.spyOn(workspace, "loadCommands").mockResolvedValue();
   const platform = platformWith(store);
   render(
     <PlatformContext.Provider value={platform}>

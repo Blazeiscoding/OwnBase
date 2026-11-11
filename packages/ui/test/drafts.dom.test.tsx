@@ -298,7 +298,6 @@ describe("opening a draft from the Drafts panel", () => {
     });
     writeRoute(client.baseUrl, { channelId: general.id, threadRootId: null }, "replace");
     vi.spyOn(client, "loadTimeline").mockResolvedValue();
-    vi.spyOn(client, "loadCommands").mockResolvedValue();
     vi.spyOn(client, "loadThread").mockResolvedValue();
     const jump = vi.spyOn(client, "jumpToMessage").mockResolvedValue(null);
     vi.spyOn(client.api, "listScheduled").mockResolvedValue({ scheduled: [queued] });

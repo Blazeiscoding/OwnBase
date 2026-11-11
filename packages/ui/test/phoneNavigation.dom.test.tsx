@@ -89,7 +89,6 @@ function workspace(options: { phone?: boolean; self?: User; kind?: Platform["kin
   });
   writeRoute(client.baseUrl, { channelId: general.id, threadRootId: null }, "replace");
   vi.spyOn(client, "loadTimeline").mockResolvedValue();
-  vi.spyOn(client, "loadCommands").mockResolvedValue();
   vi.spyOn(client.api, "activity").mockResolvedValue({ messages: [], nextCursor: null });
   const platform: Platform = {
     kind: options.kind ?? "web",

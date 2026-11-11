@@ -117,7 +117,6 @@ describe("preference-aware huddle admission (N04)", () => {
     const saved = deferred<unknown>();
     const { client, platform, join, wrap } = setup(() => saved.promise);
     vi.spyOn(client, "loadTimeline").mockResolvedValue();
-    vi.spyOn(client, "loadCommands").mockResolvedValue();
     render(
       wrap(
         <AppNotices>
@@ -190,7 +189,6 @@ describe("preference-aware huddle admission (N04)", () => {
       memberships: { [general.id]: 0, C_DESIGN: 0 },
     });
     vi.spyOn(client, "loadTimeline").mockResolvedValue();
-    vi.spyOn(client, "loadCommands").mockResolvedValue();
     render(
       wrap(
         <AppNotices>
@@ -221,7 +219,6 @@ describe("preference-aware huddle admission (N04)", () => {
     const replacement = setup(async () => ({ joinMuted: false }));
     for (const candidate of [client, replacement.client]) {
       vi.spyOn(candidate, "loadTimeline").mockResolvedValue();
-      vi.spyOn(candidate, "loadCommands").mockResolvedValue();
     }
     const mounted = render(
       wrap(
