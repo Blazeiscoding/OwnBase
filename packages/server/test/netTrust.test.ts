@@ -54,7 +54,7 @@ describe("resolving a rate-limit identity", () => {
       "cf-connecting-ip": "203.0.113.7",
       "x-forwarded-for": "198.51.100.4",
     };
-    expect(resolveClientAddress("::ffff:127.0.0.1", headers, "loopback")).toBe("203.0.113.7");
+    expect(resolveClientAddress("::ffff:127.0.0.1", headers, true)).toBe("203.0.113.7");
     expect(resolveClientAddress("::ffff:127.0.0.1", headers)).toBe("127.0.0.1");
   });
 
@@ -63,14 +63,14 @@ describe("resolving a rate-limit identity", () => {
       resolveClientAddress(
         "192.168.1.40",
         { "cf-connecting-ip": "203.0.113.7", "x-forwarded-for": "198.51.100.4" },
-        "loopback",
+        true,
       ),
     ).toBe("192.168.1.40");
   });
 
   it("falls back to the proxy-added end of X-Forwarded-For", () => {
     expect(
-      resolveClientAddress("127.0.0.2", { "x-forwarded-for": "spoofed, 2001:db8::5" }, "loopback"),
+      resolveClientAddress("127.0.0.2", { "x-forwarded-for": "spoofed, 2001:db8::5" }, true),
     ).toBe("2001:db8::5");
   });
 
@@ -79,7 +79,7 @@ describe("resolving a rate-limit identity", () => {
       resolveClientAddress(
         "::1",
         { "cf-connecting-ip": "not-an-ip", "x-forwarded-for": "also-invalid" },
-        "loopback",
+        true,
       ),
     ).toBe("::1");
   });

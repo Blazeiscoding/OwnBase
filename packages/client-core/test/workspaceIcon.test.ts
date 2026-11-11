@@ -73,15 +73,13 @@ describe("the workspace's icon", () => {
       expect(client.state).toMatchObject({ iconVersion: null });
   });
 
-  it("follows a change an admin or the host makes, on every device and for everyone", async () => {
+  it("follows a change an admin makes, on every device and for everyone", async () => {
     const { iconVersion } = await owner.setWorkspaceIcon(new Blob([png()], { type: "image/png" }));
     for (const client of [member, ownerElsewhere])
       await expect.poll(() => client.state.iconVersion).toBe(iconVersion);
     expect(await owner.removeWorkspaceIcon()).toEqual({ iconVersion: null });
     for (const client of [member, ownerElsewhere])
       await expect.poll(() => client.state.iconVersion).toBeNull();
-    const hosts = server.setWorkspaceIcon(png(6), "image/png");
-    await expect.poll(() => member.state.iconVersion).toBe(hosts);
   });
 
   it("shows the new version as soon as the server answers, for the admin who changed it", async () => {

@@ -468,8 +468,10 @@ ${extensions.map((extension) => `\n${extension.help.replace(/\n+$/, "")}\n`).joi
     port,
     host,
     workspaceName: values.name,
-    inviteOnly: values["invite-only"],
-    ...(accessPolicy ? { accessPolicy } : {}),
+    // --invite-only is --access-policy invite_only, which outranks it.
+    ...(accessPolicy || values["invite-only"]
+      ? { accessPolicy: accessPolicy ?? "invite_only" }
+      : {}),
     mdns: !values["no-mdns"],
     isolated: values.isolated,
     webDistPath,

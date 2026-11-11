@@ -20,13 +20,7 @@ export interface ServerOptions {
    */
   workspaceName?: string;
   /**
-   * Whether an account after the first needs an invite code, for a workspace
-   * nobody owns yet; ignored, like `accessPolicy`, once it has an owner.
-   */
-  inviteOnly?: boolean;
-  /**
-   * Who may join a workspace nobody owns yet; takes precedence over
-   * `inviteOnly`. Once it has an owner, who may join is the workspace's own
+   * Who may join a workspace nobody owns yet. Once it has an owner, who may join is the workspace's own
    * choice, made by its owner and admins in Workspace settings, and a start
    * never puts back an older one over it.
    */
@@ -57,13 +51,6 @@ export interface ServerOptions {
    * something trustworthy writes them, and worthless when anyone can.
    */
   trustProxy?: boolean;
-  /**
-   * Believe Cloudflare's client-address header, falling back to the final
-   * X-Forwarded-For hop, only when the socket peer is loopback. This is for the
-   * desktop's local cloudflared connector; normal LAN and standalone servers
-   * leave it unset and key limits on the socket peer.
-   */
-  trustedClientProxy?: "loopback";
   /**
    * Lets slash commands and event subscriptions call private addresses
    * (192.168.x, 10.x, localhost…). Off by default: the server can reach the

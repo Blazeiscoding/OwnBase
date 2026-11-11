@@ -27,7 +27,7 @@ afterEach(async () => {
   server = undefined;
 });
 
-async function start(opts: { inviteOnly?: boolean; accessPolicy?: "guest_allowed" } = {}) {
+async function start(opts: { accessPolicy?: "invite_only" | "guest_allowed" } = {}) {
   server = await createWorkspaceServer({
     dataDir: ":memory:",
     host: "127.0.0.1",
@@ -110,15 +110,15 @@ async function connect(token: string) {
 
 describe("who may join", () => {
   it("keeps an existing workspace's rule: invites on stay invite-only, off stays accounts", async () => {
-    await start({ inviteOnly: true });
+    await start({ accessPolicy: "invite_only" });
     expect((await serverInfo()).accessPolicy).toBe("invite_only");
     await server!.stop();
     await start();
     expect((await serverInfo()).accessPolicy).toBe("account_required");
   });
 
-  it("starts with the rule it is given, which outranks invites alone", async () => {
-    await start({ inviteOnly: true, accessPolicy: "guest_allowed" });
+  it("starts with the rule it is given", async () => {
+    await start({ accessPolicy: "guest_allowed" });
     expect(await serverInfo()).toMatchObject({ accessPolicy: "guest_allowed" });
     await expect(
       createWorkspaceServer({
@@ -146,7 +146,7 @@ describe("who may join", () => {
   });
 
   it("keeps accounts open alongside guests, and asks for invites again once told to", async () => {
-    await start({ inviteOnly: true });
+    await start({ accessPolicy: "invite_only" });
     await register("owner");
     server!.setAccessPolicy("guest_allowed");
     expect((await serverInfo()).requiresInvite).toBe(false);

@@ -25,7 +25,7 @@ async function start(maxFileSize?: number) {
     port: 0,
     host: "127.0.0.1",
     mdns: false,
-    inviteOnly: true,
+    accessPolicy: "invite_only",
     maxFileSize,
     iceServers: [{ urls: "turn:relay.example.org:3478", username: "team", credential: "secret" }],
   });

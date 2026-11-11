@@ -13,7 +13,6 @@ import {
 import { HttpError } from "../httpError.js";
 import { fetchLinkPreview, previewLinks, type FetchedPreview } from "../linkPreview.js";
 import { createPosting } from "../messages/posting.js";
-import { SCHEDULED_LIMITS } from "../scheduled/feature.js";
 
 /**
  * One hourly retention round runs passes of at most a few thousand messages
@@ -23,10 +22,9 @@ import { SCHEDULED_LIMITS } from "../scheduled/feature.js";
 const RETENTION_PASSES = 200;
 const RETENTION_SWEEP_MS = 30_000;
 
-export interface RetentionStatus {
+interface RetentionStatus {
   /** When a sweep last finished without an error; null before the first. */
   lastSuccessAt: number | null;
-  lastError: string | null;
   /** Sweeps that have failed in a row. */
   failures: number;
 }
@@ -41,7 +39,6 @@ const PURGED_SEND_KEYS_MS = SEND_RETRY_WINDOW_MS + 7 * 24 * 3600_000;
 export function registerMessages(ctx: ServerContext) {
   const { opts, app, store, settings, route, ration, recordEvent, mutate, background, lifecycle } =
     ctx;
-  const scheduledLimits = { ...SCHEDULED_LIMITS, ...opts.scheduledLimits };
 
   const updateMessage = (existing: Message, text: string, clearActions = false): Message => {
     const updated = mutate((emit) => {
@@ -146,7 +143,7 @@ export function registerMessages(ctx: ServerContext) {
     });
   };
 
-  const posting = createPosting({ store, mutate, ration, queuePreviews, scheduledLimits });
+  const posting = createPosting({ store, mutate, ration, queuePreviews });
 
   const retentionMs = (opts.retentionDays ?? 0) * 24 * 3600_000;
 
@@ -186,7 +183,7 @@ export function registerMessages(ctx: ServerContext) {
    * it cannot take the server down from a timer, and is tried again on the
    * next round; until one succeeds, this is how its failure stays visible.
    */
-  const retention: RetentionStatus = { lastSuccessAt: null, lastError: null, failures: 0 };
+  const retention: RetentionStatus = { lastSuccessAt: null, failures: 0 };
 
   /**
    * Runs retention passes until one finds nothing left or the round's budget
@@ -206,11 +203,9 @@ export function registerMessages(ctx: ServerContext) {
         await new Promise<void>((resolve) => setImmediate(resolve));
       }
       retention.lastSuccessAt = Date.now();
-      retention.lastError = null;
       retention.failures = 0;
     } catch (err) {
       retention.failures++;
-      retention.lastError = err instanceof Error ? err.message : String(err);
       app.log.error(
         { err, failures: retention.failures, retentionDays: opts.retentionDays },
         "retention sweep failed; it will be tried again",

@@ -81,13 +81,7 @@ export function createWorkspace(ctx: ServerContext) {
       record?.();
       return policy === "guest_allowed" ? [] : store.accounts.revokeGuestSessions();
     });
-  /** Off unless guests are allowed; off again keeps the other choice. */
-  const withInvites = (on: boolean): AccessPolicy =>
-    on ? "invite_only" : accessPolicy() === "invite_only" ? "account_required" : accessPolicy();
-  if (unowned) {
-    if (opts.accessPolicy !== undefined) writeAccessPolicy(opts.accessPolicy);
-    else if (opts.inviteOnly !== undefined) writeAccessPolicy(withInvites(opts.inviteOnly));
-  }
+  if (unowned && opts.accessPolicy !== undefined) writeAccessPolicy(opts.accessPolicy);
 
   /**
    * A workspace with no owner is up for grabs. Until one exists, the account
@@ -164,7 +158,7 @@ export function createWorkspace(ctx: ServerContext) {
    * The rows change in one write with the record of who did it, which names
    * the image's type and size but never holds it.
    */
-  const changeIcon = (next: WorkspaceIcon | null, by: ID | null): void => {
+  const changeIcon = (next: WorkspaceIcon | null, by: ID): void => {
     if (lifecycle.closing) throw new Error("The workspace is stopping.");
     if ((icon?.version ?? null) === (next?.version ?? null)) return;
     store.transaction(() => {
@@ -186,7 +180,7 @@ export function createWorkspace(ctx: ServerContext) {
   };
 
   /** Sets the icon to a picture of the declared `type`, once checked; returns its version. */
-  const setIcon = (bytes: Buffer, type: string | undefined, by: ID | null): string => {
+  const setIcon = (bytes: Buffer, type: string | undefined, by: ID): string => {
     const next = checkedPicture(bytes, type);
     changeIcon(next, by);
     return next.version;
@@ -235,7 +229,7 @@ export function createWorkspace(ctx: ServerContext) {
     rename,
     changeAccessPolicy,
     setIcon,
-    removeIcon: (by: ID | null) => changeIcon(null, by),
+    removeIcon: (by: ID) => changeIcon(null, by),
     setLinkPreviews,
     snapshot,
     onChange(listener: (change: WorkspaceChange) => void): () => void {

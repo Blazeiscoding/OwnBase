@@ -31,17 +31,20 @@ export function registerScheduled(ctx: ServerContext, { posting }: { posting: Po
   const scheduledLimits = { ...SCHEDULED_LIMITS, ...opts.scheduledLimits };
 
   route(endpoints.scheduleMessage, async ({ reply, user: me, body, params }) => {
-    const result = posting.schedule({
-      userId: me.id,
-      channelId: params.id,
-      text: body.text,
-      threadRootId: body.threadRootId ?? null,
-      fileIds: body.fileIds ?? [],
-      sendAt: body.sendAt,
-      // Only a reply can also be shown in the channel, as with an ordinary send.
-      broadcast: !!body.threadRootId && body.alsoSendToChannel === true,
-      nonce: body.nonce ?? null,
-    });
+    const result = posting.schedule(
+      {
+        userId: me.id,
+        channelId: params.id,
+        text: body.text,
+        threadRootId: body.threadRootId ?? null,
+        fileIds: body.fileIds ?? [],
+        sendAt: body.sendAt,
+        // Only a reply can also be shown in the channel, as with an ordinary send.
+        broadcast: !!body.threadRootId && body.alsoSendToChannel === true,
+        nonce: body.nonce ?? null,
+      },
+      scheduledLimits,
+    );
     if (result.replayed) reply.status(200);
     return { scheduled: result.scheduled };
   });

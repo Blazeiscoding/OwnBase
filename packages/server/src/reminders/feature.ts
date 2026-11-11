@@ -14,11 +14,6 @@ export const REMINDER_LIMITS = {
   batch: 100,
 };
 
-export interface RemindersOptions {
-  /** Overrides for reminders' bounds; see `REMINDER_LIMITS`. */
-  reminderLimits?: Partial<typeof REMINDER_LIMITS>;
-}
-
 /** Reminders (E4): set on a message, they come due for their account at their time. */
 export function registerReminders(ctx: ServerContext) {
   const { store, route, opts, background } = ctx;

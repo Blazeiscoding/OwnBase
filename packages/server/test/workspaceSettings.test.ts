@@ -39,9 +39,7 @@ afterEach(async () => {
   if (folder) rmSync(folder, { recursive: true, force: true });
 });
 
-async function start(
-  opts: { workspaceName?: string; inviteOnly?: boolean; accessPolicy?: AccessPolicy } = {},
-) {
+async function start(opts: { workspaceName?: string; accessPolicy?: AccessPolicy } = {}) {
   dataDir ??= mkdtempSync(join(tmpdir(), "ownbase-workspace-settings-"));
   server = await createWorkspaceServer({
     dataDir,
@@ -337,7 +335,7 @@ describe("what a start is given", () => {
     await start({ workspaceName: "First Try", accessPolicy: "guest_allowed" });
     await server!.stop();
     // Nobody owns it yet, so a second start may still correct the first.
-    await start({ workspaceName: "Rocket Team", inviteOnly: true });
+    await start({ workspaceName: "Rocket Team", accessPolicy: "invite_only" });
     expect(server!.workspaceName()).toBe("Rocket Team");
     expect(server!.accessPolicy()).toBe("invite_only");
     await register("owner");
@@ -348,7 +346,7 @@ describe("what a start is given", () => {
     expect(server!.workspaceName()).toBe("Rocket Team");
     expect(server!.accessPolicy()).toBe("invite_only");
     await server!.stop();
-    await start({ inviteOnly: false });
+    await start({ accessPolicy: "account_required" });
     expect(server!.accessPolicy()).toBe("invite_only");
   });
 
@@ -357,7 +355,7 @@ describe("what a start is given", () => {
     await rename(admin.token, "Blue Team");
     await choose(admin.token, "guest_allowed");
     await server!.stop();
-    await start({ workspaceName: "Rocket Team", inviteOnly: true });
+    await start({ workspaceName: "Rocket Team", accessPolicy: "invite_only" });
     expect(server!.workspaceName()).toBe("Blue Team");
     expect(server!.accessPolicy()).toBe("guest_allowed");
     expect((await call("GET", "/api/server-info")).data).toMatchObject({

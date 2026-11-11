@@ -19,10 +19,7 @@ afterEach(async () => {
   dataDir = undefined;
 });
 
-async function start(
-  rateLimits?: Parameters<typeof createWorkspaceServer>[0]["rateLimits"],
-  trustedClientProxy?: Parameters<typeof createWorkspaceServer>[0]["trustedClientProxy"],
-) {
+async function start(rateLimits?: Parameters<typeof createWorkspaceServer>[0]["rateLimits"]) {
   dataDir = mkdtempSync(join(tmpdir(), "ownbase-limits-"));
   server = await createWorkspaceServer({
     dataDir,
@@ -31,7 +28,6 @@ async function start(
     mdns: false,
     logger: false,
     rateLimits,
-    trustedClientProxy,
     // The stand-in app below listens on loopback.
     allowPrivateHooks: true,
   });
@@ -205,13 +201,11 @@ describe("authentication limits", () => {
   });
 
   it("gives Cloudflare visitors separate address budgets through a trusted loopback proxy", async () => {
-    await start(
-      {
-        authByAddress: { burst: 1, perMinute: 1 },
-        authByHandle: { burst: 100, perMinute: 100 },
-      },
-      "loopback",
-    );
+    await start({
+      authByAddress: { burst: 1, perMinute: 1 },
+      authByHandle: { burst: 100, perMinute: 100 },
+    });
+    server!.setTrustLoopbackProxy(true);
 
     const first = await call("/api/auth/login", {
       headers: { "cf-connecting-ip": "203.0.113.10" },
@@ -472,7 +466,8 @@ describe("socket limits", () => {
   });
 
   it("gives Cloudflare visitors separate socket budgets through a trusted loopback proxy", async () => {
-    await start({ socket: { burst: 1, perMinute: 1 } }, "loopback");
+    await start({ socket: { burst: 1, perMinute: 1 } });
+    server!.setTrustLoopbackProxy(true);
     expect(await connect({ "cf-connecting-ip": "203.0.113.30" })).toBe("open");
     expect(await connect({ "cf-connecting-ip": "203.0.113.31" })).toBe("open");
     expect(await connect({ "cf-connecting-ip": "203.0.113.31" })).toBe("refused");

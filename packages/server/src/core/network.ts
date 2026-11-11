@@ -20,14 +20,13 @@ const FORWARDED = [
 /** Where requests come from and how this server is addressed, as the host has said. */
 export class Network {
   private publicUrlNow: string | undefined;
-  private trustLoopbackProxy: boolean;
+  private trustLoopbackProxy = false;
   private readonly trustProxy: boolean;
 
-  constructor(opts: { publicUrl?: string; trustProxy?: boolean; trustedClientProxy?: "loopback" }) {
+  constructor(opts: { publicUrl?: string; trustProxy?: boolean }) {
     this.publicUrlNow =
       opts.publicUrl === undefined ? undefined : parsePublicUrl(opts.publicUrl, "publicUrl");
     this.trustProxy = opts.trustProxy === true;
-    this.trustLoopbackProxy = opts.trustedClientProxy === "loopback";
   }
 
   publicUrl(): string | undefined {
@@ -46,11 +45,7 @@ export class Network {
 
   /** The address a request came from, as the limiter keys on it. */
   callerAddress(req: Pick<FastifyRequest, "socket" | "headers">): string {
-    return resolveClientAddress(
-      req.socket.remoteAddress,
-      req.headers,
-      this.trustLoopbackProxy ? "loopback" : undefined,
-    );
+    return resolveClientAddress(req.socket.remoteAddress, req.headers, this.trustLoopbackProxy);
   }
 
   /** Whatever the client called itself. Shown back to its owner, never trusted. */

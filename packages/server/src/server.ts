@@ -28,7 +28,7 @@ import { Gateway } from "./gateway.js";
 import { registerHuddles } from "./huddles/feature.js";
 import { DEFAULT_LIMITS, RateLimiter } from "./limits.js";
 import { advertise, type MdnsHandle } from "./mdns.js";
-import { registerMessages, type RetentionStatus } from "./messages/feature.js";
+import { registerMessages } from "./messages/feature.js";
 import { holdWorkspace, type WorkspaceHold } from "./core/ownership.js";
 import { registerPeople } from "./people/feature.js";
 import { registerPolls } from "./polls/feature.js";
@@ -46,7 +46,6 @@ import type { WorkspaceIcon } from "./core/workspaceIcon.js";
 
 export type { ServerOptions } from "./options.js";
 export { GUEST_SESSION_TTL_MS } from "./accounts/feature.js";
-export type { RetentionStatus } from "./messages/feature.js";
 export { SERVER_VERSION };
 
 export interface WorkspaceServer {
@@ -79,10 +78,9 @@ export interface WorkspaceServer {
   /**
    * What the hourly timer runs: retention passes until the backlog is gone or
    * the round's budget is spent, yielding between them. Never rejects; a
-   * failure is logged and recorded in `retentionStatus`.
+   * failure is logged and counted in the workspace status.
    */
   sweepRetention: () => Promise<number>;
-  retentionStatus: () => RetentionStatus;
   /** How scheduled backups are going; null when they are off. */
   backupStatus: () => BackupScheduleStatus | null;
   /**
@@ -126,15 +124,6 @@ export interface WorkspaceServer {
    */
   setWorkspaceName: (name: string) => void;
   workspaceIcon: () => WorkspaceIcon | null;
-  /**
-   * Sets the workspace's icon, as the host, by the same rule as an owner or
-   * admin: a PNG, JPEG or WebP image of `type`, which its bytes must agree
-   * with, of at most 256 KB and 1024 pixels a side. Everyone signed in is
-   * told at once. Returns its version; throws, saying why, one it refuses.
-   */
-  setWorkspaceIcon: (bytes: Uint8Array, type: string) => string;
-  /** Removes the workspace's icon, as the host. Everyone signed in is told at once. */
-  removeWorkspaceIcon: () => void;
   /**
    * Calls `listener` whenever the workspace is renamed, who may join changes
    * or its icon does, by its host or by an owner or admin, so whatever shows
@@ -412,7 +401,6 @@ async function startWorkspaceServer(
     expireAbandonedUploads: files.expireAbandonedUploads,
     applyRetention: messages.applyRetention,
     sweepRetention: messages.sweepRetention,
-    retentionStatus: () => ({ ...messages.retention }),
     backupStatus: backups.status,
     runBackup: backups.runNow,
     flushEventDeliveries: apps.flushEventDeliveries,
@@ -432,15 +420,6 @@ async function startWorkspaceServer(
       workspace.rename(value, null);
     },
     workspaceIcon: workspace.icon,
-    setWorkspaceIcon: (bytes, type) => {
-      if (!(bytes instanceof Uint8Array)) throw new TypeError("An icon is the bytes of an image.");
-      return workspace.setIcon(
-        Buffer.from(bytes),
-        typeof type === "string" ? type : undefined,
-        null,
-      );
-    },
-    removeWorkspaceIcon: () => workspace.removeIcon(null),
     onWorkspaceChange: workspace.onChange,
     reannounce: () => announce(),
     connectedPeople: () => gateway.onlineUserIds().length,

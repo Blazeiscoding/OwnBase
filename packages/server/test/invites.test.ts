@@ -49,7 +49,7 @@ beforeEach(async () => {
     host: "127.0.0.1",
     port: 0,
     mdns: false,
-    inviteOnly: true,
+    accessPolicy: "invite_only",
     rateLimits: false,
     logger: { stream },
   });
