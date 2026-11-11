@@ -28,11 +28,7 @@ import {
   renameStoppedWorkspace as writeWorkspaceName,
 } from "@ownbase/server/stoppedWorkspace";
 import { TunnelCleanupError, type PublicAddressConfig, type Tunnel } from "../src/main/tunnel.js";
-import {
-  createWorkspaceServer,
-  type WorkspaceChange,
-  type WorkspaceServer,
-} from "@ownbase/server";
+import { createWorkspaceServer, type WorkspaceChange, type WorkspaceServer } from "@ownbase/server";
 import {
   backupWorkspace,
   inventoryBackup,
