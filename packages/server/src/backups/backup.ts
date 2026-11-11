@@ -120,7 +120,7 @@ function snapshotDetails(db: DatabaseSync) {
     );
   const row = db.prepare("SELECT value FROM meta WHERE key = 'workspace_name'").get() as
     { value: string } | undefined;
-  const files = db.prepare("SELECT id, size FROM files ORDER BY id").all() as unknown as {
+  const files = db.prepare("SELECT id, size FROM files ORDER BY id").all() as {
     id: string;
     size: number;
   }[];

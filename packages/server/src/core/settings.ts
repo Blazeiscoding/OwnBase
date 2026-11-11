@@ -35,20 +35,31 @@ interface Setting<T> {
   kept?: true;
 }
 
+/** What each workspace setting holds. */
+interface SettingValues {
+  workspaceId: ID;
+  workspaceName: string;
+  accessPolicy: AccessPolicy;
+  inviteOnlyBefore: boolean;
+  linkPreviews: boolean;
+  claimCode: string | null;
+  icon: WorkspaceIcon | null;
+}
+
 /** Every workspace setting, each declared once. */
-export const SETTINGS = {
+export const SETTINGS: { [K in keyof SettingValues]: Setting<SettingValues[K]> } = {
   /** The workspace's id: made once, kept through renames, moves and restores. */
   workspaceId: {
     read: (row) => row("workspace_id") || null,
     write: (id) => [["workspace_id", id]],
     fallback: () => ulid(),
     kept: true,
-  } satisfies Setting<ID>,
+  },
   workspaceName: {
     read: (row) => row("workspace_name") || null,
     write: (name) => [["workspace_name", name]],
     fallback: DEFAULT_WORKSPACE_NAME,
-  } satisfies Setting<string>,
+  },
   /**
    * Who may join. The older `invite_only` row is kept in step, since before
    * guest access it alone said who could join, and a workspace from then
@@ -64,13 +75,13 @@ export const SETTINGS = {
       ["invite_only", policy === "invite_only" ? "1" : "0"],
     ],
     fallback: "invite_only",
-  } satisfies Setting<AccessPolicy>,
+  },
   /** What a workspace from before guest access said about invites. */
   inviteOnlyBefore: {
     read: (row) => (row("invite_only") === null ? null : row("invite_only") === "1"),
     write: (on) => [["invite_only", on ? "1" : "0"]],
     fallback: false,
-  } satisfies Setting<boolean>,
+  },
   /** Whether new messages get link previews (E2): on unless an owner or admin turned them off. */
   linkPreviews: {
     read: (row) => {
@@ -79,7 +90,7 @@ export const SETTINGS = {
     },
     write: (on) => [["link_previews", on ? "on" : "off"]],
     fallback: true,
-  } satisfies Setting<boolean>,
+  },
   /**
    * The code that claims a workspace nobody owns yet; null once claimed. The
    * claimed row is kept, empty, rather than removed.
@@ -88,26 +99,25 @@ export const SETTINGS = {
     read: (row) => row("claim_code") || null,
     write: (code) => [["claim_code", code ?? ""]],
     fallback: null,
-  } satisfies Setting<string | null>,
+  },
   /** Rows that do not make a whole icon are read as none. */
   icon: {
     read: (row) => readStoredIcon(row),
     write: (icon) =>
       icon ? storedIconRows(icon) : Object.values(ICON_META_KEYS).map((key): Row => [key, null]),
     fallback: null,
-  } satisfies Setting<WorkspaceIcon | null>,
+  },
 };
 
-export type SettingName = keyof typeof SETTINGS;
-export type SettingValue<K extends SettingName> =
-  (typeof SETTINGS)[K] extends Setting<infer T> ? T : never;
+export type SettingName = keyof SettingValues;
+export type SettingValue<K extends SettingName> = SettingValues[K];
 
 export class Settings {
   constructor(private readonly rows: MetaRows) {}
 
   /** The setting, or its fallback while none is stored. */
   get<K extends SettingName>(name: K): SettingValue<K> {
-    const setting = SETTINGS[name] as unknown as Setting<SettingValue<K>>;
+    const setting: Setting<SettingValue<K>> = SETTINGS[name];
     const stored = this.stored(name);
     if (stored !== null) return stored;
     const value =
@@ -120,13 +130,13 @@ export class Settings {
 
   /** The setting as stored, or null when none valid is. */
   stored<K extends SettingName>(name: K): SettingValue<K> | null {
-    const setting = SETTINGS[name] as unknown as Setting<SettingValue<K>>;
+    const setting: Setting<SettingValue<K>> = SETTINGS[name];
     return setting.read((key) => this.rows.getMeta(key));
   }
 
   /** Writes the setting's rows. Call it inside a transaction to write them with other changes. */
   set<K extends SettingName>(name: K, value: SettingValue<K>): void {
-    const setting = SETTINGS[name] as unknown as Setting<SettingValue<K>>;
+    const setting: Setting<SettingValue<K>> = SETTINGS[name];
     for (const [key, row] of setting.write(value)) {
       if (row === null) this.rows.deleteMeta(key);
       else this.rows.setMeta(key, row);

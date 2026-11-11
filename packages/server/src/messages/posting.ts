@@ -143,7 +143,7 @@ export function createPosting({ store, mutate, ration, queuePreviews }: PostingD
     // or an answer to someone there is posting where it was asked to.
     if (poster.kind !== "person" && !store.channels.isMember(channel.id, userId)) {
       if (channel.type !== "public") throw new HttpError(403, "not_in_channel");
-      if (poster.kind === "bot" && !poster.app.scopes?.includes("chat:write.public"))
+      if (poster.kind === "bot" && !poster.app.scopes.includes("chat:write.public"))
         throw new ScopeNeeded("not_in_channel", "chat:write.public");
     }
     return channel;
@@ -163,7 +163,7 @@ export function createPosting({ store, mutate, ration, queuePreviews }: PostingD
 
   const post = (input: PostInput): Message => {
     const { poster } = input;
-    if (poster.kind === "bot" && !poster.app.scopes?.includes("chat:write"))
+    if (poster.kind === "bot" && !poster.app.scopes.includes("chat:write"))
       throw new ScopeNeeded("missing_scope", "chat:write");
     // Queuing a message spent the budget once, so its delivery is never held
     // back; a note about a call is the server's, not a request.

@@ -28,14 +28,13 @@ import {
   type HostedWorkspace,
 } from "../src/main/registry.js";
 import { TunnelCleanupError, type Tunnel } from "../src/main/tunnel.js";
+import { createWorkspaceServer, type WorkspaceServer } from "@ownbase/server";
 import {
   backupWorkspace,
-  createWorkspaceServer,
   inventoryBackup,
   restoreWorkspace,
   verifyBackup,
-  type WorkspaceServer,
-} from "@ownbase/server";
+} from "@ownbase/server/backup";
 
 interface StartRequest {
   workspaceName?: string;

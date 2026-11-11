@@ -433,7 +433,6 @@ export function registerMessages(ctx: ServerContext) {
   return {
     posting,
     updateMessage,
-    queuePreviews,
     removeMessage,
     removeMessageWithin,
     applyRetention,
