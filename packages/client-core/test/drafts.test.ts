@@ -1,4 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { LOCAL_WORK } from "../src/workspace.js";
 import {
   WorkspaceClient,
   applyDraftChanges,
@@ -140,7 +141,7 @@ describe("draft times", () => {
     vi.useFakeTimers({ now: 9_000 });
     const c = client();
     c.setDraft("C_TYPED", "typed while storage was loading");
-    c.hydrateDrafts(
+    c[LOCAL_WORK].hydrateDrafts(
       {
         C_OLD: "kept by an earlier version",
         C_KEPT: "kept",
@@ -158,9 +159,9 @@ describe("draft times", () => {
     c.setDraft("C1", "mine");
     c.setDraft("C2", "also mine");
     vi.setSystemTime(5_000);
-    c.hydrateDrafts({ C1: "mine", C2: "changed elsewhere", C3: "new elsewhere" });
+    c[LOCAL_WORK].hydrateDrafts({ C1: "mine", C2: "changed elsewhere", C3: "new elsewhere" });
     expect(c.state.draftTimes).toEqual({ C1: 1_000, C2: 5_000, C3: 5_000 });
-    c.hydrateDrafts({ C1: "mine" });
+    c[LOCAL_WORK].hydrateDrafts({ C1: "mine" });
     expect(c.state.draftTimes).toEqual({ C1: 1_000 });
     c.destroy();
   });

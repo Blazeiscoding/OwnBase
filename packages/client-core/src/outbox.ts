@@ -1,10 +1,49 @@
 import {
   SEND_RETRY_WINDOW_MS,
   type ForwardReference,
+  type ID,
   type ReplyReference,
 } from "@ownbase/protocol";
-import type { StoredPending } from "./workspace.js";
 import type { PollDraft } from "./polls.js";
+
+/** What a send says and where: what the server is sent. */
+export interface OutgoingSend {
+  nonce: string;
+  channelId: ID;
+  threadRootId: ID | null;
+  /** A reply the author also chose to show in the channel. */
+  broadcast?: boolean;
+  /** The message this one answers in place, as it was when the reply was sent. */
+  replyTo?: ReplyReference;
+  /** The message this one passes on, as it was when it was forwarded. */
+  forward?: ForwardReference;
+  /** The choices it asks people to pick from, its words the question (E6). */
+  poll?: PollDraft;
+  text: string;
+}
+
+/** A file as described where the file itself cannot go. */
+export interface FileDescription {
+  name: string;
+  size: number;
+  mime: string;
+}
+
+/**
+ * A send as it survives a restart. File objects cannot be serialized, so only
+ * their descriptions travel; see `restoreOutbox` for what that means.
+ */
+export interface StoredPending extends OutgoingSend {
+  userId: ID;
+  createdAt: number;
+  attachments: FileDescription[];
+  /**
+   * What the author was told when the server refused this send. Present only
+   * for a known refusal, which comes back failed and waits for Retry; a send
+   * whose outcome is unknown has none and is sent again, under the same nonce.
+   */
+  refusal?: string;
+}
 
 /** A send's identity, which asking again with keeps it one message. */
 export function newNonce(): string {

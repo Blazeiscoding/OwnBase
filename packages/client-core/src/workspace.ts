@@ -77,7 +77,13 @@ import {
   notConnected,
   refusalReason,
 } from "./answers.js";
-import { newNonce } from "./outbox.js";
+import {
+  newNonce,
+  storedPending,
+  type FileDescription,
+  type OutgoingSend,
+  type StoredPending,
+} from "./outbox.js";
 import { OptimisticWrites, type WriteSpec } from "./optimisticWrites.js";
 import { pollChoicesKey, pollChoicesOfKey, serverPollChoices, type PollDraft } from "./polls.js";
 import type {
@@ -104,29 +110,13 @@ export type ConnectionStatus =
   | "closed";
 
 /** A file shown in the composer or in an optimistic message, before the server has it. */
-export interface LocalAttachment {
-  name: string;
-  size: number;
-  mime: string;
+export interface LocalAttachment extends FileDescription {
   /** Object URL for instant local preview of images. */
   previewUrl: string | null;
 }
 
-export interface PendingMessage {
-  nonce: string;
-  channelId: ID;
-  threadRootId: ID | null;
-  /** A reply the author also chose to show in the channel. */
-  broadcast?: boolean;
-  /** The message this one answers in place, as it was when the reply was sent. */
-  replyTo?: ReplyReference;
-  /** The message this one passes on, as it was when it was forwarded. */
-  forward?: ForwardReference;
-  /** The choices it asks people to pick from, its words the question (E6). */
-  poll?: PollDraft;
-  text: string;
-  userId: ID;
-  createdAt: number;
+/** A send in the outbox, as this window shows it. */
+export interface PendingMessage extends Omit<StoredPending, "attachments" | "refusal"> {
   failed: boolean;
   /** Why it did not send, in words the author can act on. Null while in flight. */
   failureReason: string | null;
@@ -140,28 +130,14 @@ export interface PendingMessage {
   uploadProgress: number | null;
 }
 
-/**
- * An outbox entry as it survives a restart. File objects cannot be serialized,
- * so only their descriptions travel; see `restoreOutbox` for what that means.
- */
-export interface StoredPending {
-  nonce: string;
-  channelId: ID;
-  threadRootId: ID | null;
-  broadcast?: boolean;
-  replyTo?: ReplyReference;
-  forward?: ForwardReference;
-  poll?: PollDraft;
-  text: string;
-  userId: ID;
-  createdAt: number;
-  attachments: { name: string; size: number; mime: string }[];
-  /**
-   * What the author was told when the server refused this send. Present only
-   * for a known refusal, which comes back failed and waits for Retry; a send
-   * whose outcome is unknown has none and is sent again, under the same nonce.
-   */
-  refusal?: string;
+/** How `LocalWork` reaches the outbox and drafts, which nothing else should change. */
+export const LOCAL_WORK = Symbol("localWork");
+
+export interface LocalWorkHost {
+  outboxSnapshot(): StoredPending[];
+  restoreOutbox(entries: StoredPending[]): void;
+  adoptRefusal(nonce: string, reason: string): void;
+  hydrateDrafts(drafts: Record<string, string>, stored?: Record<string, number>): void;
 }
 
 /**
@@ -2393,13 +2369,7 @@ export class WorkspaceClient {
     return this.state.pending.filter((p) => p.userId === self).length;
   }
 
-  private async deliver(
-    send: Pick<
-      PendingMessage,
-      "nonce" | "channelId" | "threadRootId" | "broadcast" | "replyTo" | "forward" | "poll" | "text"
-    >,
-    files: File[],
-  ): Promise<void> {
+  private async deliver(send: OutgoingSend, files: File[]): Promise<void> {
     const { nonce, channelId, text, threadRootId, replyTo, forward, poll } = send;
     const setProgress = (fraction: number) =>
       this.store.setState((s) => ({
@@ -2543,21 +2513,24 @@ export class WorkspaceClient {
    * The whole outbox in a form that survives a restart: every send accepted
    * stays, and a known refusal keeps its reason. Preview URLs are not kept.
    */
-  outboxSnapshot(): StoredPending[] {
-    return this.state.pending.map((p) => ({
-      nonce: p.nonce,
-      channelId: p.channelId,
-      threadRootId: p.threadRootId,
-      broadcast: p.broadcast,
-      ...(p.replyTo ? { replyTo: p.replyTo } : {}),
-      ...(p.forward ? { forward: p.forward } : {}),
-      ...(p.poll ? { poll: p.poll } : {}),
-      text: p.text,
-      userId: p.userId,
-      createdAt: p.createdAt,
-      attachments: p.attachments.map((a) => ({ name: a.name, size: a.size, mime: a.mime })),
-      ...(p.failed && p.refused ? { refusal: p.failureReason ?? "This message was refused." } : {}),
-    }));
+  private outboxSnapshot(): StoredPending[] {
+    return this.state.pending.map((p) =>
+      storedPending({
+        ...p,
+        ...(p.failed && p.refused
+          ? { refusal: p.failureReason ?? "This message was refused." }
+          : {}),
+      }),
+    );
+  }
+
+  get [LOCAL_WORK](): LocalWorkHost {
+    return {
+      outboxSnapshot: () => this.outboxSnapshot(),
+      restoreOutbox: (entries) => this.restoreOutbox(entries),
+      adoptRefusal: (nonce, reason) => this.adoptRefusal(nonce, reason),
+      hydrateDrafts: (drafts, stored) => this.hydrateDrafts(drafts, stored),
+    };
   }
 
   /**
@@ -2574,7 +2547,7 @@ export class WorkspaceClient {
    * have changed since, and that is theirs to decide. Nothing is dropped for
    * being one too many; every entry here was accepted once.
    */
-  restoreOutbox(entries: StoredPending[]): void {
+  private restoreOutbox(entries: StoredPending[]): void {
     const self = this.state.self;
     if (!self) return;
     const now = Date.now();
@@ -2614,7 +2587,7 @@ export class WorkspaceClient {
    * same send, so this one stops sending it too and waits for its author's
    * Retry instead of trying again on its own.
    */
-  adoptRefusal(nonce: string, reason: string): void {
+  private adoptRefusal(nonce: string, reason: string): void {
     const p = this.state.pending.find((x) => x.nonce === nonce);
     if (!p || p.refused) return;
     this.failPending(nonce, reason, true);
@@ -3551,7 +3524,7 @@ export class WorkspaceClient {
    * whose text is unchanged keeps its time; one restored takes its stored
    * time, if any; one another window changed is as new as hearing of it.
    */
-  hydrateDrafts(drafts: Record<ID, string>, stored?: Record<string, number>): void {
+  private hydrateDrafts(drafts: Record<string, string>, stored?: Record<string, number>): void {
     this.store.setState((s) => {
       const draftTimes: Record<string, number> = {};
       const now = Date.now();

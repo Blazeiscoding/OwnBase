@@ -22,7 +22,7 @@ import {
   type StoredOutbox,
   type StoredOutboxEntry,
 } from "./outbox.js";
-import type { WorkspaceClient } from "./workspace.js";
+import { LOCAL_WORK, type WorkspaceClient } from "./workspace.js";
 
 /**
  * Whether a message just sent is kept on this device (F01, GL-02): in the
@@ -289,6 +289,7 @@ export class LocalWork {
   /** Keeps work for one account in one workspace, under `keys`, until closed. */
   private open(keys: Keys, self: ID): Scope {
     const { client, host } = this;
+    const local = client[LOCAL_WORK];
     const draftKey = keys.drafts;
     const outboxKey = keys.outbox;
     const unstoredKey = keys.unstored;
@@ -418,8 +419,7 @@ export class LocalWork {
     const observe = () => {
       const now = new Set<string>();
       let changed = false;
-      for (const pending of client.outboxSnapshot()) {
-        const entry = storedPending(pending);
+      for (const entry of local.outboxSnapshot()) {
         now.add(entry.nonce);
         const json = JSON.stringify(entry);
         if (held.get(entry.nonce)?.json === json) continue;
@@ -487,7 +487,7 @@ export class LocalWork {
       }
       for (const theirs of refused) {
         held.set(theirs.nonce, { entry: theirs, json: JSON.stringify(storedPending(theirs)) });
-        client.adoptRefusal(theirs.nonce, theirs.refusal!);
+        local.adoptRefusal(theirs.nonce, theirs.refusal!);
       }
       return missing;
     };
@@ -542,7 +542,7 @@ export class LocalWork {
         if (stored[key] === undefined) delete baseDrafts[key];
         else baseDrafts[key] = stored[key];
       }
-      if (changed) quietly(() => client.hydrateDrafts(next));
+      if (changed) quietly(() => local.hydrateDrafts(next));
     };
 
     // The times of the drafts this window just wrote, beside them; and none
@@ -706,7 +706,7 @@ export class LocalWork {
     // change of address is more than nothing.
     const load = (record: StoredOutbox) => {
       seen(record);
-      const pending = new Map(client.outboxSnapshot().map((p) => [p.nonce, storedPending(p)]));
+      const pending = new Map(local.outboxSnapshot().map((p) => [p.nonce, p]));
       const refused: StoredOutboxEntry[] = [];
       for (const r of record.removed) {
         if (!pending.has(r.nonce)) continue;
@@ -725,8 +725,8 @@ export class LocalWork {
         held.set(entry.nonce, { entry, json });
         floorWhenStored.set(entry.nonce, record.compactedThrough ?? -1);
       }
-      for (const entry of refused) client.adoptRefusal(entry.nonce, entry.refusal!);
-      client.restoreOutbox(restored.map(storedPending));
+      for (const entry of refused) local.adoptRefusal(entry.nonce, entry.refusal!);
+      local.restoreOutbox(restored.map(storedPending));
     };
 
     const restore = () => {
@@ -770,7 +770,7 @@ export class LocalWork {
             if (editedDrafts.size) void saveDrafts(() => drafts);
             return;
           }
-          client.hydrateDrafts(drafts, readDraftTimes(storedTimes));
+          local.hydrateDrafts(drafts, readDraftTimes(storedTimes));
           quietly(() => load(record));
           observe();
           carried = back;

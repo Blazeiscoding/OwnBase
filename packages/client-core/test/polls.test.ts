@@ -1,4 +1,5 @@
 import { afterAll, beforeAll, describe, expect, it, onTestFinished } from "vitest";
+import { LOCAL_WORK } from "../src/workspace.js";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -120,7 +121,7 @@ describe("polls on the client", () => {
       anonymous: false,
     });
     // It survives a restart as it was.
-    const [stored] = client.outboxSnapshot();
+    const [stored] = client[LOCAL_WORK].outboxSnapshot();
     expect(readStoredOutbox([storedPending(stored!)])!.entries[0]!.poll).toEqual(
       client.state.pending[0]!.poll,
     );

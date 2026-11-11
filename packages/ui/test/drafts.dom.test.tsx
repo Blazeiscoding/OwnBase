@@ -312,7 +312,7 @@ describe("opening a draft from the Drafts panel", () => {
 
   it("has a sidebar row only while there are drafts, or while the panel is open", async () => {
     const { client, user } = screenWith();
-    act(() => client.hydrateDrafts({}));
+    act(() => client.store.setState({ drafts: {}, draftTimes: {} }));
     await screen.findByRole("button", { name: /^Jump to…/ });
     expect(screen.queryByRole("button", { name: /^Drafts/ })).toBeNull();
     act(() => client.setDraft(design.id, "Back to it"));

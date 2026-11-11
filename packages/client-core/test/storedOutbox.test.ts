@@ -1,4 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { LOCAL_WORK } from "../src/workspace.js";
 import {
   WorkspaceClient,
   applyOutboxChanges,
@@ -276,7 +277,7 @@ describe("a refusal another window was given", () => {
     client.send("C1", "sent from two windows");
     const nonce = client.state.pending[0]!.nonce;
 
-    client.adoptRefusal(nonce, "This conversation is archived.");
+    client[LOCAL_WORK].adoptRefusal(nonce, "This conversation is archived.");
     // This window's own attempt then fails for want of a connection; that
     // says nothing new about the refusal.
     fail();
@@ -286,7 +287,7 @@ describe("a refusal another window was given", () => {
       refused: true,
       failureReason: "This conversation is archived.",
     });
-    expect(client.outboxSnapshot()[0]!.refusal).toBe("This conversation is archived.");
+    expect(client[LOCAL_WORK].outboxSnapshot()[0]!.refusal).toBe("This conversation is archived.");
 
     // Only the author's Retry sends it again.
     client.retrySend(nonce);
@@ -309,7 +310,7 @@ describe("a refusal another window was given", () => {
     client.send("C1", "with a file", { files: [new File(["x"], "x.txt", { type: "text/plain" })] });
     const nonce = client.state.pending[0]!.nonce;
 
-    client.adoptRefusal(nonce, "This conversation is archived.");
+    client[LOCAL_WORK].adoptRefusal(nonce, "This conversation is archived.");
     uploaded();
     await new Promise((resolve) => setTimeout(resolve, 0));
     expect(sendMessage).not.toHaveBeenCalled();
