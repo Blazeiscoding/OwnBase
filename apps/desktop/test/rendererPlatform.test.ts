@@ -71,6 +71,19 @@ describe("a desktop call", () => {
     expect(calls).toEqual([["hosting:rename", ["rocket-team", " Blue Team "]]]);
   });
 
+  it("carries each hosting call on the channel its path names, nested ones included", async () => {
+    const { bridge, calls } = fakeBridge(undefined, { openAtLogin: true });
+    const hosting = electronPlatform(bridge).hosting!;
+    await hosting.relay.test({ kind: "none" });
+    await hosting.openAtLogin!.set(true);
+    await hosting.restoreOver("rocket-team", null);
+    expect(calls).toEqual([
+      ["hosting:relay:test", [{ kind: "none" }]],
+      ["hosting:openAtLogin:set", [true]],
+      ["hosting:restoreOver", ["rocket-team", null]],
+    ]);
+  });
+
   it("rejects with the failure's code and the main process's own words", async () => {
     const { bridge } = fakeBridge(() => {
       throw { code: "registry-unreadable", message: "A newer version of OwnBase saved the list." };

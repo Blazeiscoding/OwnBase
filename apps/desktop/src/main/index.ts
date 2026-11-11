@@ -41,6 +41,7 @@ import { addTrustedAddress } from "@ownbase/client-core/trustedAddresses";
 import {
   CHANNELS,
   capabilitiesArgument,
+  MICROPHONE_PORT_CHANNEL,
   type EventName,
   type Events,
   type WindowTheme,
@@ -560,7 +561,7 @@ const handlers: Handlers<IpcMainInvokeEvent> = {
     const { port1, port2 } = new MessageChannelMain();
     const opened = await microphones.open(event.sender.id, id, port1);
     // The page's end of the samples, which it hands to its audio worklet.
-    event.sender.postMessage("microphone:port", { session: opened.session }, [port2]);
+    event.sender.postMessage(MICROPHONE_PORT_CHANNEL, { session: opened.session }, [port2]);
     return opened;
   },
   "microphone:close": (event, session) => {

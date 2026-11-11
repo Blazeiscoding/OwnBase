@@ -5,24 +5,13 @@
  * them all through one generic `invoke` and `on`, and the window's platform
  * is typed from the same declarations.
  */
-import type { AccessPolicy } from "@ownbase/protocol";
 import type {
-  AutoBackup,
-  CallRelayDraft,
-  CallRelaySetting,
   DesktopCapabilities,
   DesktopFailure,
+  DesktopHosting,
   DiscoveredServer,
-  HostedBackup,
-  HostedWorkspaces,
-  HostingStart,
   HostingStatus,
-  LastHosted,
-  RelayServer,
-  RestoredOver,
-  RestoredWorkspace,
   ShareableSource,
-  StartedWorkspace,
   SystemMicrophones,
 } from "@ownbase/protocol/desktop";
 import type { DraftChanges } from "@ownbase/client-core/drafts";
@@ -39,7 +28,21 @@ export interface OpenedMicrophone {
   name: string;
 }
 
-export interface Calls {
+/** Each call of `T` as the channel `<prefix>:<its path>`, answering what the call resolves to. */
+type ChannelsOf<T, Prefix extends string> = {
+  [K in keyof T & string]: T[K] extends (...args: infer A) => Promise<infer R>
+    ? { [C in `${Prefix}:${K}`]: (...args: A) => R }
+    : ChannelsOf<T[K], `${Prefix}:${K}`>;
+}[keyof T & string];
+
+type Merged<U> = (U extends unknown ? (each: U) => void : never) extends (all: infer M) => void
+  ? M
+  : never;
+
+/** The hosting calls, declared once in protocol's `DesktopHosting`. */
+export type HostingCalls = Merged<ChannelsOf<DesktopHosting, "hosting">>;
+
+export interface Calls extends HostingCalls {
   "file:download": (url: string) => void;
   "storage:get": (key: string, options?: { strict?: boolean }) => unknown;
   "storage:set": (key: string, value: unknown) => void;
@@ -64,39 +67,6 @@ export interface Calls {
   "microphone:list": () => SystemMicrophones;
   "microphone:open": (id: string) => OpenedMicrophone;
   "microphone:close": (session: number) => void;
-  "hosting:status": () => HostingStatus;
-  "hosting:start": (request: HostingStart) => StartedWorkspace;
-  "hosting:stop": () => void;
-  "hosting:openToAll": (accessPolicy: AccessPolicy) => void;
-  "hosting:endOpenToAll": () => void;
-  "hosting:setAccessPolicy": (accessPolicy: AccessPolicy) => void;
-  "hosting:setPublicAddress": (address: string) => void;
-  "hosting:installCloudflared": () => void;
-  "hosting:lastHosted": () => LastHosted | null;
-  "hosting:list": () => HostedWorkspaces;
-  "hosting:backup": (folder: string) => { path: string; at: number } | null;
-  "hosting:forget": (folder: string) => void;
-  "hosting:rename": (folder: string, name: string) => { folder: string; name: string };
-  "hosting:openFolder": (folder: string) => void;
-  "hosting:icon": (folder: string) => string | null;
-  "hosting:setStartOnLaunch": (folder: string | null) => void;
-  "hosting:setReopenPublicOnLaunch": (reopen: boolean) => void;
-  "hosting:dismissLaunchError": () => void;
-  "hosting:setPort": (folder: string, port: number) => void;
-  "hosting:setAutoBackup": (
-    folder: string,
-    schedule: { everyDays: 1 | 7; keep: number } | null,
-    chooseFolder: boolean,
-  ) => AutoBackup | null | undefined;
-  "hosting:retryBackups": () => void;
-  "hosting:restore": () => RestoredWorkspace | null;
-  "hosting:backups": (folder: string) => HostedBackup[];
-  "hosting:restoreOver": (folder: string, backup: string | null) => RestoredOver | null;
-  "hosting:relay:get": () => CallRelaySetting;
-  "hosting:relay:set": (draft: CallRelayDraft) => CallRelaySetting;
-  "hosting:relay:test": (draft: CallRelayDraft) => RelayServer[];
-  "hosting:openAtLogin:get": () => boolean;
-  "hosting:openAtLogin:set": (open: boolean) => boolean;
 }
 
 export interface Events {
@@ -122,7 +92,12 @@ export interface OwnBaseBridge {
   capabilities: DesktopCapabilities;
 }
 
-/** Listed so the preload can refuse anything else; typed so none is left out or made up. */
+/**
+ * Every call, listed so the preload can refuse anything else and typed so
+ * none is left out or made up, with whether it is answered while OwnBase
+ * quits. Then nothing new may start, so a hosting call is answered only if
+ * it reads or stops; every other call is answered as usual.
+ */
 const CALL_LIST = {
   "file:download": true,
   "storage:get": true,
@@ -145,35 +120,35 @@ const CALL_LIST = {
   "microphone:open": true,
   "microphone:close": true,
   "hosting:status": true,
-  "hosting:start": true,
+  "hosting:start": false,
   "hosting:stop": true,
-  "hosting:openToAll": true,
+  "hosting:openToAll": false,
   "hosting:endOpenToAll": true,
-  "hosting:setAccessPolicy": true,
-  "hosting:setPublicAddress": true,
-  "hosting:installCloudflared": true,
+  "hosting:setAccessPolicy": false,
+  "hosting:setPublicAddress": false,
+  "hosting:installCloudflared": false,
   "hosting:lastHosted": true,
   "hosting:list": true,
-  "hosting:backup": true,
-  "hosting:forget": true,
-  "hosting:rename": true,
-  "hosting:openFolder": true,
+  "hosting:backup": false,
+  "hosting:forget": false,
+  "hosting:rename": false,
+  "hosting:openFolder": false,
   "hosting:icon": true,
-  "hosting:setStartOnLaunch": true,
-  "hosting:setReopenPublicOnLaunch": true,
+  "hosting:setStartOnLaunch": false,
+  "hosting:setReopenPublicOnLaunch": false,
   "hosting:dismissLaunchError": true,
-  "hosting:setPort": true,
-  "hosting:setAutoBackup": true,
-  "hosting:retryBackups": true,
-  "hosting:restore": true,
+  "hosting:setPort": false,
+  "hosting:setAutoBackup": false,
+  "hosting:retryBackups": false,
+  "hosting:restore": false,
   "hosting:backups": true,
-  "hosting:restoreOver": true,
+  "hosting:restoreOver": false,
   "hosting:relay:get": true,
-  "hosting:relay:set": true,
-  "hosting:relay:test": true,
+  "hosting:relay:set": false,
+  "hosting:relay:test": false,
   "hosting:openAtLogin:get": true,
-  "hosting:openAtLogin:set": true,
-} satisfies Record<Channel, true>;
+  "hosting:openAtLogin:set": false,
+} satisfies Record<Channel, boolean>;
 
 const EVENT_LIST = {
   "lan:servers": true,
@@ -183,12 +158,18 @@ const EVENT_LIST = {
 } satisfies Record<EventName, true>;
 
 export const CHANNELS = Object.keys(CALL_LIST) as Channel[];
+
+export function answeredWhileQuitting(channel: Channel): boolean {
+  return CALL_LIST[channel];
+}
 export const EVENTS = Object.keys(EVENT_LIST) as EventName[];
 
+/** The channel the main process sends an opened microphone's port to the preload on. */
+export const MICROPHONE_PORT_CHANNEL = "microphone:port";
+
 /**
- * The channel an opened microphone's port arrives on. A port cannot cross
- * Electron's context bridge, so the preload posts it to the page's own window
- * as a message of this type.
+ * A port cannot cross Electron's context bridge, so the preload posts each
+ * microphone's port to the page's own window as a message of this type.
  */
 export const MICROPHONE_PORT = "ownbase:microphone-port";
 

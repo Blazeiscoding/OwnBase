@@ -73,7 +73,7 @@
         "Uses a fixed folder identifier independent of the display name, validates database identity, and parses persisted registry/automatic-backup metadata.",
         "Adopts ordinary unlisted workspace folders while checking ownership before reading; restores or renamed folders are not selected by name alone.",
         "N11 preserves safety holds when nonidentity fields are damaged and refuses uncertain held identities, preventing an isolated restore from becoming ordinary hosting.",
-        "readWorkspaceIconVersion and readWorkspaceIcon read a workspace's icon from its database read-only through the server's readStoredIcon, so the list shows a stopped workspace's icon without starting it (UX-60)."
+        "A stopped workspace's identity, name and icon are read, and a rename written, by @ownbase/server/stoppedWorkspace, which the controller is given as one dependency, so the list shows a stopped workspace's icon without starting it (UX-60)."
       ],
       "concepts": ["registry", "identity", "migration", "safety hold"]
     },

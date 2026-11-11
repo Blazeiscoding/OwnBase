@@ -17,7 +17,7 @@ import {
   readStoppedWorkspace,
   renameStoppedWorkspace,
 } from "@ownbase/server/stoppedWorkspace";
-import type { Channel } from "../shared/bridge.js";
+import { answeredWhileQuitting, type Channel } from "../shared/bridge.js";
 import { DesktopError } from "../shared/desktopError.js";
 import type { BackupJob } from "./backupWorker.js";
 import { CALL_RELAY_KEY, decodeRelay, encodeRelay, resolveDraft, summarize } from "./callRelay.js";
@@ -30,7 +30,7 @@ import {
   START_ON_LAUNCH_KEY,
 } from "./hosting.js";
 import { startHostedServer } from "./hostedServer.js";
-import type { Handler, Handlers } from "./ipcBoundary.js";
+import type { Handlers } from "./ipcBoundary.js";
 import { lookup } from "./lookup.js";
 import { REGISTRY_KEY } from "./registry.js";
 import type { SettingsStorage } from "./settings.js";
@@ -59,23 +59,6 @@ export const HOSTING_KEYS = [
   CALL_RELAY_KEY,
   PUBLIC_ADDRESS_KEY,
 ] as const;
-
-/**
- * While OwnBase quits it starts no new work: these alone are answered, since
- * they only read or stop. Anything else is refused.
- */
-const ANSWERED_WHILE_QUITTING = new Set<HostingChannel>([
-  "hosting:status",
-  "hosting:list",
-  "hosting:lastHosted",
-  "hosting:icon",
-  "hosting:backups",
-  "hosting:relay:get",
-  "hosting:openAtLogin:get",
-  "hosting:stop",
-  "hosting:endOpenToAll",
-  "hosting:dismissLaunchError",
-]);
 
 /** The folders the system's dialog is asked for, and how each asks. */
 const FOLDER_DIALOGS = {
@@ -422,7 +405,7 @@ export function createHostingService(options: HostingServiceOptions) {
     Object.entries(calls).map(([channel, handler]) => [
       channel,
       (event: unknown, ...args: unknown[]) => {
-        if (controller.quitting() && !ANSWERED_WHILE_QUITTING.has(channel as HostingChannel))
+        if (controller.quitting() && !answeredWhileQuitting(channel as HostingChannel))
           throw new Error(QUITTING);
         return (handler as (event: unknown, ...args: unknown[]) => unknown)(event, ...args);
       },
@@ -476,6 +459,3 @@ export function createHostingService(options: HostingServiceOptions) {
 }
 
 export type HostingService = ReturnType<typeof createHostingService>;
-
-/** A hosting handler typed for one channel, for tests that call them directly. */
-export type HostingHandler<C extends HostingChannel> = Handler<C>;
