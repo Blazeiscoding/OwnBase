@@ -6,6 +6,7 @@ import {
   dueReminderCount,
   isMessageOnScreen,
   notificationBody,
+  readableText,
 } from "../src/notify.js";
 import type { WorkspaceState } from "../src/index.js";
 
@@ -409,6 +410,14 @@ describe("notificationBody", () => {
   it("renders mentions as readable names", () => {
     const body = notificationBody(state(), message({ text: `hi <@${me.id}> and <@U_NOBODY>` }));
     expect(body).toBe("hi @Me and @someone");
+  });
+
+  it("names the channels a message points to, as Drafts and thread previews show them too", () => {
+    const s = state({ channels: { C1: channel("public") } });
+    expect(notificationBody(s, message({ text: "see <#C1> and <#C_GONE>" }))).toBe(
+      "see #general and #unknown",
+    );
+    expect(readableText(s, "moved to <#C1>")).toBe("moved to #general");
   });
 
   it("reads a labelled link as its label, and an unlabelled one as its address", () => {
