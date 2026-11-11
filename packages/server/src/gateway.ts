@@ -4,9 +4,7 @@ import {
   clientMessage,
   isAdministrator,
   type ClientToServer,
-  type EphemeralEvent,
   type EventEnvelope,
-  type HuddleRing,
   type ID,
   type Presence,
   type ReadySnapshot,
@@ -17,19 +15,17 @@ import {
 import type { Server as HttpServer, IncomingMessage } from "node:http";
 import { WebSocket, WebSocketServer } from "ws";
 import { hashToken } from "./auth.js";
-import { CallLog } from "./huddles/callLog.js";
 import { contain } from "./core/contain.js";
 import type { Audiences, OutboxSink } from "./events/outbox.js";
 import { eventChannel, type EventTo } from "./events/registry.js";
 import { PASSWORD_CHANGE_REQUIRED } from "./httpError.js";
 import type { RateLimiter } from "./limits.js";
-import { resolveClientAddress } from "./netTrust.js";
 import type { Store } from "./store.js";
 
-type HuddleJoinResult = Extract<EphemeralEvent, { type: "huddle.join.result" }>;
-type SessionCheck = (client: Client) => boolean;
+export type SessionCheck = (client: Client) => boolean;
 
-interface Client {
+/** One signed-in socket: a device. */
+export interface Client {
   ws: WebSocket;
   userId: ID;
   tokenHash: string;
@@ -44,34 +40,24 @@ export type FeatureSnapshot = Omit<
   "type" | "seq" | "replayFrom" | "self" | "presence" | "huddles" | "huddleRings" | "serverTime"
 >;
 
-/**
- * How long a place in a huddle waits for its device to come back after that
- * device's connection drops, before it is given up and the others are told.
- * A blip, or the server restarting its socket, then costs the call nothing.
- */
-export const HUDDLE_GRACE_MS = 30_000;
+export type HuddleFrame = Extract<ClientToServer, { type: `huddle.${string}` }>;
+
+const isHuddleFrame = (msg: ClientToServer): msg is HuddleFrame => msg.type.startsWith("huddle.");
 
 /**
- * How long a direct message's huddle rings the people in it before whoever
- * has not answered has missed it (E10).
+ * What the gateway needs of the live huddles (huddles/rooms.ts): it hands
+ * them a signed-in socket's huddle frames and tells them when a socket is
+ * gone, and they give the handshake who is in which huddle.
  */
-export const HUDDLE_RING_MS = 30_000;
-
-interface Ring {
-  state: HuddleRing;
-  /** Everyone it rang, who hear each change, whether or not it still rings them. */
-  rang: ID[];
-  timer: NodeJS.Timeout | null;
-}
-
-/**
- * Someone's place in a huddle: the socket of the device in the call, or none
- * while that device's connection is down, until it comes back or `released`
- * gives the place up.
- */
-interface Seat {
-  client: Client | null;
-  released: NodeJS.Timeout | null;
+export interface Huddles {
+  handle(frame: HuddleFrame, client: Client): void;
+  snapshot(userId: ID): Pick<ReadySnapshot, "huddles" | "huddleRings">;
+  /** Holds or gives up the places `client` had; the rooms it left now. */
+  deviceGone(client: Client, revoked: string | null): ID[];
+  /** Tells a room's audience who is in it now. */
+  publish(channelId: ID, authorized?: SessionCheck): void;
+  leave(channelId: ID, userId: ID, reason: string): void;
+  close(): void;
 }
 
 /**
@@ -83,16 +69,6 @@ interface Seat {
 export class Gateway implements OutboxSink {
   private clients = new Set<Client>();
   private byUser = new Map<ID, Set<Client>>();
-  /**
-   * channelId -> who is in that channel's huddle, and on which device. Purely
-   * live state: a huddle exists only while people are in it, so it is never
-   * written to the event log and does not survive a restart.
-   */
-  private huddles = new Map<ID, Map<ID, Seat>>();
-  /** channelId -> the ring of a direct message's huddle just started (E10), live as huddles are. */
-  private rings = new Map<ID, Ring>();
-  /** What happened in huddles lately, for the host (see `CallLog`). */
-  readonly calls = new CallLog();
   private heartbeat: NodeJS.Timeout;
   private sockets = new Set<WebSocket>();
   private closing = false;
@@ -100,25 +76,18 @@ export class Gateway implements OutboxSink {
   private featureSnapshot: (user: User) => FeatureSnapshot = () => {
     throw new Error("the gateway was attached before the features gave their snapshot");
   };
+  private liveHuddles: Huddles | null = null;
 
   constructor(
     private store: Store,
     /** Shared with the HTTP side, so one caller has one allowance overall. */
-    private limiter: RateLimiter | null = null,
-    private clientAddress: (request: IncomingMessage) => string = (request) =>
-      resolveClientAddress(request.socket.remoteAddress, request.headers),
+    private limiter: RateLimiter | null,
+    private clientAddress: (request: IncomingMessage) => string,
     /**
      * Told of a failure in a socket callback, which Fastify's error handler
      * never sees: an exception there would otherwise end the process (F03).
      */
-    private reportFailure: (err: unknown, where: string) => void = () => {},
-    private options: {
-      huddleGraceMs?: number;
-      /** How long a ring lasts (`HUDDLE_RING_MS` by default). */
-      huddleRingMs?: number;
-      /** Leaves the note of a ring nobody answered in its conversation (E10). */
-      missedCall?: (channelId: ID, callerId: ID) => void;
-    } = {},
+    private reportFailure: (err: unknown, where: string) => void,
   ) {
     this.heartbeat = setInterval(() => {
       this.contained("heartbeat", () => {
@@ -141,7 +110,7 @@ export class Gateway implements OutboxSink {
    * process. What it was doing may be half done, so callers decide what to
    * close; this only keeps the server up.
    */
-  private contained(where: string, work: () => void): boolean {
+  contained(where: string, work: () => void): boolean {
     return contain(work, (err) => this.reportFailure(err, where));
   }
 
@@ -166,7 +135,18 @@ export class Gateway implements OutboxSink {
     this.featureSnapshot = snapshot;
   }
 
+  /** The huddles this gateway's sockets are in, given once, before `attach`. */
+  useHuddles(huddles: Huddles): void {
+    this.liveHuddles = huddles;
+  }
+
+  private get huddles(): Huddles {
+    if (this.liveHuddles) return this.liveHuddles;
+    throw new Error("the gateway was used before the huddles were given to it");
+  }
+
   attach(server: HttpServer, path = "/ws"): void {
+    if (!this.liveHuddles) throw new Error("the gateway was attached before the huddles were");
     const wss = new WebSocketServer({
       noServer: true,
       maxPayload: 128 * 1024,
@@ -209,11 +189,7 @@ export class Gateway implements OutboxSink {
     if (this.closePromise) return this.closePromise;
     this.closing = true;
     clearInterval(this.heartbeat);
-    for (const room of this.huddles.values())
-      for (const seat of room.values()) if (seat.released) clearTimeout(seat.released);
-    // Stopping misses nobody's call: the rings end with the huddles, unannounced.
-    for (const ring of this.rings.values()) if (ring.timer) clearTimeout(ring.timer);
-    this.rings.clear();
+    this.liveHuddles?.close();
     this.closePromise = Promise.all(
       [...this.sockets].map(
         (ws) =>
@@ -370,8 +346,7 @@ export class Gateway implements OutboxSink {
           replayFrom: null,
           self: user,
           presence: {},
-          huddles: this.huddlesVisibleTo(user.id),
-          huddleRings: this.ringsFor(user.id),
+          ...this.huddles.snapshot(user.id),
           serverTime: Date.now(),
           ...this.featureSnapshot(user),
         };
@@ -404,65 +379,12 @@ export class Gateway implements OutboxSink {
             userId: client.userId,
           });
         }
-      } else if (msg.type === "huddle.join") {
-        this.joinHuddle(msg.channelId, client, msg.requestId);
-      } else if (msg.type === "huddle.leave") {
-        this.leaveFrom(msg.channelId, client);
-      } else if (msg.type === "huddle.decline") {
-        if (!this.affordEphemeral(client.userId)) return;
-        this.declineRing(msg.channelId, client.userId);
-      } else if (msg.type === "huddle.signal") {
-        if (!this.affordEphemeral(client.userId)) return;
-        // Only relay between the two devices in the same huddle: not to the
-        // person's other devices, and not while theirs is reconnecting.
-        const room = this.huddles.get(msg.channelId);
-        const target = room?.get(msg.to);
-        const refused =
-          room?.get(client.userId)?.client !== client
-            ? "the sender is not in the huddle on this device"
-            : !target
-              ? "the other person is not in the huddle"
-              : !target.client
-                ? "the other person's connection is down"
-                : !this.store.canAccess(msg.channelId, client.userId) ||
-                    !this.store.canAccess(msg.channelId, msg.to)
-                  ? "no access to the conversation"
-                  : null;
-        const setup = msg.signal.kind === "offer" || msg.signal.kind === "answer";
-        // Routes and media notices come by the dozen; the setup is what tells.
-        if (setup || refused)
-          this.calls.add({
-            channelId: msg.channelId,
-            userId: client.userId,
-            peerId: msg.to,
-            ...(refused
-              ? { kind: "dropped", reason: `${msg.signal.kind}: ${refused}` }
-              : { kind: msg.signal.kind as "offer" | "answer" }),
-          });
-        if (!refused && target?.client && this.authorized(target.client)) {
-          this.tellDevice(target.client.ws, {
-            type: "huddle.signal",
-            channelId: msg.channelId,
-            from: client.userId,
-            signal: msg.signal,
-          });
-        }
       } else if (msg.type === "idle") {
         if (!this.affordEphemeral(client.userId)) return;
         client.idle = msg.idle;
         this.refreshPresence(client.userId);
-      } else if (msg.type === "huddle.report") {
-        if (!this.affordEphemeral(client.userId)) return;
-        // A report can come just after either side left, so only the
-        // conversation's access is asked, not the room's.
-        if (this.store.canAccess(msg.channelId, client.userId))
-          this.calls.add({
-            channelId: msg.channelId,
-            userId: client.userId,
-            peerId: msg.peer,
-            kind: "report",
-            report: msg.report,
-          });
+      } else if (isHuddleFrame(msg)) {
+        this.huddles.handle(msg, client);
       }
     };
 
@@ -495,21 +417,11 @@ export class Gateway implements OutboxSink {
    * Forgets a socket. Every in-memory change comes first and cannot fail, so a
    * read that throws while telling others still leaves this person out of
    * fan-out, presence and every huddle (F03); each notice then fails alone.
-   *
-   * A huddle place this socket held waits for its device to come back
-   * (`holdSeat`), whatever other devices the person has online: the place
-   * belongs to the device in the call. A socket `revoked` for a reason gives
-   * its places up at once, since it is not coming back.
+   * A socket `revoked` for a reason is not coming back for its huddle places.
    */
   private unregister(client: Client, later = false, revoked: string | null = null): void {
     if (!this.clients.delete(client)) return;
-    const left: ID[] = [];
-    for (const [channelId, room] of this.huddles) {
-      const seat = room.get(client.userId);
-      if (!seat || seat.client !== client) continue;
-      if (revoked === null) this.holdSeat(channelId, client.userId, seat);
-      else if (this.dropFromHuddle(channelId, client.userId, revoked)) left.push(channelId);
-    }
+    const left = this.huddles.deviceGone(client, revoked);
     const set = this.byUser.get(client.userId);
     if (!set) return;
     set.delete(client);
@@ -534,132 +446,13 @@ export class Gateway implements OutboxSink {
       return;
     }
     for (const channelId of left) {
-      this.contained("huddle departure", () => this.publishHuddle(channelId));
+      this.contained("huddle departure", () => this.huddles.publish(channelId));
     }
     if (!offline) return;
     this.contained("presence", () =>
       this.tellEveryone({ type: "presence", userId: client.userId, presence: "offline" }),
     );
     this.presenceChanged();
-  }
-
-  // ---------- huddles ----------
-
-  private huddlesVisibleTo(userId: ID): Record<ID, ID[]> {
-    const out: Record<ID, ID[]> = {};
-    for (const [channelId, members] of this.huddles) {
-      if (this.store.canAccess(channelId, userId)) out[channelId] = [...members.keys()];
-    }
-    return out;
-  }
-
-  private joinHuddle(channelId: ID, client: Client, requestId: string): void {
-    const userId = client.userId;
-    // One bounded reply only to this socket, like pong. Room fanout stays
-    // admission-rationed; sendRaw applies the slow-reader limit.
-    const reply = (event: HuddleJoinResult) => this.tellDevice(client.ws, event);
-    const refuse = (message: string, retryAfterMs?: number) =>
-      reply({
-        type: "huddle.join.result",
-        channelId,
-        requestId,
-        accepted: false,
-        message,
-        retryAfterMs,
-      });
-    if (!this.store.canAccess(channelId, userId)) {
-      this.calls.add({ channelId, userId, kind: "refused", reason: "no access" });
-      refuse("You no longer have access to this conversation.");
-      return;
-    }
-    let room = this.huddles.get(channelId);
-    // Repeated joins are already represented by the room and spend no admission.
-    // Nor does coming back to a place kept for this person, from the device that
-    // lost its connection or from another of theirs; the others see no change.
-    const seat = room?.get(userId);
-    if (seat) {
-      const before = seat.client;
-      if (seat.released) clearTimeout(seat.released);
-      seat.released = null;
-      seat.client = client;
-      if (before !== client) {
-        this.calls.add({
-          channelId,
-          userId,
-          kind: "joined",
-          reason: before ? "moved from another device" : "came back after a lost connection",
-        });
-        // The device that had the place ends the call there, rather than
-        // talk over this one.
-        if (before) this.tellDevice(before.ws, { type: "huddle.moved", channelId });
-      }
-      reply({ type: "huddle.join.result", channelId, requestId, accepted: true });
-      return;
-    }
-    // Each admitted join can cause at most one later departure broadcast. Leave,
-    // disconnect and access revocation must still release the seat when exhausted.
-    const admission = this.limiter?.take("ephemeral", userId);
-    if (admission && !admission.ok) {
-      this.calls.add({ channelId, userId, kind: "refused", reason: "joining too often" });
-      refuse(
-        `Huddle joins are temporarily limited. Wait ${Math.max(1, Math.ceil(admission.retryAfterMs / 1000))} seconds, then try again.`,
-        admission.retryAfterMs,
-      );
-      return;
-    }
-    const started = !room;
-    if (!room) this.huddles.set(channelId, (room = new Map()));
-    room.set(userId, { client, released: null });
-    this.calls.add({ channelId, userId, kind: "joined" });
-    if (started) this.contained("huddle ring", () => this.startRing(channelId, userId));
-    this.publishHuddle(channelId);
-    reply({ type: "huddle.join.result", channelId, requestId, accepted: true });
-  }
-
-  /**
-   * Leaving, as a device asks to. Only the device in the call can, or any of
-   * the person's while the place waits for its device: a device whose place
-   * moved to another may still say it left, and the call goes on there.
-   */
-  private leaveFrom(channelId: ID, client: Client): void {
-    const seat = this.huddles.get(channelId)?.get(client.userId);
-    if (!seat || (seat.client && seat.client !== client)) return;
-    this.leaveHuddle(channelId, client.userId, "left");
-  }
-
-  private leaveHuddle(channelId: ID, userId: ID, reason: string): void {
-    if (this.dropFromHuddle(channelId, userId, reason)) this.publishHuddle(channelId);
-  }
-
-  /**
-   * Keeps the place of a device whose connection dropped, for it to come
-   * back to. If it has not by the end of the grace, the place is given up and
-   * the others are told, as a departure always was.
-   */
-  private holdSeat(channelId: ID, userId: ID, seat: Seat): void {
-    seat.client = null;
-    if (seat.released) clearTimeout(seat.released);
-    seat.released = setTimeout(() => {
-      seat.released = null;
-      this.contained("huddle place", () => {
-        // Still this place, and still waiting: nobody came back for it.
-        if (this.huddles.get(channelId)?.get(userId) !== seat || seat.client) return;
-        this.leaveHuddle(channelId, userId, "disconnected");
-      });
-    }, this.options.huddleGraceMs ?? HUDDLE_GRACE_MS);
-    seat.released.unref?.();
-  }
-
-  /** Takes someone out of a room in memory only; whether they were in it. */
-  private dropFromHuddle(channelId: ID, userId: ID, reason: string): boolean {
-    const room = this.huddles.get(channelId);
-    const seat = room?.get(userId);
-    if (!room || !seat) return false;
-    if (seat.released) clearTimeout(seat.released);
-    room.delete(userId);
-    this.calls.add({ channelId, userId, kind: "left", reason });
-    if (room.size === 0) this.huddles.delete(channelId);
-    return true;
   }
 
   /**
@@ -677,131 +470,10 @@ export class Gateway implements OutboxSink {
       const channel = this.store.canAccess(channelId, userId)
         ? this.store.channels.get(channelId)
         : null;
-      if (!channel) this.leaveHuddle(channelId, userId, "lost access");
+      if (!channel) this.huddles.leave(channelId, userId, "lost access");
       this.tellPerson(userId, { type: "channel.access", channelId, channel, membership });
     });
     if (!told) this.resynchronizeUser(userId);
-  }
-
-  private publishHuddle(channelId: ID, authorized?: SessionCheck): void {
-    this.tellChannel(
-      channelId,
-      {
-        type: "huddle.participants",
-        channelId,
-        userIds: [...(this.huddles.get(channelId)?.keys() ?? [])],
-      },
-      authorized,
-    );
-    this.contained("huddle ring", () => this.settleRing(channelId));
-  }
-
-  // ---------- rings (E10) ----------
-
-  /**
-   * Rings everyone else in a direct message whose huddle this person has
-   * just started: not bots, who cannot answer, nor deactivated accounts.
-   * Joining a huddle already going rings nobody, and a channel never rings.
-   */
-  private startRing(channelId: ID, callerId: ID): void {
-    const channel = this.store.channels.get(channelId);
-    if (!channel || (channel.type !== "dm" && channel.type !== "group_dm")) return;
-    const rang = this.store.channels.memberIds(channelId).filter((id) => {
-      if (id === callerId) return false;
-      const user = this.store.people.get(id);
-      return !!user && !user.isBot && !user.deactivated;
-    });
-    if (rang.length === 0) return;
-    const before = this.rings.get(channelId);
-    if (before) this.endRing(channelId, before);
-    const ms = this.options.huddleRingMs ?? HUDDLE_RING_MS;
-    const startedAt = Date.now();
-    const ring: Ring = {
-      state: {
-        channelId,
-        callerId,
-        startedAt,
-        endsAt: startedAt + ms,
-        ringing: rang,
-        answered: [],
-        declined: [],
-      },
-      rang,
-      timer: null,
-    };
-    ring.timer = setTimeout(() => {
-      ring.timer = null;
-      this.contained("huddle ring", () => this.endRing(channelId, ring));
-    }, ms);
-    ring.timer.unref?.();
-    this.rings.set(channelId, ring);
-    this.tellRing(ring);
-  }
-
-  /**
-   * Brings a ring up to date with who is in its huddle: someone it rang who
-   * is in the huddle now has answered, and a ring whose caller is no longer
-   * in it is over.
-   */
-  private settleRing(channelId: ID): void {
-    const ring = this.rings.get(channelId);
-    if (!ring) return;
-    const room = this.huddles.get(channelId);
-    if (!room?.has(ring.state.callerId)) return this.endRing(channelId, ring);
-    const { state } = ring;
-    const joined = ring.rang.filter((id) => room.has(id) && !state.answered.includes(id));
-    if (joined.length === 0) return;
-    state.ringing = state.ringing.filter((id) => !joined.includes(id));
-    state.declined = state.declined.filter((id) => !joined.includes(id));
-    state.answered = [...state.answered, ...joined];
-    if (state.ringing.length === 0) this.endRing(channelId, ring);
-    else this.tellRing(ring);
-  }
-
-  private declineRing(channelId: ID, userId: ID): void {
-    const ring = this.rings.get(channelId);
-    if (!ring || !ring.state.ringing.includes(userId)) return;
-    ring.state.ringing = ring.state.ringing.filter((id) => id !== userId);
-    ring.state.declined = [...ring.state.declined, userId];
-    if (ring.state.ringing.length === 0) this.endRing(channelId, ring);
-    else this.tellRing(ring);
-  }
-
-  /**
-   * Stops a ring for everyone. Whoever it was still ringing missed it, and if
-   * nobody answered, the conversation is left a note saying so, as from the
-   * caller.
-   */
-  private endRing(channelId: ID, ring: Ring): void {
-    if (this.rings.get(channelId) !== ring) return;
-    this.rings.delete(channelId);
-    if (ring.timer) clearTimeout(ring.timer);
-    ring.timer = null;
-    const missed = ring.state.ringing.length > 0;
-    ring.state.ringing = [];
-    this.tellRing(ring);
-    if (missed && ring.state.answered.length === 0)
-      this.contained("missed call", () =>
-        this.options.missedCall?.(channelId, ring.state.callerId),
-      );
-  }
-
-  private tellRing(ring: Ring): void {
-    const event: EventTo<"person"> = { type: "huddle.ring", ring: { ...ring.state } };
-    for (const userId of [ring.state.callerId, ...ring.rang])
-      this.contained("huddle ring", () => this.tellPerson(userId, event));
-  }
-
-  private ringsFor(userId: ID): HuddleRing[] {
-    return [...this.rings.values()]
-      .filter((ring) => ring.state.callerId === userId || ring.rang.includes(userId))
-      .map((ring) => ({ ...ring.state }));
-  }
-
-  /** A channel's ring as it stands, for tests and diagnostics. */
-  huddleRing(channelId: ID): HuddleRing | null {
-    const ring = this.rings.get(channelId);
-    return ring ? { ...ring.state } : null;
   }
 
   /** Who went offline when their sockets failed, not yet told to anyone. */
@@ -820,7 +492,7 @@ export class Gateway implements OutboxSink {
     if (this.closing) return;
     const authorized = this.sessionCheck();
     for (const channelId of huddles)
-      this.contained("huddle departure", () => this.publishHuddle(channelId, authorized));
+      this.contained("huddle departure", () => this.huddles.publish(channelId, authorized));
     for (const userId of users) {
       // Back already, on a socket that told everyone so.
       if (this.byUser.has(userId)) continue;
@@ -828,11 +500,6 @@ export class Gateway implements OutboxSink {
         this.tellEveryone({ type: "presence", userId, presence: "offline" }, authorized),
       );
     }
-  }
-
-  /** Participants of one channel's huddle, for tests and diagnostics. */
-  huddleParticipants(channelId: ID): ID[] {
-    return [...(this.huddles.get(channelId)?.keys() ?? [])];
   }
 
   /**
@@ -962,7 +629,7 @@ export class Gateway implements OutboxSink {
     ws.close(SOCKET_CLOSE[code]);
   }
 
-  private authorized(client: Client): boolean {
+  authorized(client: Client): boolean {
     return this.sessionCheck()(client);
   }
 
@@ -991,8 +658,8 @@ export class Gateway implements OutboxSink {
     if (admins.size > 0) this.fanOut({ type: "ephemeral", event }, admins);
   }
 
-  private tellDevice(ws: WebSocket, event: EventTo<"device">): void {
-    this.send(ws, { type: "ephemeral", event });
+  tellDevice(client: Client, event: EventTo<"device">): void {
+    this.send(client.ws, { type: "ephemeral", event });
   }
 
   private fanOut(

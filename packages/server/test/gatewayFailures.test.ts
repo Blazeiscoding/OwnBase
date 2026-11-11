@@ -207,12 +207,12 @@ describe("socket callbacks that fail (F03)", () => {
     const device = await connect(person.token);
     await connect(other.token);
     device.ws.send(JSON.stringify({ type: "huddle.join", channelId: general, requestId: "j1" }));
-    await expect.poll(() => server.gateway.huddleParticipants(general)).toEqual([person.user.id]);
+    await expect.poll(() => server.huddles.participants(general)).toEqual([person.user.id]);
 
     vi.spyOn(server.store.channels, "get").mockImplementation(failing("disk"));
     device.ws.close();
     await expect.poll(() => server.gateway.isOnline(person.user.id)).toBe(false);
-    await expect.poll(() => server.gateway.huddleParticipants(general)).toEqual([]);
+    await expect.poll(() => server.huddles.participants(general)).toEqual([]);
     expect(await healthy()).toBe(true);
   });
 });

@@ -32,6 +32,7 @@ import type { ServerExtension } from "./extensions.js";
 import { maxFileSizeOf, registerFiles } from "./files/feature.js";
 import { Gateway } from "./gateway.js";
 import { registerHuddles } from "./huddles/feature.js";
+import type { HuddleRooms } from "./huddles/rooms.js";
 import { DEFAULT_LIMITS, RateLimiter, type Limits } from "./limits.js";
 import { type FetchedPreview } from "./linkPreview.js";
 import { advertise, type MdnsHandle } from "./mdns.js";
@@ -226,6 +227,8 @@ export interface WorkspaceServer {
   port: number;
   store: Store;
   gateway: Gateway;
+  /** Who is in which huddle and the rings, for tests and diagnostics. */
+  huddles: HuddleRooms;
   /**
    * The code needed to claim an unowned workspace from off this machine. Null
    * once someone owns it. The host prints it; it is not served over the API.
@@ -417,12 +420,6 @@ async function startWorkspaceServer(
     (req) => network.callerAddress(req),
     (err, where) =>
       app.log.error({ err, where }, "socket work failed; its socket closes to reconnect"),
-    {
-      huddleGraceMs: opts.huddleGraceMs,
-      huddleRingMs: opts.huddleRingMs,
-      // Rung only once the server is up, by which time the note can be posted.
-      missedCall: (channelId, callerId) => huddles.postMissedCall(channelId, callerId),
-    },
   );
 
   store.outbox.connect(gateway, (err, what) =>
@@ -596,6 +593,7 @@ async function startWorkspaceServer(
     instanceId,
     store,
     gateway,
+    huddles: huddles.rooms,
     claimCode: settings.get("claimCode"),
     upgradeBackup,
     flushScheduled: scheduledMessages.flush,

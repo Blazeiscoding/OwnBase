@@ -91,7 +91,9 @@
       "path": "packages/server/src/huddles/events.ts",
       "plain": "Says who hears about huddles: the conversation, one device, or the people a call rings.",
       "summary": "huddleEphemeral: participants to the conversation, a join's answer, a move and relayed signals to one socket, rings to each person involved.",
-      "details": ["Huddles live in the gateway alone, so these are never logged or replayed."],
+      "details": [
+        "Huddles live in memory alone (huddles/rooms.ts), so these are never logged or replayed."
+      ],
       "concepts": ["event registry", "huddle"]
     },
     {
@@ -382,10 +384,8 @@
         "Who hears each event is the event registry's: publish reads a durable event's conversation from it, and tellPerson, tellChannel, tellEveryone, tellAdmins and tellDevice take only the events whose audience they are. Public channel events reach all signed-in readers; private and DM events current members. Session authorization is rechecked after admission, including heartbeat and delivery paths.",
         "It is the outbox's sink: anyoneOnline, isOnline, tellPerson, tellAdmins and updateChannelAccess.",
         "byUser groups a person's sockets for targeted updates. Presence lists only online accounts, avoiding a second full offline-account listing at every handshake.",
-        "Huddles and typing are ephemeral. Signaling relays only between authorized participants in the same huddle; the server carries signaling, not media.",
-        "A place in a huddle (a Seat) belongs to the socket that joined. When that socket closes, holdSeat keeps the place for HUDDLE_GRACE_MS (30 s, huddleGraceMs in ServerOptions) without telling the room, even if the person has other devices online; a join from them within it takes the place back quietly, logged as having come back. A join from another of their devices moves the place there and sends the old socket huddle.moved; a leave or signal from a socket that does not hold the place is ignored or dropped, and signals for a place waiting on its device are dropped. Leave, lost access, sign-out and deactivation (revoke) release the place at once.",
+        "Typing is ephemeral. A signed-in socket's huddle.* frames go to the live huddles (huddles/rooms.ts, given with useHuddles before attach), which it tells when a socket closes or is revoked; the handshake takes who is in which huddle and the rings from them.",
         "Socket callbacks contain thrown failures and close the affected connection with a retryable server error. Heartbeats, authentication timeout, payload limits and idempotent close bound abandoned connections.",
-        "Writes huddle joins, refusals, departures with their reason, relayed offers and answers, signals it could not pass on and why, and clients' huddle.report summaries to an in-memory CallLog; the ready snapshot advertises huddleReports.",
         "The ready snapshot also advertises stars, so a client offers Star only where it is kept (UX-20).",
         "The ready snapshot advertises workspaceSettings and says accessPolicy, so a client offers Workspace settings' controls only where the server takes them (UX-60).",
         "The ready snapshot advertises workspaceIcon and says iconVersion (or null), so a client offers the icon upload only where the server keeps one, and shows the icon at once (UX-60).",
@@ -396,7 +396,6 @@
         "The ready snapshot says sharedFiles, that the server lists shared files (E7).",
         "The ready snapshot carries sidebarSections, the account's sections in order, which also says the server keeps them (E8).",
         "Presence (E9): each socket says whether its device is idle. An account is offline with no socket, away when set away by hand or when every socket says idle, and online otherwise. refreshPresence tells everyone only a change, whether an idle message, a socket opening or closing, or away by hand made it; going offline is told as the last socket closes. The ready snapshot says profiles, and its presence map gives away too.",
-        "Rings (E10): the first one into a dm or group_dm huddle rings everyone else in it but bots and deactivated accounts, for HUDDLE_RING_MS (30 s, option huddleRingMs). publishHuddle settles it: whoever it rang who is in the huddle answered, and the caller gone ends it. huddle.decline moves someone to declined. huddle.ring tells the caller and everyone rung each change, ringing empty meaning over. A ring that ends with nobody answering and someone missing it calls missedCall. The snapshot lists an account's rings as huddleRings; rings are live, and stopping announces none.",
         "The ready snapshot carries blocked, whom this account blocked, which also says the server blocks and takes reports (E12), and openReports for the owner and admins."
       ],
       "concepts": ["WebSocket", "replay", "access control", "presence", "huddle"]
@@ -654,6 +653,19 @@
         "The server exposes authorized configuration; peer media uses WebRTC directly or the configured relay rather than flowing through Gateway."
       ],
       "concepts": ["WebRTC", "ICE configuration"]
+    },
+    {
+      "path": "packages/server/src/huddles/rooms.ts",
+      "plain": "Keeps track of who is in each huddle and on which device, rings the people in a direct message when a call starts, and passes call setup between the two devices in a call.",
+      "summary": "HuddleRooms: live huddle places, the grace for a dropped device, rings and the missed-call note, signal relaying and the call log.",
+      "details": [
+        "Live state only: a huddle exists only while people are in it, and nothing here is logged or survives a restart. The gateway hands it a signed-in socket's huddle frames (handle) and tells it when a socket is gone (deviceGone); the handshake reads snapshot for huddles and huddleRings.",
+        "A place in a huddle (a Seat) belongs to the socket that joined. When that socket closes, holdSeat keeps the place for HUDDLE_GRACE_MS (30 s, huddleGraceMs in ServerOptions) without telling the room, even if the person has other devices online; a join from them within it takes the place back quietly, logged as having come back. A join from another of their devices moves the place there and sends the old socket huddle.moved; a leave or signal from a socket that does not hold the place is ignored or dropped, and signals for a place waiting on its device are dropped. Leave, lost access, sign-out and deactivation (revoke) release the place at once.",
+        "Joining is rationed on the shared limiter (a refusal says when to try again); decline, signal and report are dropped silently when over it. Signals pass only between the two devices in the same huddle with access to the conversation, never to the person's other devices.",
+        "Writes huddle joins, refusals, departures with their reason, relayed offers and answers, signals it could not pass on and why, and clients' huddle.report summaries to an in-memory CallLog.",
+        "Rings (E10): the first one into a dm or group_dm huddle rings everyone else in it but bots and deactivated accounts, for HUDDLE_RING_MS (30 s, option huddleRingMs). publish settles it: whoever it rang who is in the huddle answered, and the caller gone ends it. huddle.decline moves someone to declined. huddle.ring tells the caller and everyone rung each change, ringing empty meaning over. A ring that ends with nobody answering and someone missing it calls missedCall, which feature.ts gives it. The snapshot lists an account's rings as huddleRings; rings are live, and stopping announces none."
+      ],
+      "concepts": ["huddle", "memory only", "E10"]
     },
     {
       "path": "packages/server/src/huddles/relay.ts",
@@ -1485,7 +1497,7 @@
     {
       "path": "packages/server/src/huddles/feature.ts",
       "plain": "Gives calls the servers they connect through, keeps the call log, and leaves a note when a call is missed.",
-      "summary": "Huddles' HTTP side: ICE/TURN configuration, the call log and the missed-call note; joining and ringing travel over the socket.",
+      "summary": "Builds the live huddles (rooms.ts) with the missed-call note they leave, and huddles' HTTP side: ICE/TURN configuration and the call log.",
       "details": [
         "rtcConfig gives the host's STUN/TURN servers plus a relay password for this member, never the relay's API token or shared secret.",
         "The host can replace the ICE servers or the relay while running; a refused relay leaves the old one.",

@@ -88,7 +88,7 @@ describe("huddle transition admission", () => {
     await reader.settle();
 
     expect(reader.participants().map((event) => event.userIds)).toEqual([[person.user.id], []]);
-    expect(server.gateway.huddleParticipants(channelId)).toEqual([]);
+    expect(server.huddles.participants(channelId)).toEqual([]);
     expect(sender.ws.readyState).toBe(WebSocket.OPEN);
     const results = sender.frames.flatMap((frame) =>
       frame.type === "ephemeral" && frame.event.type === "huddle.join.result" ? [frame.event] : [],
@@ -142,8 +142,8 @@ describe("huddle transition admission", () => {
     await sender.settle();
     await otherDevice.settle();
 
-    expect(server.gateway.huddleParticipants(firstChannel)).toEqual([]);
-    expect(server.gateway.huddleParticipants(secondChannel)).toEqual([person.user.id]);
+    expect(server.huddles.participants(firstChannel)).toEqual([]);
+    expect(server.huddles.participants(secondChannel)).toEqual([person.user.id]);
     expect(otherDevice.participants()).toHaveLength(3);
     const results = sender.frames.flatMap((frame) =>
       frame.type === "ephemeral" && frame.event.type === "huddle.join.result" ? [frame.event] : [],
@@ -160,7 +160,7 @@ describe("huddle transition admission", () => {
     ).toHaveLength(1);
     otherDevice.ws.send(JSON.stringify({ type: "huddle.leave", channelId: secondChannel }));
     await otherDevice.settle();
-    expect(server.gateway.huddleParticipants(secondChannel)).toEqual([]);
+    expect(server.huddles.participants(secondChannel)).toEqual([]);
   });
 
   it("immediately answers distinct duplicate attempts without spending admission or fanning out", async () => {
@@ -194,7 +194,7 @@ describe("huddle transition admission", () => {
       );
     expect(results().map((event) => event.requestId)).toEqual(["first", "second"]);
     expect(results().every((event) => event.accepted)).toBe(true);
-    expect(server.gateway.huddleParticipants(secondChannel)).toEqual([person.user.id]);
+    expect(server.huddles.participants(secondChannel)).toEqual([person.user.id]);
     expect(existingDevice.participants()).toHaveLength(2);
   });
 
@@ -214,7 +214,7 @@ describe("huddle transition admission", () => {
       JSON.stringify({ type: "huddle.join", channelId: room.id, requestId: "initial" }),
     );
     await caller.settle();
-    expect(server.gateway.huddleParticipants(room.id)).toEqual([member.user.id]);
+    expect(server.huddles.participants(room.id)).toEqual([member.user.id]);
 
     expect(
       (
@@ -226,7 +226,7 @@ describe("huddle transition admission", () => {
         )
       ).status,
     ).toBe(200);
-    expect(server.gateway.huddleParticipants(room.id)).toEqual([]);
+    expect(server.huddles.participants(room.id)).toEqual([]);
     caller.ws.send(
       JSON.stringify({ type: "huddle.join", channelId: room.id, requestId: "revoked" }),
     );
@@ -249,8 +249,8 @@ describe("huddle transition admission", () => {
       JSON.stringify({ type: "huddle.join", channelId: room.id, requestId: "join-5" }),
     );
     await ownerSocket.settle();
-    expect(server.gateway.huddleParticipants(room.id)).toEqual([owner.user.id]);
+    expect(server.huddles.participants(room.id)).toEqual([owner.user.id]);
     ownerSocket.ws.terminate();
-    await expect.poll(() => server.gateway.huddleParticipants(room.id)).toEqual([]);
+    await expect.poll(() => server.huddles.participants(room.id)).toEqual([]);
   });
 });

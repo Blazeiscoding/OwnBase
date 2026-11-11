@@ -126,7 +126,7 @@ describe("a direct message's huddle", () => {
     const ring = last(laptop.rings())!;
     expect(ring).toMatchObject({ channelId, callerId: alice.user.id, answered: [], declined: [] });
     expect(ring.endsAt - ring.startedAt).toBe(60_000);
-    expect(server.gateway.huddleRing(channelId)).toEqual(ring);
+    expect(server.huddles.ring(channelId)).toEqual(ring);
     await outsider.settle();
     expect(outsider.rings()).toEqual([]);
   });
@@ -144,7 +144,7 @@ describe("a direct message's huddle", () => {
     await caller.settle();
     await callee.settle();
     expect(callee.rings()).toEqual([]);
-    expect(server.gateway.huddleRing(general)).toBeNull();
+    expect(server.huddles.ring(general)).toBeNull();
 
     caller.send({ type: "huddle.join", channelId, requestId: "b" });
     await expect.poll(() => callee.rings().length).toBe(1);
@@ -155,7 +155,7 @@ describe("a direct message's huddle", () => {
     callee.send({ type: "huddle.join", channelId, requestId: "c" });
     await callee.settle();
     await caller.settle();
-    expect(server.gateway.huddleParticipants(channelId)).toEqual([alice.user.id, bob.user.id]);
+    expect(server.huddles.participants(channelId)).toEqual([alice.user.id, bob.user.id]);
     expect(caller.rings()).toHaveLength(count);
   });
 
@@ -178,7 +178,7 @@ describe("a direct message's huddle", () => {
           ringing: [],
           answered: [bob.user.id],
         });
-    expect(server.gateway.huddleRing(channelId)).toBeNull();
+    expect(server.huddles.ring(channelId)).toBeNull();
     expect(await messages(channelId, alice.token)).toEqual([]);
   });
 
@@ -195,7 +195,7 @@ describe("a direct message's huddle", () => {
     // Only someone it rings can say no: the caller saying so changes nothing.
     caller.send({ type: "huddle.decline", channelId });
     await caller.settle();
-    expect(server.gateway.huddleRing(channelId)).toMatchObject({
+    expect(server.huddles.ring(channelId)).toMatchObject({
       ringing: [bob.user.id],
       declined: [],
     });
@@ -210,7 +210,7 @@ describe("a direct message's huddle", () => {
       });
     expect(last(callee.rings())?.ringing).toEqual([]);
     // The caller is still in the huddle, alone, and no note is left.
-    expect(server.gateway.huddleParticipants(channelId)).toEqual([alice.user.id]);
+    expect(server.huddles.participants(channelId)).toEqual([alice.user.id]);
     expect(await messages(channelId, alice.token)).toEqual([]);
   });
 
@@ -245,7 +245,7 @@ describe("a direct message's huddle", () => {
       )
       .toBe(true);
     // The huddle goes on with Alice in it, and her note says what happened, not what she wrote.
-    expect(server.gateway.huddleParticipants(channelId)).toEqual([alice.user.id]);
+    expect(server.huddles.participants(channelId)).toEqual([alice.user.id]);
     const edit = await request(
       `/api/messages/${note!.id}`,
       alice.token,
@@ -267,7 +267,7 @@ describe("a direct message's huddle", () => {
 
     caller.send({ type: "huddle.leave", channelId });
     await expect.poll(() => last(callee.rings())?.ringing).toEqual([]);
-    expect(server.gateway.huddleRing(channelId)).toBeNull();
+    expect(server.huddles.ring(channelId)).toBeNull();
     await expect.poll(async () => (await messages(channelId, bob.token)).length).toBe(1);
     expect((await messages(channelId, bob.token))[0]).toMatchObject({
       userId: alice.user.id,
