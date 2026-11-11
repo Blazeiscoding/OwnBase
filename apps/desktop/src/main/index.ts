@@ -108,7 +108,6 @@ function push<E extends EventName>(event: E, payload: Events[E]): void {
     win.webContents.send(event, payload);
 }
 let rendererReady = false;
-let quitting = false;
 let quitReady = false;
 let quitTask: Promise<void> | null = null;
 
@@ -585,19 +584,13 @@ for (const channel of CHANNELS)
 // ---------- the tray, and quitting ----------
 
 function showMainWindow(): BrowserWindow | null {
-  if (!app.isReady() || quitting) return null;
+  if (!app.isReady() || hosting.quitting()) return null;
   if (!mainWindow || mainWindow.isDestroyed()) createWindow();
   const win = mainWindow!;
   if (win.isMinimized()) win.restore();
   if (!isTest) win.show();
   win.focus();
   return win;
-}
-
-/** While quitting, the tray offers nothing and hosting starts no new work. */
-function setQuitting(on: boolean): void {
-  quitting = on;
-  hosting.setQuitting(on);
 }
 
 async function confirmStopAndQuit(): Promise<boolean> {
@@ -617,7 +610,7 @@ async function confirmStopAndQuit(): Promise<boolean> {
 // The tray's label already says hosting stops, so it does not ask first.
 async function stopFromTray(): Promise<void> {
   try {
-    await hosting.stopFromTray();
+    await hosting.stop();
   } catch {
     showMainWindow();
     await dialog.showMessageBox({
@@ -630,7 +623,6 @@ async function stopFromTray(): Promise<void> {
 function updateTray(): void {
   if (!tray || tray.isDestroyed()) return;
   const status = hosting.status();
-  const trayStopping = hosting.stoppingFromTray();
   const label =
     status.phase === "starting"
       ? "Starting workspace…"
@@ -679,7 +671,7 @@ function updateTray(): void {
       })),
       {
         label: "Stop hosting",
-        enabled: status.phase === "running" && !quitting && !trayStopping,
+        enabled: status.phase === "running" && !hosting.quitting(),
         click: () => {
           void stopFromTray().catch(() => {});
         },
@@ -687,7 +679,7 @@ function updateTray(): void {
       { type: "separator" },
       {
         label: status.phase === "stopped" ? "Quit OwnBase" : "Stop hosting and quit",
-        enabled: !quitting && !trayStopping,
+        enabled: !hosting.quitting() && status.phase !== "stopping",
         // The label already says hosting stops, so it does not ask again.
         click: () => quitOwnBase(true),
       },
@@ -799,7 +791,7 @@ function createWindow(): void {
   win.on("close", (event) => {
     if (placeTimer) savePlace();
     if (quitReady || closeAllowed) return;
-    if (quitting || hosting.status().phase !== "stopped") {
+    if (hosting.quitting() || hosting.status().phase !== "stopped") {
       event.preventDefault();
       if (tray && !tray.isDestroyed()) win.hide();
       else win.minimize();
@@ -908,7 +900,7 @@ function createWindow(): void {
   // either way; what the page had saved comes back with it.
   const recovery = new RendererRecovery();
   const recover = async (what: string, fresh: boolean) => {
-    if (win.isDestroyed() || quitting) return;
+    if (win.isDestroyed() || hosting.quitting()) return;
     rendererReady = false;
     // A page that ran loads again where it was: the address it last reported,
     // and its history entry handed back (F08). One that never loaded starts
@@ -922,7 +914,7 @@ function createWindow(): void {
         : void win.loadURL(where).catch(() => {});
     if (recovery.failed() === "reload") {
       setTimeout(() => {
-        if (!win.isDestroyed() && !quitting) reopen();
+        if (!win.isDestroyed() && !hosting.quitting()) reopen();
       }, RENDERER_RECOVERY.reloadDelayMs);
       return;
     }
@@ -1049,7 +1041,7 @@ app.on("window-all-closed", () => {
   if (process.platform === "darwin") return;
   if (hosting.status().phase === "stopped") app.quit();
   // A server with nothing on screen and no tray to reach it by would be invisible.
-  else if (!quitting && !tray) showMainWindow();
+  else if (!hosting.quitting() && !tray) showMainWindow();
 });
 
 app.on("will-quit", () => {
@@ -1068,19 +1060,19 @@ app.on("before-quit", (event) => {
  * first, for a choice that already said it stops hosting.
  */
 function quitOwnBase(stopConfirmed: boolean): void {
-  if (quitTask || hosting.stoppingFromTray()) return;
-  setQuitting(true);
+  if (quitTask) return;
+  hosting.setQuitting(true);
   updateTray();
   quitTask = (async () => {
     if (!stopConfirmed && hosting.status().phase !== "stopped" && !(await confirmStopAndQuit())) {
-      setQuitting(false);
+      hosting.setQuitting(false);
       updateTray();
       return;
     }
     // Kept before the settings are saved for the last time.
     saveWindowPlaceNow?.();
     if (!(await prepareLocalWrites(mainWindow, true))) {
-      setQuitting(false);
+      hosting.setQuitting(false);
       updateTray();
       return;
     }
@@ -1107,7 +1099,7 @@ function quitOwnBase(stopConfirmed: boolean): void {
         // Only the user's explicit response to a failed shutdown may bypass draining.
         app.exit(1);
       } else {
-        setQuitting(false);
+        hosting.setQuitting(false);
         if (mainWindow && !mainWindow.isDestroyed()) mainWindow.setEnabled(true);
         showMainWindow();
         updateTray();
@@ -1115,8 +1107,8 @@ function quitOwnBase(stopConfirmed: boolean): void {
     })
     .finally(() => {
       quitTask = null;
-      if (!quitReady && quitting) {
-        setQuitting(false);
+      if (!quitReady && hosting.quitting()) {
+        hosting.setQuitting(false);
         showMainWindow();
         updateTray();
       }

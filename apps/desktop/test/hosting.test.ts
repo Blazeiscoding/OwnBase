@@ -1241,6 +1241,18 @@ describe("hosting a workspace from the desktop app", () => {
   });
 
   describe("when the app quits", () => {
+    it("starts nothing new while OwnBase quits, and starts again once that is called off", async () => {
+      const h = harness();
+      h.controller.setQuitting(true);
+      await expect(h.controller.start({ workspaceName: "Rocket Team" })).rejects.toThrow(
+        /OwnBase is quitting/,
+      );
+      h.controller.setQuitting(false);
+      await expect(h.controller.start({ workspaceName: "Rocket Team" })).resolves.toMatchObject({
+        workspaceName: "Rocket Team",
+      });
+    });
+
     it("finishes a start it already accepted, stops it, and accepts no more", async () => {
       const h = harness();
       const bind = deferred();
@@ -1400,6 +1412,8 @@ describe("hosting a workspace from the desktop app", () => {
 
       const stopping = h.controller.stop();
       expect(h.servers[0]!.stop).not.toHaveBeenCalled();
+      // The window and the tray hear it is stopping at once, not when its turn comes.
+      expect(h.changes.at(-1)).toMatchObject({ running: true, phase: "stopping" });
       gate.resolve();
       await backing;
       await stopping;

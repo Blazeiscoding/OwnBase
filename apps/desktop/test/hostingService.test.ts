@@ -73,7 +73,7 @@ describe("the hosting service", () => {
       () => hosting.handlers["hosting:restore"](event),
       () => hosting.handlers["hosting:installCloudflared"](event),
     ])
-      await expect(Promise.resolve().then(call)).rejects.toThrow("OwnBase is shutting down");
+      await expect(Promise.resolve().then(call)).rejects.toThrow(/OwnBase is quitting/);
 
     await expect(hosting.handlers["hosting:list"](event)).resolves.toEqual({
       workspaces: [],

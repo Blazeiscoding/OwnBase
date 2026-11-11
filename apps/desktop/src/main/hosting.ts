@@ -49,6 +49,10 @@ import {
 /** The hosting status as the controller knows it; the app adds what it alone can tell. */
 export type HostingSnapshot = Omit<HostingStatus, "backgroundAvailable" | "cloudflaredInstall">;
 
+/** Why hosting refuses to start anything while OwnBase quits. */
+export const QUITTING =
+  "OwnBase is quitting, so it starts nothing new. Try again after reopening it.";
+
 /** The settings key naming, by its folder, the workspace to start when the app opens. */
 export const START_ON_LAUNCH_KEY = "startOnLaunch";
 
@@ -357,7 +361,10 @@ export function createHostingController(options: HostingOptions) {
   let registryUnsaved: string | undefined;
   let stopFailed = false;
   let pending: Promise<unknown> = Promise.resolve();
+  /** OwnBase is quitting: nothing new starts, and only reading and stopping are answered. */
   let closing = false;
+  /** Stops asked for and not yet over, so the status says "stopping" from the moment one is asked. */
+  let stopsAsked = 0;
   let shutdownPromise: Promise<void> | null = null;
   let tunnel: Tunnel | null = null;
   /** A connector returned before cancellation/setup failed, not safe to publish or forget. */
@@ -396,6 +403,10 @@ export function createHostingController(options: HostingOptions) {
   /** Stops following the running workspace's name and who may join. */
   let stopFollowingWorkspace: (() => void) | null = null;
 
+  function refuseWhileQuitting(): void {
+    if (closing) throw new Error(QUITTING);
+  }
+
   function changed(): void {
     // A renderer/tray notification must never lose ownership of a live server.
     try {
@@ -422,7 +433,7 @@ export function createHostingController(options: HostingOptions) {
     const address = publicAddress();
     return {
       running: server !== null,
-      phase,
+      phase: phase === "running" && stopsAsked > 0 ? "stopping" : phase,
       ...(workspace ?? {}),
       ...(server ? { port: server.port, lanUrls: options.lanUrls(server.port) } : {}),
       ...(server ? { instanceId: server.instanceId, accessPolicy: server.accessPolicy() } : {}),
@@ -670,7 +681,7 @@ export function createHostingController(options: HostingOptions) {
    * the same. Everything else about it is in `status`.
    */
   function start(value: unknown): Promise<StartedWorkspace> {
-    if (closing) return Promise.reject(new Error("The app is quitting. Hosting cannot start."));
+    if (closing) return Promise.reject(new Error(QUITTING));
     let requested: ReturnType<typeof startOptions>;
     try {
       requested = startOptions(value);
@@ -990,7 +1001,7 @@ export function createHostingController(options: HostingOptions) {
     if (typeof folder !== "string" || typeof destination !== "string" || !isAbsolute(destination))
       return Promise.reject(new Error("Choose a workspace and a folder to back it up to."));
     return serialized(async () => {
-      if (closing) throw new Error("The app is quitting.");
+      refuseWhileQuitting();
       const entry = (await loadRegistry()).find((e) => e.folder === folder);
       if (!entry) throw new Error("That workspace is not in the list hosted on this computer.");
       return backupNow(entry, destination);
@@ -1086,7 +1097,7 @@ export function createHostingController(options: HostingOptions) {
     if (typeof backupDir !== "string" || !isAbsolute(backupDir))
       return Promise.reject(new Error("Choose the folder of a backup to restore."));
     return serialized(async () => {
-      if (closing) throw new Error("The app is quitting.");
+      refuseWhileQuitting();
       const list = await loadRegistry();
       const manifest = await options.verifyBackup(backupDir);
       const id = read(backupDir)?.id ?? null;
@@ -1229,7 +1240,7 @@ export function createHostingController(options: HostingOptions) {
     )
       return Promise.reject(new Error("Choose one backup to restore."));
     return serialized(async () => {
-      if (closing) throw new Error("The app is quitting.");
+      refuseWhileQuitting();
       const list = await loadRegistry();
       const listed = list.find((e) => e.folder === folder);
       if (!listed) throw new Error("That workspace is not in the list hosted on this computer.");
@@ -1357,7 +1368,7 @@ export function createHostingController(options: HostingOptions) {
         new Error("Choose a folder, daily or weekly, and to keep 1 to 60 backups."),
       );
     return serialized(async () => {
-      if (closing) throw new Error("The app is quitting.");
+      refuseWhileQuitting();
       const entry = (await loadRegistry()).find((e) => e.folder === folder);
       if (!entry) throw new Error("That workspace is not in the list hosted on this computer.");
       let chosen: AutoBackup | null = null;
@@ -1591,7 +1602,7 @@ export function createHostingController(options: HostingOptions) {
     if (!isPort(port)) return Promise.reject(new Error(PORT_RULE));
     const next = port;
     return serialized(async () => {
-      if (closing) throw new Error("The app is quitting.");
+      refuseWhileQuitting();
       const entry = (await loadRegistry()).find((e) => e.folder === folder);
       if (!entry) throw new Error("That workspace is not in the list hosted on this computer.");
       if (server && workspace?.folder === entry.folder)
@@ -1847,7 +1858,7 @@ export function createHostingController(options: HostingOptions) {
       return Promise.reject(error);
     }
     return serialized(async () => {
-      if (closing) throw new Error("The app is quitting.");
+      refuseWhileQuitting();
       const entry = (await loadRegistry()).find((e) => e.folder === folder);
       if (!entry) throw new Error("That workspace is not in the list hosted on this computer.");
       if (server && workspace?.folder === entry.folder) {
@@ -1999,6 +2010,8 @@ export function createHostingController(options: HostingOptions) {
   function stopInTurn(): Promise<void> {
     let turn: "waiting" | "taken" | "given up" = "waiting";
     let before: string | undefined;
+    stopsAsked += 1;
+    changed();
     return new Promise<void>((resolve, reject) => {
       const timer = setTimeout(() => {
         if (turn !== "waiting") return;
@@ -2022,6 +2035,9 @@ export function createHostingController(options: HostingOptions) {
         clearTimeout(timer);
         await stopCurrent();
       }).then(resolve, reject);
+    }).finally(() => {
+      stopsAsked -= 1;
+      changed();
     });
   }
 
@@ -2037,7 +2053,7 @@ export function createHostingController(options: HostingOptions) {
    * accounts only unless it says otherwise.
    */
   function openToAll(value: unknown = {}): Promise<void> {
-    if (closing) return Promise.reject(new Error("The app is quitting."));
+    if (closing) return Promise.reject(new Error(QUITTING));
     const { accessPolicy } =
       value && typeof value === "object" && !Array.isArray(value)
         ? (value as { accessPolicy?: unknown })
@@ -2225,7 +2241,7 @@ export function createHostingController(options: HostingOptions) {
    */
   function setPublicAddress(value: string | null): Promise<void> {
     return serialized(async () => {
-      if (closing) throw new Error("The app is quitting.");
+      refuseWhileQuitting();
       if (tunnel || opening || cleanupTunnel)
         throw new Error("Stop using the current public address before changing it.");
       if (server && phase === "running") server.setAccessPolicy("invite_only");
@@ -2233,6 +2249,15 @@ export function createHostingController(options: HostingOptions) {
       openError = undefined;
       changed();
     });
+  }
+
+  /**
+   * OwnBase begins or stops quitting. While it quits, work already accepted
+   * finishes, and nothing new starts: not from the window, and not from a
+   * schedule. Calling it off lets everything start again.
+   */
+  function setQuitting(on: boolean): void {
+    closing = on;
   }
 
   function shutdown(): Promise<void> {
@@ -2272,6 +2297,8 @@ export function createHostingController(options: HostingOptions) {
     networkChanged,
     start,
     stop,
+    setQuitting,
+    quitting: () => closing,
     shutdown,
     openToAll,
     endOpenToAll,

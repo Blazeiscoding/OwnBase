@@ -23,7 +23,12 @@ import type { BackupJob } from "./backupWorker.js";
 import { CALL_RELAY_KEY, decodeRelay, encodeRelay, resolveDraft, summarize } from "./callRelay.js";
 import { createCloudflaredInstaller, downloadedCloudflared } from "./cloudflaredInstall.js";
 import type { CredentialProtector } from "./credentials.js";
-import { createHostingController, REOPEN_PUBLIC_KEY, START_ON_LAUNCH_KEY } from "./hosting.js";
+import {
+  createHostingController,
+  QUITTING,
+  REOPEN_PUBLIC_KEY,
+  START_ON_LAUNCH_KEY,
+} from "./hosting.js";
 import { startHostedServer } from "./hostedServer.js";
 import type { Handler, Handlers } from "./ipcBoundary.js";
 import { lookup } from "./lookup.js";
@@ -146,8 +151,6 @@ export function lanUrls(port: number): string[] {
 export function createHostingService(options: HostingServiceOptions) {
   const env = options.env ?? process.env;
   const platform = options.platform ?? process.platform;
-  let quitting = false;
-  let trayStopping = false;
   let savedAddress: string | null = null;
 
   const settings = options.settings;
@@ -325,10 +328,7 @@ export function createHostingService(options: HostingServiceOptions) {
       lookAgain();
       return status();
     },
-    "hosting:start": (_event, request) => {
-      if (trayStopping) throw new Error("Wait for hosting to stop before starting a workspace.");
-      return controller.start(request);
-    },
+    "hosting:start": (_event, request) => controller.start(request),
     "hosting:stop": () => controller.stop(),
     "hosting:openToAll": (_event, accessPolicy) => controller.openToAll({ accessPolicy }),
     "hosting:endOpenToAll": () => controller.endOpenToAll(),
@@ -447,8 +447,8 @@ export function createHostingService(options: HostingServiceOptions) {
     Object.entries(calls).map(([channel, handler]) => [
       channel,
       (event: unknown, ...args: unknown[]) => {
-        if (quitting && !ANSWERED_WHILE_QUITTING.has(channel as HostingChannel))
-          throw new Error("OwnBase is shutting down. Try again after reopening it.");
+        if (controller.quitting() && !ANSWERED_WHILE_QUITTING.has(channel as HostingChannel))
+          throw new Error(QUITTING);
         return (handler as (event: unknown, ...args: unknown[]) => unknown)(event, ...args);
       },
     ]),
@@ -491,21 +491,10 @@ export function createHostingService(options: HostingServiceOptions) {
     backupAttention: () => controller.backupAttention(),
     runDueBackups: (retryFailed = false) => controller.runDueBackups(retryFailed),
     startForLaunch: () => controller.startForLaunch(),
-    stoppingFromTray: () => trayStopping,
-    async stopFromTray(): Promise<void> {
-      if (trayStopping || quitting) return;
-      trayStopping = true;
-      options.onChange();
-      try {
-        await controller.stop();
-      } finally {
-        trayStopping = false;
-        options.onChange();
-      }
-    },
-    setQuitting(on: boolean): void {
-      quitting = on;
-    },
+    stop: () => controller.stop(),
+    /** While OwnBase quits, hosting starts nothing new; see the controller's `setQuitting`. */
+    setQuitting: (on: boolean) => controller.setQuitting(on),
+    quitting: () => controller.quitting(),
     shutdown: () => controller.shutdown(),
     cancelInstall: () => installer.cancel(),
   };
