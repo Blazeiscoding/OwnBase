@@ -3,11 +3,14 @@ import {
   isAdministrator,
   PROTOCOL_VERSION,
   type ID,
+  type Role,
   type ServerInfo,
   type User,
 } from "@ownbase/protocol";
+import type { FastifyRequest } from "fastify";
 import { hashPassword, hashToken, newSessionToken, verifyPassword } from "../auth.js";
 import { type Channels } from "../channels/feature.js";
+import type { RecordEvent } from "../core/commit.js";
 import { type ServerContext } from "../core/context.js";
 import { bearerToken } from "../core/network.js";
 import { HttpError } from "../httpError.js";
@@ -74,6 +77,30 @@ export function registerAccounts(
       : undefined;
   };
 
+  /** Makes an account that joins: in every public channel, and everyone told. */
+  const makeMember = (
+    emit: RecordEvent,
+    account: {
+      handle: string;
+      displayName: string;
+      passwordHash: string;
+      salt: string;
+      role: Exclude<Role, "owner">;
+    },
+  ): User => {
+    const user = store.people.create(account);
+    emit({ type: "user.joined", user });
+    joinPublicChannels(user.id, emit);
+    return user;
+  };
+
+  /** Signs `userId` in on the device `req` came from; returns the session's token. */
+  const startSession = (req: FastifyRequest, userId: ID, ttlMs?: number): string => {
+    const { token, tokenHash } = newSessionToken();
+    store.accounts.createSession(tokenHash, userId, network.deviceName(req), ttlMs);
+    return token;
+  };
+
   route(endpoints.register, async ({ req, body }) => {
     ration("authByAddress", network.callerAddress(req));
     ration("authByHandle", body.handle.toLowerCase());
@@ -109,14 +136,15 @@ export function registerAccounts(
           );
         }
       }
-      const { hash, salt } = credentials;
-      const user = store.people.create({
+      const account = {
         handle: body.handle,
         displayName: body.displayName,
-        passwordHash: hash,
-        salt,
-        role: isFirstUser ? "owner" : "member",
-      });
+        passwordHash: credentials.hash,
+        salt: credentials.salt,
+      };
+      const user = isFirstUser
+        ? store.people.create({ ...account, role: "owner" })
+        : makeMember(emit, { ...account, role: "member" });
 
       if (isFirstUser) {
         // Single use: the workspace now has an owner and cannot be claimed again.
@@ -129,14 +157,8 @@ export function registerAccounts(
           memberIds: [user.id],
         });
         emit({ type: "channel.created", channel: general });
-      } else {
-        emit({ type: "user.joined", user });
-        joinPublicChannels(user.id, emit);
       }
-
-      const { token, tokenHash } = newSessionToken();
-      store.accounts.createSession(tokenHash, user.id, network.deviceName(req));
-      return { token, user };
+      return { token: startSession(req, user.id), user };
     });
     // A handle that is now yours was not a guess at someone else's, and a new
     // account mistyping its own password twice should not then be locked out.
@@ -158,23 +180,14 @@ export function registerAccounts(
       do handle = `guest-${secretToken().slice(0, 10).toLowerCase()}`;
       while (store.people.authByHandle(handle));
       // No password can match these: a guest cannot sign in, only resume.
-      const user = store.people.create({
+      const user = makeMember(emit, {
         handle,
         displayName: body.displayName,
         passwordHash: "",
         salt: "",
         role: "guest",
       });
-      emit({ type: "user.joined", user });
-      joinPublicChannels(user.id, emit);
-      const { token, tokenHash } = newSessionToken();
-      store.accounts.createSession(
-        tokenHash,
-        user.id,
-        network.deviceName(req),
-        GUEST_SESSION_TTL_MS,
-      );
-      return { token, user };
+      return { token: startSession(req, user.id, GUEST_SESSION_TTL_MS), user };
     });
     return { token, user };
   });
@@ -200,8 +213,7 @@ export function registerAccounts(
         credentials.salt,
       );
       const revoked = store.accounts.revokeSessions(me.id);
-      const { token, tokenHash } = newSessionToken();
-      store.accounts.createSession(tokenHash, me.id, network.deviceName(req));
+      const token = startSession(req, me.id);
       emit({ type: "user.updated", user });
       return { token, user, revoked };
     });
@@ -265,8 +277,7 @@ export function registerAccounts(
       return { twoStep: { challenge, expiresAt: now + TWO_STEP_CHALLENGE_MS } };
     }
     authSucceeded(auth.handle);
-    const { token, tokenHash } = newSessionToken();
-    store.accounts.createSession(tokenHash, auth.id, network.deviceName(req));
+    const token = startSession(req, auth.id);
     const { passwordHash: _p, salt: _s, ...user } = latest;
     return { token, user, mustChangePassword: store.accounts.mustChangePassword(auth.id) };
   });
@@ -338,8 +349,7 @@ export function registerAccounts(
     // Required since the first step (P9).
     if (auth.role !== "owner" && singleSignOnRequired()) throw ssoRequired("signs people in");
     authSucceeded(auth.handle);
-    const { token, tokenHash } = newSessionToken();
-    store.accounts.createSession(tokenHash, auth.id, network.deviceName(req));
+    const token = startSession(req, auth.id);
     const { passwordHash: _p, salt: _s, ...user } = auth;
     return {
       token,
@@ -567,4 +577,8 @@ export function registerAccounts(
       ...(signIn ? { signIn } : {}),
     };
   });
+
+  return { makeMember, startSession };
 }
+
+export type Accounts = ReturnType<typeof registerAccounts>;

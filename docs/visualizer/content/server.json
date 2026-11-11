@@ -1631,12 +1631,13 @@
       "concepts": ["sessions", "invites", "queries"]
     },
     {
-      "path": "packages/server/src/sso/feature.ts",
+      "path": "packages/server/src/extensionHost.ts",
       "plain": "Plugs in the server's extensions, such as single sign-on, and gives them a way to make members and sign them in.",
       "summary": "registerExtensions: hands each extension its routes, storage, member count, user lookup, member creation and session start.",
       "details": [
         "An extension's storage is its own prefixed rows (Settings.extensionStorage), apart from the workspace's settings.",
-        "Members an extension makes have a password nobody knows and join the public channels as anyone joining does; none can be made while nobody owns the workspace."
+        "Members an extension makes have a password nobody knows, a username and name held to joining's rules, and join the public channels through accounts' makeMember as anyone joining does; none can be made while nobody owns the workspace.",
+        "Sessions start through accounts' startSession, the same step every sign-in takes."
       ],
       "concepts": ["extensions", "single sign-on", "feature module"]
     }

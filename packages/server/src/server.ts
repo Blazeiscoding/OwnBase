@@ -38,7 +38,7 @@ import { createRouter } from "./route.js";
 import { registerSaved } from "./saved/feature.js";
 import { registerScheduled } from "./scheduled/feature.js";
 import { registerSearch } from "./search/feature.js";
-import { registerExtensions } from "./sso/feature.js";
+import { registerExtensions } from "./extensionHost.js";
 import { Store } from "./store.js";
 import { registerThreads } from "./threads/feature.js";
 import { SERVER_VERSION } from "./version.js";
@@ -311,7 +311,7 @@ async function startWorkspaceServer(
   const channels = registerChannels(ctx);
   const { joinPublicChannels } = channels;
 
-  registerAccounts(ctx, {
+  const accounts = registerAccounts(ctx, {
     joinPublicChannels,
     iconVersion: () => workspace.icon()?.version ?? null,
   });
@@ -334,7 +334,7 @@ async function startWorkspaceServer(
     ...workspace.snapshot(user),
   }));
 
-  await registerExtensions(ctx, { joinPublicChannels });
+  await registerExtensions(ctx, { accounts });
 
   const port = opts.port ?? DEFAULT_PORT;
   const host = opts.host ?? "0.0.0.0";
