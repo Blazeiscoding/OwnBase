@@ -26,6 +26,27 @@ export class Lifecycle {
     this.onClose(() => clearInterval(timer));
   }
 
+  /**
+   * A function that runs `work` on a later turn, so a queue that took a full
+   * page lets requests have the loop before it takes the next. Called again
+   * before then, it waits for the turn already asked for, with its arguments;
+   * once closing, nothing more is asked for, and a turn asked for is dropped.
+   */
+  laterTurn<A extends unknown[]>(work: (...args: A) => void): (...args: A) => void {
+    let pending: ReturnType<typeof setImmediate> | null = null;
+    this.onClose(() => {
+      if (pending) clearImmediate(pending);
+      pending = null;
+    });
+    return (...args) => {
+      if (pending || this.closed) return;
+      pending = setImmediate(() => {
+        pending = null;
+        work(...args);
+      });
+    };
+  }
+
   /** Runs `work` once the server is listening, waiting for it when it returns a promise. */
   onStart(work: () => unknown): void {
     this.starts.push(work);

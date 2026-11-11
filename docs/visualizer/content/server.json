@@ -1315,6 +1315,7 @@
       "summary": "Lifecycle: closing flag, shutdown signal, interval timers, close and drain hooks.",
       "details": [
         "Features register intervals and close hooks here; stop() closes them before waiting on anything, then aborts outbound calls.",
+        "laterTurn(work) gives a queue that took a full page its next page on a later turn (the attachment cleanup and the scheduled queue), asked for once however often, and dropped on close.",
         "Drains (attachment removals, app event deliveries) run after the last request handler finishes and before the database closes."
       ],
       "concepts": ["shutdown", "timers"]

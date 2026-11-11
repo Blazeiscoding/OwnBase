@@ -90,7 +90,6 @@ export function registerScheduled(ctx: ServerContext, { posting }: { posting: Po
     return { scheduled: store.scheduled.get(scheduled.id)! };
   });
 
-  let scheduledDrain: ReturnType<typeof setImmediate> | null = null;
   /**
    * Posts anything that has come due. Runs on a timer and once at startup, so
    * messages scheduled while the server was down still go out.
@@ -113,15 +112,10 @@ export function registerScheduled(ctx: ServerContext, { posting }: { posting: Po
         app.log.error({ err, scheduledId: item.id }, "scheduled message not handled; it stays due");
       }
     }
-    // A full batch may mean more are due. They are taken on a later turn, so
-    // the window and every other request get the loop between batches.
-    if (due.length === scheduledLimits.batch && !scheduledDrain && !lifecycle.closing) {
-      scheduledDrain = setImmediate(() => {
-        scheduledDrain = null;
-        background.run("scheduled messages", flushScheduled);
-      });
-    }
+    // A full batch may mean more are due.
+    if (due.length === scheduledLimits.batch) nextBatch();
   };
+  const nextBatch = lifecycle.laterTurn(() => background.run("scheduled messages", flushScheduled));
   /**
    * What the author can clear holds a row until they do; what they cannot
    * fails it. Either way it is said in words for their list.
@@ -173,10 +167,6 @@ export function registerScheduled(ctx: ServerContext, { posting }: { posting: Po
       else hold("Sending failed. It will be tried again shortly.");
     }
   };
-
-  lifecycle.onClose(() => {
-    if (scheduledDrain) clearImmediate(scheduledDrain);
-  });
 
   // What came due while the server was stopped, then every 15 seconds.
   lifecycle.onStart(() => {

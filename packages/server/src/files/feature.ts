@@ -30,7 +30,6 @@ export function registerFiles(ctx: ServerContext) {
   /** Removals taken per turn; a full page means more may be due, taken on the next turn. */
   const FILE_CLEANUP_PAGE = 100;
   let fileCleanup: Promise<void> | null = null;
-  let fileCleanupNext: ReturnType<typeof setImmediate> | null = null;
   /**
    * While a backup copies attachments, scheduled or for the owner to
    * download, none is removed, so a blob its snapshot names is still there
@@ -78,17 +77,13 @@ export function registerFiles(ctx: ServerContext) {
       })
       .finally(() => {
         fileCleanup = null;
-        if (more && !lifecycle.closing && !fileCleanupNext) {
-          fileCleanupNext = setImmediate(() => {
-            fileCleanupNext = null;
-            background.run("attachment cleanup", () =>
-              flushFileDeletions(Math.max(now, Date.now())),
-            );
-          });
-        }
+        if (more) nextCleanupPage(now);
       });
     return fileCleanup;
   };
+  const nextCleanupPage = lifecycle.laterTurn((after: number) =>
+    background.run("attachment cleanup", () => flushFileDeletions(Math.max(after, Date.now()))),
+  );
 
   /**
    * Frees uploads nobody ever sent. Without this an attachment chosen and then
@@ -264,9 +259,6 @@ export function registerFiles(ctx: ServerContext) {
       .send(body);
   });
 
-  lifecycle.onClose(() => {
-    if (fileCleanupNext) clearImmediate(fileCleanupNext);
-  });
   lifecycle.onDrain(() => flushFileDeletions());
   // A change that removed files, such as a message with attachments, has its blobs removed once it commits.
   ctx.onPublished(() => {
