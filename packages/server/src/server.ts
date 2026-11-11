@@ -268,7 +268,11 @@ async function startWorkspaceServer(
   const lifecycle = new Lifecycle();
   lifecycle.hourly(() => background.maintain("events", () => store.pruneEvents()));
 
-  const { route, signedIn: requireUser, ticketFor } = createRouter({
+  const {
+    route,
+    signedIn: requireUser,
+    ticketFor,
+  } = createRouter({
     app,
     log: app.log,
     sessionUser: (tokenHash) => store.accounts.getSessionUser(tokenHash),
