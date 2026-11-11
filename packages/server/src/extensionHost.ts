@@ -23,7 +23,11 @@ export async function registerExtensions(
   const createMember = async (input: { handle: string; displayName: string }) => {
     const named = memberName.safeParse(input);
     if (!named.success)
-      throw new HttpError(400, "invalid_request", "That is not a username or name a member can have.");
+      throw new HttpError(
+        400,
+        "invalid_request",
+        "That is not a username or name a member can have.",
+      );
     // Nobody knows it: the account signs in the extension's way.
     const credentials = await hashPassword(secretToken());
     return mutate((emit) => {

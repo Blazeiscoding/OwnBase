@@ -153,7 +153,6 @@ const readCookie = (req: Request): string | undefined =>
 
 const identityKey = (issuer: string, subject: string) => s256(`${issuer}\n${subject}`);
 
-
 /** A username for someone new, from what the provider calls them, not one taken. */
 export function handleFor(claims: IdClaims, taken: (handle: string) => boolean): string {
   const from =

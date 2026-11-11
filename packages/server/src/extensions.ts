@@ -69,7 +69,7 @@ export interface ExtensionContext {
     /**
      * A new member, with no password anyone knows, joined to the public
      * channels as anyone joining is. Refused while nobody owns the workspace,
-     * and for a handle taken.
+     * for a handle taken, and for a handle or name joining would refuse.
      */
     create(input: { handle: string; displayName: string }): Promise<User>;
   };
