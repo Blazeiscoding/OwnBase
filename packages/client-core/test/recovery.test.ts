@@ -328,12 +328,14 @@ describe("outbox durability", () => {
     await disconnect();
     vi.spyOn(client.api, "sendMessage").mockRejectedValue(new Error("network is down"));
     for (let i = 1; i <= OUTBOX_LIMIT; i++)
-      expect(client.send(channelId, `queued ${i}`)).toBe(true);
+      expect(client.send(channelId, `queued ${i}`).kind).toBe("queued");
     await expect.poll(() => client.state.pending.every((p) => p.failed)).toBe(true);
 
     // The composer keeps this one: nothing was taken, so nothing can be lost.
-    expect(client.outboxFull()).toBe(true);
-    expect(client.send(channelId, "one too many")).toBe(false);
+    expect(client.send(channelId, "one too many")).toEqual({
+      kind: "refused",
+      reason: "outbox_full",
+    });
     expect(client.state.pending).toHaveLength(OUTBOX_LIMIT);
     expect(client.outboxSnapshot().map((e) => e.text)).toEqual(
       Array.from({ length: OUTBOX_LIMIT }, (_, i) => `queued ${i + 1}`),

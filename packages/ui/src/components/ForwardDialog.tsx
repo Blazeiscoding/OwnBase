@@ -116,7 +116,7 @@ export function ForwardDialog({ source, onClose }: { source: ForwardSource; onCl
     const sent = client.send(channelId, comment.trim(), {
       forward: forwardOf(source, channelId, fromPublic),
     });
-    if (!sent) {
+    if (sent.kind === "refused") {
       setProblem("Too many messages are waiting to send. Try again after they go out.");
       return;
     }

@@ -113,7 +113,7 @@ describe("polls on the client", () => {
     const sent = client.send(general.id, "Where for lunch?", {
       poll: { options: ["Pizza", "Tacos"], multiple: false, anonymous: false },
     });
-    expect(sent).toBe(true);
+    expect(sent.kind).toBe("queued");
     expect(client.state.pending[0]!.poll).toEqual({
       options: ["Pizza", "Tacos"],
       multiple: false,
@@ -134,8 +134,8 @@ describe("polls on the client", () => {
     expect(
       client.send(general.id, "/shrug or /me?", {
         poll: { options: ["One", "Other"], multiple: false, anonymous: false },
-      }),
-    ).toBe(true);
+      }).kind,
+    ).toBe("queued");
     await until(client, (s) => s.pending.length === 0, "the second send");
     expect(timelineMessages(client.state, general.id).at(-1)!.text).toBe("/shrug or /me?");
   });
@@ -271,7 +271,7 @@ describe("polls on the client", () => {
     const { client, general } = await online();
     const poll = { options: ["A", "B"], multiple: false, anonymous: false };
     const file = new File(["x"], "x.txt", { type: "text/plain" });
-    expect(client.send(general.id, "With a file?", { poll, files: [file] })).toBe(false);
+    expect(client.send(general.id, "With a file?", { poll, files: [file] }).kind).toBe("refused");
     expect(client.state.pending).toEqual([]);
   });
 

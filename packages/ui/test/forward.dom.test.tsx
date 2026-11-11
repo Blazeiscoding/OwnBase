@@ -9,6 +9,7 @@ import { ForwardCard } from "../src/components/ForwardCard.js";
 import { ConfirmProvider } from "../src/components/Confirm.js";
 import { ToastProvider } from "../src/components/Toast.js";
 import { accessibilityProblems } from "./accessibility.js";
+import { QUEUED } from "./sendAnswers.js";
 
 /** Forwarding a message (E1): the menu's Forward, its dialog, and the card it sends. */
 const person = (id: string, displayName: string): User => ({
@@ -68,7 +69,7 @@ function shown(item: Message) {
     memberships: { C_GENERAL: 0, C_DESIGN: 0, C_SECRET: 0 },
     status: "online",
   });
-  const send = vi.spyOn(client, "send").mockReturnValue(true);
+  const send = vi.spyOn(client, "send").mockReturnValue(QUEUED);
   render(
     <ToastProvider>
       <ConfirmProvider>

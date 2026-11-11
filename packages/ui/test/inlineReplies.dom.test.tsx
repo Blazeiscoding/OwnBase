@@ -11,6 +11,7 @@ import { ToastProvider } from "../src/components/Toast.js";
 import { ClientContext, OpenMessageContext, PlatformContext } from "../src/context.js";
 import type { Platform } from "../src/platform.js";
 import { accessibilityProblems } from "./accessibility.js";
+import { QUEUED } from "./sendAnswers.js";
 
 /**
  * Discord's two ways to answer a message: Reply, which answers it in place
@@ -79,7 +80,7 @@ function workspace() {
     memberships: { [general.id]: 0 },
     status: "online",
   });
-  const send = vi.spyOn(client, "send").mockReturnValue(true);
+  const send = vi.spyOn(client, "send").mockReturnValue(QUEUED);
   return { client, send };
 }
 

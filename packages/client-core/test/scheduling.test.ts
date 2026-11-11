@@ -18,8 +18,21 @@ const sam: User = {
 
 const later = Date.UTC(2099, 0, 5, 9);
 
-const queued = (text: string): ScheduledMessage =>
-  ({ id: "S1", channelId: "C1", text, sendAt: later, status: "pending" }) as ScheduledMessage;
+const queued = (text: string): ScheduledMessage => ({
+  id: "S1",
+  channelId: "C1",
+  userId: sam.id,
+  text,
+  threadRootId: null,
+  broadcast: false,
+  fileIds: [],
+  sendAt: later,
+  createdAt: 0,
+  status: "queued",
+  failureReason: null,
+  attempts: 0,
+  messageId: null,
+});
 
 const clients: WorkspaceClient[] = [];
 afterEach(() => {

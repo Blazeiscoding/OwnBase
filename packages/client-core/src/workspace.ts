@@ -34,13 +34,17 @@ import {
   type SidebarSection,
   type User,
   type ViewSubmitted,
+  isInAppCommand,
+  parseCommand,
+  type InAppCommandName,
+  type ParsedCommand,
 } from "@ownbase/protocol";
 import { Api, ApiError, type CommandHint } from "./api.js";
 import { AccountActions } from "./account.js";
 import { AdminActions } from "./admin.js";
 import { AppActions } from "./apps.js";
 import { Lists } from "./lists.js";
-import { LocalLedger } from "./localWork.js";
+import { LocalLedger, type LocalOutcome } from "./localWork.js";
 import { FileCache, previewImageKey } from "./fileCache.js";
 import { AvatarCache } from "./avatars.js";
 import { captureFailure } from "./capture.js";
@@ -166,6 +170,17 @@ export interface StoredPending {
  * only in memory where a restart would lose it.
  */
 export const OUTBOX_LIMIT = 50;
+
+/** What `send` did with what it was given. */
+export type SendAnswer =
+  /** Waiting in the outbox; `kept` settles once this device holds its words, null when nothing keeps them. */
+  | { kind: "queued"; nonce: string; kept: Promise<LocalOutcome> | null }
+  /** A command the server runs: anything it says comes back as a private answer. */
+  | { kind: "command" }
+  /** A command the app runs itself, which `send` does not: nothing was sent. */
+  | ({ kind: "in_app"; name: InAppCommandName } & Omit<ParsedCommand, "name">)
+  /** Nothing was taken. */
+  | { kind: "refused"; reason: "empty" | "outbox_full" | "not_connected" };
 
 /** The wait after "too much at once" from a server that did not say how long. */
 const RATE_LIMIT_WAIT_MS = 2000;
@@ -2297,8 +2312,7 @@ export class WorkspaceClient {
   /**
    * Optimistic send: the message (and local image previews) appear instantly,
    * then attachments upload and the server event reconciles it by nonce.
-   * Returns false, having taken nothing, when there is nothing to send or
-   * `OUTBOX_LIMIT` messages are already waiting; the caller keeps the draft.
+   * A refused send took nothing; the caller keeps the draft.
    */
   send(
     channelId: ID,
@@ -2313,27 +2327,25 @@ export class WorkspaceClient {
       forward?: ForwardReference;
       /** Makes it a poll, `text` its question (E6); alone, without files or a forward. */
       poll?: PollDraft;
-      /** Told the nonce of the message queued, for its author to follow (F01). */
-      onQueued?: (nonce: string) => void;
     } = {},
-  ): boolean {
+  ): SendAnswer {
     const self = this.state.self;
-    if (!self) return false;
+    if (!self) return { kind: "refused", reason: "not_connected" };
     const files = opts.files ?? [];
     const forward = opts.forward;
-    if (!text.trim() && files.length === 0 && !forward) return false;
+    if (!text.trim() && files.length === 0 && !forward) return { kind: "refused", reason: "empty" };
     // A poll carries nothing else.
     const poll = opts.poll;
-    if (poll && (files.length > 0 || forward)) return false;
+    if (poll && (files.length > 0 || forward)) return { kind: "refused", reason: "empty" };
 
-    // A leading "/word" is a command, not a message. The trailing space or end
-    // of line matters: it keeps a pasted path like /Users/me/notes.txt a
-    // perfectly ordinary message.
-    if (!poll && !forward && files.length === 0 && /^\/[a-zA-Z0-9_-]+(\s|$)/.test(text.trim())) {
-      void this.runCommand(channelId, text.trim(), opts.threadRootId);
-      return true;
+    const command = !poll && !forward && files.length === 0 ? parseCommand(text) : null;
+    if (command) {
+      if (isInAppCommand(command.name))
+        return { kind: "in_app", name: command.name, args: command.args };
+      void this.runCommand(channelId, text.trim(), command.name, opts.threadRootId);
+      return { kind: "command" };
     }
-    if (this.outboxFull()) return false;
+    if (this.ownPending() >= OUTBOX_LIMIT) return { kind: "refused", reason: "outbox_full" };
 
     const nonce = newNonce();
     const attachments: LocalAttachment[] = files.map((f) => ({
@@ -2360,15 +2372,15 @@ export class WorkspaceClient {
     };
     this.store.setState((s) => ({ pending: [...s.pending, pendingMsg] }));
     if (files.length > 0) this.retryFiles.set(nonce, files);
-    opts.onQueued?.(nonce);
+    const kept = text.trim() ? this.kept.whenKept(nonce) : null;
 
     void this.deliver(pendingMsg, files);
-    return true;
+    return { kind: "queued", nonce, kept };
   }
 
-  outboxFull(): boolean {
+  private ownPending(): number {
     const self = this.state.self?.id;
-    return this.state.pending.filter((p) => p.userId === self).length >= OUTBOX_LIMIT;
+    return this.state.pending.filter((p) => p.userId === self).length;
   }
 
   private async deliver(
@@ -3676,14 +3688,18 @@ export class WorkspaceClient {
    * an ephemeral, so the only thing handled here is the command not working at
    * all — which is still worth telling the person who typed it.
    */
-  private async runCommand(channelId: ID, text: string, threadRootId?: ID): Promise<void> {
+  private async runCommand(
+    channelId: ID,
+    text: string,
+    name: string,
+    threadRootId?: ID,
+  ): Promise<void> {
     try {
       await this.api.runCommand(channelId, {
         text,
         ...(threadRootId ? { threadRootId } : {}),
       });
     } catch (err) {
-      const name = /^\/([a-zA-Z0-9_-]+)/.exec(text)?.[1] ?? "";
       const message =
         err instanceof ApiError && err.code === "unknown_command"
           ? `\`/${name}\` is not a command here.`

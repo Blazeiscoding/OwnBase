@@ -1,5 +1,11 @@
 import { lazy, Suspense, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
-import { MESSAGE_TEXT_MAX, type ID, type ScheduleMessageBody } from "@ownbase/protocol";
+import {
+  MESSAGE_TEXT_MAX,
+  parseCommand,
+  type ID,
+  type InAppCommandName,
+  type ScheduleMessageBody,
+} from "@ownbase/protocol";
 import { OUTBOX_LIMIT, quoteOf, threadReplies, timelineMessages } from "@ownbase/client-core";
 import { useClient, usePlatform, useWorkspace } from "../context.js";
 import { formatBytes } from "../lib/format.js";
@@ -22,7 +28,7 @@ import { useConnectionDown } from "../lib/online.js";
 import { useMentionField } from "../lib/useMentionField.js";
 import { useListbox } from "../lib/useListbox.js";
 import { SuggestionList, useSuggestions } from "./Suggestions.js";
-import { appCommand, offeredCommands, runAppCommand } from "../lib/appCommands.js";
+import { offeredCommands, runAppCommand } from "../lib/appCommands.js";
 import { useToast } from "./Toast.js";
 import { ScheduledSends, type ScheduleAnswer } from "@ownbase/client-core";
 import {
@@ -42,9 +48,6 @@ const TimePopover = lazy(() =>
 const PollDialog = lazy(() =>
   import("./PollDialog.js").then((module) => ({ default: module.PollDialog })),
 );
-
-/** `/poll` and any words after it, which become the question. */
-const POLL_COMMAND = /^\/poll(?:\s+([\s\S]*))?$/i;
 
 interface Props {
   channelId: ID;
@@ -416,57 +419,23 @@ export function Composer({ channelId, threadRootId, placeholder, autoFocus, onLe
     if (archived || scheduleLock.current || recoveryBlocksSend || held) return;
     const trimmed = text.trim();
     if ((!trimmed && attached.length === 0) || text.length > MESSAGE_TEXT_MAX) return;
-    // /poll opens the poll window, its words the question, as the + menu does.
-    const asked = attached.length === 0 ? POLL_COMMAND.exec(trimmed) : null;
-    if (asked) {
-      if (guest) {
-        setSendRefusal("Guests cannot make polls. Create an account to make one.");
-        return;
-      }
-      setSendRefusal(null);
-      setPollQuestion(asked[1]?.trim() ?? "");
-      return;
-    }
-    // /away, /topic and the like the app runs itself (U4).
-    const ours = attached.length === 0 && !guest ? appCommand(trimmed, commands) : null;
-    if (ours) {
-      if (runningCommand.current) return;
-      runningCommand.current = true;
-      setSendRefusal(null);
-      const key = draftKey;
-      void runAppCommand(ours.name, ours.args, { client, channelId })
-        .then((outcome) => {
-          if (!outcome.ok) {
-            setSendRefusal(outcome.said);
-            return;
-          }
-          toast({ message: outcome.said, kind: "success" });
-          if (key === currentDraftKey.current) {
-            suggestions.close();
-            clearSent(key);
-          } else client.setDraft(key, "");
-          if (ours.name === "leave") onLeft?.();
-        })
-        .finally(() => (runningCommand.current = false));
-      return;
-    }
-    let queued: string | null = null;
-    const accepted = client.send(channelId, trimmed, {
+    if (runningCommand.current) return;
+    const answer = client.send(channelId, trimmed, {
       threadRootId,
       files: attached,
       alsoSendToChannel: alsoToChannel,
       ...(replyTarget ? { replyTo: quoteOf(replyTarget.message, replyTarget.ping) } : {}),
-      onQueued: (nonce) => (queued = nonce),
     });
-    if (!accepted) {
+    if (answer.kind === "refused") {
       // Nothing was taken, so the words stay here rather than only in memory.
       setSendRefusal(
-        client.outboxFull()
+        answer.reason === "outbox_full"
           ? `${OUTBOX_LIMIT} messages are already waiting to send. You can send this one once they go out, or after you discard some.`
           : "Could not send this message. Your text is still here. Try again.",
       );
       return;
     }
+    if (answer.kind === "in_app") return runInApp(answer.name, answer.args);
     setSendRefusal(null);
     // A deliberate choice per reply, not a mode to get stuck in.
     setAlsoToChannel(false);
@@ -476,9 +445,9 @@ export function Composer({ channelId, threadRootId, placeholder, autoFocus, onLe
     setAttachmentNote(null);
     // The words stay here, and in the saved draft, until the device keeps the
     // send itself: until then a closed window would lose them (GL-02).
-    const kept = queued && trimmed ? client.kept.whenKept(queued) : null;
-    if (!kept) return clearSent(draftKey);
-    const sending = { draftKey, nonce: queued! };
+    if (answer.kind !== "queued" || !answer.kept) return clearSent(draftKey);
+    const { kept } = answer;
+    const sending = { draftKey, nonce: answer.nonce };
     setSaving(sending);
     void kept.then((outcome) => {
       setSaving((now) => (now?.nonce === sending.nonce ? null : now));
@@ -494,6 +463,36 @@ export function Composer({ channelId, threadRootId, placeholder, autoFocus, onLe
           "Your message is sending, but this device could not save a copy. Keep this window open until it has sent.",
         );
     });
+  }
+
+  /** A command the app runs itself (U4); /poll opens the poll window, its words the question. */
+  function runInApp(name: InAppCommandName, args: string) {
+    if (guest) {
+      setSendRefusal(
+        name === "poll"
+          ? "Guests cannot make polls. Create an account to make one."
+          : `Guests cannot use /${name}. Create an account to use it.`,
+      );
+      return;
+    }
+    setSendRefusal(null);
+    if (name === "poll") return setPollQuestion(args);
+    runningCommand.current = true;
+    const key = draftKey;
+    void runAppCommand(name, args, { client, channelId })
+      .then((outcome) => {
+        if (!outcome.ok) {
+          setSendRefusal(outcome.said);
+          return;
+        }
+        toast({ message: outcome.said, kind: "success" });
+        if (key === currentDraftKey.current) {
+          suggestions.close();
+          clearSent(key);
+        } else client.setDraft(key, "");
+        if (name === "leave") onLeft?.();
+      })
+      .finally(() => (runningCommand.current = false));
   }
 
   /** Empties the box after a send is taken, and the draft it came from. */
@@ -1116,7 +1115,7 @@ export function Composer({ channelId, threadRootId, placeholder, autoFocus, onLe
               onClose={() => setPollQuestion(null)}
               onSent={() => {
                 // The /poll that opened it is done with.
-                if (POLL_COMMAND.test(text.trim())) clearSent(draftKey);
+                if (parseCommand(text)?.name === "poll") clearSent(draftKey);
               }}
             />
           </Suspense>

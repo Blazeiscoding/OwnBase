@@ -13,6 +13,7 @@ import {
 import { FILE_KINDS, currentZoneName, isTimeZone } from "./search.js";
 import { idSchema } from "./socket.js";
 import { appEventType } from "./appEvents.js";
+import { COMMAND_NAME } from "./commands.js";
 
 export const handleSchema = z
   .string()

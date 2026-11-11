@@ -391,7 +391,7 @@ describe("timeline snapshot reconciliation", () => {
     connection.reconnectDelay = 60_000;
     connection.ws.close();
     await expect.poll(() => client.state.status).toBe("reconnecting");
-    expect(client.send(channelId, "HTTP reply", { threadRootId: root.id })).toBe(true);
+    expect(client.send(channelId, "HTTP reply", { threadRootId: root.id }).kind).toBe("queued");
     await expect.poll(() => client.state.pending.length).toBe(0);
     hold.release();
     await loading;

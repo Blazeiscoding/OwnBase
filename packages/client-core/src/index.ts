@@ -71,6 +71,7 @@ export type {
 export { shownPoll } from "./polls.js";
 export type { PollDraft } from "./polls.js";
 export { OUTBOX_LIMIT, WorkspaceClient, isMessageRead, unreadThreadCount } from "./workspace.js";
+export type { SendAnswer } from "./workspace.js";
 export {
   blockedPartner,
   deactivatedPartner,

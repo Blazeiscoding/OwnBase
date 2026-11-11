@@ -1,30 +1,18 @@
-import { userMentionsIn, type ID } from "@ownbase/protocol";
+import {
+  IN_APP_COMMANDS,
+  isInAppCommand,
+  userMentionsIn,
+  type ID,
+  type InAppCommandName,
+} from "@ownbase/protocol";
 import type { CommandHint, WorkspaceClient } from "@ownbase/client-core";
 import { failureText } from "./failure.js";
 
-/**
- * Slash commands the app runs itself, as Slack's built-in ones: the small
- * things otherwise a menu or two away. The server reserves their names, so no
- * app can claim one, and lists them with its own. An app's own command of the
- * same name, kept from before, still wins.
- */
-const NAMES = new Set(["away", "active", "status", "topic", "invite", "leave", "mute", "unmute"]);
-/** Commands that only mean something in a channel, not in a DM. */
-const ROOM_ONLY = new Set(["topic", "invite", "leave"]);
+const roomOnly = (name: string) => isInAppCommand(name) && IN_APP_COMMANDS[name].roomOnly;
 
 /** The server's commands the hint list offers here: in a DM, not the built-in channel ones. */
 export function offeredCommands(fromServer: readonly CommandHint[], room: boolean) {
-  return fromServer.filter((c) => room || !ROOM_ONLY.has(c.command) || !c.builtin);
-}
-
-/** `/name args` when the name is one the app runs and no app of the server's has it. */
-export function appCommand(text: string, fromServer: readonly CommandHint[]) {
-  const m = /^\/([a-zA-Z]+)(?:\s+([\s\S]*))?$/.exec(text.trim());
-  if (!m) return null;
-  const name = m[1]!.toLowerCase();
-  if (!NAMES.has(name)) return null;
-  if (fromServer.some((c) => c.command === name && !c.builtin)) return null;
-  return { name, args: (m[2] ?? "").trim() };
+  return fromServer.filter((c) => room || !c.builtin || !roomOnly(c.command));
 }
 
 /** What became of a command: done, with what to say; or not, with why. The box keeps its words when not. */
@@ -40,8 +28,9 @@ const firstGrapheme = (text: string) => {
   return first?.segment ?? "";
 };
 
+/** Runs one of the commands the app runs itself, all but /poll, which opens a window. */
 export async function runAppCommand(
-  name: string,
+  name: Exclude<InAppCommandName, "poll">,
   args: string,
   { client, channelId }: Context,
 ): Promise<CommandOutcome> {
@@ -49,7 +38,7 @@ export async function runAppCommand(
   const channel = state.channels[channelId];
   const room = channel?.type === "public" || channel?.type === "private";
   const where = channel && room ? `#${channel.name}` : "this conversation";
-  if (ROOM_ONLY.has(name) && !room)
+  if (roomOnly(name) && !room)
     return { ok: false, said: `/${name} works in channels, not in direct messages.` };
   const offline = "Check your connection and try again.";
   switch (name) {
@@ -126,7 +115,6 @@ export async function runAppCommand(
       };
     }
   }
-  return { ok: false, said: `/${name} is not a command here.` };
 }
 
 const cap = (text: string) => text.charAt(0).toUpperCase() + text.slice(1);
