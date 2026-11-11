@@ -1,6 +1,6 @@
 import { createHmac } from "node:crypto";
 import { z } from "zod";
-import { ConfigError } from "./config.js";
+import { ConfigError } from "../config.js";
 import { iceServersSchema } from "./rtc.js";
 
 export type IceServer = z.infer<typeof iceServersSchema>[number];

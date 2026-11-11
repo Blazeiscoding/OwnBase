@@ -17,7 +17,7 @@ import {
 import type { Server as HttpServer, IncomingMessage } from "node:http";
 import { WebSocket, WebSocketServer } from "ws";
 import { hashToken } from "./auth.js";
-import { CallLog } from "./callLog.js";
+import { CallLog } from "./huddles/callLog.js";
 import { contain } from "./core/contain.js";
 import type { Audiences, OutboxSink } from "./events/outbox.js";
 import { eventChannel, type EventTo } from "./events/registry.js";

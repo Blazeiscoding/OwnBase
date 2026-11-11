@@ -15,7 +15,7 @@ import {
   type CallRelay,
   type ServerRelay,
   type SharedSecretRelay,
-} from "../src/relay.js";
+} from "../src/huddles/relay.js";
 
 const cloudflare = { kind: "cloudflare", keyId: "key-1", apiToken: "token-1" } as const;
 

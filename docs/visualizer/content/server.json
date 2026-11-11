@@ -363,7 +363,7 @@
       "concepts": ["SQLite", "schema 37", "atomic migration", "content cleanup"]
     },
     {
-      "path": "packages/server/src/callLog.ts",
+      "path": "packages/server/src/huddles/callLog.ts",
       "plain": "Notes the last 500 huddle joins, leaves and connection problems so owners and admins can look into a failed call.",
       "summary": "Keeps the latest 500 lines of what happened in huddles, in memory, for the host.",
       "details": [
@@ -645,7 +645,7 @@
       "concepts": ["N01", "logging", "credential redaction"]
     },
     {
-      "path": "packages/server/src/rtc.ts",
+      "path": "packages/server/src/huddles/rtc.ts",
       "plain": "Checks the host's settings for the servers that help huddle calls connect across networks.",
       "summary": "Validates host-supplied STUN/TURN configuration for browser peer connections.",
       "details": [
@@ -656,7 +656,7 @@
       "concepts": ["WebRTC", "ICE configuration"]
     },
     {
-      "path": "packages/server/src/relay.ts",
+      "path": "packages/server/src/huddles/relay.ts",
       "plain": "Sets up a relay, from Cloudflare, the host's own coturn or elsewhere, that carries huddle audio and video when two networks will not connect directly.",
       "summary": "A TURN relay for calls between networks that will not connect directly: Cloudflare's, one sharing a secret with the server, or any other.",
       "details": [

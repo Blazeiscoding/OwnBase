@@ -8,8 +8,8 @@ import {
   withRelay,
   type IceServer,
   type ServerRelay,
-} from "../relay.js";
-import { iceServersSchema } from "../rtc.js";
+} from "./relay.js";
+import { iceServersSchema } from "./rtc.js";
 
 /** What a missed call's note says, to search and notifications too (E10). */
 const MISSED_CALL_TEXT = "Missed huddle";

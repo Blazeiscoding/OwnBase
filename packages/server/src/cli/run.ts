@@ -16,8 +16,8 @@ import { OffsiteBackups, parseOffsiteUrl } from "../backups/offsite.js";
 import { withBackupFolder } from "../backups/workspaceCopy.js";
 import type { CommandLineExtension, ServerExtension } from "../extensions.js";
 import { listAccounts, recoverAccount } from "../recover.js";
-import { relayFromEnvironment, type IceServer, type ServerRelay } from "../relay.js";
-import { parseIceServers } from "../rtc.js";
+import { relayFromEnvironment, type IceServer, type ServerRelay } from "../huddles/relay.js";
+import { parseIceServers } from "../huddles/rtc.js";
 import {
   ConfigError,
   describeStartupError,

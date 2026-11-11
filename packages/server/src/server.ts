@@ -39,7 +39,7 @@ import { registerMessages, type RetentionStatus } from "./messages/feature.js";
 import { holdWorkspace, type WorkspaceHold } from "./core/ownership.js";
 import { registerPeople } from "./people/feature.js";
 import { registerPolls } from "./polls/feature.js";
-import { serverRelaySchema, type ServerRelay } from "./relay.js";
+import { serverRelaySchema, type ServerRelay } from "./huddles/relay.js";
 import { registerReminders, REMINDER_LIMITS } from "./reminders/feature.js";
 import { createRouter } from "./route.js";
 import { registerSaved } from "./saved/feature.js";
