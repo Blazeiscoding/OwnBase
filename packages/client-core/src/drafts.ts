@@ -1,3 +1,10 @@
+import type { ID } from "@ownbase/protocol";
+
+/** The draft of a conversation's composer: a channel's, or one thread's in it. */
+export function draftKey(channelId: ID, threadRootId?: ID | null): string {
+  return threadRootId ? `${channelId}:${threadRootId}` : channelId;
+}
+
 /**
  * Drafts as every window open on one account keeps them on the device: one
  * text per conversation, by the key `Composer` gives it.

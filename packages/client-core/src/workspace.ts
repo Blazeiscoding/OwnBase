@@ -24,7 +24,6 @@ import {
   type ReplyReference,
   type CreateChannelBody,
   type ReportReason,
-  type ScheduleMessageBody,
   type SendMessageBody,
   type ServerToClient,
   type UpdateChannelBody,
@@ -66,7 +65,15 @@ import {
   type MessageCache,
   type MessageEvent,
 } from "./messageCache.js";
-import { answerOf, doneOf, failureOf, notConnected, refusalReason } from "./answers.js";
+import {
+  answerOf,
+  doneOf,
+  failureOf,
+  fileRefusal,
+  notConnected,
+  refusalReason,
+} from "./answers.js";
+import { newNonce } from "./outbox.js";
 import { OptimisticWrites, type WriteSpec } from "./optimisticWrites.js";
 import { pollChoicesKey, pollChoicesOfKey, serverPollChoices, type PollDraft } from "./polls.js";
 import type {
@@ -217,9 +224,9 @@ function sendFailureReason(error: unknown): string {
     case "forward_unavailable":
       return "What this forwards is private or deleted, so it cannot be passed on.";
     case "file_too_large":
-      return "A file is over this workspace's size limit. Discard this and attach a smaller one.";
+      return `${fileRefusal(error)} Discard this and attach a smaller one.`;
     case "storage_quota_exceeded":
-      return "The workspace has no room left for files. Ask whoever hosts it to free space or raise the limit, then press Retry.";
+      return `${fileRefusal(error)} Ask whoever hosts it to free space or raise the limit, then press Retry.`;
     case "nonce_conflict":
     case "message_deleted":
       return "This was already sent once. Discard it to clear it.";
@@ -2328,10 +2335,7 @@ export class WorkspaceClient {
     }
     if (this.outboxFull()) return false;
 
-    // getRandomValues also works on plain HTTP LAN origins, unlike randomUUID.
-    const nonce = Array.from(crypto.getRandomValues(new Uint8Array(16)), (byte) =>
-      byte.toString(16).padStart(2, "0"),
-    ).join("");
+    const nonce = newNonce();
     const attachments: LocalAttachment[] = files.map((f) => ({
       name: f.name,
       size: f.size,
@@ -3894,20 +3898,6 @@ export class WorkspaceClient {
   /** Reports a message to the workspace's admins (E12), with why and anything to add. */
   reportMessage(messageId: ID, reason: ReportReason, note?: string) {
     return doneOf(() => this.api.reportMessage(messageId, reason, note));
-  }
-
-  /** Uploads one file to a channel; attach the returned id to a message. */
-  uploadFile(
-    channelId: ID,
-    file: Blob,
-    name: string,
-    opts?: { onProgress?: (fraction: number) => void; signal?: AbortSignal },
-  ) {
-    return this.api.uploadFile(channelId, file, name, opts);
-  }
-
-  scheduleMessage(channelId: ID, body: ScheduleMessageBody) {
-    return this.api.scheduleMessage(channelId, body);
   }
 
   /** An address that downloads the file once, within a minute, by a browser's navigation. */

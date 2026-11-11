@@ -279,6 +279,17 @@
       "concepts": ["errors as values", "untangle round 1"]
     },
     {
+      "path": "packages/client-core/src/scheduling.ts",
+      "plain": "Sends a message later: uploads its files, keeps a copy of the request on this device, then asks the server to queue it, so a request whose answer was lost is asked again rather than queued twice.",
+      "summary": "ScheduledSends: saved, schedule, check and forget, one request per composer under its draft key; each answers what happened as a sentence to show.",
+      "details": [
+        "The request, with its nonce, uploaded file ids and time, is written to the device before it goes, and cleared once the server answers. A lost answer leaves it for Check again, which sends the same nonce.",
+        "Files uploaded for a request are remembered, so trying again does not upload them twice; a refusal saying the files are gone forgets them.",
+        "A request refused outright (scheduled_limit) is let go at once, since nothing was queued."
+      ],
+      "concepts": ["idempotency", "recovery", "untangle round 1"]
+    },
+    {
       "path": "packages/client-core/src/optimisticWrites.ts",
       "plain": "Shows a choice such as a pin, a reaction or a notification setting at once, sends it, and puts things back if the server refuses, without an earlier failure undoing a later choice.",
       "summary": "OptimisticWrites, keyed by a typed WriteKey.",

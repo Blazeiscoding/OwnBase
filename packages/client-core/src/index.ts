@@ -31,6 +31,8 @@ export {
 } from "./addressTrust.js";
 export type { WorkspaceAddressAccess } from "./addressTrust.js";
 export { LocalWork } from "./localWork.js";
+export { ScheduledSends } from "./scheduling.js";
+export type { SavedSchedule, ScheduleAnswer, SchedulePlace } from "./scheduling.js";
 export type { Page, PagedListState } from "./pagedList.js";
 export {
   SCREEN_SHARE_QUALITY,
@@ -53,7 +55,7 @@ export { captureFailure } from "./capture.js";
 export type { CaptureKind } from "./capture.js";
 export { applyOutboxChanges, readStoredOutbox, unwrapStoredOutbox } from "./outbox.js";
 export type { OutboxChanges, StoredOutbox } from "./outbox.js";
-export { applyDraftChanges, isDraftChanges, unwrapStoredDrafts } from "./drafts.js";
+export { applyDraftChanges, draftKey, isDraftChanges, unwrapStoredDrafts } from "./drafts.js";
 export type { DraftChanges } from "./drafts.js";
 export { applyRecordChanges, isRecordChanges } from "./records.js";
 export type { RecordChanges } from "./records.js";

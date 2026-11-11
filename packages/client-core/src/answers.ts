@@ -49,3 +49,10 @@ export function refusalReason(error: ApiError): string | null {
   if (!/\s/.test(text)) return null;
   return text.charAt(0).toUpperCase() + text.slice(1) + (/[.!?]$/.test(text) ? "" : ".");
 }
+
+/** Why the workspace would not take a file, as a sentence; null for any other refusal. */
+export function fileRefusal(error: ApiError): string | null {
+  if (error.code === "storage_quota_exceeded") return "The workspace has no room left for files.";
+  if (error.code === "file_too_large") return "A file is over this workspace's size limit.";
+  return null;
+}

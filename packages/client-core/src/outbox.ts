@@ -6,6 +6,14 @@ import {
 import type { StoredPending } from "./workspace.js";
 import type { PollDraft } from "./polls.js";
 
+/** A send's identity, which asking again with keeps it one message. */
+export function newNonce(): string {
+  // getRandomValues also works on plain HTTP LAN origins, unlike randomUUID.
+  return Array.from(crypto.getRandomValues(new Uint8Array(16)), (byte) =>
+    byte.toString(16).padStart(2, "0"),
+  ).join("");
+}
+
 /**
  * The outbox as every window open on one account keeps it on the device.
  *
