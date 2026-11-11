@@ -129,6 +129,3 @@ export function fillPath(path: string, params: Record<string, unknown> = {}): st
     return encodeURIComponent(String(value));
   });
 }
-
-/** `GET /api/me`, as a route is named in logs and lists. */
-export const routeName = (e: Pick<EndpointSpec, "method" | "path">) => `${e.method} ${e.path}`;

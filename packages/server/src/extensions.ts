@@ -69,7 +69,7 @@ export interface ExtensionContext {
     /**
      * A new member, with no password anyone knows, joined to the public
      * channels as anyone joining is. Refused while nobody owns the workspace,
-     * and for a handle taken.
+     * for a handle taken, and for a handle or name joining would refuse.
      */
     create(input: { handle: string; displayName: string }): Promise<User>;
   };
@@ -89,12 +89,14 @@ export interface ExtensionOption {
  * reads and the help it adds, and makes its extension from them, refusing a
  * setting it cannot use with a `ConfigError`.
  */
-export interface CommandLineExtension {
+export interface CommandLineExtension<Env extends string = string> {
   options: Record<string, ExtensionOption>;
+  /** The environment variables it reads, each as `OWNBASE_<name>`. */
+  env: readonly Env[];
   /** Lines for --help, already indented as the server's own. */
   help: string;
   create(
     values: Record<string, string | boolean | undefined>,
-    env: (name: string) => string | undefined,
+    env: (name: Env) => string | undefined,
   ): ServerExtension | Promise<ServerExtension>;
 }

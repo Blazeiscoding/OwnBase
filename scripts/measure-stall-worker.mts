@@ -7,6 +7,6 @@ import { parentPort, workerData } from "node:worker_threads";
 const { tsxApi, ...options } = workerData as { tsxApi: string; dataDir: string; out: string };
 const { register } = (await import(pathToFileURL(tsxApi).href)) as { register: () => void };
 register();
-const { backupWorkspace } = await import("../packages/server/src/index.js");
+const { backupWorkspace } = await import("../packages/server/src/backups/backup.js");
 await backupWorkspace(options);
 parentPort!.postMessage("done");

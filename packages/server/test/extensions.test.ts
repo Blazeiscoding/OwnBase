@@ -321,6 +321,13 @@ describe("an extension that signs people in (P9)", () => {
     await expect(users.create({ handle: "member", displayName: "Again" })).rejects.toMatchObject({
       code: "handle_taken",
     });
+    await expect(
+      users.create({ handle: "Not A Handle", displayName: "Odd" }),
+    ).rejects.toMatchObject({ code: "invalid_request" });
+    await expect(users.create({ handle: "noname", displayName: "" })).rejects.toMatchObject({
+      code: "invalid_request",
+    });
+    expect(users.byHandle("noname")).toBeNull();
     expect(users.byHandle("SAM")?.id).toBe(made.id);
     expect(users.byHandle("nobody")).toBeNull();
     expect(users.get(made.id)?.handle).toBe("sam");

@@ -2,7 +2,6 @@ import { endpoints, type ID, type Message } from "@ownbase/protocol";
 import { hashToken } from "../auth.js";
 import { CapabilityMap } from "../core/capabilities.js";
 import { requireChannelAccess, type ServerContext } from "../core/context.js";
-import type { registerFiles } from "../files/feature.js";
 import { HttpError } from "../httpError.js";
 import { secretToken } from "../ids.js";
 import { CAPABILITIES_ALIVE } from "../limits.js";
@@ -54,11 +53,10 @@ export function registerAppReplies(
       ReturnType<typeof registerMessages>,
       "posting" | "updateMessage" | "removeMessage"
     >;
-    files: Pick<ReturnType<typeof registerFiles>, "flushFileDeletions">;
   },
 ) {
   const { store, settings, route, network } = ctx;
-  const { calls, newTrigger, messages, files } = deps;
+  const { calls, newTrigger, messages } = deps;
   const { posting } = messages;
 
   const responseTargets = new CapabilityMap<ResponseTarget>(CAPABILITIES_ALIVE.responseUrls);
@@ -128,7 +126,6 @@ export function registerAppReplies(
         return;
       if (payload.delete_original === true) {
         messages.removeMessage(existing);
-        void files.flushFileDeletions();
         return;
       }
       const replacement = payloadToText(payload);

@@ -14,8 +14,11 @@ import {
 } from "@ownbase/protocol";
 import { INPUT_ELEMENTS } from "../src/apps/blockKit.js";
 import { signatureHeaders } from "../src/apps/signing.js";
-import { toSlackEvent } from "../src/apps/delivery.js";
+import { appDelivery } from "../src/events/registry.js";
 import { createWorkspaceServer, type WorkspaceServer } from "../src/server.js";
+
+/** An event's Slack Events API shape, or null when no app is told of it. */
+const toSlackEvent = (event: WorkspaceEvent) => appDelivery(event)?.slack(event) ?? null;
 
 /**
  * docs/INTEGRATIONS.md is a promise to people writing apps. The parts of it that

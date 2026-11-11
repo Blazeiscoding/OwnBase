@@ -156,8 +156,7 @@ describe("download tickets", () => {
     const fromLaptop = (await issue(fileId, laptop)).data.token;
     const fromPhone = (await issue(fileId, phone)).data.token;
 
-    // Signing out deletes the session's tickets with it, and redeeming checks
-    // the session again before and after reading the disk; this holds all three.
+    // Spending signs in as the session that asked, before and after reading the disk.
     expect((await request("/api/auth/logout", laptop, "POST")).status).toBe(200);
     expect((await spend(fileId, fromLaptop)).status).toBe(404);
     expect((await spend(fileId, fromPhone)).status).toBe(200);

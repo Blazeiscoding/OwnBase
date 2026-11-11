@@ -13,10 +13,6 @@ import type { AccessPolicy, MemberNotice } from "@ownbase/protocol";
 /** A setting that cannot be used, with a message meant for the person who set it. */
 export class ConfigError extends Error {}
 
-export function envSetting(name: string): string | undefined {
-  return process.env[`OWNBASE_${name}`];
-}
-
 /**
  * OWNBASE_CLAIM_CODE (P7): the code that claims a workspace nobody owns yet,
  * for a host that sends the link to claim it, as OwnBase's hosting does. Only

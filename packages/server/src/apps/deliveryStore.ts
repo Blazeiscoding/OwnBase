@@ -25,7 +25,6 @@ const dueRow = shape({
 });
 const attemptsRow = shape({ attempts: "number", failed_at: "number?" });
 const subscriptionIdRow = shape({ subscription_id: "text" });
-const queuedRow = shape({ id: "text", body: "text" });
 
 /**
  * The durable queue of events on their way to apps' endpoints: one row per
@@ -308,47 +307,5 @@ export class DeliveryStore {
       .prepare("UPDATE event_subscriptions SET dropped_count = 0 WHERE id = ?")
       .run(subscriptionId);
     return { retried, waiting };
-  }
-
-  /** The queued copies of one message's events, but the one at `keepSeq`. */
-  ofMessage(messageId: ID, keepSeq?: number): { id: string; body: string }[] {
-    return queuedRow.all(
-      this.db.prepare(
-        `SELECT id, body FROM event_deliveries WHERE message_id = ?
-         ${keepSeq === undefined ? "" : "AND event_seq != ?"}`,
-      ),
-      messageId,
-      ...(keepSeq === undefined ? [] : [keepSeq]),
-    );
-  }
-
-  /**
-   * Takes a message's words out of app events still waiting to be delivered,
-   * or that gave up. Those are copies OwnBase still holds, and an edit or a
-   * deletion is often someone taking back what they wrote. The events stay,
-   * in order and under the same id: a receiver gets a message with no words,
-   * then the edit or deletion that supersedes it, as a client replaying the
-   * log does. What has already been delivered is the app's, and cannot be
-   * called back.
-   */
-  redact(rows: { id: string; body: string }[]): void {
-    const update = this.db.prepare("UPDATE event_deliveries SET body = ? WHERE id = ?");
-    for (const row of rows) {
-      let body: {
-        ownbase?: { type?: string };
-        event?: { text?: string; message?: { text?: string } };
-      };
-      try {
-        body = JSON.parse(row.body);
-      } catch {
-        continue;
-      }
-      const type = body.ownbase?.type;
-      if (type === "message.created" && body.event) body.event.text = "";
-      else if (type === "message.updated" && body.event?.message) body.event.message.text = "";
-      else continue;
-      const after = JSON.stringify(body);
-      if (after !== row.body) update.run(after, row.id);
-    }
   }
 }

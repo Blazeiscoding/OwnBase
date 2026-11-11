@@ -1513,8 +1513,6 @@ export const endpoints = {
   }),
 };
 
-export type EndpointName = keyof typeof endpoints;
-
 /**
  * Routes an extension offers at paths of its own (P9), which the server names
  * in `ServerInfo.signIn` and in settings panels: a client calls each at the

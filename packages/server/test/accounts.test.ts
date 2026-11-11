@@ -210,3 +210,15 @@ describe("account controls", () => {
     expect((await transfer(owner.token, owner.user.id)).status).toBe(403);
   });
 });
+
+describe("password hashing", () => {
+  it("runs two derivations at once in this process and refuses a third, whoever asks", async () => {
+    const running = [auth.hashPassword("first-password"), auth.hashPassword("second-password")];
+    await expect(auth.hashPassword("third-password")).rejects.toMatchObject({
+      statusCode: 429,
+      code: "auth_busy",
+    });
+    await Promise.all(running);
+    await expect(auth.hashPassword("after-password")).resolves.toHaveProperty("hash");
+  });
+});

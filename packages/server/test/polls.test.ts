@@ -3,9 +3,18 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import WebSocket from "ws";
-import { PROTOCOL_VERSION, type Message, type Poll, type ServerToClient } from "@ownbase/protocol";
+import {
+  PROTOCOL_VERSION,
+  type Message,
+  type Poll,
+  type ServerToClient,
+  type WorkspaceEvent,
+} from "@ownbase/protocol";
 import { createWorkspaceServer, type WorkspaceServer } from "../src/server.js";
-import { toSlackEvent } from "../src/apps/delivery.js";
+import { appDelivery } from "../src/events/registry.js";
+
+/** An event's Slack Events API shape, or null when no app is told of it. */
+const toSlackEvent = (event: WorkspaceEvent) => appDelivery(event)?.slack(event) ?? null;
 
 /** Polls (E6): made, voted on, closed, kept from those who cannot read them, and dropped. */
 let server: WorkspaceServer | undefined;

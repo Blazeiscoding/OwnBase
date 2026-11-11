@@ -1,6 +1,11 @@
 import { z } from "zod";
 import {
+  ACCESS_POLICIES,
   APP_SCOPES,
+  NOTIFY_LEVELS,
+  REPORT_NOTE_MAX,
+  REPORT_REASONS,
+  REPORT_RESOLUTIONS,
   MESSAGE_TEXT_MAX,
   SIDEBAR_SECTIONS_MAX,
   SIDEBAR_SECTION_NAME_MAX,
@@ -8,7 +13,6 @@ import {
   POLL_OPTIONS_MAX,
   POLL_OPTIONS_MIN,
   POLL_QUESTION_MAX,
-  type AccessPolicy,
 } from "./entities.js";
 import { FILE_KINDS, currentZoneName, isTimeZone } from "./search.js";
 import { idSchema } from "./socket.js";
@@ -77,11 +81,11 @@ export const twoStepSignInBody = z
 
 /** A report of a message (E12): why, and anything the reporter adds. */
 export const reportMessageBody = z.object({
-  reason: z.enum(["spam", "harassment", "inappropriate", "other"]),
-  note: z.string().max(500).optional(),
+  reason: z.enum(REPORT_REASONS),
+  note: z.string().max(REPORT_NOTE_MAX).optional(),
 });
 
-export const resolveReportBody = z.object({ action: z.enum(["dismiss", "remove", "deactivate"]) });
+export const resolveReportBody = z.object({ action: z.enum(REPORT_RESOLUTIONS) });
 
 /** Proves it is this account's owner before its two-step sign-in changes (E11). */
 export const twoStepPasswordBody = z.object({ password: z.string().min(1).max(256) });
@@ -117,7 +121,7 @@ export const updateMeBody = z.object({
 
 export const channelPrefsBody = z.object({
   /** Chosen for this conversation alone, which stops it following the default. */
-  notifyLevel: z.enum(["all", "mentions", "nothing"]).optional(),
+  notifyLevel: z.enum(NOTIFY_LEVELS).optional(),
   /** False puts it back on the account's default (v53); true keeps `notifyLevel`. */
   notifyChosen: z.boolean().optional(),
   muted: z.boolean().optional(),
@@ -130,7 +134,7 @@ export const channelPrefsBody = z.object({
 
 /** `PUT /api/me/notify-default`: what conversations notify about unless set on their own (v53). */
 export const notifyDefaultBody = z.object({
-  level: z.enum(["all", "mentions", "nothing"]),
+  level: z.enum(NOTIFY_LEVELS),
 });
 
 /**
@@ -447,11 +451,7 @@ export const workspaceNameBody = z.object({ name: workspaceNameSchema });
 export const linkPreviewsBody = z.object({ enabled: z.boolean() });
 
 export const accessPolicyBody = z.object({
-  accessPolicy: z.enum([
-    "invite_only",
-    "account_required",
-    "guest_allowed",
-  ] as const satisfies readonly AccessPolicy[]),
+  accessPolicy: z.enum(ACCESS_POLICIES),
 });
 
 /**
@@ -469,15 +469,6 @@ export const WORKSPACE_ICON_MAX_BYTES = 256 * 1024;
 
 /** How many pixels square a client makes an icon before sending it. */
 export const WORKSPACE_ICON_PIXELS = 256;
-
-/**
- * A profile picture keeps the workspace icon's rules (E9): a PNG, JPEG or
- * WebP image the client has made this many pixels square, within the same
- * number of bytes, checked by the server the same way.
- */
-export const PROFILE_PICTURE_TYPES = WORKSPACE_ICON_TYPES;
-export const PROFILE_PICTURE_MAX_BYTES = WORKSPACE_ICON_MAX_BYTES;
-export const PROFILE_PICTURE_PIXELS = WORKSPACE_ICON_PIXELS;
 
 export const auditQuery = z.object({
   before: z.string().max(40).optional(),

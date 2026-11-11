@@ -1,6 +1,8 @@
 import {
   ACCESS_POLICIES,
+  isAccessPolicy,
   isAdministrator,
+  WORKSPACE_NAME_MAX,
   workspaceNameSchema,
   type AccessPolicy,
   type ID,
@@ -10,7 +12,7 @@ import {
 } from "@ownbase/protocol";
 import type { ServerContext } from "../core/context.js";
 import { secretToken } from "../ids.js";
-import type { WorkspaceIcon } from "./workspaceIcon.js";
+import { checkedPicture, type WorkspaceIcon } from "../core/workspaceIcon.js";
 
 /** A change to the workspace itself, as `WorkspaceServer.onWorkspaceChange` reports it. */
 export interface WorkspaceChange {
@@ -22,13 +24,20 @@ export interface WorkspaceChange {
   by: ID | null;
 }
 
-export const isAccessPolicy = (value: unknown): value is AccessPolicy =>
-  ACCESS_POLICIES.includes(value as AccessPolicy);
+const WORKSPACE_NAME_RULE = `A workspace name has 1 to ${WORKSPACE_NAME_MAX} characters and no control characters.`;
+
+/** The name as kept, trimmed, or a refusal that says the rule. */
+function checkedWorkspaceName(value: unknown): string {
+  const parsed = workspaceNameSchema.safeParse(value);
+  if (!parsed.success) throw new TypeError(WORKSPACE_NAME_RULE);
+  return parsed.data;
+}
 
 /** Refuses a start whose workspace options cannot work, before the database opens. */
 export function checkWorkspaceOptions(opts: ServerContext["opts"]): void {
   if (opts.accessPolicy !== undefined && !isAccessPolicy(opts.accessPolicy))
     throw new TypeError(`accessPolicy must be one of ${ACCESS_POLICIES}`);
+  if (opts.workspaceName !== undefined) checkedWorkspaceName(opts.workspaceName);
 }
 
 /**
@@ -45,7 +54,7 @@ export function createWorkspace(ctx: ServerContext) {
   // never puts back an older choice over theirs.
   const unowned = store.people.count() === 0;
   if (opts.workspaceName && (unowned || settings.stored("workspaceName") === null))
-    settings.set("workspaceName", opts.workspaceName);
+    settings.set("workspaceName", checkedWorkspaceName(opts.workspaceName));
   if (settings.stored("workspaceName") === null)
     settings.set("workspaceName", settings.get("workspaceName"));
   settings.get("workspaceId");
@@ -72,13 +81,7 @@ export function createWorkspace(ctx: ServerContext) {
       record?.();
       return policy === "guest_allowed" ? [] : store.accounts.revokeGuestSessions();
     });
-  /** Off unless guests are allowed; off again keeps the other choice. */
-  const withInvites = (on: boolean): AccessPolicy =>
-    on ? "invite_only" : accessPolicy() === "invite_only" ? "account_required" : accessPolicy();
-  if (unowned) {
-    if (opts.accessPolicy !== undefined) writeAccessPolicy(opts.accessPolicy);
-    else if (opts.inviteOnly !== undefined) writeAccessPolicy(withInvites(opts.inviteOnly));
-  }
+  if (unowned && opts.accessPolicy !== undefined) writeAccessPolicy(opts.accessPolicy);
 
   /**
    * A workspace with no owner is up for grabs. Until one exists, the account
@@ -109,11 +112,8 @@ export function createWorkspace(ctx: ServerContext) {
 
   /** Renames the workspace. Everyone signed in is told at once, and the record says who did it. */
   const rename = (value: unknown, by: ID | null): string => {
-    const parsed = workspaceNameSchema.safeParse(value);
-    if (!parsed.success)
-      throw new TypeError("A workspace name has 1 to 80 characters and no control characters.");
+    const name = checkedWorkspaceName(value);
     if (lifecycle.closing) throw new Error("The workspace is stopping.");
-    const name = parsed.data;
     const previous = settings.get("workspaceName");
     if (name === previous) return name;
     store.transaction(() => {
@@ -155,11 +155,10 @@ export function createWorkspace(ctx: ServerContext) {
   };
 
   /**
-   * Sets or removes the workspace's icon. The rows change in one write with
-   * the record of who did it, which names the image's type and size but
-   * never holds it.
+   * The rows change in one write with the record of who did it, which names
+   * the image's type and size but never holds it.
    */
-  const changeIcon = (next: WorkspaceIcon | null, by: ID | null): void => {
+  const changeIcon = (next: WorkspaceIcon | null, by: ID): void => {
     if (lifecycle.closing) throw new Error("The workspace is stopping.");
     if ((icon?.version ?? null) === (next?.version ?? null)) return;
     store.transaction(() => {
@@ -178,6 +177,13 @@ export function createWorkspace(ctx: ServerContext) {
     const iconVersion = next?.version ?? null;
     gateway.tellEveryone({ type: "workspace.icon", iconVersion });
     changed({ iconVersion, by });
+  };
+
+  /** Sets the icon to a picture of the declared `type`, once checked; returns its version. */
+  const setIcon = (bytes: Buffer, type: string | undefined, by: ID): string => {
+    const next = checkedPicture(bytes, type);
+    changeIcon(next, by);
+    return next.version;
   };
 
   const setLinkPreviews = (enabled: boolean, by: ID): void => {
@@ -222,7 +228,8 @@ export function createWorkspace(ctx: ServerContext) {
     icon: () => icon,
     rename,
     changeAccessPolicy,
-    changeIcon,
+    setIcon,
+    removeIcon: (by: ID) => changeIcon(null, by),
     setLinkPreviews,
     snapshot,
     onChange(listener: (change: WorkspaceChange) => void): () => void {

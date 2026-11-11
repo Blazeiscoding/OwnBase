@@ -11,7 +11,7 @@
     "./cli": "./src/cli/run.ts",
     "./cliFlags": "./src/cli/flags.ts",
     "./ownership": "./src/core/ownership.ts",
-    "./workspaceIcon": "./src/admin/workspaceIcon.ts"
+    "./workspaceIcon": "./src/core/workspaceIcon.ts"
   },
   "scripts": {
     "dev": "tsx watch src/main.ts --data ./data",

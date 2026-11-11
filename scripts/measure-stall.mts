@@ -19,12 +19,8 @@ import { cpus, tmpdir, totalmem } from "node:os";
 import { join } from "node:path";
 import { createRequire } from "node:module";
 import { Worker } from "node:worker_threads";
-import {
-  backupWorkspace,
-  createWorkspaceServer,
-  verifyBackup,
-  type WorkspaceServer,
-} from "../packages/server/src/index.js";
+import { backupWorkspace, verifyBackup } from "../packages/server/src/backups/backup.js";
+import { createWorkspaceServer, type WorkspaceServer } from "../packages/server/src/index.js";
 
 /** tsx's register API, from the server package that depends on it. */
 const tsxApi = createRequire(new URL("../packages/server/package.json", import.meta.url)).resolve(

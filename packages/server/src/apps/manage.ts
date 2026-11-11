@@ -1,5 +1,4 @@
 import { endpoints } from "@ownbase/protocol";
-import type { registerAccounts } from "../accounts/feature.js";
 import { hashPassword, hashToken } from "../auth.js";
 import { requireChannelAccess, type ServerContext } from "../core/context.js";
 import { HttpError } from "../httpError.js";
@@ -27,13 +26,12 @@ export const hostOf = (url: string): string => {
 export function registerAppManagement(
   ctx: ServerContext,
   deps: {
-    accounts: Pick<ReturnType<typeof registerAccounts>, "hashing">;
     calls: AppCalls;
     deliveries: EventDeliveries;
   },
 ) {
   const { store, route, requireUser, mutate } = ctx;
-  const { accounts, calls, deliveries } = deps;
+  const { calls, deliveries } = deps;
 
   /** A handle for the app's bot user that cannot collide with a person's. */
   const botHandle = (name: string): string => {
@@ -51,7 +49,7 @@ export function registerAppManagement(
 
   route(endpoints.createApp, async ({ req, user: me, body }) => {
     // A bot posts as a real (non-human) user, so messages render normally.
-    const credentials = await accounts.hashing(() => hashPassword(secretToken()));
+    const credentials = await hashPassword(secretToken());
     requireUser(req);
     return mutate((emit) => {
       const { hash, salt } = credentials;

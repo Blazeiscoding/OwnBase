@@ -33,6 +33,9 @@ export const ACCESS_POLICIES: readonly AccessPolicy[] = [
   "guest_allowed",
 ];
 
+export const isAccessPolicy = (value: unknown): value is AccessPolicy =>
+  typeof value === "string" && (ACCESS_POLICIES as readonly string[]).includes(value);
+
 export interface User {
   id: ID;
   handle: string;
@@ -96,7 +99,8 @@ export interface Channel {
   managerIds?: ID[];
 }
 
-export type NotifyLevel = "all" | "mentions" | "nothing";
+export const NOTIFY_LEVELS = ["all", "mentions", "nothing"] as const;
+export type NotifyLevel = (typeof NOTIFY_LEVELS)[number];
 
 export interface ChannelPrefs {
   /** Chosen for this conversation; see `notifyChosen` for whether it counts. */
@@ -158,13 +162,6 @@ export function effectiveNotifyLevel(
 /** The most sections one account keeps, and the longest a name may be once trimmed. */
 export const SIDEBAR_SECTIONS_MAX = 50;
 export const SIDEBAR_SECTION_NAME_MAX = 80;
-
-export interface ChannelMembership extends ChannelPrefs {
-  channelId: ID;
-  userId: ID;
-  lastReadSeq: number;
-  joinedAt: number;
-}
 
 export interface ReactionGroup {
   emoji: string;
@@ -397,16 +394,12 @@ export interface Invite {
   status: InviteStatus;
 }
 
-export type ReportReason = "spam" | "harassment" | "inappropriate" | "other";
-export const REPORT_REASONS: readonly ReportReason[] = [
-  "spam",
-  "harassment",
-  "inappropriate",
-  "other",
-];
+export const REPORT_REASONS = ["spam", "harassment", "inappropriate", "other"] as const;
+export type ReportReason = (typeof REPORT_REASONS)[number];
 export const REPORT_NOTE_MAX = 500;
 
-export type ReportResolution = "dismiss" | "remove" | "deactivate";
+export const REPORT_RESOLUTIONS = ["dismiss", "remove", "deactivate"] as const;
+export type ReportResolution = (typeof REPORT_RESOLUTIONS)[number];
 
 /** One person's report of a message, as admins see it (E12). */
 export interface MessageReport {

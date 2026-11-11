@@ -12,11 +12,11 @@ export interface Flag {
   default?: string | boolean;
   short?: string;
   /** Sets it when the flag is not given, as `OWNBASE_<env>`. */
-  env?: string;
+  readonly env?: string;
   /** OwnBase's hosting may pass it to the workspace servers it runs. */
   cloud?: true;
   /** Its part of --help. Flags that only the usage lines name have none. */
-  help?: { usage: string; gapBefore?: true; lines: string[] };
+  help?: { usage: string; gapBefore?: true; lines: readonly string[] };
 }
 
 export const FLAGS = {
@@ -354,7 +354,7 @@ export const FLAGS = {
     default: false,
     short: "h",
   },
-} satisfies Record<string, Flag>;
+} as const satisfies Record<string, Flag>;
 
 export type FlagName = keyof typeof FLAGS;
 
@@ -377,7 +377,18 @@ export const ENV_SETTINGS = {
   BACKUP_OFFSITE_REGION: { cloud: true },
 } satisfies Record<string, { cloud?: true }>;
 
+/** Every environment variable the server reads, without its `OWNBASE_` prefix. */
+export type EnvName =
+  | keyof typeof ENV_SETTINGS
+  | {
+      [K in FlagName]: (typeof FLAGS)[K] extends { env: infer E extends string } ? E : never;
+    }[FlagName];
+
 export const envName = (name: string) => `OWNBASE_${name}`;
+
+export function envSetting(name: EnvName): string | undefined {
+  return process.env[envName(name)];
+}
 
 /** The options `node:util` parseArgs takes, for every flag. */
 export function parseArgsOptions() {
@@ -399,11 +410,11 @@ type ParseOption<F> = (F extends { type: "boolean" } ? { type: "boolean" } : { t
 export function flagOrEnv(
   values: Partial<Record<FlagName, string | boolean | undefined>>,
   name: FlagName,
-  env: (name: string) => string | undefined,
+  env: (name: EnvName) => string | undefined,
 ): string | undefined {
   const given = values[name];
   if (typeof given === "string") return given;
-  const flag: Flag = FLAGS[name];
+  const flag: Flag & { env?: EnvName } = FLAGS[name];
   return flag.env ? env(flag.env) : undefined;
 }
 

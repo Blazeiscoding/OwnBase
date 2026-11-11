@@ -91,10 +91,10 @@ function isLoopbackAddress(address: string): boolean {
 export function resolveClientAddress(
   remoteAddress: string | undefined,
   headers: ClientAddressHeaders,
-  trustedProxy?: "loopback",
+  trustLoopbackProxy = false,
 ): string {
   const peer = normalizedIp(remoteAddress) ?? "unknown";
-  if (trustedProxy !== "loopback" || !isLoopbackAddress(peer)) return peer;
+  if (!trustLoopbackProxy || !isLoopbackAddress(peer)) return peer;
 
   // Cloudflare owns this header at its edge, so prefer it to the conventional
   // forwarding chain. Duplicate/comma-separated values are ambiguous and are

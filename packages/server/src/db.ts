@@ -762,6 +762,24 @@ const MIGRATIONS: string[] = [
   );
   CREATE INDEX idx_channel_removals_user ON channel_removals(user_id, created_at);
   `,
+  // v55 — a scheduled message's files are only the rows of scheduled_files,
+  // in the order they were chosen; the JSON copy of the same list goes. A file
+  // two rows named stays with the one v26 gave it to.
+  `
+  ALTER TABLE scheduled_files ADD COLUMN position INTEGER NOT NULL DEFAULT 0;
+  UPDATE scheduled_files SET position = COALESCE((
+    SELECT MIN(CAST(j.key AS INTEGER)) FROM scheduled_messages s,
+      json_each(CASE WHEN json_valid(s.file_ids) AND json_type(s.file_ids) = 'array'
+        THEN s.file_ids ELSE '[]' END) j
+    WHERE s.id = scheduled_files.scheduled_id AND j.value = scheduled_files.file_id
+  ), 0);
+  ALTER TABLE scheduled_messages DROP COLUMN file_ids;
+  `,
+  // v56 — download tickets are kept in memory with the copy's, for a minute;
+  // the table v19 made for a file's goes.
+  `
+  DROP TABLE download_tokens;
+  `,
 ];
 
 /** The schema this build understands. A workspace above it cannot be opened. */

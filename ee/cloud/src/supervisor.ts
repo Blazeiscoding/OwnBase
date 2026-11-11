@@ -1,6 +1,7 @@
 import { spawn, type ChildProcess } from "node:child_process";
 import { createWriteStream, mkdirSync, type WriteStream } from "node:fs";
 import { join } from "node:path";
+import { endpoints } from "@ownbase/protocol";
 
 /** How to run the OwnBase server: a program and the arguments before its own. */
 export interface ServerCommand {
@@ -171,7 +172,7 @@ export class Supervisor {
     const deadline = Date.now() + HEALTHY_WITHIN_MS;
     for (;;) {
       try {
-        const response = await fetch(`http://127.0.0.1:${port}/api/health`, {
+        const response = await fetch(`http://127.0.0.1:${port}${endpoints.health.path}`, {
           signal: AbortSignal.timeout(2_000),
         });
         if (response.ok) return;

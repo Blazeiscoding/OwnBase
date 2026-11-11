@@ -7,10 +7,12 @@ import type {
 } from "fastify";
 import { ZodError, ZodType } from "zod";
 import {
+  fillPath,
   isAdministrator,
   requestSchemas,
   type App,
   type BodyOf,
+  type DownloadTicket,
   type Endpoint,
   type EndpointSpec,
   type JsonAnswer,
@@ -20,6 +22,7 @@ import {
   type User,
 } from "@ownbase/protocol";
 import { hashToken } from "./auth.js";
+import { DownloadTickets } from "./core/downloadTickets.js";
 import { bearerToken } from "./core/network.js";
 import { HttpError, passwordChangeRequired } from "./httpError.js";
 
@@ -29,11 +32,7 @@ declare module "fastify" {
   }
 }
 
-type CallerOf<E extends EndpointSpec> = E["access"] extends "public" | "bot"
-  ? undefined
-  : E extends { ticket: true }
-    ? User | null
-    : User;
+type CallerOf<E extends EndpointSpec> = E["access"] extends "public" | "bot" ? undefined : User;
 
 /**
  * The reply of a route that answers with JSON: its headers and status, but
@@ -56,7 +55,7 @@ type SendsItself<E> = E extends { answer: JsonAnswer<unknown> }
 export interface RouteContext<E extends EndpointSpec> {
   req: FastifyRequest;
   reply: SendsItself<E> extends true ? FastifyReply : JsonReply;
-  /** Who is signed in; null for a request a download ticket stands in for. */
+  /** Who is signed in, by their header or by the download ticket that stands in for it. */
   user: CallerOf<E>;
   /** The app calling, for a Slack Web API method. */
   bot: E["access"] extends "bot" ? App : undefined;
@@ -102,6 +101,16 @@ export interface Router {
    * still good before it goes on.
    */
   signedIn(req: FastifyRequest): User;
+  /**
+   * A ticket that opens `endpoint`'s download at `params` once, for the
+   * session `req` was signed in with.
+   */
+  ticketFor<E extends Endpoint & { ticket: true }>(
+    req: FastifyRequest,
+    user: User,
+    endpoint: E,
+    params: PathParams<E["path"]>,
+  ): DownloadTicket;
 }
 
 function schemaFor(ref: SchemaRef | undefined): ZodType | undefined {
@@ -128,6 +137,16 @@ function botCaller(req: FastifyRequest, opts: RouterOptions): App | null {
  */
 export function createRouter(opts: RouterOptions): Router {
   const { app } = opts;
+  const tickets = new DownloadTickets();
+  /** The session a spent ticket stood in for, for the request that spent it. */
+  const ticketSessions = new WeakMap<FastifyRequest, string>();
+
+  const sessionHashOf = (req: FastifyRequest): string | null => {
+    const spent = ticketSessions.get(req);
+    if (spent) return spent;
+    const token = bearerToken(req);
+    return token ? hashToken(token) : null;
+  };
 
   // A route registered any other way would skip signing in and validation.
   app.addHook("onRoute", (added) => {
@@ -155,8 +174,8 @@ export function createRouter(opts: RouterOptions): Router {
   });
 
   const signIn = (req: FastifyRequest, endpoint: EndpointSpec): User => {
-    const token = bearerToken(req);
-    const user = token ? opts.sessionUser(hashToken(token)) : null;
+    const sessionHash = sessionHashOf(req);
+    const user = sessionHash ? opts.sessionUser(sessionHash) : null;
     if (!user) throw new HttpError(401, "unauthorized");
     if (user.role === "guest" && endpoint.access !== "guest") {
       throw new HttpError(
@@ -173,6 +192,31 @@ export function createRouter(opts: RouterOptions): Router {
       throw new HttpError(403, "owner_only", "Only the workspace's owner can do this.");
     }
     return user;
+  };
+
+  /**
+   * Signs in by the ticket in `?download=`, as its session's header would.
+   * Any refusal is a 404, which says nothing of what the ticket was for. A
+   * HEAD spends nothing, so a link checker never uses one up.
+   */
+  const signInByTicket = (
+    req: FastifyRequest,
+    reply: FastifyReply,
+    endpoint: EndpointSpec,
+    ticket: unknown,
+  ): User => {
+    reply.header("cache-control", "no-store").header("referrer-policy", "no-referrer");
+    const sessionHash =
+      req.method === "GET" && typeof ticket === "string"
+        ? tickets.spend(ticket, fillPath(endpoint.path, req.params as Record<string, string>))
+        : null;
+    if (!sessionHash) throw new HttpError(404, "not_found");
+    ticketSessions.set(req, sessionHash);
+    try {
+      return signIn(req, endpoint);
+    } catch {
+      throw new HttpError(404, "not_found");
+    }
   };
 
   const route: Route = (endpoint, handler) => {
@@ -198,7 +242,10 @@ export function createRouter(opts: RouterOptions): Router {
           const ticket = endpoint.ticket
             ? (req.query as { download?: unknown }).download
             : undefined;
-          user = ticket !== undefined ? null : signIn(req, endpoint);
+          user =
+            ticket !== undefined
+              ? signInByTicket(req, reply, endpoint, ticket)
+              : signIn(req, endpoint);
         }
         const context = {
           req,
@@ -241,6 +288,11 @@ export function createRouter(opts: RouterOptions): Router {
       const endpoint = req.routeOptions.config.endpoint;
       if (!endpoint) throw new Error(`${req.method} ${req.url} is not a declared route`);
       return signIn(req, endpoint);
+    },
+    ticketFor(req, user, endpoint, params) {
+      const sessionHash = sessionHashOf(req);
+      if (!sessionHash) throw new HttpError(401, "unauthorized");
+      return tickets.issue(fillPath(endpoint.path, params), user.id, sessionHash);
     },
   };
 }
