@@ -154,6 +154,8 @@ describe("the default for what notifies", () => {
     await stop();
     // Back to v52, as a workspace from before the default would be.
     const db = new DatabaseSync(join(dataDir, "workspace.db"));
+    db.exec("ALTER TABLE scheduled_files DROP COLUMN position");
+    db.exec("ALTER TABLE scheduled_messages ADD COLUMN file_ids TEXT NOT NULL DEFAULT '[]'");
     db.exec("DROP TABLE channel_removals");
     db.exec("ALTER TABLE channel_members DROP COLUMN notify_chosen");
     db.exec("ALTER TABLE users DROP COLUMN notify_default");

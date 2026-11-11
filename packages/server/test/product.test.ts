@@ -338,11 +338,23 @@ describe("self-hosted product", () => {
       for (const column of ["id", "user_agent", "expires_at"]) {
         db.exec(`ALTER TABLE sessions DROP COLUMN ${column}`);
       }
-      db.exec("DROP INDEX idx_scheduled_due");
-      for (const column of ["status", "failure_reason", "attempts", "message_id"]) {
-        db.exec(`ALTER TABLE scheduled_messages DROP COLUMN ${column}`);
-      }
-      db.exec("CREATE INDEX idx_scheduled_due ON scheduled_messages(send_at)");
+      // Nothing is queued, so the table is made again as v5 did, its files a
+      // JSON list in the middle where no added column could put it back.
+      db.exec("DROP TABLE scheduled_messages");
+      db.exec(`
+        CREATE TABLE scheduled_messages (
+          id TEXT PRIMARY KEY,
+          channel_id TEXT NOT NULL REFERENCES channels(id),
+          user_id TEXT NOT NULL REFERENCES users(id),
+          text TEXT NOT NULL,
+          thread_root_id TEXT,
+          file_ids TEXT NOT NULL DEFAULT '[]',
+          send_at INTEGER NOT NULL,
+          created_at INTEGER NOT NULL
+        );
+        CREATE INDEX idx_scheduled_due ON scheduled_messages(send_at);
+        CREATE INDEX idx_scheduled_user ON scheduled_messages(user_id);
+      `);
       db.exec("DROP TABLE message_requests");
       db.exec("ALTER TABLE messages DROP COLUMN actions");
       db.exec("ALTER TABLE apps DROP COLUMN interactivity_url");

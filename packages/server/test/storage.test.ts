@@ -311,35 +311,6 @@ describe("abandoned uploads", () => {
     expect((await usage()).usedBytes).toBe(100 * 1024);
   });
 
-  it("does nothing at all when the scheduled queue cannot be read", async () => {
-    await start(400 * 1024, 3600_000);
-    await signIn();
-    const uploaded = await upload(100 * 1024);
-    const id = uploaded.body.file.id as string;
-    backdate(id, 30 * 24 * 3600_000);
-
-    const db = (
-      server!.store as unknown as {
-        db: { prepare: (sql: string) => { run: (...a: unknown[]) => void } };
-      }
-    ).db;
-    db.prepare(
-      `INSERT INTO scheduled_messages (id, channel_id, user_id, text, thread_root_id, file_ids, send_at, created_at)
-       VALUES ('01BROKENBROKENBROKENBROKEN', ?, ?, 'x', NULL, 'not json', ?, ?)`,
-    ).run(
-      channelId,
-      server!.store.people.authByHandle("owner")!.id,
-      Date.now() + 60_000,
-      Date.now(),
-    );
-
-    // An unreadable row means some unknown files are spoken for. Guessing would
-    // delete someone's attachment, so the sweep declines to run.
-    expect(server!.expireAbandonedUploads()).toBe(0);
-    await server!.flushFileDeletions();
-    expect(blobsOnDisk()).toEqual([id]);
-  });
-
   it("reclaims a blob left behind by a crash between writing and recording it", async () => {
     await start(400 * 1024);
     await signIn();

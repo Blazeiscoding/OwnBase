@@ -114,10 +114,6 @@ export function registerFiles(ctx: ServerContext) {
    */
   const expireAbandonedUploads = (): number => {
     const ids = store.files.abandonedIds(Date.now() - abandonedUploadTtlMs);
-    if (ids === null) {
-      app.log.error("scheduled queue unreadable; abandoned uploads left alone this round");
-      return 0;
-    }
     if (ids.length === 0) return 0;
     store.transaction(() => {
       store.files.delete(ids);

@@ -248,31 +248,18 @@ export class FileStore {
    * been given up on. An upload sits unattached for the moment between choosing
    * a file and sending it, so only age separates that from an abandoned draft.
    *
-   * Returns null when the scheduled queue cannot be read, which means some
-   * unknown set of files is still spoken for. Sweeping on a guess would delete
-   * attachments a queued message still needs, so the caller does nothing.
+   * One a scheduled message holds is not given up on.
    */
-  abandonedIds(olderThan: number): ID[] | null {
-    const spokenFor = new Set<ID>();
-    for (const row of shape({ file_ids: "text" }).all(
-      this.db.prepare("SELECT file_ids FROM scheduled_messages"),
-    )) {
-      let ids: unknown;
-      try {
-        ids = JSON.parse(row.file_ids);
-      } catch {
-        return null;
-      }
-      if (!Array.isArray(ids)) return null;
-      for (const id of ids) spokenFor.add(String(id));
-    }
-    for (const row of fileIdRow.all(this.db.prepare("SELECT file_id FROM scheduled_files")))
-      spokenFor.add(row.file_id);
-    const candidates = idRow.all(
-      this.db.prepare("SELECT id FROM files WHERE message_id IS NULL AND created_at < ?"),
-      olderThan,
-    );
-    return candidates.map((row) => row.id).filter((id) => !spokenFor.has(id));
+  abandonedIds(olderThan: number): ID[] {
+    return idRow
+      .all(
+        this.db.prepare(
+          `SELECT id FROM files WHERE message_id IS NULL AND created_at < ?
+           AND id NOT IN (SELECT file_id FROM scheduled_files)`,
+        ),
+        olderThan,
+      )
+      .map((row) => row.id);
   }
 
   /**
