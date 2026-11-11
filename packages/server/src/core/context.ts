@@ -4,7 +4,7 @@ import type { DatabaseSync } from "node:sqlite";
 import type { Gateway } from "../gateway.js";
 import { HttpError } from "../httpError.js";
 import type { Limits, RateLimiter } from "../limits.js";
-import type { Route } from "../route.js";
+import type { Route, Router } from "../route.js";
 import type { ServerOptions } from "../options.js";
 import type { Store } from "../store.js";
 import type { BackgroundWork } from "./background.js";
@@ -30,6 +30,7 @@ export interface ServerContext {
   route: Route;
   /** The signed-in caller, checked again, for a handler that yields before it writes. */
   requireUser(req: FastifyRequest): User;
+  ticketFor: Router["ticketFor"];
   /** Spends one unit of a limit, or throws the 429 that says when to come back. */
   ration(name: keyof Limits, key: string): void;
   /** Null when rationing is off. */

@@ -213,7 +213,11 @@ try {
         threadRootId: null,
         nonce: null,
       });
-      const envelope = store.appendEvent({ type: "message.created", message }, channelId);
+      const envelope = store.appendEvent(
+        { type: "message.created", message },
+        channelId,
+        message.id,
+      );
       store.messages.stampSeq(message.id, channelId, envelope.seq);
       return message;
     } finally {

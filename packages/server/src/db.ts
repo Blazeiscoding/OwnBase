@@ -775,6 +775,11 @@ const MIGRATIONS: string[] = [
   ), 0);
   ALTER TABLE scheduled_messages DROP COLUMN file_ids;
   `,
+  // v56 — download tickets are kept in memory with the copy's, for a minute;
+  // the table v19 made for a file's goes.
+  `
+  DROP TABLE download_tokens;
+  `,
 ];
 
 /** The schema this build understands. A workspace above it cannot be opened. */

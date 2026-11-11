@@ -154,6 +154,19 @@ describe("the default for what notifies", () => {
     await stop();
     // Back to v52, as a workspace from before the default would be.
     const db = new DatabaseSync(join(dataDir, "workspace.db"));
+    db.exec(`
+      CREATE TABLE download_tokens (
+        token_hash TEXT PRIMARY KEY,
+        file_id TEXT NOT NULL REFERENCES files(id) ON DELETE CASCADE,
+        user_id TEXT NOT NULL REFERENCES users(id),
+        session_hash TEXT NOT NULL REFERENCES sessions(token_hash) ON DELETE CASCADE,
+        expires_at INTEGER NOT NULL
+      );
+      CREATE INDEX idx_download_tokens_expiry ON download_tokens(expires_at);
+      CREATE INDEX idx_download_tokens_user ON download_tokens(user_id, expires_at);
+      CREATE INDEX idx_download_tokens_file ON download_tokens(file_id);
+      CREATE INDEX idx_download_tokens_session ON download_tokens(session_hash);
+    `);
     db.exec("ALTER TABLE scheduled_files DROP COLUMN position");
     db.exec("ALTER TABLE scheduled_messages ADD COLUMN file_ids TEXT NOT NULL DEFAULT '[]'");
     db.exec("DROP TABLE channel_removals");

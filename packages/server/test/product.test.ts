@@ -328,7 +328,6 @@ describe("self-hosted product", () => {
       db.exec("ALTER TABLE users DROP COLUMN must_change_password");
       db.exec("DROP TRIGGER discard_revoked_event_deliveries");
       db.exec("DROP TABLE event_deliveries");
-      db.exec("DROP TABLE download_tokens");
       db.exec("ALTER TABLE channel_members DROP COLUMN is_manager");
       db.exec("ALTER TABLE messages DROP COLUMN broadcast");
       db.exec("DROP TABLE thread_follows");

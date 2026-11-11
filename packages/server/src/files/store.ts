@@ -40,14 +40,8 @@ const deletionCountsRow = shape({
   rejected: "number",
   oldest: "number?",
 });
-const ticketRow = shape({
-  file_id: "text",
-  user_id: "text",
-  session_hash: "text",
-  expires_at: "number",
-});
 
-/** Attachments: their rows, their download tickets, and the queue that removes their blobs. */
+/** Attachments: their rows, and the queue that removes their blobs. */
 export class FileStore {
   private removalsQueued = false;
 
@@ -260,56 +254,6 @@ export class FileStore {
         olderThan,
       )
       .map((row) => row.id);
-  }
-
-  /**
-   * A one-shot ticket letting a browser fetch one file without a header it
-   * cannot set on a navigation. Only the hash is stored, as with session
-   * tokens, so the table is not a list of working credentials.
-   */
-  createDownloadToken(
-    tokenHash: string,
-    fileId: ID,
-    userId: ID,
-    sessionHash: string,
-    expiresAt: number,
-  ): void {
-    this.store.transaction(() => {
-      this.pruneDownloadTokens();
-      this.db
-        .prepare(
-          "DELETE FROM download_tokens WHERE token_hash IN (SELECT token_hash FROM download_tokens WHERE user_id = ? ORDER BY expires_at DESC, token_hash DESC LIMIT -1 OFFSET 63)",
-        )
-        .run(userId);
-      this.db
-        .prepare(
-          "INSERT INTO download_tokens (token_hash, file_id, user_id, session_hash, expires_at) VALUES (?, ?, ?, ?, ?)",
-        )
-        .run(tokenHash, fileId, userId, sessionHash, expiresAt);
-    });
-  }
-
-  /**
-   * Spends a ticket. Deleting and reading in one statement is what makes it
-   * single use: two requests arriving together cannot both be served.
-   */
-  consumeDownloadToken(
-    tokenHash: string,
-    now = Date.now(),
-  ): { fileId: ID; userId: ID; sessionHash: string } | null {
-    const row = ticketRow.get(
-      this.db.prepare(
-        "DELETE FROM download_tokens WHERE token_hash = ? RETURNING file_id, user_id, session_hash, expires_at",
-      ),
-      tokenHash,
-    );
-    if (!row || row.expires_at <= now) return null;
-    return { fileId: row.file_id, userId: row.user_id, sessionHash: row.session_hash };
-  }
-
-  /** Tickets nobody spent. They are short-lived, so this is just tidying. */
-  pruneDownloadTokens(now = Date.now()): void {
-    this.db.prepare("DELETE FROM download_tokens WHERE expires_at <= ?").run(now);
   }
 
   /**

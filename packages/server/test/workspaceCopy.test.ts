@@ -215,6 +215,8 @@ describe("a copy for the owner", () => {
     const url = (t: string, id = copy.id) => `${base}/api/admin/copy/${id}?download=${t}`;
 
     const once = await ticket(owner.token);
+    // A HEAD cannot spend one, so a link checker never uses it up.
+    expect((await fetch(url(once), { method: "HEAD" })).status).toBe(404);
     const first = await fetch(url(once));
     expect(first.status).toBe(200);
     await first.arrayBuffer();

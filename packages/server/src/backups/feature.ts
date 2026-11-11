@@ -1,14 +1,11 @@
-import { endpoints, type ID, type WorkspaceStatus } from "@ownbase/protocol";
+import { endpoints, type WorkspaceStatus } from "@ownbase/protocol";
 import { createHash } from "node:crypto";
 import { statfsSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
-import { hashToken, newSessionToken } from "../auth.js";
-import { CapabilityMap } from "../core/capabilities.js";
 import { ConfigError } from "../config.js";
 import type { ServerContext } from "../core/context.js";
-import { bearerToken } from "../core/network.js";
-import { DOWNLOAD_TOKEN_TTL_MS, type Files } from "../files/feature.js";
+import type { Files } from "../files/feature.js";
 import { HttpError } from "../httpError.js";
 import type { ServerOptions } from "../options.js";
 import { backupWorkspace, separateDirectories } from "./backup.js";
@@ -68,21 +65,13 @@ export function registerBackups(
   ctx: ServerContext,
   deps: { files: Files; scheduled: ScheduledBackups | undefined },
 ) {
-  const { opts, store, settings, route } = ctx;
+  const { opts, store, settings, route, ticketFor } = ctx;
   const { files, scheduled } = deps;
 
   /** Set once the server is listening; null when scheduled backups are off. */
   let backups: BackupSchedule | null = null;
   /** The owner's downloadable copy; null for a workspace kept in memory. */
   let copies: WorkspaceCopies | null = null;
-
-  /** Tickets to download the copy: like a file's, spent on first use and a minute long. */
-  const copyTickets = new CapabilityMap<{
-    copyId: string;
-    userId: ID;
-    sessionHash: string;
-    expiresAt: number;
-  }>(16);
 
   route(endpoints.workspaceCopy, async ({ reply }) => {
     reply.header("cache-control", "no-store");
@@ -124,45 +113,16 @@ export function registerBackups(
     const current = copies?.state();
     if (current?.state !== "ready")
       throw new HttpError(404, "no_copy", "There is no copy ready to download.");
-    const { token, tokenHash } = newSessionToken();
-    const expiresAt = Date.now() + DOWNLOAD_TOKEN_TTL_MS;
-    copyTickets.set(tokenHash, {
-      copyId: current.id,
-      userId: me.id,
-      sessionHash: hashToken(bearerToken(req)!),
-      expiresAt,
-    });
     reply.header("cache-control", "no-store");
-    return { token, expiresAt };
+    return ticketFor(req, me, endpoints.copyFile, { id: current.id });
   });
 
-  route(endpoints.copyFile, async ({ reply, params, query, user }) => {
+  route(endpoints.copyFile, async ({ reply, params, user: me }) => {
     reply.header("cache-control", "no-store").header("referrer-policy", "no-referrer");
-    const ticket = query.download;
-    let ownerId: ID;
-    if (!user) {
-      if (!ticket || !/^[a-f0-9]{64}$/.test(ticket)) throw new HttpError(404, "no_copy");
-      const hash = hashToken(ticket);
-      const spent = copyTickets.get(hash);
-      copyTickets.delete(hash);
-      const owner = spent ? store.accounts.getSessionUser(spent.sessionHash) : null;
-      if (
-        !spent ||
-        spent.copyId !== params.id ||
-        !owner ||
-        owner.id !== spent.userId ||
-        owner.role !== "owner" ||
-        store.accounts.mustChangePassword(owner.id)
-      )
-        throw new HttpError(404, "no_copy");
-      ownerId = owner.id;
-    } else {
-      ownerId = user.id;
-    }
     const zip = copies?.open(params.id);
     if (!zip) throw new HttpError(404, "no_copy", "That copy is gone. Make a new one.");
     store.audit.record({
-      actorId: ownerId,
+      actorId: me.id,
       action: "workspace.copy_downloaded",
       targetType: "workspace",
       targetId: null,
