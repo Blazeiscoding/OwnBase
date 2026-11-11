@@ -36,7 +36,7 @@ import { type FetchedPreview } from "./linkPreview.js";
 import { advertise, type MdnsHandle } from "./mdns.js";
 import { registerMessages, type RetentionStatus } from "./messages/feature.js";
 import { holdWorkspace, type WorkspaceHold } from "./core/ownership.js";
-import { workspaceDatabase } from "./core/stoppedWorkspace.js";
+import { workspaceDatabase } from "./core/workspaceFile.js";
 import { registerPeople } from "./people/feature.js";
 import { registerPolls } from "./polls/feature.js";
 import { serverRelaySchema, type ServerRelay } from "./relay.js";

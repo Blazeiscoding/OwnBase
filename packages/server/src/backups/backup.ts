@@ -25,8 +25,7 @@ import {
   WorkspaceInUseError,
   type WorkspaceHold,
 } from "../core/ownership.js";
-import { Settings } from "../core/settings.js";
-import { metaRows, WORKSPACE_DATABASE } from "../core/stoppedWorkspace.js";
+import { metaRows, WORKSPACE_DATABASE, WORKSPACE_NAME_ROW } from "../core/workspaceFile.js";
 import { SERVER_VERSION } from "../version.js";
 
 /** What a backup directory contains, and what it must still look like on restore. */
@@ -124,7 +123,7 @@ function snapshotDetails(db: DatabaseSync) {
     id: string;
     size: number;
   }[];
-  const workspaceName = new Settings(metaRows(db)).stored("workspaceName") ?? "";
+  const workspaceName = metaRows(db).getMeta(WORKSPACE_NAME_ROW) ?? "";
   return { schemaVersion, workspaceName, counts: countRows(db), files };
 }
 

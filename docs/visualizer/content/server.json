@@ -1322,14 +1322,24 @@
     {
       "path": "packages/server/src/core/stoppedWorkspace.ts",
       "plain": "Reads a stopped workspace's name, identity and icon straight from its folder, and renames it, without starting it.",
-      "summary": "The workspace database's file name, metaRows over a bare DatabaseSync, and read-only readers plus a held rename for a workspace no server has open.",
+      "summary": "Read-only readers plus a held rename for a workspace no server has open; it passes on workspaceFile.ts's file name for the desktop app.",
       "details": [
-        "WORKSPACE_DATABASE names workspace.db for the server, recovery, backups and the desktop app's list of hosted workspaces.",
         "readStoppedWorkspace, readStoppedIcon and readStoppedIconVersion open the database read only and read through Settings, so nothing is started, upgraded or changed; a missing or unreadable database reads as null.",
         "renameStoppedWorkspace refuses a folder with no database (opening it would make an empty one), holds the workspace so a server started by hand cannot write the old name back, and gives a backup reading the file two seconds before failing.",
         "The desktop app reads these through the @ownbase/server/stoppedWorkspace subpath, for Manage hosting's list, icons, renames and backup checks."
       ],
       "concepts": ["stopped workspace", "read-only database", "single declaration"]
+    },
+    {
+      "path": "packages/server/src/core/workspaceFile.ts",
+      "plain": "Names the file a workspace's data is kept in, and reads and writes its settings rows directly.",
+      "summary": "WORKSPACE_DATABASE, workspaceDatabase(dataDir), the workspace-name row and metaRows over a bare DatabaseSync.",
+      "details": [
+        "WORKSPACE_DATABASE names workspace.db for the server, recovery, backups and the desktop app's list of hosted workspaces.",
+        "It imports nothing but Node, so a backup job reads the workspace's name for its manifest without loading the server (backupImports.test.ts checks the graph).",
+        "WORKSPACE_NAME_ROW is the row SETTINGS.workspaceName keeps the name in."
+      ],
+      "concepts": ["workspace database", "single declaration"]
     },
     {
       "path": "packages/server/src/reminders/feature.ts",

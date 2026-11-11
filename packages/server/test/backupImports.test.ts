@@ -32,9 +32,15 @@ function graph(entry: string): { modules: string[]; packages: string[] } {
 }
 
 describe("what a backup job loads", () => {
-  it("is the backup module, the schema and the ownership lock, with zod", () => {
+  it("is the backup module, the schema, the ownership lock and the database file, with zod", () => {
     expect(graph("backups/backup.ts")).toEqual({
-      modules: ["backups/backup.ts", "core/ownership.ts", "db.ts", "version.ts"],
+      modules: [
+        "backups/backup.ts",
+        "core/ownership.ts",
+        "core/workspaceFile.ts",
+        "db.ts",
+        "version.ts",
+      ],
       packages: ["zod"],
     });
   });

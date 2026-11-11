@@ -2,7 +2,7 @@ import { existsSync } from "node:fs";
 import type { DatabaseSync } from "node:sqlite";
 import { openDb } from "./db.js";
 import { holdWorkspace } from "./core/ownership.js";
-import { workspaceDatabase } from "./core/stoppedWorkspace.js";
+import { workspaceDatabase } from "./core/workspaceFile.js";
 import { Store } from "./store.js";
 import { hashPassword } from "./auth.js";
 import { secretToken } from "./ids.js";
