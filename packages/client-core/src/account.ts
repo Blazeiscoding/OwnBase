@@ -1,9 +1,6 @@
 import type { ID, SignInConnection, SignInMethod } from "@ownbase/protocol";
-import { ApiError, type Api } from "./api.js";
+import { serverPath, type Api } from "./api.js";
 import { answerOf, doneOf } from "./answers.js";
-
-/** Where the server may send a browser to link a way of signing in (P9). */
-const LINK = /^\/api\/[A-Za-z0-9/_-]+(\?[A-Za-z0-9=&_-]*)?$/;
 
 /**
  * The signed-in account's own settings: its devices, password, two-step
@@ -87,8 +84,7 @@ export class AccountActions {
   linkSignInUrl(method: SignInMethod) {
     return answerOf(async () => {
       const { url } = await this.api.connectSignIn(method.connect!);
-      if (!LINK.test(url)) throw new ApiError(502, "invalid_response");
-      return `${this.api.baseUrl}${url}`;
+      return `${this.api.baseUrl}${serverPath(url, { query: true })}`;
     });
   }
 

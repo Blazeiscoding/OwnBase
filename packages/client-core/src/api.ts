@@ -27,11 +27,13 @@ export { ApiError };
 export type { AppDetail, CommandHint, LoginResult, SignedIn } from "@ownbase/protocol";
 
 /**
- * A path the server gave for one of its own routes. Anything else is refused
- * before this client sends it a session.
+ * A path the server gave for one of its own routes, with a query only where
+ * `query` allows one. Anything else is refused before this client sends it a
+ * session or opens it.
  */
-function serverPath(path: string): string {
-  if (!/^\/api\/[A-Za-z0-9/_-]*$/.test(path)) throw new ApiError(502, "invalid_response");
+export function serverPath(path: string, { query = false } = {}): string {
+  const match = /^\/api\/[A-Za-z0-9/_-]*(\?[A-Za-z0-9=&_-]*)?$/.exec(path);
+  if (!match || (match[1] !== undefined && !query)) throw new ApiError(502, "invalid_response");
   return path;
 }
 
