@@ -1,5 +1,6 @@
 import {
   DEEP_LINK_PROTOCOL,
+  handleSchema,
   type SettingsField,
   type SettingsPanel,
   type SignInConnection,
@@ -152,9 +153,6 @@ const readCookie = (req: Request): string | undefined =>
 
 const identityKey = (issuer: string, subject: string) => s256(`${issuer}\n${subject}`);
 
-/** Usernames are 2 to 32 lowercase letters, digits, . _ or -, starting with a letter or digit. */
-const HANDLE = /^[a-z0-9][a-z0-9._-]{1,31}$/;
-
 /** A username for someone new, from what the provider calls them, not one taken. */
 export function handleFor(claims: IdClaims, taken: (handle: string) => boolean): string {
   const from =
@@ -166,7 +164,7 @@ export function handleFor(claims: IdClaims, taken: (handle: string) => boolean):
     .replace(/[^a-z0-9._-]+/g, "")
     .replace(/^[._-]+/, "")
     .slice(0, 28);
-  if (!HANDLE.test(base)) base = `member${base}`.slice(0, 28);
+  if (!handleSchema.safeParse(base).success) base = `member${base}`.slice(0, 28);
   for (let n = 1; n < 1000; n++) {
     const handle = n === 1 ? base : `${base}-${n}`;
     if (!taken(handle)) return handle;

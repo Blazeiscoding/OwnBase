@@ -206,6 +206,12 @@ importers:
 
   ee/cloud:
     dependencies:
+      '@ownbase/ee':
+        specifier: workspace:*
+        version: link:..
+      '@ownbase/protocol':
+        specifier: workspace:*
+        version: link:../../packages/protocol
       '@ownbase/server':
         specifier: workspace:*
         version: link:../../packages/server
@@ -216,9 +222,6 @@ importers:
         specifier: ^4.1.5
         version: 4.5.4
     devDependencies:
-      '@ownbase/ee':
-        specifier: workspace:*
-        version: link:..
       '@types/node':
         specifier: ^24.3.0
         version: 24.13.3

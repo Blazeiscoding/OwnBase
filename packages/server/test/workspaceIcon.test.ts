@@ -18,7 +18,7 @@ import {
   type WorkspaceChange,
   type WorkspaceServer,
 } from "../src/server.js";
-import { checkIcon, iconTypeOf, readStoredIcon } from "../src/admin/workspaceIcon.js";
+import { checkedPicture, iconTypeOf, readStoredIcon } from "../src/core/workspaceIcon.js";
 import { discoveryTxt } from "../src/mdns.js";
 
 // The announcement on the local network, caught here rather than sent.
@@ -305,20 +305,6 @@ describe("setting and removing the workspace's icon", () => {
       expect.objectContaining({ action: "user.role_changed" }),
     ]);
   });
-
-  it("refuses the same things from the host, saying why", async () => {
-    await start();
-    expect(() => server!.setWorkspaceIcon(SVG, "image/svg+xml")).toThrow(
-      "A workspace icon is a PNG, JPEG or WebP image.",
-    );
-    expect(() => server!.setWorkspaceIcon(jpeg(), "image/png")).toThrow(
-      "That file says it is PNG but holds a JPEG image.",
-    );
-    expect(() => server!.setWorkspaceIcon("png" as unknown as Uint8Array, "image/png")).toThrow(
-      TypeError,
-    );
-    expect(server!.workspaceIcon()).toBeNull();
-  });
 });
 
 describe("reading the icon", () => {
@@ -399,11 +385,10 @@ describe("telling everyone", () => {
     for (const socket of [watching, ownerElsewhere])
       await expect.poll(() => socket.icons()).toEqual([iconVersion, null]);
 
-    server!.setWorkspaceIcon(jpeg(), "image/jpeg");
-    const hostVersion = server!.workspaceIcon()!.version;
-    await expect.poll(() => watching.icons()).toEqual([iconVersion, null, hostVersion]);
+    const next = (await upload(owner.token, jpeg(), "image/jpeg")).data.iconVersion;
+    await expect.poll(() => watching.icons()).toEqual([iconVersion, null, next]);
     const later = await connect(member.token);
-    expect(later.ready()).toMatchObject({ iconVersion: hostVersion });
+    expect(later.ready()).toMatchObject({ iconVersion: next });
   });
 
   it("tells whatever follows the workspace, naming who changed it", async () => {
@@ -413,10 +398,10 @@ describe("telling everyone", () => {
     const { iconVersion } = (await upload(owner.token, png())).data;
     // The same picture again changes nothing, and nobody is told.
     await upload(owner.token, png());
-    server!.removeWorkspaceIcon();
+    await remove(owner.token);
     expect(heard).toEqual([
       { iconVersion, by: owner.user.id },
-      { iconVersion: null, by: null },
+      { iconVersion: null, by: owner.user.id },
     ]);
   });
 
@@ -425,7 +410,7 @@ describe("telling everyone", () => {
     const bytes = png(3, 3);
     await upload(admin.token, bytes);
     await remove(owner.token);
-    server!.setWorkspaceIcon(webp(), "image/webp");
+    await upload(owner.token, webp(), "image/webp");
     const { data } = await call("GET", "/api/admin/audit?limit=50", owner.token);
     const icons = (data.entries as AuditEntry[])
       .filter((e) => e.action === "workspace.icon_changed")
@@ -439,7 +424,7 @@ describe("telling everyone", () => {
       }),
       expect.objectContaining({ actorId: owner.user.id, details: { change: "removed" } }),
       expect.objectContaining({
-        actorId: null,
+        actorId: owner.user.id,
         details: { change: "set", type: "image/webp", bytes: webp().length },
       }),
     ]);
@@ -450,15 +435,16 @@ describe("telling the network", () => {
   it("names the icon's version in the announcement, and announces again when it changes", async () => {
     announced.length = 0;
     await start({ mdns: true });
-    const version = server!.setWorkspaceIcon(png(), "image/png");
+    const owner = await register("owner");
+    const version = (await upload(owner.token, png())).data.iconVersion;
     // In the form a desktop listing found workspaces takes it.
     expect(isIconVersion(version)).toBe(true);
-    server!.removeWorkspaceIcon();
+    await remove(owner.token);
     expect(announced.map((a) => a.iconVersion)).toEqual([null, version, null]);
     expect(announced.every((a) => a.name === announced[0]!.name)).toBe(true);
 
     // A restart announces the icon it keeps.
-    server!.setWorkspaceIcon(png(), "image/png");
+    await upload(owner.token, png());
     await server!.stop();
     announced.length = 0;
     await start({ mdns: true });
@@ -486,16 +472,15 @@ describe("what an icon is", () => {
   });
 
   it("is read back only when its rows make a whole icon", () => {
-    const checked = checkIcon(png(), "image/png");
-    if (!("icon" in checked)) throw new Error("refused");
+    const icon = checkedPicture(png(), "image/png");
     const rows = new Map<string, string>([
       ["workspace_icon_type", "image/png"],
-      ["workspace_icon_version", checked.icon.version],
+      ["workspace_icon_version", icon.version],
       ["workspace_icon_data", png().toString("base64")],
     ]);
     const read = (changes: Record<string, string | null> = {}) =>
       readStoredIcon((key) => (key in changes ? changes[key]! : (rows.get(key) ?? null)));
-    expect(read()?.version).toBe(checked.icon.version);
+    expect(read()?.version).toBe(icon.version);
     expect(read({ workspace_icon_type: "image/svg+xml" })).toBeNull();
     expect(read({ workspace_icon_type: "image/jpeg" })).toBeNull();
     expect(read({ workspace_icon_version: "0000000000000000" })).toBeNull();

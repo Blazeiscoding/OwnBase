@@ -1,9 +1,30 @@
 import { createHash, randomBytes, scrypt, timingSafeEqual } from "node:crypto";
+import { HttpError } from "./httpError.js";
 
-function derive(password: string, salt: string): Promise<Buffer> {
-  return new Promise((resolve, reject) => {
-    scrypt(password, salt, 64, (err, key) => (err ? reject(err) : resolve(key)));
-  });
+/**
+ * How many password derivations this process runs at once. Each scrypt job
+ * takes substantial memory; past this a sign-in is refused with auth_busy
+ * rather than queued, so one burst cannot exhaust the machine.
+ */
+const DERIVATIONS_AT_ONCE = 2;
+let deriving = 0;
+
+async function derive(password: string, salt: string): Promise<Buffer> {
+  if (deriving >= DERIVATIONS_AT_ONCE)
+    throw new HttpError(
+      429,
+      "auth_busy",
+      "The workspace is handling other sign-ins. Try again in a moment.",
+    );
+  deriving++;
+  try {
+    // Off the event loop, so calls and chat stay responsive meanwhile.
+    return await new Promise((resolve, reject) => {
+      scrypt(password, salt, 64, (err, key) => (err ? reject(err) : resolve(key)));
+    });
+  } finally {
+    deriving--;
+  }
 }
 
 export async function hashPassword(password: string): Promise<{ hash: string; salt: string }> {

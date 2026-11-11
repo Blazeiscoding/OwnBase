@@ -5,12 +5,12 @@ import { join } from "node:path";
 import {
   ConfigError,
   describeStartupError,
-  envSetting,
   parseClaimCode,
   parsePort,
   parsePublicUrl,
   parseWholeNumber,
 } from "../src/config.js";
+import { envSetting } from "../src/cli/flags.js";
 import { createWorkspaceServer } from "../src/server.js";
 
 describe("a port", () => {
@@ -101,16 +101,16 @@ describe("a claim code from the host", () => {
 
 describe("settings from the environment", () => {
   afterEach(() => {
-    delete process.env.OWNBASE_RETENTION_DAYS_TEST;
+    delete process.env.OWNBASE_RETENTION_DAYS;
   });
 
   it("reads the OwnBase name", () => {
-    process.env.OWNBASE_RETENTION_DAYS_TEST = "30";
-    expect(envSetting("RETENTION_DAYS_TEST")).toBe("30");
+    process.env.OWNBASE_RETENTION_DAYS = "30";
+    expect(envSetting("RETENTION_DAYS")).toBe("30");
   });
 
   it("is undefined when it is not set", () => {
-    expect(envSetting("RETENTION_DAYS_TEST")).toBeUndefined();
+    expect(envSetting("RETENTION_DAYS")).toBeUndefined();
   });
 });
 

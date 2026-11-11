@@ -1,12 +1,15 @@
 /**
- * Shutdown, as the parts of the server that outlive a single call see it.
- * `closing` stops loops from starting another round; the signal ends outbound
- * calls already under way, so an app slow to answer cannot hold the process
- * open for its whole timeout.
+ * The server's life as the parts that outlive a single call see it: work each
+ * feature starts once the server listens, its hourly housekeeping, and
+ * shutdown. `closing` stops loops from starting another round; the signal
+ * ends outbound calls already under way, so an app slow to answer cannot hold
+ * the process open for its whole timeout.
  */
 export class Lifecycle {
   private closed = false;
   private readonly shutdown = new AbortController();
+  private readonly starts: (() => unknown)[] = [];
+  private readonly hourlies: (() => void)[] = [];
   private readonly closers: (() => void)[] = [];
   private readonly drains: (() => Promise<unknown>)[] = [];
 
@@ -21,6 +24,45 @@ export class Lifecycle {
   every(ms: number, work: () => void): void {
     const timer = setInterval(work, ms);
     this.onClose(() => clearInterval(timer));
+  }
+
+  /**
+   * A function that runs `work` on a later turn, so a queue that took a full
+   * page lets requests have the loop before it takes the next. Called again
+   * before then, it waits for the turn already asked for, with its arguments;
+   * once closing, nothing more is asked for, and a turn asked for is dropped.
+   */
+  laterTurn<A extends unknown[]>(work: (...args: A) => void): (...args: A) => void {
+    let pending: ReturnType<typeof setImmediate> | null = null;
+    this.onClose(() => {
+      if (pending) clearImmediate(pending);
+      pending = null;
+    });
+    return (...args) => {
+      if (pending || this.closed) return;
+      pending = setImmediate(() => {
+        pending = null;
+        work(...args);
+      });
+    };
+  }
+
+  /** Runs `work` once the server is listening, waiting for it when it returns a promise. */
+  onStart(work: () => unknown): void {
+    this.starts.push(work);
+  }
+
+  /** Runs `work` every hour while the server runs. */
+  hourly(work: () => void): void {
+    this.hourlies.push(work);
+  }
+
+  /** Starts each feature's work, in the order they registered, then the hourly round. */
+  async start(): Promise<void> {
+    for (const work of this.starts) await work();
+    this.every(3600_000, () => {
+      for (const work of this.hourlies) work();
+    });
   }
 
   /** Runs `stop` as the server begins to stop, before anything is waited on. */

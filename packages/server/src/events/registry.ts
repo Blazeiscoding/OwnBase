@@ -27,6 +27,11 @@ export interface AppDelivery<E extends WorkspaceEvent> {
   actor(event: E): ID | null;
   /** The Slack Events API shape it is sent in, or null for a change apps are not told of. */
   slack(event: E): Record<string, unknown> | null;
+  /**
+   * That shape with a message's words taken out, for a copy still waiting to
+   * be delivered when the message is edited or deleted (messages/eventLog.ts).
+   */
+  redact?(payload: Record<string, unknown>): Record<string, unknown>;
 }
 
 export interface DurableSpec<E extends WorkspaceEvent> {
@@ -35,6 +40,8 @@ export interface DurableSpec<E extends WorkspaceEvent> {
    * replay; null for everyone signed in.
    */
   channel(event: E): ID | null;
+  /** The message whose words it holds, so removing them finds this copy too. */
+  message?(event: E): ID;
   /** What else it writes, in the transaction that records it, once it has its seq. */
   effects?(event: E, seq: number, store: Store): void;
 }
@@ -88,6 +95,10 @@ export type EventTo<A extends Audience> = Extract<
 
 export function eventChannel(event: WorkspaceEvent): ID | null {
   return (DURABLE_EVENTS[event.type] as DurableSpec<WorkspaceEvent>).channel(event);
+}
+
+export function eventMessageId(event: WorkspaceEvent): ID | null {
+  return (DURABLE_EVENTS[event.type] as DurableSpec<WorkspaceEvent>).message?.(event) ?? null;
 }
 
 /** Writes what a durable event changes besides itself; see `DurableSpec.effects`. */

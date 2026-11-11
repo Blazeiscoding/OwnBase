@@ -28,14 +28,13 @@ import {
   type HostedWorkspace,
 } from "../src/main/registry.js";
 import { TunnelCleanupError, type Tunnel } from "../src/main/tunnel.js";
+import { createWorkspaceServer, type WorkspaceServer } from "@ownbase/server";
 import {
   backupWorkspace,
-  createWorkspaceServer,
   inventoryBackup,
   restoreWorkspace,
   verifyBackup,
-  type WorkspaceServer,
-} from "@ownbase/server";
+} from "@ownbase/server/backup";
 
 interface StartRequest {
   workspaceName?: string;
@@ -3682,7 +3681,19 @@ describe("a hosted workspace's icon", () => {
       mdns: false,
       logger: false,
     });
-    const kept = real.setWorkspaceIcon(png(), "image/png");
+    const base = `http://127.0.0.1:${real.port}`;
+    const registered = await fetch(`${base}/api/auth/register`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ handle: "owner", displayName: "Owner", password: "password123" }),
+    });
+    const { token } = (await registered.json()) as { token: string };
+    const set = await fetch(`${base}/api/admin/workspace/icon`, {
+      method: "PUT",
+      headers: { authorization: `Bearer ${token}`, "content-type": "image/png" },
+      body: new Uint8Array(png()),
+    });
+    const kept = ((await set.json()) as { iconVersion: string }).iconVersion;
     await real.stop();
     const h = harness({ root });
     const stoppedEntry = async () =>

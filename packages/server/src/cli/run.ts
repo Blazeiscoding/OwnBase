@@ -1,9 +1,9 @@
 import { parseArgs } from "node:util";
-import { flagOrEnv, flagsHelp, parseArgsOptions } from "./flags.js";
+import { envName, envSetting, flagOrEnv, flagsHelp, parseArgsOptions } from "./flags.js";
 import { networkInterfaces } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { existsSync } from "node:fs";
-import { ACCESS_POLICIES, type AccessPolicy, type MemberNotice } from "@ownbase/protocol";
+import { ACCESS_POLICIES, isAccessPolicy, type MemberNotice } from "@ownbase/protocol";
 import { createWorkspaceServer, SERVER_VERSION } from "../server.js";
 import {
   backupWorkspace,
@@ -21,7 +21,6 @@ import { parseIceServers } from "../rtc.js";
 import {
   ConfigError,
   describeStartupError,
-  envSetting,
   keptSettingsNotes,
   parseClaimCode,
   parseMemberNotice,
@@ -364,7 +363,10 @@ ${extensions.map((extension) => `\n${extension.help.replace(/\n+$/, "")}\n`).joi
     relay = relayFromEnvironment(envSetting);
     for (const extension of extensions) {
       made.push(
-        await extension.create(values as Record<string, string | boolean | undefined>, envSetting),
+        await extension.create(
+          values as Record<string, string | boolean | undefined>,
+          (name) => process.env[envName(name)],
+        ),
       );
     }
   } catch (err) {
@@ -440,7 +442,7 @@ ${extensions.map((extension) => `\n${extension.help.replace(/\n+$/, "")}\n`).joi
   }
 
   const accessPolicy = values["access-policy"];
-  if (accessPolicy !== undefined && !ACCESS_POLICIES.includes(accessPolicy as AccessPolicy))
+  if (accessPolicy !== undefined && !isAccessPolicy(accessPolicy))
     refuse(`--access-policy must be one of ${ACCESS_POLICIES.join(", ")}`);
 
   // An isolated copy stays on this machine unless told otherwise, since the
@@ -466,8 +468,10 @@ ${extensions.map((extension) => `\n${extension.help.replace(/\n+$/, "")}\n`).joi
     port,
     host,
     workspaceName: values.name,
-    inviteOnly: values["invite-only"],
-    ...(accessPolicy ? { accessPolicy: accessPolicy as AccessPolicy } : {}),
+    // --invite-only is --access-policy invite_only, which outranks it.
+    ...(accessPolicy || values["invite-only"]
+      ? { accessPolicy: accessPolicy ?? "invite_only" }
+      : {}),
     mdns: !values["no-mdns"],
     isolated: values.isolated,
     webDistPath,
@@ -493,7 +497,7 @@ ${extensions.map((extension) => `\n${extension.help.replace(/\n+$/, "")}\n`).joi
   }
   for (const line of keptSettingsNotes({
     name: values.name,
-    accessPolicy: accessPolicy as AccessPolicy | undefined,
+    accessPolicy,
     inviteOnly: values["invite-only"],
     kept: { name: server.workspaceName(), accessPolicy: server.accessPolicy() },
   })) {

@@ -16,7 +16,7 @@
     {
       "path": "packages/server/src/messages/posting.ts",
       "plain": "The one place that decides whether a message may be posted, whoever it comes from: a person, an app, a webhook or the server's own timer.",
-      "summary": "createPosting({ store, mutate, ration, queuePreviews, scheduledLimits }) gives post() and schedule(); slackRefusal words a refusal for Slack's transports (untangle U4).",
+      "summary": "createPosting({ store, mutate, ration, queuePreviews }) gives post() and schedule(input, limits), the queue limits passed by scheduled/; slackRefusal words a refusal for Slack's transports (untangle U4).",
       "details": [
         "A Poster says who is posting: a person, an app's bot through chat.postMessage, an incoming webhook, or an app's answer to a command or button. post() spends the poster's budget (post per account or bot, hook per webhook), except when delivering a scheduled message (spent when queued) or the server's note about a call.",
         "In one transaction it checks the channel (a person needs access; a bot must be in it, or for a public channel hold chat:write.public through the Web API), a deactivated account, an archived channel, guests making polls, the 12,000-character MESSAGE_TEXT_MAX and an empty message, the send key's replay, polls, thread roots, reply targets, held files and forwards, then writes the message and its events; fan-out and link previews follow the commit.",
@@ -56,9 +56,21 @@
       "details": [
         "message.created's effects stamp the message's seq, follow the thread for the replier and the root's author, tell every follower its new watermark, and recount the mentions of whoever the words name or the reply pings.",
         "message.deleted drops the message's reminders and recounts its conversation's mentions; history.removed recounts too.",
-        "A message.updated that only changes previews or a poll maps to no Slack event (E2, E6)."
+        "A message.updated that only changes previews or a poll maps to no Slack event (E2, E6).",
+        "Each Slack shape is declared with its redact, which takes the words out of a copy still waiting for an app."
       ],
       "concepts": ["event registry", "Slack compatibility", "threads"]
+    },
+    {
+      "path": "packages/server/src/messages/eventLog.ts",
+      "plain": "When a message is edited or deleted, takes its old words out of the saved history of changes and out of updates still waiting to go to apps.",
+      "summary": "redactMessages, requote and reforward: rewrite the event log's and the app queue's copies of a message's words, leaving the events in place.",
+      "details": [
+        "The events stay so a client replaying the log never sees a gap; it replays an empty message followed by the edit or deletion that supersedes it.",
+        "Queued app events are redacted by the event's own app.redact, declared beside its Slack shape in messages/events.ts.",
+        "Replies quoting and messages forwarding the changed one follow its new words, or say it is gone."
+      ],
+      "concepts": ["event log", "privacy", "Slack compatibility"]
     },
     {
       "path": "packages/server/src/channels/events.ts",
@@ -219,9 +231,20 @@
         "A JSON route's handler gets a reply that can set headers and status but not send: what it returns is the answer, checked against the declared type. A sent Fastify reply is thenable, so returning one would have satisfied any declaration.",
         "Bot routes find the app by its token (as a bearer header or a token field) and answer a missing one in Slack's shape; image routes read every body as bytes in a scope of their own.",
         "An onRoute hook refuses any /api/ or /hooks/ route added without a declaration, so a server that starts has every route in a table. ee registers its routes through the same route(), handed over in ExtensionContext.",
-        "signedIn(req) checks the session again by the route's own access, for a handler that yields before it writes."
+        "signedIn(req) checks the session again by the route's own access, for a handler that yields before it writes.",
+        "A ticket route given ?download= is signed in by the ticket (DownloadTickets): only on GET, as the session that asked for it, by the same checks a header gets, with any refusal a 404. ticketFor issues one for the caller's session and the download's own path."
       ],
-      "concepts": ["routing", "access control", "validation", "untangle U2"]
+      "concepts": ["routing", "access control", "validation", "untangle U2", "download tickets"]
+    },
+    {
+      "path": "packages/server/src/core/downloadTickets.ts",
+      "plain": "Hands out one-time links for downloading a file or the workspace copy in the browser, which cannot send the sign-in with a download.",
+      "summary": "DownloadTickets: issue(path, userId, sessionHash) and spend(ticket, path), used by the router for every ticket endpoint.",
+      "details": [
+        "A ticket opens one path, once, for a minute, and stands in for the session that asked for it; it is spent even when tried on the wrong path.",
+        "An account holds at most 64; past that its oldest goes. Only the hash is kept, in memory, so a restart drops the unspent ones."
+      ],
+      "concepts": ["download tickets", "bounded memory", "capability lifetime"]
     },
     {
       "path": "packages/server/src/twoStep.ts",
@@ -275,7 +298,7 @@
     {
       "path": "packages/server/src/backups/feature.ts",
       "plain": "Takes backups on a timer and makes the copy of the workspace the owner downloads.",
-      "summary": "registerBackups: scheduled backups (P3), the owner's workspace copy and its one-use download tickets (P4), and the backup summary in workspace status.",
+      "summary": "registerBackups: scheduled backups (P3), the owner's workspace copy and its download through a one-use ticket (P4), and the backup summary in workspace status.",
       "details": [
         "scheduledBackupsOf refuses, before the database opens, schedules that cannot work: in memory, a non-positive interval, keeping none, or a backup folder inside the workspace or around it. An isolated copy takes none.",
         "Making a copy is refused with 507 when the disk would have less than 64 MB left after it.",
@@ -437,8 +460,8 @@
       "concepts": ["data portability", "download ticket", "backup", "P4"]
     },
     {
-      "path": "packages/server/src/admin/workspaceIcon.ts",
-      "plain": "Checks a workspace's icon before it is kept: only a small PNG, JPEG or WebP picture, judged by what the file really is rather than by what it says it is.",
+      "path": "packages/server/src/core/workspaceIcon.ts",
+      "plain": "Checks a workspace's icon or a profile picture before it is kept: only a small PNG, JPEG or WebP picture, judged by what the file really is rather than by what it says it is.",
       "summary": "Validates, versions and stores the workspace icon without decoding it (UX-60).",
       "details": [
         "iconTypeOf reads the first bytes for the PNG, JPEG and WebP signatures. checkIcon refuses a declared type that is not one of those three (415, so SVG and its script never get in), a body over WORKSPACE_ICON_MAX_BYTES (413), bytes that are none of them or disagree with the declared type (400), and a header claiming more than 1024 pixels a side, which every client would have to decode.",
@@ -681,6 +704,15 @@
       "concepts": ["CSP", "browser security", "multi-workspace"]
     },
     {
+      "path": "packages/server/src/options.ts",
+      "plain": "Lists every choice a workspace server is started with, by the command line, the desktop app or a test.",
+      "summary": "ServerOptions, apart from server.ts so core/ can name it without importing the composition root.",
+      "details": [
+        "Each option says its default and why it is off or on by default. Options that only tests set are marked as such."
+      ],
+      "concepts": ["server options"]
+    },
+    {
       "path": "packages/server/src/server.ts",
       "plain": "The heart of the server, which answers the app, checks who may do what, saves messages and files, and runs background chores.",
       "summary": "Composes the workspace HTTP API, authorization, background work and lifecycle.",
@@ -700,8 +732,8 @@
         "GET /api/channels/:id/messages/:messageId gives one message to anyone who can read its conversation, guests included, for the card under a link to it. A message deleted, or under another conversation's id, is a 404, as is one in a conversation the reader cannot see.",
         "A status can end by itself (UX-61): PATCH /api/me takes statusExpiresAt, and a new status without one drops an earlier end. One timer waits for the soonest end, clears every status due then and sends user.updated to everyone, as if its owner had cleared it; on start it clears what ended while the server was stopped.",
         "A slash command whose app answered an error status, could not be reached or was blocked answers ok: false, command_failed, with the reason in message as well as in the private note to the channel, for the test in Apps and integrations (UX-63). Older clients read only ok and error.",
-        "The workspace's name and who may join belong to the workspace (UX-60). PUT /api/admin/workspace/name and /access-policy, owner or admin only, go through admin/workspace.ts's rename and changeAccessPolicy, the same functions the desktop host's setWorkspaceName, setAccessPolicy and setInviteOnly call, so the two cannot drift. Each writes the audit record in the same transaction (the host as a null actor), tells every socket (workspace.renamed, workspace.accessPolicy), signs guests out with their sockets when they are no longer allowed, and tells onWorkspaceChange listeners. The start options workspaceName, accessPolicy and inviteOnly set up a workspace with no accounts only; once it has one, a start never puts back an older choice.",
-        "The workspace's icon (UX-60): PUT /api/admin/workspace/icon takes the image itself as the body (a scoped parser reads every type as bytes, so workspaceIcon.ts's check answers) and DELETE removes it, both for the owner and admins. One changeIcon (admin/workspace.ts), which the host's setWorkspaceIcon and removeWorkspaceIcon also use, writes the meta rows and a workspace.icon_changed audit entry naming type and size but never the image, broadcasts workspace.icon to everyone signed in and tells onWorkspaceChange. GET /api/workspace/icon serves it to anyone, under the publicByAddress allowance, typed from the checked bytes with nosniff and an ETag; with ?v= of the current version it may be cached for a year, otherwise it is revalidated, and it answers 404 when there is none. /api/server-info carries iconVersion so the join card can show it before sign-in.",
+        "The workspace's name and who may join belong to the workspace (UX-60). PUT /api/admin/workspace/name and /access-policy, owner or admin only, go through admin/workspace.ts's rename and changeAccessPolicy, the same functions the desktop host's setWorkspaceName, setAccessPolicy and setInviteOnly call, so the two cannot drift. Each writes the audit record in the same transaction (the host as a null actor), tells every socket (workspace.renamed, workspace.accessPolicy), signs guests out with their sockets when they are no longer allowed, and tells onWorkspaceChange listeners. The start options workspaceName and accessPolicy (the command line turns --invite-only into accessPolicy invite_only) set up a workspace with no accounts only; once it has one, a start never puts back an older choice.",
+        "The workspace's icon (UX-60): PUT /api/admin/workspace/icon takes the image itself as the body (a scoped parser reads every type as bytes, so workspaceIcon.ts's check answers) and DELETE removes it, both for the owner and admins. One changeIcon (admin/workspace.ts) writes the meta rows and a workspace.icon_changed audit entry naming type and size but never the image, broadcasts workspace.icon to everyone signed in and tells onWorkspaceChange. GET /api/workspace/icon serves it to anyone, under the publicByAddress allowance, typed from the checked bytes with nosniff and an ETag; with ?v= of the current version it may be cached for a year, otherwise it is revalidated, and it answers 404 when there is none. /api/server-info carries iconVersion so the join card can show it before sign-in.",
         "A send can carry forwardFrom (E1). The sender must be able to read that message now: a missing, deleted or unreadable one answers 404 message_not_found. A forward with no words or files of its own passes on its original instead, and when the sender cannot read that original or it is gone the send answers 409 forward_unavailable. The forwarded id is part of the send's nonce identity.",
         "Link previews (E2): after a send or an edit commits, queuePreviews puts the message in a queue of at most 200 worked by two fetches at a time, unless the workspace is an isolated copy or previews are off (meta link_previews). findPreviews fetches the links it has no row for, through a cache of 25 addresses for half an hour shared by concurrent sends, then in one change adds what it found and emits message.updated with previewsOnly, unless the message was edited or deleted meanwhile. Shutdown aborts fetches under way.",
         "GET /api/link-previews/:id/image serves a preview's picture to readers of its message as the type its bytes said, with nosniff, no-store and a sandboxing CSP. DELETE /api/link-previews/:id is for the message's sender. PUT /api/admin/workspace/link-previews, for the owner and admins, records workspace.link_previews_changed and tells everyone signed in with workspace.linkPreviews. ServerOptions.fetchLinkPreview replaces the network fetch in tests.",
@@ -1017,6 +1049,15 @@
       "concepts": ["license keys", "Ed25519", "offline", "P6"]
     },
     {
+      "path": "ee/src/licenseEnv.ts",
+      "plain": "Names the environment variables a license is read from, so the hosting control plane passes the same ones on.",
+      "summary": "LICENSE_ENV: LICENSE_FILE and LICENSE, read as OWNBASE_<name> by the command-line extension.",
+      "details": [
+        "Kept apart from enterprise.ts so ee/cloud can import the names without bundling the edition itself."
+      ],
+      "concepts": ["license keys", "P6"]
+    },
+    {
       "path": "ee/src/keys.ts",
       "plain": "Lists the public keys whose licenses this build accepts. The private keys are kept elsewhere, never here.",
       "summary": "TRUSTED_LICENSE_KEYS, base64url raw Ed25519 public keys, empty until the first key is made.",
@@ -1274,6 +1315,7 @@
       "summary": "Lifecycle: closing flag, shutdown signal, interval timers, close and drain hooks.",
       "details": [
         "Features register intervals and close hooks here; stop() closes them before waiting on anything, then aborts outbound calls.",
+        "laterTurn(work) gives a queue that took a full page its next page on a later turn (the attachment cleanup and the scheduled queue), asked for once however often, and dropped on close.",
         "Drains (attachment removals, app event deliveries) run after the last request handler finishes and before the database closes."
       ],
       "concepts": ["shutdown", "timers"]
@@ -1499,15 +1541,15 @@
       "summary": "Upload, download, download-ticket, shared-files and storage routes, the blob removal queue and its timers.",
       "details": [
         "Uploads stream to disk under the storage budget; a picture's size is read from its header.",
-        "Downloads are checked again when a one-minute, single-use ticket is redeemed.",
+        "A download ticket is issued through the router (ticketFor) for the file's path; a ticketed download is an attachment, and access is checked again after the disk is read.",
         "Blob removals go a page at a time and wait while a backup copies attachments (holdingRemovals); orphaned blobs are queued at startup and abandoned uploads are freed hourly."
       ],
       "concepts": ["attachments", "storage budget", "feature module"]
     },
     {
       "path": "packages/server/src/files/store.ts",
-      "plain": "Saves attachments' details, download tickets and the list of files waiting to be removed.",
-      "summary": "FileStore: files rows, shared files, download tickets and the file deletion queue with its retry ladder.",
+      "plain": "Saves attachments' details and the list of files waiting to be removed.",
+      "summary": "FileStore: files rows, shared files and the file deletion queue with its retry ladder.",
       "details": [
         "A file waiting for a scheduled message is never counted as abandoned.",
         "A deletion that fails waits longer each time (DELETION_RETRY_MS); an id the server never gives is set aside for good."
@@ -1601,12 +1643,13 @@
       "concepts": ["sessions", "invites", "queries"]
     },
     {
-      "path": "packages/server/src/sso/feature.ts",
+      "path": "packages/server/src/extensionHost.ts",
       "plain": "Plugs in the server's extensions, such as single sign-on, and gives them a way to make members and sign them in.",
       "summary": "registerExtensions: hands each extension its routes, storage, member count, user lookup, member creation and session start.",
       "details": [
         "An extension's storage is its own prefixed rows (Settings.extensionStorage), apart from the workspace's settings.",
-        "Members an extension makes have a password nobody knows and join the public channels as anyone joining does; none can be made while nobody owns the workspace."
+        "Members an extension makes have a password nobody knows, a username and name held to joining's rules, and join the public channels through accounts' makeMember as anyone joining does; none can be made while nobody owns the workspace.",
+        "Sessions start through accounts' startSession, the same step every sign-in takes."
       ],
       "concepts": ["extensions", "single sign-on", "feature module"]
     }

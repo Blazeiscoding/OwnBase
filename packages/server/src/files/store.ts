@@ -40,15 +40,11 @@ const deletionCountsRow = shape({
   rejected: "number",
   oldest: "number?",
 });
-const ticketRow = shape({
-  file_id: "text",
-  user_id: "text",
-  session_hash: "text",
-  expires_at: "number",
-});
 
-/** Attachments: their rows, their download tickets, and the queue that removes their blobs. */
+/** Attachments: their rows, and the queue that removes their blobs. */
 export class FileStore {
+  private removalsQueued = false;
+
   constructor(
     private readonly db: DatabaseSync,
     private readonly store: Store,
@@ -246,81 +242,18 @@ export class FileStore {
    * been given up on. An upload sits unattached for the moment between choosing
    * a file and sending it, so only age separates that from an abandoned draft.
    *
-   * Returns null when the scheduled queue cannot be read, which means some
-   * unknown set of files is still spoken for. Sweeping on a guess would delete
-   * attachments a queued message still needs, so the caller does nothing.
+   * One a scheduled message holds is not given up on.
    */
-  abandonedIds(olderThan: number): ID[] | null {
-    const spokenFor = new Set<ID>();
-    for (const row of shape({ file_ids: "text" }).all(
-      this.db.prepare("SELECT file_ids FROM scheduled_messages"),
-    )) {
-      let ids: unknown;
-      try {
-        ids = JSON.parse(row.file_ids);
-      } catch {
-        return null;
-      }
-      if (!Array.isArray(ids)) return null;
-      for (const id of ids) spokenFor.add(String(id));
-    }
-    for (const row of fileIdRow.all(this.db.prepare("SELECT file_id FROM scheduled_files")))
-      spokenFor.add(row.file_id);
-    const candidates = idRow.all(
-      this.db.prepare("SELECT id FROM files WHERE message_id IS NULL AND created_at < ?"),
-      olderThan,
-    );
-    return candidates.map((row) => row.id).filter((id) => !spokenFor.has(id));
-  }
-
-  /**
-   * A one-shot ticket letting a browser fetch one file without a header it
-   * cannot set on a navigation. Only the hash is stored, as with session
-   * tokens, so the table is not a list of working credentials.
-   */
-  createDownloadToken(
-    tokenHash: string,
-    fileId: ID,
-    userId: ID,
-    sessionHash: string,
-    expiresAt: number,
-  ): void {
-    this.store.transaction(() => {
-      this.pruneDownloadTokens();
-      this.db
-        .prepare(
-          "DELETE FROM download_tokens WHERE token_hash IN (SELECT token_hash FROM download_tokens WHERE user_id = ? ORDER BY expires_at DESC, token_hash DESC LIMIT -1 OFFSET 63)",
-        )
-        .run(userId);
-      this.db
-        .prepare(
-          "INSERT INTO download_tokens (token_hash, file_id, user_id, session_hash, expires_at) VALUES (?, ?, ?, ?, ?)",
-        )
-        .run(tokenHash, fileId, userId, sessionHash, expiresAt);
-    });
-  }
-
-  /**
-   * Spends a ticket. Deleting and reading in one statement is what makes it
-   * single use: two requests arriving together cannot both be served.
-   */
-  consumeDownloadToken(
-    tokenHash: string,
-    now = Date.now(),
-  ): { fileId: ID; userId: ID; sessionHash: string } | null {
-    const row = ticketRow.get(
-      this.db.prepare(
-        "DELETE FROM download_tokens WHERE token_hash = ? RETURNING file_id, user_id, session_hash, expires_at",
-      ),
-      tokenHash,
-    );
-    if (!row || row.expires_at <= now) return null;
-    return { fileId: row.file_id, userId: row.user_id, sessionHash: row.session_hash };
-  }
-
-  /** Tickets nobody spent. They are short-lived, so this is just tidying. */
-  pruneDownloadTokens(now = Date.now()): void {
-    this.db.prepare("DELETE FROM download_tokens WHERE expires_at <= ?").run(now);
+  abandonedIds(olderThan: number): ID[] {
+    return idRow
+      .all(
+        this.db.prepare(
+          `SELECT id FROM files WHERE message_id IS NULL AND created_at < ?
+           AND id NOT IN (SELECT file_id FROM scheduled_files)`,
+        ),
+        olderThan,
+      )
+      .map((row) => row.id);
   }
 
   /**
@@ -355,12 +288,21 @@ export class FileStore {
     for (const id of fileIds) stmt.run(id);
   }
 
+  /** Queues these files' blobs for removal, in the transaction that removed their rows. */
   queueDeletions(fileIds: ID[]): void {
     const stmt = this.db.prepare(
       "INSERT OR IGNORE INTO pending_file_deletions (file_id, queued_at) VALUES (?, ?)",
     );
     const now = Date.now();
     for (const id of fileIds) stmt.run(id, now);
+    if (fileIds.length > 0) this.removalsQueued = true;
+  }
+
+  /** Whether removals were queued since this was last asked. */
+  takeRemovalsQueued(): boolean {
+    const queued = this.removalsQueued;
+    this.removalsQueued = false;
+    return queued;
   }
 
   /** Every removal still to do, set-aside ones included, oldest first. */

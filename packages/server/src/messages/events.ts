@@ -1,4 +1,22 @@
+import type { Message } from "@ownbase/protocol";
 import type { DurableRegistry, EphemeralRegistry } from "../events/registry.js";
+
+const slackPosted = (m: Message) => ({
+  type: "message",
+  channel: m.channelId,
+  user: m.userId,
+  text: m.text,
+  ts: m.id,
+  ...(m.threadRootId ? { thread_ts: m.threadRootId } : {}),
+});
+
+const slackChanged = (m: Message) => ({
+  type: "message",
+  subtype: "message_changed",
+  channel: m.channelId,
+  ts: m.id,
+  message: { type: "message", user: m.userId, text: m.text, ts: m.id },
+});
 
 /**
  * The events of messages, reactions and threads. `ts` in a Slack shape
@@ -8,6 +26,7 @@ import type { DurableRegistry, EphemeralRegistry } from "../events/registry.js";
 export const messageDurable = {
   "message.created": {
     channel: (event) => event.message.channelId,
+    message: (event) => event.message.id,
     effects(event, seq, store) {
       const message = event.message;
       store.messages.stampSeq(
@@ -42,40 +61,26 @@ export const messageDurable = {
     },
     app: {
       actor: (event) => event.message.userId,
-      slack: ({ message: m }) => ({
-        type: "message",
-        channel: m.channelId,
-        user: m.userId,
-        text: m.text,
-        ts: m.id,
-        ...(m.threadRootId ? { thread_ts: m.threadRootId } : {}),
-      }),
+      slack: (event) => slackPosted(event.message),
+      redact: (posted: ReturnType<typeof slackPosted>) => ({ ...posted, text: "" }),
     },
   },
   "message.updated": {
     channel: (event) => event.message.channelId,
+    message: (event) => event.message.id,
     app: {
       actor: (event) => event.message.userId,
-      slack: (event) =>
-        // Previews found or removed, and a poll's votes, change nothing an app was told (E2, E6).
-        event.previewsOnly || event.pollOnly
-          ? null
-          : {
-              type: "message",
-              subtype: "message_changed",
-              channel: event.message.channelId,
-              ts: event.message.id,
-              message: {
-                type: "message",
-                user: event.message.userId,
-                text: event.message.text,
-                ts: event.message.id,
-              },
-            },
+      // Previews found or removed, and a poll's votes, change nothing an app was told (E2, E6).
+      slack: (event) => (event.previewsOnly || event.pollOnly ? null : slackChanged(event.message)),
+      redact: (changed: ReturnType<typeof slackChanged>) => ({
+        ...changed,
+        message: { ...changed.message, text: "" },
+      }),
     },
   },
   "message.deleted": {
     channel: (event) => event.channelId,
+    message: (event) => event.messageId,
     effects(event, _seq, store) {
       store.reminders.dropForMessage(event.messageId);
       store.outbox.mentionsIn(event.channelId);

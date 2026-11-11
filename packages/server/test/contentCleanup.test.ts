@@ -163,10 +163,11 @@ describe("complete message content cleanup (N06/N07)", () => {
       nonce: null,
       actions,
     });
-    const before = server.store.appendEvent({ type: "message.created", message }, channel).seq - 1;
+    const before =
+      server.store.appendEvent({ type: "message.created", message }, channel, message.id).seq - 1;
     server.store.transaction(() => {
       const edited = server.store.messages.edit(message.id, "Updated agenda");
-      server.store.appendEvent({ type: "message.updated", message: edited }, channel);
+      server.store.appendEvent({ type: "message.updated", message: edited }, channel, edited.id);
     });
     const versions = (await replay(before)).filter((m) => m.id === message.id);
     expect(versions).toHaveLength(2);
@@ -301,43 +302,34 @@ describe("complete message content cleanup (N06/N07)", () => {
       const live = make("Original");
       const purged = make("Expired");
       for (const message of [deleted, live, purged])
-        store.appendEvent({ type: "message.created", message }, room.id);
+        store.appendEvent({ type: "message.created", message }, room.id, message.id);
       db.prepare("UPDATE messages SET text = '', deleted_at = 1 WHERE id = ?").run(deleted.id);
       db.prepare("DELETE FROM messages WHERE id = ?").run(purged.id);
       db.prepare("UPDATE messages SET text = 'Current', edited_at = 1 WHERE id = ?").run(live.id);
       const latest = store.appendEvent(
         { type: "message.updated", message: asWritten(live.id) },
         room.id,
+        live.id,
       );
       // v36 already scrubbed old text/files, but retained their actions.
       db.prepare(
         "UPDATE events SET payload = json_set(payload, '$.message.text', '', '$.message.files', json('[]')) WHERE seq < ?",
       ).run(latest.seq);
-      const sent = store.scheduled.schedule({
-        channelId: room.id,
-        userId: user.id,
-        text: "Old sent words",
-        fileIds: [],
-        threadRootId: null,
-        sendAt: 1,
-      });
-      db.prepare(
-        "UPDATE scheduled_messages SET status = 'sent', file_ids = '[\"old-file\"]' WHERE id = ?",
-      ).run(sent.id);
-      const outstanding = ["queued", "held", "failed"].map((status) => {
-        const scheduled = store.scheduled.schedule({
-          channelId: room.id,
-          userId: user.id,
-          text: `${status} words`,
-          fileIds: [],
-          threadRootId: null,
-          sendAt: 100,
-        });
+      // Queued as v36 did, its files a JSON list beside the message.
+      const scheduled = (status: string, text: string, fileIds: string) => {
+        const id = ulid();
         db!
-          .prepare("UPDATE scheduled_messages SET status = ? WHERE id = ?")
-          .run(status, scheduled.id);
-        return scheduled.id;
-      });
+          .prepare(
+            `INSERT INTO scheduled_messages (id, channel_id, user_id, text, file_ids, send_at, created_at, status)
+             VALUES (?, ?, ?, ?, ?, 100, ?, ?)`,
+          )
+          .run(id, room.id, user.id, text, fileIds, Date.now(), status);
+        return { id };
+      };
+      const sent = scheduled("sent", "Old sent words", '["old-file"]');
+      const outstanding = ["queued", "held", "failed"].map(
+        (status) => scheduled(status, `${status} words`, "[]").id,
+      );
       db.close();
       db = openDb(path);
       expect(db.prepare("PRAGMA user_version").get()).toEqual({ user_version: SCHEMA_VERSION });

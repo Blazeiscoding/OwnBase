@@ -12,6 +12,7 @@ const scheduledRow = shape({
   user_id: "text",
   text: "text",
   thread_root_id: "text?",
+  /** A JSON list, made by `SELECTED` from scheduled_files. */
   file_ids: "text",
   send_at: "number",
   created_at: "number",
@@ -24,6 +25,10 @@ const scheduledRow = shape({
   message_id: "text?",
   broadcast: "number",
 });
+/** Every column, with the files the message holds in the order they were chosen. */
+const SELECTED = `SELECT s.*, (
+    SELECT json_group_array(file_id ORDER BY position) FROM scheduled_files WHERE scheduled_id = s.id
+  ) AS file_ids FROM scheduled_messages s`;
 const authorRow = scheduledRow.pick("user_id");
 const heldRow = scheduledRow.pick("user_id", "status", "failure_reason");
 const attemptsRow = scheduledRow.pick("attempts");
@@ -70,8 +75,8 @@ export class ScheduledStore {
     this.db
       .prepare(
         `INSERT INTO scheduled_messages
-           (id, channel_id, user_id, text, thread_root_id, file_ids, send_at, created_at, broadcast)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+           (id, channel_id, user_id, text, thread_root_id, send_at, created_at, broadcast)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
       )
       .run(
         id,
@@ -79,7 +84,6 @@ export class ScheduledStore {
         input.userId,
         input.text,
         input.threadRootId,
-        JSON.stringify(input.fileIds),
         input.sendAt,
         now,
         input.threadRootId && input.broadcast ? 1 : 0,
@@ -87,9 +91,9 @@ export class ScheduledStore {
     // The key refuses a file some other scheduled message already holds, so
     // the caller's checks and this row cannot disagree.
     const hold = this.db.prepare(
-      "INSERT INTO scheduled_files (file_id, scheduled_id) VALUES (?, ?)",
+      "INSERT INTO scheduled_files (file_id, scheduled_id, position) VALUES (?, ?, ?)",
     );
-    for (const fileId of input.fileIds) hold.run(fileId, id);
+    input.fileIds.forEach((fileId, position) => hold.run(fileId, id, position));
     this.tell(input.userId);
     return this.get(id)!;
   }
@@ -104,13 +108,6 @@ export class ScheduledStore {
   }
 
   private fromRow(r: RowOf<typeof scheduledRow.columns>): ScheduledMessage {
-    let fileIds: ID[] = [];
-    try {
-      const parsed: unknown = JSON.parse(r.file_ids);
-      if (Array.isArray(parsed)) fileIds = parsed.map(String);
-    } catch {
-      /* a corrupt row should not sink the whole list */
-    }
     return {
       id: r.id,
       channelId: r.channel_id,
@@ -118,7 +115,7 @@ export class ScheduledStore {
       text: r.text,
       threadRootId: r.thread_root_id,
       broadcast: r.broadcast === 1,
-      fileIds,
+      fileIds: JSON.parse(r.file_ids) as ID[],
       sendAt: r.send_at,
       createdAt: r.created_at,
       status: r.status,
@@ -129,19 +126,14 @@ export class ScheduledStore {
   }
 
   get(id: ID): ScheduledMessage | null {
-    const r = scheduledRow.get(
-      this.db.prepare("SELECT * FROM scheduled_messages WHERE id = ?"),
-      id,
-    );
+    const r = scheduledRow.get(this.db.prepare(`${SELECTED} WHERE id = ?`), id);
     return r ? this.fromRow(r) : null;
   }
 
   /** One user's outstanding messages, soonest first. Delivered ones are done. */
   list(userId: ID): ScheduledMessage[] {
     const rows = scheduledRow.all(
-      this.db.prepare(
-        "SELECT * FROM scheduled_messages WHERE user_id = ? AND status != 'sent' ORDER BY send_at",
-      ),
+      this.db.prepare(`${SELECTED} WHERE user_id = ? AND status != 'sent' ORDER BY send_at`),
       userId,
     );
     return rows.map((r) => this.fromRow(r));
@@ -158,7 +150,7 @@ export class ScheduledStore {
   due(now = Date.now(), limit = 50): ScheduledMessage[] {
     const rows = scheduledRow.all(
       this.db.prepare(
-        `SELECT * FROM scheduled_messages
+        `${SELECTED}
          WHERE send_at <= ? AND (
            status = 'queued' OR (status = 'held' AND next_attempt_at <= ?)
          )
@@ -215,7 +207,7 @@ export class ScheduledStore {
     const row = authorRow.get(
       this.db.prepare(
         `UPDATE scheduled_messages SET status = 'sent', message_id = ?, failure_reason = NULL,
-           text = '', file_ids = '[]' WHERE id = ? RETURNING user_id`,
+           text = '' WHERE id = ? RETURNING user_id`,
       ),
       messageId,
       id,

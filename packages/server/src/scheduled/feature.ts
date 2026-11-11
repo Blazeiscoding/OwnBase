@@ -31,17 +31,20 @@ export function registerScheduled(ctx: ServerContext, { posting }: { posting: Po
   const scheduledLimits = { ...SCHEDULED_LIMITS, ...opts.scheduledLimits };
 
   route(endpoints.scheduleMessage, async ({ reply, user: me, body, params }) => {
-    const result = posting.schedule({
-      userId: me.id,
-      channelId: params.id,
-      text: body.text,
-      threadRootId: body.threadRootId ?? null,
-      fileIds: body.fileIds ?? [],
-      sendAt: body.sendAt,
-      // Only a reply can also be shown in the channel, as with an ordinary send.
-      broadcast: !!body.threadRootId && body.alsoSendToChannel === true,
-      nonce: body.nonce ?? null,
-    });
+    const result = posting.schedule(
+      {
+        userId: me.id,
+        channelId: params.id,
+        text: body.text,
+        threadRootId: body.threadRootId ?? null,
+        fileIds: body.fileIds ?? [],
+        sendAt: body.sendAt,
+        // Only a reply can also be shown in the channel, as with an ordinary send.
+        broadcast: !!body.threadRootId && body.alsoSendToChannel === true,
+        nonce: body.nonce ?? null,
+      },
+      scheduledLimits,
+    );
     if (result.replayed) reply.status(200);
     return { scheduled: result.scheduled };
   });
@@ -87,7 +90,6 @@ export function registerScheduled(ctx: ServerContext, { posting }: { posting: Po
     return { scheduled: store.scheduled.get(scheduled.id)! };
   });
 
-  let scheduledDrain: ReturnType<typeof setImmediate> | null = null;
   /**
    * Posts anything that has come due. Runs on a timer and once at startup, so
    * messages scheduled while the server was down still go out.
@@ -110,15 +112,10 @@ export function registerScheduled(ctx: ServerContext, { posting }: { posting: Po
         app.log.error({ err, scheduledId: item.id }, "scheduled message not handled; it stays due");
       }
     }
-    // A full batch may mean more are due. They are taken on a later turn, so
-    // the window and every other request get the loop between batches.
-    if (due.length === scheduledLimits.batch && !scheduledDrain && !lifecycle.closing) {
-      scheduledDrain = setImmediate(() => {
-        scheduledDrain = null;
-        background.run("scheduled messages", flushScheduled);
-      });
-    }
+    // A full batch may mean more are due.
+    if (due.length === scheduledLimits.batch) nextBatch();
   };
+  const nextBatch = lifecycle.laterTurn(() => background.run("scheduled messages", flushScheduled));
   /**
    * What the author can clear holds a row until they do; what they cannot
    * fails it. Either way it is said in words for their list.
@@ -171,21 +168,19 @@ export function registerScheduled(ctx: ServerContext, { posting }: { posting: Po
     }
   };
 
-  lifecycle.onClose(() => {
-    if (scheduledDrain) clearImmediate(scheduledDrain);
+  // What came due while the server was stopped, then every 15 seconds.
+  lifecycle.onStart(() => {
+    background.run("scheduled messages", flushScheduled);
+    lifecycle.every(15_000, () => background.run("scheduled messages", flushScheduled));
   });
+  lifecycle.hourly(() =>
+    background.maintain("scheduled", () =>
+      store.scheduled.prune(Date.now() - SCHEDULED_RETENTION_MS),
+    ),
+  );
 
   return {
     /** Posts anything now due. Runs on a timer; exposed so tests need not wait. */
     flush: flushScheduled,
-    /** Posts what came due while the server was stopped, then every 15 seconds. */
-    start() {
-      background.run("scheduled messages", flushScheduled);
-      lifecycle.every(15_000, () => background.run("scheduled messages", flushScheduled));
-    },
-    hourly: () =>
-      background.maintain("scheduled", () =>
-        store.scheduled.prune(Date.now() - SCHEDULED_RETENTION_MS),
-      ),
   };
 }

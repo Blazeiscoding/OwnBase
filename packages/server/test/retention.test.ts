@@ -36,6 +36,9 @@ async function api(path: string, method: string, body?: unknown) {
   return { status: response.status, body: (await response.json().catch(() => null)) as any };
 }
 
+/** How retention sweeps have gone, as the owner's workspace status says. */
+const retention = async () => (await api("/api/admin/status", "GET")).body.retention;
+
 async function signIn() {
   const registered = await api("/api/auth/register", "POST", {
     handle: "owner",
@@ -472,7 +475,7 @@ describe("a retention window over a large backlog", () => {
     // The timer's round keeps going until nothing is left.
     expect(await server!.sweepRetention()).toBe(5);
     expect(countMessages()).toBe(0);
-    expect(server!.retentionStatus()).toMatchObject({ lastError: null, failures: 0 });
+    expect(await retention()).toMatchObject({ failures: 0 });
   });
 
   it("records a failed sweep instead of throwing, and clears it once one succeeds", async () => {
@@ -487,11 +490,7 @@ describe("a retention window over a large backlog", () => {
     try {
       // From a timer, a throw here would have ended the process.
       await expect(server!.sweepRetention()).resolves.toBe(0);
-      expect(server!.retentionStatus()).toMatchObject({
-        lastError: "disk I/O error",
-        failures: 1,
-        lastSuccessAt: null,
-      });
+      expect(await retention()).toMatchObject({ failures: 1, lastSuccessAt: null });
       // The failed pass rolled back whole; nothing is half removed.
       expect(countMessages()).toBe(3);
     } finally {
@@ -499,8 +498,7 @@ describe("a retention window over a large backlog", () => {
     }
 
     expect(await server!.sweepRetention()).toBe(3);
-    expect(server!.retentionStatus()).toMatchObject({ lastError: null, failures: 0 });
-    expect(server!.retentionStatus().lastSuccessAt).not.toBeNull();
+    expect(await retention()).toMatchObject({ failures: 0, lastSuccessAt: expect.any(Number) });
   });
 
   it("still keeps a large thread whose newest reply is inside the window", async () => {

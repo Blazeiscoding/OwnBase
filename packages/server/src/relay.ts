@@ -1,5 +1,6 @@
 import { createHmac } from "node:crypto";
 import { z } from "zod";
+import type { EnvName } from "./cli/flags.js";
 import { ConfigError } from "./config.js";
 import { iceServersSchema } from "./rtc.js";
 
@@ -235,7 +236,7 @@ export function withRelay(base: IceServer[], relay: IceServer[]): IceServer[] {
  * only one may be set. A relay with a fixed password goes in OWNBASE_ICE_SERVERS.
  */
 export function relayFromEnvironment(
-  setting: (name: string) => string | undefined,
+  setting: (name: EnvName) => string | undefined,
 ): ServerRelay | null {
   const urls = setting("TURN_URLS")?.trim();
   const sharedSecret = setting("TURN_SECRET")?.trim();

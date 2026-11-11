@@ -1,24 +1,18 @@
 import {
   ACCESS_POLICIES,
   DEFAULT_PORT,
+  isAccessPolicy,
   type AccessPolicy,
   type ID,
-  type MemberNotice,
 } from "@ownbase/protocol";
 import { randomUUID } from "node:crypto";
 import { join } from "node:path";
 import { registerAccounts } from "./accounts/feature.js";
 import { registerApps } from "./apps/feature.js";
 import { registerAdmin } from "./admin/feature.js";
-import {
-  checkWorkspaceOptions,
-  createWorkspace,
-  isAccessPolicy,
-  type WorkspaceChange,
-} from "./admin/workspace.js";
+import { checkWorkspaceOptions, createWorkspace, type WorkspaceChange } from "./admin/workspace.js";
 import { registerBackups, scheduledBackupsOf } from "./backups/feature.js";
-import type { BackupManifest } from "./backups/backup.js";
-import { type BackupScheduleStatus, type ScheduledBackups } from "./backups/backupSchedule.js";
+import { type BackupScheduleStatus } from "./backups/backupSchedule.js";
 import { registerChannels } from "./channels/feature.js";
 import { parsePort } from "./config.js";
 import { BackgroundWork } from "./core/background.js";
@@ -28,197 +22,31 @@ import { createHttp } from "./core/http.js";
 import { Lifecycle } from "./core/lifecycle.js";
 import { Network } from "./core/network.js";
 import { openDb } from "./db.js";
-import type { ServerExtension } from "./extensions.js";
+import type { ServerOptions } from "./options.js";
 import { maxFileSizeOf, registerFiles } from "./files/feature.js";
 import { Gateway } from "./gateway.js";
 import { registerHuddles } from "./huddles/feature.js";
-import { DEFAULT_LIMITS, RateLimiter, type Limits } from "./limits.js";
-import { type FetchedPreview } from "./linkPreview.js";
+import { DEFAULT_LIMITS, RateLimiter } from "./limits.js";
 import { advertise, type MdnsHandle } from "./mdns.js";
-import { registerMessages, type RetentionStatus } from "./messages/feature.js";
+import { registerMessages } from "./messages/feature.js";
 import { holdWorkspace, type WorkspaceHold } from "./core/ownership.js";
 import { registerPeople } from "./people/feature.js";
 import { registerPolls } from "./polls/feature.js";
 import { serverRelaySchema, type ServerRelay } from "./relay.js";
-import { registerReminders, REMINDER_LIMITS } from "./reminders/feature.js";
+import { registerReminders } from "./reminders/feature.js";
 import { createRouter } from "./route.js";
 import { registerSaved } from "./saved/feature.js";
-import { registerScheduled, SCHEDULED_LIMITS } from "./scheduled/feature.js";
+import { registerScheduled } from "./scheduled/feature.js";
 import { registerSearch } from "./search/feature.js";
-import { registerExtensions } from "./sso/feature.js";
+import { registerExtensions } from "./extensionHost.js";
 import { Store } from "./store.js";
 import { registerThreads } from "./threads/feature.js";
 import { SERVER_VERSION } from "./version.js";
-import { checkIcon, type WorkspaceIcon } from "./admin/workspaceIcon.js";
+import type { WorkspaceIcon } from "./core/workspaceIcon.js";
 
+export type { ServerOptions } from "./options.js";
 export { GUEST_SESSION_TTL_MS } from "./accounts/feature.js";
-export type { RetentionStatus } from "./messages/feature.js";
 export { SERVER_VERSION };
-
-export interface ServerOptions {
-  /** Directory holding workspace.db and uploads. Use ":memory:" for tests. */
-  dataDir: string;
-  port?: number;
-  host?: string;
-  /**
-   * The name of a workspace nobody owns yet. Once it has an owner the name is
-   * the workspace's own, changed by its owner and admins, and this is ignored.
-   */
-  workspaceName?: string;
-  /**
-   * Whether an account after the first needs an invite code, for a workspace
-   * nobody owns yet; ignored, like `accessPolicy`, once it has an owner.
-   */
-  inviteOnly?: boolean;
-  /**
-   * Who may join a workspace nobody owns yet; takes precedence over
-   * `inviteOnly`. Once it has an owner, who may join is the workspace's own
-   * choice, made by its owner and admins in Workspace settings, and a start
-   * never puts back an older one over it.
-   */
-  accessPolicy?: AccessPolicy;
-  /** Advertise on the LAN via mDNS. Default true. */
-  mdns?: boolean;
-  /** Directory with the built web client; served at / so browsers can join too. */
-  webDistPath?: string;
-  /** Max upload size in bytes. Default 100 MB. */
-  maxFileSize?: number;
-  /** Attachment storage cap in bytes, including pending uploads. Zero/omitted is unlimited. */
-  maxStorageBytes?: number;
-  /**
-   * How long an upload may sit unattached before it counts as abandoned.
-   * Default 24 hours. Must outlast the gap between choosing a file and sending
-   * it, including a client that is offline in between.
-   */
-  abandonedUploadTtlMs?: number;
-  /**
-   * The address others reach this server on, e.g. "https://chat.team.dev".
-   * Used to build the `response_url` handed to slash commands. Set it when a
-   * reverse proxy sits in front; otherwise the request's own Host is used.
-   */
-  publicUrl?: string;
-  /**
-   * Whether a reverse proxy in front of this server sets the `X-Forwarded-*`
-   * headers. Off by default: those headers are worth believing only when
-   * something trustworthy writes them, and worthless when anyone can.
-   */
-  trustProxy?: boolean;
-  /**
-   * Believe Cloudflare's client-address header, falling back to the final
-   * X-Forwarded-For hop, only when the socket peer is loopback. This is for the
-   * desktop's local cloudflared connector; normal LAN and standalone servers
-   * leave it unset and key limits on the socket peer.
-   */
-  trustedClientProxy?: "loopback";
-  /**
-   * Lets slash commands and event subscriptions call private addresses
-   * (192.168.x, 10.x, localhost…). Off by default: the server can reach the
-   * host's whole LAN, and an admin-typed URL should not become a probe of it.
-   * Turn it on deliberately when the bot really does run on the same network.
-   */
-  allowPrivateHooks?: boolean;
-  /**
-   * Request logging. A stream can be given instead of `true` to send the log
-   * somewhere other than stdout, which is also how a test reads back what was
-   * actually written.
-   */
-  logger?: boolean | { stream: NodeJS.WritableStream };
-  /**
-   * How long a huddle place waits for a device whose connection dropped
-   * (`HUDDLE_GRACE_MS` by default). For tests.
-   */
-  huddleGraceMs?: number;
-  /** How long a direct message's huddle rings (`HUDDLE_RING_MS` by default). For tests. */
-  huddleRingMs?: number;
-  /** Private deployments default to LAN-only media with no external ICE service. */
-  iceServers?: { urls: string | string[]; username?: string; credential?: string }[];
-  /**
-   * A TURN relay for calls between networks that will not connect directly,
-   * given to calls after `iceServers`. A Cloudflare relay's password is asked
-   * for when calls need one; its API token never leaves this server. A shared
-   * secret signs each member a password of their own, and never leaves it either.
-   */
-  relay?: ServerRelay | null;
-  /**
-   * How much one caller may do. `false` turns rationing off, which is
-   * reasonable on a LAN where everyone is already trusted and unreasonable
-   * anywhere reachable from outside it.
-   */
-  rateLimits?: Partial<Limits> | false;
-  /** Overrides for the scheduled queue's bounds; see `SCHEDULED_LIMITS`. */
-  scheduledLimits?: Partial<typeof SCHEDULED_LIMITS>;
-  /** Overrides for reminders' bounds; see `REMINDER_LIMITS`. */
-  reminderLimits?: Partial<typeof REMINDER_LIMITS>;
-  /**
-   * Copy an existing workspace before upgrading its schema. On by default; see
-   * `OpenDbOptions.backupBeforeUpgrade` for when turning it off is reasonable.
-   */
-  backupBeforeUpgrade?: boolean;
-  /**
-   * How many days of conversation to keep. Omitted or zero keeps everything,
-   * which is the default: a workspace that silently started discarding history
-   * would be worse than one that grows.
-   *
-   * Turning it on is not reversible. What it removes is removed from the
-   * database entirely rather than hidden, so restoring it means restoring a
-   * backup taken before the sweep ran.
-   */
-  retentionDays?: number;
-  /**
-   * Backups taken on a timer into dated folders, keeping the newest few. Off
-   * when omitted. Never in an isolated copy, which would otherwise write into,
-   * and prune, the original's backups.
-   */
-  scheduledBackups?: ScheduledBackups;
-  /**
-   * Takes one backup into `out`, for scheduled backups and the owner's copies.
-   * In this process when omitted; the command line passes one that uses a
-   * child process, so the copy never holds up chat.
-   */
-  takeBackup?: (out: string, signal: AbortSignal) => Promise<BackupManifest>;
-  /**
-   * Where the owner's downloadable copies are made (P4). By default a
-   * `.copies` folder in the scheduled backups' directory when there is one,
-   * otherwise one for this workspace in the system's temporary folder. It
-   * needs room for a whole copy, and is emptied when the server starts.
-   */
-  copiesDir?: string;
-  /**
-   * How many members the workspace's plan includes, for a workspace someone
-   * hosts for others (P5). Past it the owner and admins are offered a bigger
-   * plan, named and linked when the host gives `planName` and `upgradeUrl`.
-   * Nobody is locked out and joining carries on. Omitted, nothing is said.
-   */
-  memberNotice?: MemberNotice;
-  /**
-   * The code that claims a workspace nobody owns yet, when the host gives
-   * it (OWNBASE_CLAIM_CODE, P7) rather than letting the server make one.
-   * Ignored once someone owns the workspace.
-   */
-  claimCode?: string;
-  /**
-   * Parts of the server from outside this package, such as the Enterprise
-   * features in ee/ (P6), registered after the server's own routes. See
-   * `ServerExtension`. None by default, and the server is complete without.
-   */
-  extensions?: ServerExtension[];
-  /**
-   * Starts a copy for looking at, such as a backup restored to check it. The
-   * copy holds the original's apps, their signing secrets and its queue of
-   * scheduled messages, so an ordinary start would post those messages a
-   * second time and call the same apps as the same workspace. An isolated one
-   * posts nothing that is due, delivers no app events, refuses every call to
-   * an app, and does not announce itself on the network. What was queued stays
-   * queued, and goes out if the same data is later started normally.
-   */
-  isolated?: boolean;
-  /**
-   * Fetches one link's preview in place of the real fetch, for tests, which
-   * cannot reach a page on the public internet. The real one goes through the
-   * outbound guard (linkPreview.ts).
-   */
-  fetchLinkPreview?: (url: string, signal: AbortSignal) => Promise<FetchedPreview | null>;
-}
 
 export interface WorkspaceServer {
   /** Identifies this running instance for public-route verification; changes on every start. */
@@ -250,10 +78,9 @@ export interface WorkspaceServer {
   /**
    * What the hourly timer runs: retention passes until the backlog is gone or
    * the round's budget is spent, yielding between them. Never rejects; a
-   * failure is logged and recorded in `retentionStatus`.
+   * failure is logged and counted in the workspace status.
    */
   sweepRetention: () => Promise<number>;
-  retentionStatus: () => RetentionStatus;
   /** How scheduled backups are going; null when they are off. */
   backupStatus: () => BackupScheduleStatus | null;
   /**
@@ -297,15 +124,6 @@ export interface WorkspaceServer {
    */
   setWorkspaceName: (name: string) => void;
   workspaceIcon: () => WorkspaceIcon | null;
-  /**
-   * Sets the workspace's icon, as the host, by the same rule as an owner or
-   * admin: a PNG, JPEG or WebP image of `type`, which its bytes must agree
-   * with, of at most 256 KB and 1024 pixels a side. Everyone signed in is
-   * told at once. Returns its version; throws, saying why, one it refuses.
-   */
-  setWorkspaceIcon: (bytes: Uint8Array, type: string) => string;
-  /** Removes the workspace's icon, as the host. Everyone signed in is told at once. */
-  removeWorkspaceIcon: () => void;
   /**
    * Calls `listener` whenever the workspace is renamed, who may join changes
    * or its icon does, by its host or by an owner or admin, so whatever shows
@@ -430,16 +248,20 @@ async function startWorkspaceServer(
   );
 
   const background = new BackgroundWork(app.log);
-  const { recordEvent, mutate, onPublished } = createCommits({
+  const { recordEvent, mutate, onRecorded, onPublished } = createCommits({
     store,
     gateway,
     log: app.log,
     background,
   });
-  onPublished(() => apps.deliverSoon());
   const lifecycle = new Lifecycle();
+  lifecycle.hourly(() => background.maintain("events", () => store.pruneEvents()));
 
-  const { route, signedIn: requireUser } = createRouter({
+  const {
+    route,
+    signedIn: requireUser,
+    ticketFor,
+  } = createRouter({
     app,
     log: app.log,
     sessionUser: (tokenHash) => store.accounts.getSessionUser(tokenHash),
@@ -457,10 +279,13 @@ async function startWorkspaceServer(
     gateway,
     route,
     requireUser,
+    ticketFor,
     ration,
     limiter,
     recordEvent,
     mutate,
+    onRecorded,
+    onPublished,
     background,
     network,
     lifecycle,
@@ -469,12 +294,11 @@ async function startWorkspaceServer(
   const workspaceName = () => settings.get("workspaceName");
 
   const files = registerFiles(ctx);
-  const { flushFileDeletions, expireAbandonedUploads } = files;
   const backups = registerBackups(ctx, { files, scheduled });
 
-  const messages = registerMessages(ctx, { files });
+  const messages = registerMessages(ctx);
   const polls = registerPolls(ctx);
-  const { posting, applyRetention, sweepRetention, retention } = messages;
+  const { posting } = messages;
 
   const huddles = registerHuddles(ctx, { posting });
 
@@ -485,20 +309,13 @@ async function startWorkspaceServer(
     joinPublicChannels,
     iconVersion: () => workspace.icon()?.version ?? null,
   });
-  registerAdmin(ctx, { instanceId, workspace, accounts, messages, files, backups });
-
+  registerAdmin(ctx, { instanceId, workspace, messages, files, backups });
   const people = registerPeople(ctx);
-
   const threads = registerThreads(ctx);
-
-  const apps = registerApps(ctx, { accounts, messages, files });
-
+  const apps = registerApps(ctx, { messages });
   const scheduledMessages = registerScheduled(ctx, { posting });
-
   const saved = registerSaved(ctx);
-
   registerSearch(ctx);
-
   const reminders = registerReminders(ctx);
 
   gateway.useSnapshot((user) => ({
@@ -511,7 +328,7 @@ async function startWorkspaceServer(
     ...workspace.snapshot(user),
   }));
 
-  await registerExtensions(ctx, { joinPublicChannels });
+  await registerExtensions(ctx, { accounts });
 
   const port = opts.port ?? DEFAULT_PORT;
   const host = opts.host ?? "0.0.0.0";
@@ -556,26 +373,7 @@ async function startWorkspaceServer(
     if (change.workspaceName !== undefined || change.iconVersion !== undefined) announce();
   });
 
-  // Each queue on its own, so one failing neither stops the server starting
-  // nor skips the others.
-  apps.start();
-  files.start();
-
-  await backups.start();
-
-  const pruneTimer = setInterval(() => {
-    background.maintain("events", () => store.pruneEvents());
-    scheduledMessages.hourly();
-    background.maintain("sessions", () => store.accounts.pruneSessions());
-    messages.hourly();
-    apps.hourly();
-    files.hourly();
-    void sweepRetention();
-  }, 3600_000);
-
-  reminders.start();
-  people.start();
-  scheduledMessages.start();
+  await lifecycle.start();
 
   let stopping: Promise<void> | null = null;
   // The stages of stopping that have finished. A stop that fails part-way
@@ -599,11 +397,10 @@ async function startWorkspaceServer(
     claimCode: settings.get("claimCode"),
     upgradeBackup,
     flushScheduled: scheduledMessages.flush,
-    flushFileDeletions,
-    expireAbandonedUploads,
-    applyRetention,
-    sweepRetention,
-    retentionStatus: () => ({ ...retention }),
+    flushFileDeletions: files.flushFileDeletions,
+    expireAbandonedUploads: files.expireAbandonedUploads,
+    applyRetention: messages.applyRetention,
+    sweepRetention: messages.sweepRetention,
     backupStatus: backups.status,
     runBackup: backups.runNow,
     flushEventDeliveries: apps.flushEventDeliveries,
@@ -623,14 +420,6 @@ async function startWorkspaceServer(
       workspace.rename(value, null);
     },
     workspaceIcon: workspace.icon,
-    setWorkspaceIcon: (bytes, type) => {
-      if (!(bytes instanceof Uint8Array)) throw new TypeError("An icon is the bytes of an image.");
-      const checked = checkIcon(Buffer.from(bytes), typeof type === "string" ? type : undefined);
-      if ("refused" in checked) throw new TypeError(checked.refused.message);
-      workspace.changeIcon(checked.icon, null);
-      return checked.icon.version;
-    },
-    removeWorkspaceIcon: () => workspace.changeIcon(null, null),
     onWorkspaceChange: workspace.onChange,
     reannounce: () => announce(),
     connectedPeople: () => gateway.onlineUserIds().length,
@@ -639,7 +428,6 @@ async function startWorkspaceServer(
       if (stopping) return stopping;
       if (!stopped.started) {
         stopped.started = true;
-        clearInterval(pruneTimer);
         mdnsHandle?.stop();
         // Before waiting on anything, so whatever is waiting on an app hears
         // about it now rather than at the end of its timeout.

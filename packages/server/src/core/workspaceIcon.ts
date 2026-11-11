@@ -2,9 +2,9 @@ import { createHash } from "node:crypto";
 import {
   WORKSPACE_ICON_MAX_BYTES,
   WORKSPACE_ICON_TYPES,
-  type ErrorCode,
   type WorkspaceIconType,
 } from "@ownbase/protocol";
+import { HttpError } from "../httpError.js";
 import { imageSize, imageTypeOf } from "../imageSize.js";
 
 /**
@@ -46,13 +46,6 @@ export function iconVersion(bytes: Uint8Array): string {
   return createHash("sha256").update(bytes).digest("hex").slice(0, 16);
 }
 
-/** Why an icon was refused, as an HTTP answer. */
-export interface IconRefusal {
-  status: number;
-  code: ErrorCode;
-  message: string;
-}
-
 const NAMES: Record<WorkspaceIconType, string> = {
   "image/png": "PNG",
   "image/jpeg": "JPEG",
@@ -60,68 +53,44 @@ const NAMES: Record<WorkspaceIconType, string> = {
 };
 
 /**
- * Checks an icon someone sent, with the type their request declared, and
- * gives back the icon to keep or why it is refused. The declared type must
- * be one an icon may be and must agree with the bytes.
+ * Checks a picture someone sent, with the type their request declared, and
+ * gives back the icon to keep or refuses it saying why. The declared type
+ * must be one an icon may be and must agree with the bytes.
  */
-export function checkIcon(
+export function checkedPicture(
   bytes: Buffer,
   declared: string | undefined,
   /** What the picture is, as its refusals name it: a profile picture keeps the same rules (E9). */
   noun = "workspace icon",
-): { icon: WorkspaceIcon } | { refused: IconRefusal } {
+): WorkspaceIcon {
   const said = (declared ?? "").split(";")[0]!.trim().toLowerCase();
   if (!(WORKSPACE_ICON_TYPES as readonly string[]).includes(said))
-    return {
-      refused: {
-        status: 415,
-        code: "unsupported_icon_type",
-        message: `A ${noun} is a PNG, JPEG or WebP image.`,
-      },
-    };
+    throw new HttpError(415, "unsupported_icon_type", `A ${noun} is a PNG, JPEG or WebP image.`);
   if (bytes.length > WORKSPACE_ICON_MAX_BYTES)
-    return {
-      refused: {
-        status: 413,
-        code: "icon_too_large",
-        message: `A ${noun} has at most ${WORKSPACE_ICON_MAX_BYTES / 1024} KB.`,
-      },
-    };
+    throw new HttpError(
+      413,
+      "icon_too_large",
+      `A ${noun} has at most ${WORKSPACE_ICON_MAX_BYTES / 1024} KB.`,
+    );
   const type = iconTypeOf(bytes);
   if (!type)
-    return {
-      refused: {
-        status: 400,
-        code: "invalid_icon",
-        message: "That file is not a PNG, JPEG or WebP image.",
-      },
-    };
+    throw new HttpError(400, "invalid_icon", "That file is not a PNG, JPEG or WebP image.");
   if (type !== said)
-    return {
-      refused: {
-        status: 400,
-        code: "invalid_icon",
-        message: `That file says it is ${NAMES[said as WorkspaceIconType]} but holds a ${NAMES[type]} image.`,
-      },
-    };
+    throw new HttpError(
+      400,
+      "invalid_icon",
+      `That file says it is ${NAMES[said as WorkspaceIconType]} but holds a ${NAMES[type]} image.`,
+    );
   const size = imageSize(bytes);
   if (!size || size.width < 1 || size.height < 1)
-    return {
-      refused: {
-        status: 400,
-        code: "invalid_icon",
-        message: `That ${NAMES[type]} image could not be read.`,
-      },
-    };
+    throw new HttpError(400, "invalid_icon", `That ${NAMES[type]} image could not be read.`);
   if (size.width > WORKSPACE_ICON_MAX_SIDE || size.height > WORKSPACE_ICON_MAX_SIDE)
-    return {
-      refused: {
-        status: 400,
-        code: "icon_too_large",
-        message: `A ${noun} is at most ${WORKSPACE_ICON_MAX_SIDE} pixels on either side.`,
-      },
-    };
-  return { icon: { type, bytes, version: iconVersion(bytes) } };
+    throw new HttpError(
+      400,
+      "icon_too_large",
+      `A ${noun} is at most ${WORKSPACE_ICON_MAX_SIDE} pixels on either side.`,
+    );
+  return { type, bytes, version: iconVersion(bytes) };
 }
 
 /**

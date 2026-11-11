@@ -91,14 +91,22 @@ export interface PostingDeps {
   /** Spends one unit of a limit, or throws the 429 that says when to come back. */
   ration(name: keyof Limits, key: string): void;
   queuePreviews(message: Message): void;
-  scheduledLimits: { perAccount: number; perWorkspace: number };
+}
+
+/** How many scheduled messages may wait: for one account, and in the workspace. */
+export interface QueueLimits {
+  perAccount: number;
+  perWorkspace: number;
 }
 
 export interface Posting {
   /** Posts a message from anyone, under every rule a message meets, and fans it out. */
   post(input: PostInput): Message;
-  /** Queues a message for later, refusing now what sending would refuse then. */
-  schedule(input: ScheduleInput): { scheduled: ScheduledMessage; replayed: boolean };
+  /** Queues a message for later, refusing now what sending would refuse then, and past `limits`. */
+  schedule(
+    input: ScheduleInput,
+    limits: QueueLimits,
+  ): { scheduled: ScheduledMessage; replayed: boolean };
 }
 
 const userIdOf = (poster: Poster): ID =>
@@ -108,13 +116,7 @@ const userIdOf = (poster: Poster): ID =>
       ? poster.botUserId
       : poster.app.botUserId;
 
-export function createPosting({
-  store,
-  mutate,
-  ration,
-  queuePreviews,
-  scheduledLimits,
-}: PostingDeps): Posting {
+export function createPosting({ store, mutate, ration, queuePreviews }: PostingDeps): Posting {
   /**
    * The budget a post spends: the account's or bot's, not its address's, so a
    * whole office behind one address does not share one person's allowance.
@@ -141,7 +143,7 @@ export function createPosting({
     // or an answer to someone there is posting where it was asked to.
     if (poster.kind !== "person" && !store.channels.isMember(channel.id, userId)) {
       if (channel.type !== "public") throw new HttpError(403, "not_in_channel");
-      if (poster.kind === "bot" && !poster.app.scopes?.includes("chat:write.public"))
+      if (poster.kind === "bot" && !poster.app.scopes.includes("chat:write.public"))
         throw new ScopeNeeded("not_in_channel", "chat:write.public");
     }
     return channel;
@@ -161,7 +163,7 @@ export function createPosting({
 
   const post = (input: PostInput): Message => {
     const { poster } = input;
-    if (poster.kind === "bot" && !poster.app.scopes?.includes("chat:write"))
+    if (poster.kind === "bot" && !poster.app.scopes.includes("chat:write"))
       throw new ScopeNeeded("missing_scope", "chat:write");
     // Queuing a message spent the budget once, so its delivery is never held
     // back; a note about a call is the server's, not a request.
@@ -304,7 +306,7 @@ export function createPosting({
     return message;
   };
 
-  const schedule = (input: ScheduleInput) => {
+  const schedule = (input: ScheduleInput, limits: QueueLimits) => {
     const poster: Poster = { kind: "person", userId: input.userId };
     const requestHash = hashToken(
       JSON.stringify([
@@ -353,14 +355,14 @@ export function createPosting({
           "One of these files is already part of another scheduled message.",
         );
       }
-      if (store.scheduled.outstanding(input.userId) >= scheduledLimits.perAccount) {
+      if (store.scheduled.outstanding(input.userId) >= limits.perAccount) {
         throw new HttpError(
           409,
           "scheduled_limit",
-          `You already have ${scheduledLimits.perAccount} messages waiting to be sent. Send or cancel some before scheduling more.`,
+          `You already have ${limits.perAccount} messages waiting to be sent. Send or cancel some before scheduling more.`,
         );
       }
-      if (store.scheduled.outstanding() >= scheduledLimits.perWorkspace) {
+      if (store.scheduled.outstanding() >= limits.perWorkspace) {
         throw new HttpError(
           409,
           "scheduled_limit",

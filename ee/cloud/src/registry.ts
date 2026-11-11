@@ -118,9 +118,9 @@ export class Registry {
   }
 
   portsInUse(): Set<number> {
-    const rows = this.db
-      .prepare("SELECT port FROM workspaces WHERE state != 'deleted'")
-      .all() as unknown as { port: number }[];
+    const rows = this.db.prepare("SELECT port FROM workspaces WHERE state != 'deleted'").all() as {
+      port: number;
+    }[];
     return new Set(rows.map((row) => row.port));
   }
 

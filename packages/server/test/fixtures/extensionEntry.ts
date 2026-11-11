@@ -3,8 +3,9 @@ import { fileURLToPath } from "node:url";
 import { runServerCli } from "../../src/cli/run.js";
 import { ConfigError, type CommandLineExtension } from "../../src/extensions.js";
 
-const greeting: CommandLineExtension = {
+const greeting: CommandLineExtension<"GREETING"> = {
   options: { greeting: { type: "string" } },
+  env: ["GREETING"],
   help: `Greeting
 
   --greeting <words>  What the test extension says on starting.`,

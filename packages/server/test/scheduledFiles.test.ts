@@ -136,14 +136,14 @@ describe("a file waiting in a scheduled message", () => {
     expect(deliverNow(queued.body.scheduled.id).status).toBe("sent");
   });
 
-  it("reads as no files when the stored list is damaged", async () => {
-    const { body } = await schedule({ text: "later" });
-    for (const damaged of ["not json", '{"0":"F1"}']) {
-      server!.store.db
-        .prepare("UPDATE scheduled_messages SET file_ids = ? WHERE id = ?")
-        .run(damaged, body.scheduled.id);
-      expect(server!.store.scheduled.get(body.scheduled.id)!.fileIds).toEqual([]);
-    }
+  it("keeps its files in the order they were chosen, and lets go of them once sent", async () => {
+    const files = [await upload("c.txt"), await upload("a.txt"), await upload("b.txt")];
+    const queued = await schedule({ text: "In order", fileIds: files });
+    expect(queued.body.scheduled.fileIds).toEqual(files);
+    expect(server!.store.scheduled.get(queued.body.scheduled.id)!.fileIds).toEqual(files);
+    const sent = deliverNow(queued.body.scheduled.id);
+    expect(sent.fileIds).toEqual([]);
+    expect(server!.store.messages.get(sent.messageId!)!.files.map((f) => f.id)).toEqual(files);
   });
 
   it("is not swept away as an abandoned upload", async () => {
@@ -233,6 +233,13 @@ describe("upgrading a workspace with messages already scheduled", () => {
       ]);
       const broadcast = db.prepare("SELECT DISTINCT broadcast FROM scheduled_messages").all();
       expect(broadcast).toEqual([{ broadcast: 0 }]);
+      // Each keeps its place in the list it was named in (v55).
+      expect(
+        db.prepare("SELECT file_id, position FROM scheduled_files ORDER BY file_id").all(),
+      ).toEqual([
+        { file_id: "F1", position: 0 },
+        { file_id: "F2", position: 1 },
+      ]);
     } finally {
       db.close();
     }

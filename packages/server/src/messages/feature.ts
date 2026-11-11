@@ -10,11 +10,9 @@ import {
   requireVisibleMessage,
   type ServerContext,
 } from "../core/context.js";
-import { type Files } from "../files/feature.js";
 import { HttpError } from "../httpError.js";
 import { fetchLinkPreview, previewLinks, type FetchedPreview } from "../linkPreview.js";
 import { createPosting } from "../messages/posting.js";
-import { SCHEDULED_LIMITS } from "../scheduled/feature.js";
 
 /**
  * One hourly retention round runs passes of at most a few thousand messages
@@ -24,10 +22,9 @@ import { SCHEDULED_LIMITS } from "../scheduled/feature.js";
 const RETENTION_PASSES = 200;
 const RETENTION_SWEEP_MS = 30_000;
 
-export interface RetentionStatus {
+interface RetentionStatus {
   /** When a sweep last finished without an error; null before the first. */
   lastSuccessAt: number | null;
-  lastError: string | null;
   /** Sweeps that have failed in a row. */
   failures: number;
 }
@@ -39,11 +36,9 @@ export interface RetentionStatus {
 const PURGED_SEND_KEYS_MS = SEND_RETRY_WINDOW_MS + 7 * 24 * 3600_000;
 
 /** Messages: reading, sending, editing, removing and reacting; link previews; and retention. */
-export function registerMessages(ctx: ServerContext, { files }: { files: Files }) {
+export function registerMessages(ctx: ServerContext) {
   const { opts, app, store, settings, route, ration, recordEvent, mutate, background, lifecycle } =
     ctx;
-  const { flushFileDeletions } = files;
-  const scheduledLimits = { ...SCHEDULED_LIMITS, ...opts.scheduledLimits };
 
   const updateMessage = (existing: Message, text: string, clearActions = false): Message => {
     const updated = mutate((emit) => {
@@ -148,7 +143,7 @@ export function registerMessages(ctx: ServerContext, { files }: { files: Files }
     });
   };
 
-  const posting = createPosting({ store, mutate, ration, queuePreviews, scheduledLimits });
+  const posting = createPosting({ store, mutate, ration, queuePreviews });
 
   const retentionMs = (opts.retentionDays ?? 0) * 24 * 3600_000;
 
@@ -180,7 +175,6 @@ export function registerMessages(ctx: ServerContext, { files }: { files: Files }
       { messages, files: fileIds.length, retentionDays: opts.retentionDays },
       "discarded conversation past the retention window",
     );
-    if (fileIds.length > 0) void flushFileDeletions();
     return messages;
   };
 
@@ -189,7 +183,7 @@ export function registerMessages(ctx: ServerContext, { files }: { files: Files }
    * it cannot take the server down from a timer, and is tried again on the
    * next round; until one succeeds, this is how its failure stays visible.
    */
-  const retention: RetentionStatus = { lastSuccessAt: null, lastError: null, failures: 0 };
+  const retention: RetentionStatus = { lastSuccessAt: null, failures: 0 };
 
   /**
    * Runs retention passes until one finds nothing left or the round's budget
@@ -209,11 +203,9 @@ export function registerMessages(ctx: ServerContext, { files }: { files: Files }
         await new Promise<void>((resolve) => setImmediate(resolve));
       }
       retention.lastSuccessAt = Date.now();
-      retention.lastError = null;
       retention.failures = 0;
     } catch (err) {
       retention.failures++;
-      retention.lastError = err instanceof Error ? err.message : String(err);
       app.log.error(
         { err, failures: retention.failures, retentionDays: opts.retentionDays },
         "retention sweep failed; it will be tried again",
@@ -360,7 +352,6 @@ export function registerMessages(ctx: ServerContext, { files }: { files: Files }
     if (existing.userId !== me.id && !isPrivileged) throw new HttpError(403, "not_your_message");
 
     removeMessage(existing);
-    await flushFileDeletions();
     return { ok: true };
   });
 
@@ -432,19 +423,21 @@ export function registerMessages(ctx: ServerContext, { files }: { files: Files }
     return { messages: store.messages.latestDirect(me.id) };
   });
 
+  lifecycle.hourly(() => {
+    background.maintain("removed messages' send keys", () =>
+      store.messages.pruneRequestsPurged(Date.now() - PURGED_SEND_KEYS_MS),
+    );
+    void sweepRetention();
+  });
+
   return {
     posting,
     updateMessage,
-    queuePreviews,
     removeMessage,
     removeMessageWithin,
     applyRetention,
     sweepRetention,
     retention,
     retentionOn: retentionMs > 0,
-    hourly: () =>
-      background.maintain("removed messages' send keys", () =>
-        store.messages.pruneRequestsPurged(Date.now() - PURGED_SEND_KEYS_MS),
-      ),
   };
 }
