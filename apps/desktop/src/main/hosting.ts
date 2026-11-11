@@ -646,6 +646,41 @@ export function createHostingController(options: HostingOptions) {
     );
   }
 
+  function dataDirOf(entry: HostedWorkspace): string {
+    return join(options.dataRoot, entry.folder);
+  }
+
+  /** The entry for `folder` in `list`; the window names a listed workspace, never a path. */
+  function entryIn(list: HostedWorkspace[], folder: string): HostedWorkspace {
+    const entry = list.find((e) => e.folder === folder);
+    if (!entry) throw new Error("That workspace is not in the list hosted on this computer.");
+    return entry;
+  }
+
+  async function listedEntry(folder: string): Promise<HostedWorkspace> {
+    return entryIn(await loadRegistry(), folder);
+  }
+
+  /**
+   * What a listed workspace's folder holds now, read without starting it: a
+   * folder copied or swapped by hand can hold some other workspace. An entry
+   * adopted before its first start has no id yet, so whatever is there is it.
+   */
+  function folderHolds(
+    entry: HostedWorkspace,
+  ):
+    | { holds: "nothing" }
+    | { holds: "unreadable" }
+    | { holds: "another"; name: string | null }
+    | { holds: "it"; id: string | null } {
+    const dataDir = dataDirOf(entry);
+    if (!existsSync(dataDir)) return { holds: "nothing" };
+    const inside = read(dataDir);
+    if (!inside) return { holds: "unreadable" };
+    if (entry.id && inside.id !== entry.id) return { holds: "another", name: inside.name };
+    return { holds: "it", id: inside.id };
+  }
+
   async function saveMetadata(): Promise<void> {
     if (!server || !workspace) return;
     try {
@@ -724,24 +759,17 @@ export function createHostingController(options: HostingOptions) {
       let entry: HostedWorkspace;
       const created = !("folder" in requested);
       if ("folder" in requested) {
-        const found = list.find((e) => e.folder === requested.folder);
-        if (!found) throw new Error("That workspace is not in the list hosted on this computer.");
-        const dataDir = join(options.dataRoot, found.folder);
+        const found = entryIn(list, requested.folder);
+        const inside = folderHolds(found);
         // Never recreated empty: an empty folder would look like the workspace.
-        if (!existsSync(dataDir))
+        if (inside.holds === "nothing")
           throw new Error(`The folder that held ${found.name} is missing, so it cannot start.`);
-        if (found.id) {
-          const inside = read(dataDir);
-          if (!inside)
-            throw new Error(
-              `${found.name}'s database is missing or unreadable, so it cannot start.`,
-            );
-          // A folder copied or swapped by hand holds some other workspace.
-          if (inside.id !== found.id)
-            throw new Error(
-              `The folder for ${found.name} holds a different workspace, so it will not start.`,
-            );
-        }
+        if (inside.holds === "unreadable" && found.id)
+          throw new Error(`${found.name}'s database is missing or unreadable, so it cannot start.`);
+        if (inside.holds === "another")
+          throw new Error(
+            `The folder for ${found.name} holds a different workspace, so it will not start.`,
+          );
         entry = found;
       } else {
         // A new folder that has nothing to do with the name. It is listed
@@ -978,8 +1006,7 @@ export function createHostingController(options: HostingOptions) {
    */
   async function icon(value: unknown): Promise<string | null> {
     if (typeof value !== "string") throw new Error("Choose a workspace whose icon to show.");
-    const entry = (await loadRegistry()).find((e) => e.folder === value);
-    if (!entry) throw new Error("That workspace is not in the list hosted on this computer.");
+    const entry = await listedEntry(value);
     if (server && workspace?.folder === entry.folder) {
       return iconUrl(server.workspaceIcon());
     }
@@ -1002,8 +1029,7 @@ export function createHostingController(options: HostingOptions) {
       return Promise.reject(new Error("Choose a workspace and a folder to back it up to."));
     return serialized(async () => {
       refuseWhileQuitting();
-      const entry = (await loadRegistry()).find((e) => e.folder === folder);
-      if (!entry) throw new Error("That workspace is not in the list hosted on this computer.");
+      const entry = await listedEntry(folder);
       return backupNow(entry, destination);
     });
   }
@@ -1038,15 +1064,17 @@ export function createHostingController(options: HostingOptions) {
         "space",
         `There is not enough free space there. The backup needs about ${megabytes(needed)}, and ${megabytes(free)} is free.`,
       );
-    const found = read(dataDir);
-    if (entry.id && found?.id !== entry.id)
+    const inside = folderHolds(entry);
+    if (entry.id && inside.holds !== "it")
       throw new BackupFailed(
         "source",
         `The folder listed as ${entry.name} holds ${
-          found?.name ? `“${found.name}”` : "a different or unreadable workspace"
+          inside.holds === "another" && inside.name
+            ? `“${inside.name}”`
+            : "a different or unreadable workspace"
         } instead, so nothing was backed up.`,
       );
-    const expected = entry.id ?? found?.id ?? null;
+    const expected = entry.id ?? (inside.holds === "it" ? inside.id : null);
     // Two backups in one second would want one name; the later moves on a second.
     let at = now();
     const named = (time: number) =>
@@ -1087,6 +1115,73 @@ export function createHostingController(options: HostingOptions) {
   }
 
   /**
+   * Restores `source` into `held`'s folder. The copy is listed and held, and
+   * taken off starting with OwnBase, before anything is restored, as a new
+   * workspace is listed before it starts: a restored one can always be found,
+   * even after a restart, and never starts by itself as though nothing had
+   * happened, here or in an earlier version that knows nothing of the hold.
+   * When the restore fails and `undo` says nothing changed in the folder,
+   * the list and that choice go back to how they were.
+   */
+  async function restoreHeld(request: {
+    list: HostedWorkspace[];
+    held: HostedWorkspace;
+    source: string;
+    workspaceName: string;
+    undo: () => boolean;
+  }): Promise<{ name: string; inventory: RestoreInventory | null; restored: unknown }> {
+    const { list, held } = request;
+    const unsaved = () =>
+      new Error(
+        "OwnBase could not save its settings, so it did not restore the backup. Check that its settings folder is writable, then try again.",
+      );
+    registry = list.some((e) => e.folder === held.folder)
+      ? list.map((e) => (e.folder === held.folder ? held : e))
+      : [...list, held];
+    try {
+      await saveRegistry();
+    } catch {
+      registry = list;
+      throw unsaved();
+    }
+    const wasLaunch = (await readLaunchFolder().catch(() => null)) === held.folder;
+    if (wasLaunch) {
+      try {
+        await options.settings.set(START_ON_LAUNCH_KEY, null);
+      } catch {
+        registry = list;
+        await keepRegistry();
+        throw unsaved();
+      }
+      launchFolder = null;
+    }
+    let restored: unknown;
+    try {
+      restored = await options.restoreWorkspace({
+        backupDir: request.source,
+        dataDir: dataDirOf(held),
+      });
+    } catch (error) {
+      if (request.undo()) {
+        registry = list;
+        await keepRegistry();
+        if (wasLaunch)
+          await options.settings.set(START_ON_LAUNCH_KEY, held.folder).then(
+            () => (launchFolder = held.folder),
+            () => {},
+          );
+      }
+      throw error;
+    }
+    const name = request.workspaceName.trim().slice(0, WORKSPACE_NAME_MAX) || held.name;
+    updateEntry(held.folder, { name });
+    await keepRegistry();
+    const inventory = await options.inventoryBackup(request.source).catch(() => null);
+    changed();
+    return { name, inventory, restored };
+  }
+
+  /**
    * Restores a backup as a workspace hosted here, without starting it. A
    * workspace this computer does not list gets a new folder. One it lists
    * whose folder is gone comes back into that folder. One still here is left
@@ -1119,55 +1214,15 @@ export function createHostingController(options: HostingOptions) {
         // Held until someone puts it back in use, across restarts too.
         restoredHold: now(),
       };
-      const dataDir = join(options.dataRoot, entry.folder);
-      const unsaved = () =>
-        new Error(
-          "OwnBase could not save its settings, so it did not restore the backup. Check that its settings folder is writable, then try again.",
-        );
-      // Listed and held before anything is restored, as a new workspace is
-      // listed before it starts, so a restored one can always be found and
-      // is never taken for the workspace itself, even after a restart.
-      registry = listed ? list.map((e) => (e === listed ? entry : e)) : [...list, entry];
-      try {
-        await saveRegistry();
-      } catch {
-        registry = list;
-        throw unsaved();
-      }
-      // Nor may it start by itself as though nothing had happened, here or in
-      // an earlier version that knows nothing of the hold.
-      const wasLaunch = (await readLaunchFolder().catch(() => null)) === entry.folder;
-      if (wasLaunch) {
-        try {
-          await options.settings.set(START_ON_LAUNCH_KEY, null);
-        } catch {
-          registry = list;
-          await keepRegistry();
-          throw unsaved();
-        }
-        launchFolder = null;
-      }
-      try {
-        await options.restoreWorkspace({ backupDir, dataDir });
-      } catch (error) {
+      const { name, inventory } = await restoreHeld({
+        list,
+        held: entry,
+        source: backupDir,
+        workspaceName: manifest.workspaceName,
         // Nothing arrived, so everything goes back to how it was. Anything
         // that did arrive stays listed and held.
-        if (!existsSync(dataDir)) {
-          registry = list;
-          await keepRegistry();
-          if (wasLaunch)
-            await options.settings.set(START_ON_LAUNCH_KEY, entry.folder).then(
-              () => (launchFolder = entry.folder),
-              () => {},
-            );
-        }
-        throw error;
-      }
-      const name = manifest.workspaceName.trim().slice(0, WORKSPACE_NAME_MAX) || entry.name;
-      updateEntry(entry.folder, { name });
-      await keepRegistry();
-      const inventory = await options.inventoryBackup(backupDir).catch(() => null);
-      changed();
+        undo: () => !existsSync(dataDirOf(entry)),
+      });
       return { folder: entry.folder, name, inventory };
     });
   }
@@ -1201,8 +1256,7 @@ export function createHostingController(options: HostingOptions) {
    */
   async function listBackups(value: unknown): Promise<HostedBackup[]> {
     if (typeof value !== "string") throw new Error("Choose a workspace whose backups to list.");
-    const entry = (await loadRegistry()).find((e) => e.folder === value);
-    if (!entry) throw new Error("That workspace is not in the list hosted on this computer.");
+    const entry = await listedEntry(value);
     const destination = entry.autoBackup?.destination;
     if (!destination || !existsSync(destination)) return [];
     const listed: HostedBackup[] = [];
@@ -1242,8 +1296,7 @@ export function createHostingController(options: HostingOptions) {
     return serialized(async () => {
       refuseWhileQuitting();
       const list = await loadRegistry();
-      const listed = list.find((e) => e.folder === folder);
-      if (!listed) throw new Error("That workspace is not in the list hosted on this computer.");
+      const listed = entryIn(list, folder);
       if (server && workspace?.folder === listed.folder)
         throw new Error(`Stop hosting ${listed.name} before restoring an earlier copy over it.`);
       const dataDir = join(options.dataRoot, listed.folder);
@@ -1271,52 +1324,16 @@ export function createHostingController(options: HostingOptions) {
           `That backup is of a different workspace, so it was not restored over ${listed.name}.`,
         );
       await roomToRestore(manifest);
-      const unsaved = () =>
-        new Error(
-          "OwnBase could not save its settings, so it did not restore the backup. Check that its settings folder is writable, then try again.",
-        );
-      // Held before anything is restored, as `restore` holds a copy, so the
-      // copy never starts by itself as though nothing had happened.
-      const held: HostedWorkspace = { ...listed, restoredHold: now() };
-      registry = list.map((e) => (e === listed ? held : e));
-      try {
-        await saveRegistry();
-      } catch {
-        registry = list;
-        throw unsaved();
-      }
-      const wasLaunch = (await readLaunchFolder().catch(() => null)) === listed.folder;
-      if (wasLaunch) {
-        try {
-          await options.settings.set(START_ON_LAUNCH_KEY, null);
-        } catch {
-          registry = list;
-          await keepRegistry();
-          throw unsaved();
-        }
-        launchFolder = null;
-      }
-      let restored: unknown;
-      try {
-        restored = await options.restoreWorkspace({ backupDir: source, dataDir });
-      } catch (error) {
+      const { name, inventory, restored } = await restoreHeld({
+        list,
+        held: { ...listed, restoredHold: now() },
+        source,
+        workspaceName: manifest.workspaceName,
         // The server's restore puts what was there back before it fails, so
         // the workspace is as it was; so is its place in the list.
-        registry = list;
-        await keepRegistry();
-        if (wasLaunch)
-          await options.settings.set(START_ON_LAUNCH_KEY, listed.folder).then(
-            () => (launchFolder = listed.folder),
-            () => {},
-          );
-        throw error;
-      }
+        undo: () => true,
+      });
       const aside = (restored as { supersededDir?: unknown } | null)?.supersededDir;
-      const name = manifest.workspaceName.trim().slice(0, WORKSPACE_NAME_MAX) || listed.name;
-      updateEntry(listed.folder, { name });
-      await keepRegistry();
-      const inventory = await options.inventoryBackup(source).catch(() => null);
-      changed();
       return {
         folder: listed.folder,
         name,
@@ -1369,8 +1386,7 @@ export function createHostingController(options: HostingOptions) {
       );
     return serialized(async () => {
       refuseWhileQuitting();
-      const entry = (await loadRegistry()).find((e) => e.folder === folder);
-      if (!entry) throw new Error("That workspace is not in the list hosted on this computer.");
+      const entry = await listedEntry(folder);
       let chosen: AutoBackup | null = null;
       if (schedule !== null) {
         const asked = schedule as Record<string, unknown>;
@@ -1603,8 +1619,7 @@ export function createHostingController(options: HostingOptions) {
     const next = port;
     return serialized(async () => {
       refuseWhileQuitting();
-      const entry = (await loadRegistry()).find((e) => e.folder === folder);
-      if (!entry) throw new Error("That workspace is not in the list hosted on this computer.");
+      const entry = await listedEntry(folder);
       if (server && workspace?.folder === entry.folder)
         throw new Error(`Stop hosting ${entry.name} before changing its port.`);
       updateEntry(entry.folder, { port: next, portChosen: true });
@@ -1629,10 +1644,7 @@ export function createHostingController(options: HostingOptions) {
     if (value !== null && typeof value !== "string")
       return Promise.reject(new Error("Choose a workspace to start when OwnBase opens."));
     return serialized(async () => {
-      const chosen =
-        value === null ? undefined : (await loadRegistry()).find((e) => e.folder === value);
-      if (value !== null && !chosen)
-        throw new Error("That workspace is not in the list hosted on this computer.");
+      const chosen = value === null ? undefined : await listedEntry(value);
       if (chosen?.restoredHold !== undefined)
         throw new Error(`Put ${chosen.name} back in use before choosing it to start with OwnBase.`);
       try {
@@ -1858,31 +1870,28 @@ export function createHostingController(options: HostingOptions) {
     }
     return serialized(async () => {
       refuseWhileQuitting();
-      const entry = (await loadRegistry()).find((e) => e.folder === folder);
-      if (!entry) throw new Error("That workspace is not in the list hosted on this computer.");
+      const entry = await listedEntry(folder);
       if (server && workspace?.folder === entry.folder) {
         if (stopFailed) throw new Error("Finish stopping the workspace before renaming it.");
         server.setWorkspaceName(next);
         next = server.workspaceName();
         workspace.workspaceName = next;
       } else {
-        const dataDir = join(options.dataRoot, entry.folder);
-        if (!existsSync(dataDir))
+        const inside = folderHolds(entry);
+        if (inside.holds === "nothing")
           throw new Error(
             `The folder that held ${entry.name} is missing, so it cannot be renamed.`,
           );
-        const inside = read(dataDir);
-        if (!inside)
+        if (inside.holds === "unreadable")
           throw new Error(
             `${entry.name}'s database is missing or unreadable, so it was not renamed.`,
           );
-        // A folder copied or swapped by hand holds some other workspace.
-        if (entry.id && inside.id !== entry.id)
+        if (inside.holds === "another")
           throw new Error(
             `The folder for ${entry.name} holds a different workspace, so it was not renamed.`,
           );
         try {
-          options.stopped.rename(dataDir, next);
+          options.stopped.rename(dataDirOf(entry), next);
         } catch {
           // SQLite's own message can name the file, and with it the account.
           throw new Error(
@@ -1941,8 +1950,7 @@ export function createHostingController(options: HostingOptions) {
    */
   async function openFolder(value: unknown): Promise<void> {
     if (typeof value !== "string") throw new Error("Choose a workspace whose folder to open.");
-    const entry = (await loadRegistry()).find((e) => e.folder === value);
-    if (!entry) throw new Error("That workspace is not in the list hosted on this computer.");
+    const entry = await listedEntry(value);
     const dataDir = join(options.dataRoot, entry.folder);
     if (!existsSync(dataDir)) throw new Error(`The folder that held ${entry.name} is missing.`);
     // The system's reason can hold the path, and with it the account name.
