@@ -361,7 +361,7 @@ export const createCommandBody = z.object({
     .min(1)
     .max(32)
     .transform((c) => c.replace(/^\//, "").toLowerCase())
-    .refine((c) => /^[a-z0-9][a-z0-9_-]*$/.test(c), "letters, digits, _ and - only"),
+    .refine((c) => COMMAND_NAME.test(c), "letters, digits, _ and - only"),
   url: integrationUrl,
   description: z.string().max(160).optional(),
   usageHint: z.string().max(80).optional(),

@@ -54,6 +54,8 @@ export interface CommandHint {
   usageHint: string;
   /** Answered by the server itself rather than an installed app. */
   builtin: boolean;
+  /** Run by the app itself, such as /poll or /away: a client never sends it to the server. */
+  inApp: boolean;
 }
 
 /** An app with everything hanging off it, as the admin screen needs it. */
