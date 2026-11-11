@@ -10,7 +10,7 @@ import { lookup } from "./lookup.js";
 import { HOMEBREW_FOLDERS, onPath, pinnedCloudflared } from "./tunnel.js";
 
 /**
- * Installs Cloudflare's cloudflared for Open to all with what this computer
+ * Installs Cloudflare's cloudflared for Get a public link with what this computer
  * already has: winget on Windows, Homebrew on a Mac or on Linux. Without one,
  * or when it fails, OwnBase downloads Cloudflare's own release into its
  * folder, and keeps it only when it matches the digest GitHub publishes.

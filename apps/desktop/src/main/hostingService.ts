@@ -294,7 +294,7 @@ export function createHostingService(options: HostingServiceOptions) {
     "hosting:setPublicAddress": (_event, value) => {
       if (typeof value !== "string") throw new Error("Enter the address as text.");
       const address = value.trim();
-      // Refused here rather than saved, for Open to all to reject later out of sight.
+      // Refused here rather than saved, for Get a public link to reject later out of sight.
       return controller.setPublicAddress(address ? validatePublicAddress(address) : null);
     },
     "hosting:installCloudflared": async () => {

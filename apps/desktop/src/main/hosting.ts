@@ -916,7 +916,7 @@ export function createHostingController(options: HostingOptions) {
         followWorkspace(following, change),
       );
       // A carrier forwards to one port and keeps forwarding there. Say so
-      // while it can still be corrected, rather than letting Open to all
+      // while it can still be corrected, rather than letting Get a public link
       // fail later with only "did not answer as this workspace".
       if (movedFrom !== undefined) {
         const configured = stableUrl();
@@ -1741,7 +1741,7 @@ export function createHostingController(options: HostingOptions) {
 
   /**
    * Publishes the stable address again after starting with OwnBase, when
-   * the host asked for that for this workspace and this address. Open to all
+   * the host asked for that for this workspace and this address. Get a public link
    * checks that the address reaches this running workspace before publishing,
    * and asks for an invite unless told otherwise, so nothing is weakened. A
    * failure is kept to be shown; hosting on the network carries on.
