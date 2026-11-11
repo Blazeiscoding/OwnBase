@@ -118,7 +118,7 @@ export class Lists {
     return new PagedList<Message>(
       async (cursor, signal) => {
         const page = await this.api.listSaved(cursor, signal);
-        return { items: page.messages, nextCursor: page.nextCursor ?? null };
+        return { items: page.messages, nextCursor: page.nextCursor };
       },
       {
         watch: refreshWhen(
@@ -141,7 +141,7 @@ export class Lists {
     return new PagedList<Message>(
       async (cursor, signal) => {
         const page = await this.api.listPins(channelId, signal, cursor);
-        return { items: page.messages, nextCursor: page.nextCursor ?? null };
+        return { items: page.messages, nextCursor: page.nextCursor };
       },
       {
         watch: refreshWhen(
@@ -177,7 +177,7 @@ export class Lists {
         if (!signal.aborted)
           for (const t of page.threads)
             details.set(t.root.id, { unreadCount: t.unreadCount, latestReply: t.latestReply });
-        return { items: page.threads.map((t) => t.root), nextCursor: page.nextCursor ?? null };
+        return { items: page.threads.map((t) => t.root), nextCursor: page.nextCursor };
       },
       {
         watch: refreshWhen(

@@ -192,7 +192,7 @@ export type EphemeralEvent =
    * `stack` is every form they have open, bottom first, ending with `view`,
    * the one to show (E18b).
    */
-  | { type: "view.open"; view: ModalView; stack?: ModalView[] }
+  | { type: "view.open"; view: ModalView; stack: ModalView[] }
   /** Forms this person no longer has open: closed on another device, or by the app. */
   | { type: "view.close"; viewIds: ID[] };
 

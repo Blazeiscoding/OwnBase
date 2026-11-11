@@ -530,10 +530,10 @@ describe("opening where reading stopped (X3)", () => {
     expect(since).not.toHaveBeenCalled();
   });
 
-  it("keeps the newest page from a server without it", async () => {
+  it("keeps the newest page when the window around the first unread does not come", async () => {
     const messages = await said(70);
     vi.spyOn(client.api, "listMessagesSince").mockRejectedValue(
-      new ApiError(404, "not_found", "Not found"),
+      new ApiError(0, "network_error", "Could not reach the workspace"),
     );
     await client.loadTimeline(channelId, { unreadAfter: messages[5]!.seq });
     const timeline = client.state.timelines[channelId]!;

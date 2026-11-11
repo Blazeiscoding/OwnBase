@@ -426,11 +426,8 @@ export interface WorkspaceState extends MessageCache {
    * is `ChannelPrefs.sectionId`; one naming a section not here has none.
    */
   sidebarSections: SidebarSection[];
-  /**
-   * What this account's conversations notify about unless one was set on its
-   * own (v53); null until the first snapshot.
-   */
-  notifyDefault: NotifyLevel | null;
+  /** What this account's conversations notify about unless one was set on its own (v53). */
+  notifyDefault: NotifyLevel;
   /** This account's reminders by message id, waiting and due (E4). */
   reminders: Record<ID, Reminder>;
   /**
@@ -565,7 +562,7 @@ const initialState: WorkspaceState = {
   serverProtocolVersion: null,
   clockSkewMs: null,
   sidebarSections: [],
-  notifyDefault: null,
+  notifyDefault: "mentions",
   reminders: {},
   channelRemovals: {},
   pollChoices: {},
@@ -1594,7 +1591,7 @@ export class WorkspaceClient {
         break;
       case "view.open": {
         // The server says what is open now, bottom first.
-        const stack = event.stack?.length ? event.stack : [event.view];
+        const { stack } = event;
         this.store.setState({ modal: stack.at(-1)!, modalsBelow: stack.slice(0, -1) });
         break;
       }
@@ -1803,14 +1800,14 @@ export class WorkspaceClient {
   private landTimeline(
     channelId: ID,
     ticket: TimelineLoad,
-    page: { messages: Message[]; seq: number | undefined },
+    page: { messages: Message[]; seq: number },
     shape: Pick<ChannelTimeline, "hasMore" | "hasMoreNewer" | "readThroughSeq" | "snapshotSeq">,
     join: { side: "before" | "after"; captured: CapturedTimeline } | null,
     drop: "oldest" | "newest",
   ): void {
     const replayed = this.timelineEvents(ticket, page.seq);
     if (join) {
-      const since = Math.min(page.seq ?? 0, ticket.startSeq);
+      const since = Math.min(page.seq, ticket.startSeq);
       replayed.splice(0, replayed.length, ...this.timelineEvents(ticket, since));
     }
     this.store.setState((s) => {
@@ -2018,7 +2015,7 @@ export class WorkspaceClient {
       {
         hasMore,
         hasMoreNewer: false,
-        readThroughSeq: readThroughSeq ?? messages[0]?.seq ?? 0,
+        readThroughSeq,
         snapshotSeq: seq,
       },
       null,
@@ -2230,7 +2227,7 @@ export class WorkspaceClient {
         const before = s.threads[threadRootId] ?? [];
         let cache: MessageCache = keepMessages(
           s,
-          response.root ? [response.root, ...response.messages] : response.messages,
+          [response.root, ...response.messages],
           response.seq,
         );
         let ids = response.messages.map((m) => m.id);
@@ -2248,12 +2245,12 @@ export class WorkspaceClient {
         }
         cache = {
           ...cache,
-          threads: { ...cache.threads, [threadRootId]: response.root ? ids : [] },
+          threads: { ...cache.threads, [threadRootId]: ids },
           threadPages: {
             ...cache.threadPages,
             [threadRootId]: {
               channelId,
-              rootGone: !response.root,
+              rootGone: false,
               hasMoreOlder,
               hasMoreNewer,
               loading: false,
@@ -3661,7 +3658,7 @@ export class WorkspaceClient {
             this.readRequests.get(channelId) !== controller
           )
             return;
-          const acknowledged = result.seq ?? seq;
+          const acknowledged = result.seq;
           if ((this.pendingReads.get(channelId) ?? 0) <= acknowledged)
             this.pendingReads.delete(channelId);
           this.applyEphemeral({ type: "channel.read", channelId, seq: acknowledged });
@@ -3772,11 +3769,11 @@ export class WorkspaceClient {
    * shown at once; put back when the server refused, resolving with why.
    */
   setNotifyDefault(level: NotifyLevel): Promise<ApiError | null> {
-    if (this.state.notifyDefault === null) return Promise.resolve(notConnected());
-    return this.writes.write<NotifyLevel | null>({ kind: "notifyDefault" }, level, {
+    if (!this.state.self) return Promise.resolve(notConnected());
+    return this.writes.write<NotifyLevel>({ kind: "notifyDefault" }, level, {
       read: () => this.state.notifyDefault,
       show: (notifyDefault) => this.store.setState({ notifyDefault }),
-      send: async (chosen) => (await this.api.setNotifyDefault(chosen!)).level,
+      send: async (chosen) => (await this.api.setNotifyDefault(chosen)).level,
     });
   }
 

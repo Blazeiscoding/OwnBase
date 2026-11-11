@@ -722,13 +722,6 @@ function DefaultLevelSettings() {
   const level = useWorkspace((s) => s.notifyDefault);
   const saved = useSaved();
   const [failed, setFailed] = useState(false);
-  if (level === null) {
-    return (
-      <p className="mt-6 border-t border-edge pt-5 text-sm text-ink-dim">
-        To choose what a channel notifies you about, open its details and go to Notifications.
-      </p>
-    );
-  }
   return (
     <fieldset className="mt-6 border-t border-edge pt-5">
       <legend className="float-left w-full font-semibold">Notify me about</legend>

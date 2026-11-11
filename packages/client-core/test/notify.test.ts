@@ -71,7 +71,7 @@ function state(over: Partial<WorkspaceState> = {}): WorkspaceState {
     workspaceId: null,
     clockSkewMs: null,
     sidebarSections: [],
-    notifyDefault: null,
+    notifyDefault: "mentions",
     reminders: {},
     channelRemovals: {},
     pollChoices: {},
@@ -382,21 +382,6 @@ describe("decideNotification", () => {
     };
     const s = state({ notifyDefault: "nothing", prefs: { C1: own } });
     expect(decideNotification(s, message())).toEqual({ notify: true, reason: "all" });
-    // An older server says nothing of choosing: its level is the conversation's own.
-    const older = state({
-      notifyDefault: null,
-      prefs: {
-        C1: {
-          notifyLevel: "all",
-          notifyChosen: true,
-          muted: false,
-          starred: false,
-          sectionId: null,
-          hiddenSeq: null,
-        },
-      },
-    });
-    expect(decideNotification(older, message()).notify).toBe(true);
   });
 
   it("falls back to mentions-only when a channel has no stored preference", () => {

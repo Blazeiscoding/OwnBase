@@ -686,17 +686,13 @@ function NotificationSettings({ channelId }: { channelId: ID }) {
   const failed = write?.failed && ("notifyLevel" in write.failed || "notifyChosen" in write.failed);
   // A conversation not set on its own follows the account's default (v53).
   const notifyDefault = useWorkspace((s) => s.notifyDefault);
-  const following = notifyDefault !== null && prefs.notifyChosen === false;
+  const following = prefs.notifyChosen === false;
   const options: { value: NotifyLevel | "default"; label: string; hint: string }[] = [
-    ...(notifyDefault !== null
-      ? [
-          {
-            value: "default" as const,
-            label: "Use my default",
-            hint: `Now: ${notifyLevelLabel(notifyDefault).toLowerCase()}. Change it in Account settings, under Notifications.`,
-          },
-        ]
-      : []),
+    {
+      value: "default",
+      label: "Use my default",
+      hint: `Now: ${notifyLevelLabel(notifyDefault).toLowerCase()}. Change it in Account settings, under Notifications.`,
+    },
     ...LEVELS,
   ];
   const isChosen = (value: NotifyLevel | "default") =>

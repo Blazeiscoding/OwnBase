@@ -134,7 +134,7 @@ export function ConversationMenu(props: {
   channelId: ID;
   isRoom: boolean;
   onPins: () => void;
-  onFiles?: () => void;
+  onFiles: () => void;
   /** Absent for a channel this account only looks into, which has no settings of its own. */
   onNotifications?: () => void;
   onDetails: () => void;
@@ -150,9 +150,7 @@ export function ConversationMenu(props: {
   };
   const items: MenuItem[] = [
     { id: "pins", label: "Pinned messages", icon: "pin", onSelect: props.onPins },
-    ...(props.onFiles
-      ? [{ id: "files", label: "Files", icon: "file" as const, onSelect: props.onFiles }]
-      : []),
+    { id: "files", label: "Files", icon: "file", onSelect: props.onFiles },
     ...(canStar ? [starItem(client, toast, conversation, starred)] : []),
     ...(props.onNotifications
       ? [

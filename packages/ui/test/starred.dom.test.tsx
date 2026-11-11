@@ -339,6 +339,7 @@ describe("the conversation's ⋯ menu", () => {
             channelId={channelId}
             isRoom={isRoom}
             onPins={vi.fn()}
+            onFiles={vi.fn()}
             onNotifications={vi.fn()}
             onDetails={vi.fn()}
           />
@@ -354,6 +355,7 @@ describe("the conversation's ⋯ menu", () => {
     await user.click(screen.getByRole("button", { name: "Conversation options" }));
     expect(items()).toEqual([
       "Pinned messages",
+      "Files",
       "Star channel",
       "Notification settings",
       "Channel details",
