@@ -57,10 +57,6 @@ export class Api {
     return this.http.baseUrl;
   }
 
-  setToken(token: string | null): void {
-    this.http.setToken(token);
-  }
-
   serverInfo() {
     return this.http.json(endpoints.serverInfo);
   }
@@ -80,10 +76,6 @@ export class Api {
 
   rtcConfig() {
     return this.http.json(endpoints.rtcConfig);
-  }
-
-  friends() {
-    return this.http.json(endpoints.friends);
   }
 
   updateFriend(userId: ID, action: "request" | "accept" | "remove") {
@@ -330,10 +322,6 @@ export class Api {
    */
   fetchAvatar(userId: ID, version: string) {
     return this.http.bytes(endpoints.avatar, { params: { id: userId }, query: { v: version } });
-  }
-
-  listUsers() {
-    return this.http.json(endpoints.listUsers);
   }
 
   /** Every channel this account can see, with how many active people each room holds. */

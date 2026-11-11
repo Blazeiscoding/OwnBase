@@ -28,22 +28,6 @@ export function isRecordChanges(value: unknown): value is RecordChanges {
 }
 
 /**
- * The record a stored value holds, or null when it is not one: something
- * that is not an object, or any value that is not text. A caller decides
- * what an unreadable record means; for a privacy choice, the private one.
- */
-export function readStoredRecord(value: unknown): Record<string, string> | null {
-  if (value === null || value === undefined) return {};
-  if (typeof value !== "object" || Array.isArray(value)) return null;
-  const record: Record<string, string> = {};
-  for (const [name, text] of Object.entries(value)) {
-    if (typeof text !== "string") return null;
-    record[name] = text;
-  }
-  return record;
-}
-
-/**
  * Applies one window's changes to what is stored. Every other name keeps its
  * text, even beside a damaged value, which goes: one bad entry must not take
  * the others with it. A stored value that is not a record at all is replaced.

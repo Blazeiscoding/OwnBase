@@ -13,9 +13,6 @@ import { timelineMessages } from "./messageCache.js";
 import { PagedList } from "./pagedList.js";
 import type { WorkspaceState } from "./workspace.js";
 
-/** How long a sign that Activity may be out of date waits for others like it (REV-05). */
-const ACTIVITY_REFRESH_DELAY_MS = 250;
-
 /** What Activity's tabs ask the server for. */
 export type ActivityAsk = "unread" | "mentions" | "threads";
 
@@ -218,7 +215,6 @@ export class Lists {
         return { items: page.messages, nextCursor: page.nextCursor };
       },
       {
-        delayMs: ACTIVITY_REFRESH_DELAY_MS,
         watch: refreshWhen(
           this.store,
           (now, before, list) =>

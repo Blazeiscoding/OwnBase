@@ -83,12 +83,8 @@ type CallArgs<E extends EndpointSpec> =
 export class Transport {
   constructor(
     public baseUrl: string,
-    private token: string | null = null,
+    private readonly token: string | null = null,
   ) {}
-
-  setToken(token: string | null): void {
-    this.token = token;
-  }
 
   url(endpoint: EndpointSpec, input: { params?: unknown; query?: unknown } = {}): string {
     const query = new URLSearchParams();
