@@ -1,5 +1,6 @@
 import { useEffect, useEffectEvent, useId, useMemo, useRef, useState } from "react";
 import { hostWithPort, type ServerInfo, type SignInMethod } from "@ownbase/protocol";
+import { TITLE_BAR_HEIGHT } from "@ownbase/protocol/desktop";
 import { Api, ApiError, normalizeServerUrl } from "@ownbase/client-core";
 import type {
   DiscoveredServer,
@@ -247,7 +248,9 @@ export function JoinScreen({
   const endedHere = authing && ended?.url === stage.url ? ended : null;
   return (
     <div className="relative flex h-full flex-col overflow-hidden bg-deep">
-      {platform.kind === "desktop" && <div className="titlebar-drag relative h-10 shrink-0" />}
+      {platform.kind === "desktop" && (
+        <div className="titlebar-drag relative shrink-0" style={{ height: TITLE_BAR_HEIGHT }} />
+      )}
       <main className="relative flex flex-1 overflow-y-auto px-4 py-8 sm:px-8">
         <div className="join-layout m-auto w-full max-w-[440px] animate-rise-in">
           {/* Signing in, the card is the page, as Clerk's is: one line above it, not three. */}

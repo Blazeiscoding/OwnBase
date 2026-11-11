@@ -73,7 +73,7 @@
         "Uses a fixed folder identifier independent of the display name, validates database identity, and parses persisted registry/automatic-backup metadata.",
         "Adopts ordinary unlisted workspace folders while checking ownership before reading; restores or renamed folders are not selected by name alone.",
         "N11 preserves safety holds when nonidentity fields are damaged and refuses uncertain held identities, preventing an isolated restore from becoming ordinary hosting.",
-        "readWorkspaceIconVersion and readWorkspaceIcon read a workspace's icon from its database read-only through the server's readStoredIcon, so the list shows a stopped workspace's icon without starting it (UX-60)."
+        "A stopped workspace's identity, name and icon are read, and a rename written, by @ownbase/server/stoppedWorkspace, which the controller is given as one dependency, so the list shows a stopped workspace's icon without starting it (UX-60)."
       ],
       "concepts": ["registry", "identity", "migration", "safety hold"]
     },
@@ -95,7 +95,7 @@
       "plain": "Keeps saved sign-ins locked with the computer's own encryption and never writes them as plain text.",
       "summary": "Validates saved accounts and protects their tokens using the native credential adapter.",
       "details": [
-        "Separates workspace/account presentation from encrypted credential bytes and validates both legacy and protected shapes.",
+        "Separates workspace/account presentation from encrypted credential bytes and validates both legacy and protected shapes, the sign-ins themselves by client-core's savedSignIns rules. requireProtection, shared with the call relay, refuses whenever the OS key store is unavailable.",
         "The main process supplies Electron safeStorage after readiness; failure to protect or decrypt is surfaced instead of writing a new plaintext credential.",
         "Keeps the older persisted format name for compatibility and avoids echoing malformed secret values in error messages."
       ],

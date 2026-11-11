@@ -10,7 +10,8 @@
     "./records": "./src/records.ts",
     "./trustedAddresses": "./src/trustedAddresses.ts",
     "./deviceStorage": "./src/deviceStorage.ts",
-    "./addressTrust": "./src/addressTrust.ts"
+    "./addressTrust": "./src/addressTrust.ts",
+    "./savedSignIns": "./src/savedSignIns.ts"
   },
   "scripts": {
     "typecheck": "tsc --noEmit",

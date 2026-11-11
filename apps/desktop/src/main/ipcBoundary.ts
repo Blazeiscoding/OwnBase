@@ -1,3 +1,4 @@
+import { endpoints } from "@ownbase/protocol";
 import type { Args, Channel, Reply, Result } from "../shared/bridge.js";
 import { toFailure } from "../shared/desktopError.js";
 
@@ -131,4 +132,32 @@ export function settingKey(key: unknown): string {
   if (typeof key !== "string" || key.length === 0 || key.length > 1024 || /\p{Cc}/u.test(key))
     throw new Error("Not a settings key.");
   return key;
+}
+
+/**
+ * The paths a one-time download ticket opens, from the endpoint table, each
+ * matched at the end of the address so a workspace below a path prefix works.
+ */
+const TICKET_PATHS = Object.values(endpoints)
+  .filter((endpoint) => "ticket" in endpoint && endpoint.ticket)
+  .map((endpoint) => new RegExp(`${endpoint.path.replace(/:\w+/g, "[^/]+")}$`));
+
+/**
+ * An address the window may have the app download: http(s), no sign-in in
+ * it, an endpoint a ticket opens, carrying that ticket and nothing else.
+ * Anything looser would let the page make the app fetch any address.
+ */
+export function ticketDownloadUrl(value: unknown): string {
+  if (typeof value !== "string") throw new Error("Invalid download request");
+  const url = new URL(value);
+  if (
+    !/^https?:$/.test(url.protocol) ||
+    url.username ||
+    url.password ||
+    !TICKET_PATHS.some((path) => path.test(url.pathname)) ||
+    !/^[a-f0-9]{64}$/.test(url.searchParams.get("download") ?? "") ||
+    [...url.searchParams.keys()].some((key) => key !== "download")
+  )
+    throw new Error("Invalid download URL");
+  return url.toString();
 }

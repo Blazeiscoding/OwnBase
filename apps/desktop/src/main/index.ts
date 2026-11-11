@@ -29,7 +29,11 @@ import {
   isLinkableAddress,
   type DiscoveryTxt,
 } from "@ownbase/protocol";
-import type { DesktopCapabilities, DiscoveredServer } from "@ownbase/protocol/desktop";
+import {
+  TITLE_BAR_HEIGHT,
+  type DesktopCapabilities,
+  type DiscoveredServer,
+} from "@ownbase/protocol/desktop";
 import type { OutboxChanges } from "@ownbase/client-core/outbox";
 import type { DraftChanges } from "@ownbase/client-core/drafts";
 import { applyRecordChanges, isRecordChanges } from "@ownbase/client-core/records";
@@ -37,6 +41,7 @@ import { addTrustedAddress } from "@ownbase/client-core/trustedAddresses";
 import {
   CHANNELS,
   capabilitiesArgument,
+  MICROPHONE_PORT_CHANNEL,
   type EventName,
   type Events,
   type WindowTheme,
@@ -51,6 +56,7 @@ import {
   appRecipients,
   rendererUrlTrust,
   settingKey,
+  ticketDownloadUrl,
   type Handlers,
 } from "./ipcBoundary.js";
 import { writeGateReport } from "./releaseGate.js";
@@ -103,7 +109,6 @@ function push<E extends EventName>(event: E, payload: Events[E]): void {
     win.webContents.send(event, payload);
 }
 let rendererReady = false;
-let quitting = false;
 let quitReady = false;
 let quitTask: Promise<void> | null = null;
 
@@ -292,7 +297,11 @@ function paintWindow(): void {
   win.setBackgroundColor(colours.background);
   // Only Windows and Linux draw the window buttons on an overlay.
   if (process.platform !== "darwin")
-    win.setTitleBarOverlay({ color: colours.background, symbolColor: colours.symbols, height: 40 });
+    win.setTitleBarOverlay({
+      color: colours.background,
+      symbolColor: colours.symbols,
+      height: TITLE_BAR_HEIGHT,
+    });
 }
 nativeTheme.on("updated", paintWindow);
 
@@ -451,18 +460,8 @@ const capabilities: Omit<DesktopCapabilities, "readerLocale"> = {
 
 const handlers: Handlers<IpcMainInvokeEvent> = {
   "file:download": (_event, value) => {
-    if (!mainWindow || typeof value !== "string") throw new Error("Invalid download request");
-    const url = new URL(value);
-    if (
-      !/^https?:$/.test(url.protocol) ||
-      url.username ||
-      url.password ||
-      !/\/api\/files\/[0-9A-HJKMNP-TV-Z]{26}$/.test(url.pathname) ||
-      !/^[a-f0-9]{64}$/.test(url.searchParams.get("download") ?? "") ||
-      [...url.searchParams.keys()].some((key) => key !== "download")
-    )
-      throw new Error("Invalid download URL");
-    mainWindow.webContents.downloadURL(url.toString());
+    if (!mainWindow) throw new Error("Invalid download request");
+    mainWindow.webContents.downloadURL(ticketDownloadUrl(value));
   },
   "storage:get": (_event, key, options) =>
     settings.get(settingKey(key), {
@@ -562,7 +561,7 @@ const handlers: Handlers<IpcMainInvokeEvent> = {
     const { port1, port2 } = new MessageChannelMain();
     const opened = await microphones.open(event.sender.id, id, port1);
     // The page's end of the samples, which it hands to its audio worklet.
-    event.sender.postMessage("microphone:port", { session: opened.session }, [port2]);
+    event.sender.postMessage(MICROPHONE_PORT_CHANNEL, { session: opened.session }, [port2]);
     return opened;
   },
   "microphone:close": (event, session) => {
@@ -586,19 +585,13 @@ for (const channel of CHANNELS)
 // ---------- the tray, and quitting ----------
 
 function showMainWindow(): BrowserWindow | null {
-  if (!app.isReady() || quitting) return null;
+  if (!app.isReady() || hosting.quitting()) return null;
   if (!mainWindow || mainWindow.isDestroyed()) createWindow();
   const win = mainWindow!;
   if (win.isMinimized()) win.restore();
   if (!isTest) win.show();
   win.focus();
   return win;
-}
-
-/** While quitting, the tray offers nothing and hosting starts no new work. */
-function setQuitting(on: boolean): void {
-  quitting = on;
-  hosting.setQuitting(on);
 }
 
 async function confirmStopAndQuit(): Promise<boolean> {
@@ -618,7 +611,7 @@ async function confirmStopAndQuit(): Promise<boolean> {
 // The tray's label already says hosting stops, so it does not ask first.
 async function stopFromTray(): Promise<void> {
   try {
-    await hosting.stopFromTray();
+    await hosting.stop();
   } catch {
     showMainWindow();
     await dialog.showMessageBox({
@@ -631,7 +624,6 @@ async function stopFromTray(): Promise<void> {
 function updateTray(): void {
   if (!tray || tray.isDestroyed()) return;
   const status = hosting.status();
-  const trayStopping = hosting.stoppingFromTray();
   const label =
     status.phase === "starting"
       ? "Starting workspace…"
@@ -680,7 +672,7 @@ function updateTray(): void {
       })),
       {
         label: "Stop hosting",
-        enabled: status.phase === "running" && !quitting && !trayStopping,
+        enabled: status.phase === "running" && !hosting.quitting(),
         click: () => {
           void stopFromTray().catch(() => {});
         },
@@ -688,7 +680,7 @@ function updateTray(): void {
       { type: "separator" },
       {
         label: status.phase === "stopped" ? "Quit OwnBase" : "Stop hosting and quit",
-        enabled: !quitting && !trayStopping,
+        enabled: !hosting.quitting() && status.phase !== "stopping",
         // The label already says hosting stops, so it does not ask again.
         click: () => quitOwnBase(true),
       },
@@ -750,7 +742,7 @@ function createWindow(): void {
     titleBarOverlay: {
       color: colours.background,
       symbolColor: colours.symbols,
-      height: 40,
+      height: TITLE_BAR_HEIGHT,
     },
     webPreferences: {
       preload: join(import.meta.dirname, "../preload/index.cjs"),
@@ -800,7 +792,7 @@ function createWindow(): void {
   win.on("close", (event) => {
     if (placeTimer) savePlace();
     if (quitReady || closeAllowed) return;
-    if (quitting || hosting.status().phase !== "stopped") {
+    if (hosting.quitting() || hosting.status().phase !== "stopped") {
       event.preventDefault();
       if (tray && !tray.isDestroyed()) win.hide();
       else win.minimize();
@@ -909,7 +901,7 @@ function createWindow(): void {
   // either way; what the page had saved comes back with it.
   const recovery = new RendererRecovery();
   const recover = async (what: string, fresh: boolean) => {
-    if (win.isDestroyed() || quitting) return;
+    if (win.isDestroyed() || hosting.quitting()) return;
     rendererReady = false;
     // A page that ran loads again where it was: the address it last reported,
     // and its history entry handed back (F08). One that never loaded starts
@@ -923,7 +915,7 @@ function createWindow(): void {
         : void win.loadURL(where).catch(() => {});
     if (recovery.failed() === "reload") {
       setTimeout(() => {
-        if (!win.isDestroyed() && !quitting) reopen();
+        if (!win.isDestroyed() && !hosting.quitting()) reopen();
       }, RENDERER_RECOVERY.reloadDelayMs);
       return;
     }
@@ -970,10 +962,7 @@ function createWindow(): void {
 function loadRenderer(win: BrowserWindow): void {
   rendererReady = false;
   // A failure is reported through did-fail-load, which decides what to do.
-  const loading = isDev
-    ? win.loadURL(process.env.ELECTRON_RENDERER_URL!)
-    : win.loadFile(join(import.meta.dirname, "../renderer/index.html"));
-  loading.catch(() => {});
+  win.loadURL(rendererUrl).catch(() => {});
 }
 
 void app.whenReady().then(async () => {
@@ -1053,7 +1042,7 @@ app.on("window-all-closed", () => {
   if (process.platform === "darwin") return;
   if (hosting.status().phase === "stopped") app.quit();
   // A server with nothing on screen and no tray to reach it by would be invisible.
-  else if (!quitting && !tray) showMainWindow();
+  else if (!hosting.quitting() && !tray) showMainWindow();
 });
 
 app.on("will-quit", () => {
@@ -1072,19 +1061,19 @@ app.on("before-quit", (event) => {
  * first, for a choice that already said it stops hosting.
  */
 function quitOwnBase(stopConfirmed: boolean): void {
-  if (quitTask || hosting.stoppingFromTray()) return;
-  setQuitting(true);
+  if (quitTask) return;
+  hosting.setQuitting(true);
   updateTray();
   quitTask = (async () => {
     if (!stopConfirmed && hosting.status().phase !== "stopped" && !(await confirmStopAndQuit())) {
-      setQuitting(false);
+      hosting.setQuitting(false);
       updateTray();
       return;
     }
     // Kept before the settings are saved for the last time.
     saveWindowPlaceNow?.();
     if (!(await prepareLocalWrites(mainWindow, true))) {
-      setQuitting(false);
+      hosting.setQuitting(false);
       updateTray();
       return;
     }
@@ -1111,7 +1100,7 @@ function quitOwnBase(stopConfirmed: boolean): void {
         // Only the user's explicit response to a failed shutdown may bypass draining.
         app.exit(1);
       } else {
-        setQuitting(false);
+        hosting.setQuitting(false);
         if (mainWindow && !mainWindow.isDestroyed()) mainWindow.setEnabled(true);
         showMainWindow();
         updateTray();
@@ -1119,8 +1108,8 @@ function quitOwnBase(stopConfirmed: boolean): void {
     })
     .finally(() => {
       quitTask = null;
-      if (!quitReady && quitting) {
-        setQuitting(false);
+      if (!quitReady && hosting.quitting()) {
+        hosting.setQuitting(false);
         showMainWindow();
         updateTray();
       }

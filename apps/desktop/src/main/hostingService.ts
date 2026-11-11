@@ -11,25 +11,38 @@ import {
   type CallRelay,
   type WorkspaceServer,
 } from "@ownbase/server";
-import type { Channel } from "../shared/bridge.js";
+import {
+  readStoppedIcon,
+  readStoppedIconVersion,
+  readStoppedWorkspace,
+  renameStoppedWorkspace,
+} from "@ownbase/server/stoppedWorkspace";
+import { answeredWhileQuitting, type Channel } from "../shared/bridge.js";
 import { DesktopError } from "../shared/desktopError.js";
 import type { BackupJob } from "./backupWorker.js";
 import { CALL_RELAY_KEY, decodeRelay, encodeRelay, resolveDraft, summarize } from "./callRelay.js";
 import { createCloudflaredInstaller, downloadedCloudflared } from "./cloudflaredInstall.js";
 import type { CredentialProtector } from "./credentials.js";
-import { createHostingController, REOPEN_PUBLIC_KEY, START_ON_LAUNCH_KEY } from "./hosting.js";
+import {
+  createHostingController,
+  QUITTING,
+  REOPEN_PUBLIC_KEY,
+  START_ON_LAUNCH_KEY,
+} from "./hosting.js";
 import { startHostedServer } from "./hostedServer.js";
-import type { Handler, Handlers } from "./ipcBoundary.js";
+import type { Handlers } from "./ipcBoundary.js";
 import { lookup } from "./lookup.js";
 import { REGISTRY_KEY } from "./registry.js";
 import type { SettingsStorage } from "./settings.js";
 import {
   findCloudflared,
+  healthUrl,
   openConfiguredAddress,
   openNamedTunnel,
   openQuickTunnel,
   probeHealth,
   resolvePublicAddress,
+  stableAddress,
   validatePublicAddress,
 } from "./tunnel.js";
 
@@ -46,23 +59,6 @@ export const HOSTING_KEYS = [
   CALL_RELAY_KEY,
   PUBLIC_ADDRESS_KEY,
 ] as const;
-
-/**
- * While OwnBase quits it starts no new work: these alone are answered, since
- * they only read or stop. Anything else is refused with "quitting".
- */
-const ANSWERED_WHILE_QUITTING = new Set<HostingChannel>([
-  "hosting:status",
-  "hosting:list",
-  "hosting:lastHosted",
-  "hosting:icon",
-  "hosting:backups",
-  "hosting:relay:get",
-  "hosting:openAtLogin:get",
-  "hosting:stop",
-  "hosting:endOpenToAll",
-  "hosting:dismissLaunchError",
-]);
 
 /** The folders the system's dialog is asked for, and how each asks. */
 const FOLDER_DIALOGS = {
@@ -139,8 +135,6 @@ export function lanUrls(port: number): string[] {
 export function createHostingService(options: HostingServiceOptions) {
   const env = options.env ?? process.env;
   const platform = options.platform ?? process.platform;
-  let quitting = false;
-  let trayStopping = false;
   let savedAddress: string | null = null;
 
   const settings = options.settings;
@@ -165,27 +159,6 @@ export function createHostingService(options: HostingServiceOptions) {
     cloudflared.forget();
     addressConfig.forget();
     installer.forget();
-  }
-
-  function addressCarriedElsewhere(): boolean {
-    const config = addressConfig.get();
-    return !!config && !("error" in config) && config.carrier === "elsewhere";
-  }
-
-  function publicAddressStatus() {
-    const config = addressConfig.get();
-    // A saved address the app can change, against one the environment fixed.
-    const setting =
-      savedAddress ??
-      (config && !("error" in config) && config.carrier === "elsewhere" ? config.publicUrl : null);
-    return {
-      ...(setting ? { setting } : {}),
-      ...(setting && !savedAddress ? { locked: true } : {}),
-      ...(config && "error" in config ? { error: config.error } : {}),
-      ...(config && !("error" in config)
-        ? { url: config.publicUrl, ...(config.carrier === "ownbase" ? { managed: true } : {}) }
-        : {}),
-    };
   }
 
   /** Running workspaces that calls can be given a relay by, so a change reaches them at once. */
@@ -221,6 +194,12 @@ export function createHostingService(options: HostingServiceOptions) {
     defaultPort: DEFAULT_PORT,
     lanUrls,
     settings,
+    stopped: {
+      read: readStoppedWorkspace,
+      icon: readStoppedIcon,
+      iconVersion: readStoppedIconVersion,
+      rename: renameStoppedWorkspace,
+    },
     backupWorkspace: (request) => options.inWorker({ kind: "backup", ...request }),
     verifyBackup: (dir) => options.inWorker({ kind: "verify", dir }),
     restoreWorkspace: (request) => options.inWorker({ kind: "restore", ...request }),
@@ -234,21 +213,19 @@ export function createHostingService(options: HostingServiceOptions) {
         webDistPath: options.webDistPath,
         savedRelay,
         relayServers,
-        publicAddressConfigured: () => {
-          const config = addressConfig.get();
-          return !!config && !("error" in config);
-        },
+        publicAddressConfigured: () => stableAddress(addressConfig.get()) !== null,
       }),
     verifyLoopback: async (port, instanceId) =>
       // Only a reply from something that is not this run proves the port leads
       // elsewhere. A probe that cannot connect at all proves nothing.
       (await probeHealth(
-        `http://127.0.0.1:${port}/api/health`,
+        healthUrl(`http://127.0.0.1:${port}`),
         AbortSignal.timeout(3_000),
         instanceId,
       )) !== "something-else",
-    tunnelAvailable: () => cloudflared.get() !== null || addressCarriedElsewhere(),
-    publicAddress: publicAddressStatus,
+    tunnelAvailable: () =>
+      cloudflared.get() !== null || stableAddress(addressConfig.get())?.carrier === "elsewhere",
+    publicAddress: () => ({ saved: savedAddress, config: addressConfig.get() }),
     savePublicAddress: async (address) => {
       try {
         await settings.set(PUBLIC_ADDRESS_KEY, address);
@@ -261,24 +238,17 @@ export function createHostingService(options: HostingServiceOptions) {
       savedAddress = address;
       addressConfig.forget();
     },
-    openTunnel: (port, signal, instanceId) => {
-      lookAgain();
-      const configured = addressConfig.get();
-      if (configured && "error" in configured) throw new Error(configured.error);
-      if (configured && !instanceId)
-        throw new Error(
-          "OwnBase cannot check that the public address leads to this workspace. Stop hosting, then start it again.",
-        );
+    openTunnel: (port, signal, instanceId, address) => {
       // Nothing to install or start when something else already carries the address.
-      if (configured?.carrier === "elsewhere")
-        return openConfiguredAddress({ ...configured, port, signal, instanceId: instanceId! });
+      if (address?.carrier === "elsewhere")
+        return openConfiguredAddress({ ...address, port, signal, instanceId });
+      cloudflared.forget();
       const command = cloudflared.get();
       if (!command)
         throw new Error(
           "A public link needs cloudflared, a free program from Cloudflare. Install it, then try again.",
         );
-      if (configured)
-        return openNamedTunnel({ ...configured, command, port, signal, instanceId: instanceId! });
+      if (address) return openNamedTunnel({ ...address, command, port, signal, instanceId });
       return openQuickTunnel({ command, port, signal, instanceId });
     },
   });
@@ -312,24 +282,23 @@ export function createHostingService(options: HostingServiceOptions) {
       lookAgain();
       return status();
     },
-    "hosting:start": (_event, request) => {
-      if (trayStopping) throw new Error("Wait for hosting to stop before starting a workspace.");
-      return controller.start(request);
-    },
+    "hosting:start": (_event, request) => controller.start(request),
     "hosting:stop": () => controller.stop(),
-    "hosting:openToAll": (_event, accessPolicy) => controller.openToAll({ accessPolicy }),
+    "hosting:openToAll": (_event, accessPolicy) => {
+      // What carries the link is looked for again, as the host may have just set it up.
+      lookAgain();
+      return controller.openToAll({ accessPolicy });
+    },
     "hosting:endOpenToAll": () => controller.endOpenToAll(),
     "hosting:setAccessPolicy": (_event, accessPolicy) => controller.setAccessPolicy(accessPolicy),
     "hosting:setPublicAddress": (_event, value) => {
       if (typeof value !== "string") throw new Error("Enter the address as text.");
       const address = value.trim();
-      // Refused here rather than saved, for Open to all to reject later out of sight.
+      // Refused here rather than saved, for Get a public link to reject later out of sight.
       return controller.setPublicAddress(address ? validatePublicAddress(address) : null);
     },
     "hosting:installCloudflared": async () => {
       await installer.install();
-      lookAgain();
-      options.onChange();
     },
     // Unreadable settings mean no remembered workspace, not a failed call.
     "hosting:lastHosted": () => controller.lastHosted(),
@@ -436,11 +405,8 @@ export function createHostingService(options: HostingServiceOptions) {
     Object.entries(calls).map(([channel, handler]) => [
       channel,
       (event: unknown, ...args: unknown[]) => {
-        if (quitting && !ANSWERED_WHILE_QUITTING.has(channel as HostingChannel))
-          throw new DesktopError(
-            "quitting",
-            "OwnBase is shutting down. Try again after reopening it.",
-          );
+        if (controller.quitting() && !answeredWhileQuitting(channel as HostingChannel))
+          throw new Error(QUITTING);
         return (handler as (event: unknown, ...args: unknown[]) => unknown)(event, ...args);
       },
     ]),
@@ -483,27 +449,13 @@ export function createHostingService(options: HostingServiceOptions) {
     backupAttention: () => controller.backupAttention(),
     runDueBackups: (retryFailed = false) => controller.runDueBackups(retryFailed),
     startForLaunch: () => controller.startForLaunch(),
-    stoppingFromTray: () => trayStopping,
-    async stopFromTray(): Promise<void> {
-      if (trayStopping || quitting) return;
-      trayStopping = true;
-      options.onChange();
-      try {
-        await controller.stop();
-      } finally {
-        trayStopping = false;
-        options.onChange();
-      }
-    },
-    setQuitting(on: boolean): void {
-      quitting = on;
-    },
+    stop: () => controller.stop(),
+    /** While OwnBase quits, hosting starts nothing new; see the controller's `setQuitting`. */
+    setQuitting: (on: boolean) => controller.setQuitting(on),
+    quitting: () => controller.quitting(),
     shutdown: () => controller.shutdown(),
     cancelInstall: () => installer.cancel(),
   };
 }
 
 export type HostingService = ReturnType<typeof createHostingService>;
-
-/** A hosting handler typed for one channel, for tests that call them directly. */
-export type HostingHandler<C extends HostingChannel> = Handler<C>;

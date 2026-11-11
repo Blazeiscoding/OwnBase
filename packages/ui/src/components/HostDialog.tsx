@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useId, useRef, useState } from "react";
-import { DEFAULT_PORT, type AccessPolicy } from "@ownbase/protocol";
+import { DEFAULT_PORT, WORKSPACE_NAME_MAX, type AccessPolicy } from "@ownbase/protocol";
 import { PORT_RULE, portFromText } from "@ownbase/protocol/desktop";
 import {
   failureCode,
@@ -666,7 +666,7 @@ function RenameForm(props: {
           ref={field}
           autoFocus
           aria-label={`New name for ${props.name}`}
-          maxLength={80}
+          maxLength={WORKSPACE_NAME_MAX}
           value={draft}
           // Read-only rather than disabled while saving, so focus stays here.
           readOnly={props.saving}
@@ -709,18 +709,14 @@ function RenameForm(props: {
   );
 }
 
-/** What to do when the list of hosted workspaces cannot be read, without its raw details. */
+/**
+ * What to do when the list of hosted workspaces cannot be read. The app says
+ * why a list it read is unusable; any other failure's raw details stay out.
+ */
 export function hostedListError(reason: unknown): string {
-  switch (failureCode(reason)) {
-    case "registry-newer":
-      return "The hosted workspace list was saved by a newer version of OwnBase. Update OwnBase to open it; the list was not changed.";
-    case "registry-unsupported":
-      return "The hosted workspace list has a version this OwnBase cannot read. Use a compatible version; the list was not changed.";
-    case "registry-damaged":
-      return "The hosted workspace list in settings is invalid. Restore or repair the settings file before hosting; the list was not changed.";
-    default:
-      return "Could not read the list of workspaces hosted on this computer, so none can start. Check that OwnBase’s settings file can be read, then open this again.";
-  }
+  return failureCode(reason) === "registry-unreadable"
+    ? failureMessage(reason, "")
+    : "Could not read the list of workspaces hosted on this computer, so none can start. Check that OwnBase’s settings file can be read, then open this again.";
 }
 
 /**
@@ -2161,7 +2157,7 @@ export function HostDialog(props: {
                   <input
                     ref={nameInput}
                     autoFocus
-                    maxLength={80}
+                    maxLength={WORKSPACE_NAME_MAX}
                     value={name}
                     disabled={!!busy}
                     onChange={(e) => setName(e.target.value)}

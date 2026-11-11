@@ -13,6 +13,13 @@ export function isPort(value: unknown): value is number {
 
 export const PORT_RULE = "Choose a port from 1 to 65535.";
 
+/**
+ * The height in CSS pixels of the strip at the top of the desktop window: the
+ * system's window buttons are drawn over it on Windows and Linux, and the
+ * page leaves it empty for dragging the window.
+ */
+export const TITLE_BAR_HEIGHT = 40;
+
 export function portFromText(text: string): number | null {
   const trimmed = text.trim();
   if (!/^\d{1,5}$/.test(trimmed)) return null;
@@ -31,17 +38,14 @@ export type DesktopErrorCode =
   | "refused"
   /** The bridge itself broke: nothing the main process chose to say. */
   | "internal"
-  /** The app is quitting, so it starts nothing new. */
-  | "quitting"
-  /** The list of hosted workspaces was saved by a newer version. */
-  | "registry-newer"
-  /** The list of hosted workspaces has a version this one cannot read. */
-  | "registry-unsupported"
-  /** The list of hosted workspaces is damaged. */
-  | "registry-damaged"
+  /**
+   * The list of hosted workspaces cannot be read as it is: saved by a newer
+   * version, or damaged. The message says which, and what to do.
+   */
+  | "registry-unreadable"
   /** A public link waits for the workspace's owner account. */
   | "owner-account-missing"
-  /** A call relay was refused for one of its fields. */
+  /** A call relay was refused for one of its fields, which the window marks. */
   | "relay-key-id"
   | "relay-api-token"
   | "relay-urls"
@@ -209,12 +213,8 @@ export interface HostedWorkspaces {
   unreadable: string[];
 }
 
-/** The workspace this computer hosted most recently. */
-export interface LastHosted {
-  folder: string;
-  workspaceName: string;
-  port: number;
-}
+/** The workspace this computer hosted most recently, named as a start names it. */
+export type LastHosted = StartedWorkspace;
 
 /** One backup of a hosted workspace in its backup folder. */
 export interface HostedBackup {
@@ -306,4 +306,103 @@ export interface DiscoveredServer {
   instanceId?: string;
   /** The version of its icon; absent when it has none. */
   iconVersion?: string;
+}
+
+/**
+ * Running a workspace server inside the desktop app: every call the window
+ * makes about hosting. The window's platform offers these, and the desktop
+ * app's bridge carries each one on the channel `hosting:` followed by its
+ * path, such as `hosting:relay:get`. Its status is read once and then
+ * followed through the app's pushes; nothing else returns it.
+ */
+export interface DesktopHosting {
+  status: () => Promise<HostingStatus>;
+  start: (request: HostingStart) => Promise<StartedWorkspace>;
+  stop: () => Promise<void>;
+  /** Publishes the running workspace at a public address, and says who may join through it. */
+  openToAll: (accessPolicy: AccessPolicy) => Promise<void>;
+  endOpenToAll: () => Promise<void>;
+  /** Changes who may join while the server is running; turning guests off signs them out. */
+  setAccessPolicy: (accessPolicy: AccessPolicy) => Promise<void>;
+  /**
+   * Saves an address something else already carries to this workspace, or
+   * clears it with "" to go back to a temporary one. Rejects what cannot be
+   * published, so the setting never holds an address that will not work.
+   */
+  setPublicAddress: (address: string) => Promise<void>;
+  /**
+   * Installs cloudflared, which a public link needs, and resolves once it
+   * can be used. Rejects, saying why and what to do, when it could not be.
+   */
+  installCloudflared: () => Promise<void>;
+  /**
+   * The TURN relay for calls between networks that will not connect
+   * directly: the one saved, saving another, and the relay servers a draft
+   * gives a call, to check they give a route before anyone needs them.
+   */
+  relay: {
+    get: () => Promise<CallRelaySetting>;
+    set: (draft: CallRelayDraft) => Promise<CallRelaySetting>;
+    test: (draft: CallRelayDraft) => Promise<RelayServer[]>;
+  };
+  /** The workspace this computer hosted last, if it remembers. */
+  lastHosted: () => Promise<LastHosted | null>;
+  list: () => Promise<HostedWorkspaces>;
+  /**
+   * Asks where to save a backup of a hosted workspace, running or not, and
+   * makes it there. Null when no folder was chosen.
+   */
+  backup: (folder: string) => Promise<{ path: string; at: number } | null>;
+  /** Takes a workspace whose folder is gone out of the list. */
+  forget: (folder: string) => Promise<void>;
+  /**
+   * Renames a hosted workspace, running or not, without moving its folder.
+   * Resolves to the name it now has.
+   */
+  rename: (folder: string, name: string) => Promise<{ folder: string; name: string }>;
+  openFolder: (folder: string) => Promise<void>;
+  /**
+   * A hosted workspace's icon as a data URL, read from its own database
+   * whether it runs or not, without starting it. Null when it has none.
+   */
+  icon: (folder: string) => Promise<string | null>;
+  /** Chooses the workspace, by its folder, to start whenever OwnBase opens, or none. */
+  setStartOnLaunch: (folder: string | null) => Promise<void>;
+  /** Whether the running workspace also reopens its stable public address when it starts with OwnBase. */
+  setReopenPublicOnLaunch: (reopen: boolean) => Promise<void>;
+  /** Stops showing what did not happen when OwnBase opened. */
+  dismissLaunchError: () => Promise<void>;
+  /** Changes the port a stopped workspace starts on. */
+  setPort: (folder: string, port: number) => Promise<void>;
+  /**
+   * Backs a workspace up by itself, every day or week, keeping the newest
+   * `keep`. With `chooseFolder`, the system asks where; resolves to
+   * undefined when no folder was chosen. Null turns it off.
+   */
+  setAutoBackup: (
+    folder: string,
+    schedule: { everyDays: 1 | 7; keep: number } | null,
+    chooseFolder: boolean,
+  ) => Promise<AutoBackup | null | undefined>;
+  /** Makes every scheduled backup that is due now, a failed one included (OPS-02). */
+  retryBackups: () => Promise<void>;
+  /** Whether the OS opens OwnBase when someone signs in. */
+  openAtLogin: {
+    get: () => Promise<boolean>;
+    set: (open: boolean) => Promise<boolean>;
+  };
+  /**
+   * Asks for a backup's folder and restores it as a workspace hosted here,
+   * without starting it. Null when no folder was chosen.
+   */
+  restore: () => Promise<RestoredWorkspace | null>;
+  /** The backups of a hosted workspace in its backup folder, newest first, each checked. */
+  backups: (folder: string) => Promise<HostedBackup[]>;
+  /**
+   * Restores an earlier copy over a stopped hosted workspace: `backup`
+   * names one from `backups`, or null asks for a backup's folder. What it
+   * holds now is moved aside (`setAside`), and the copy is held until it
+   * is put back in use. Null when no folder was chosen.
+   */
+  restoreOver: (folder: string, backup: string | null) => Promise<RestoredOver | null>;
 }

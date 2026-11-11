@@ -2,7 +2,8 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import type { CredentialProtector, SavedCredentialServer } from "../src/main/credentials.js";
+import type { SavedServer } from "@ownbase/client-core/savedSignIns";
+import type { CredentialProtector } from "../src/main/credentials.js";
 import { createSettingsStorage } from "../src/main/settings.js";
 
 /**
@@ -12,7 +13,7 @@ import { createSettingsStorage } from "../src/main/settings.js";
  * reason to write them that way.
  */
 const TOKEN = "slk_session_secret_value";
-const server: SavedCredentialServer = {
+const server: SavedServer = {
   url: "http://192.168.1.20:8543",
   token: TOKEN,
   workspaceName: "Rocket Team",

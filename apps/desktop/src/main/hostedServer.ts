@@ -85,6 +85,6 @@ export async function startHostedServer(
     setIceServers: (servers) => server.setIceServers(servers),
     accessPolicy: () => server.accessPolicy(),
     setAccessPolicy: (policy) => server.setAccessPolicy(policy),
-    accountCount: () => server.store.people.count(),
+    accountCount: () => server.accountCount(),
   };
 }

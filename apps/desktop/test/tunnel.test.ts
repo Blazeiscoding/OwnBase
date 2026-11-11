@@ -286,6 +286,7 @@ describe("opening a quick tunnel", () => {
         command: "cloudflared",
         port: 8543,
         launch: launchAs("open", { FAKE_CLOUDFLARED_ARGS: argsFile }),
+        dnsWarmupMs: 0,
         healthProbe: healthy,
       });
       opened.push(tunnel);
@@ -301,7 +302,12 @@ describe("opening a quick tunnel", () => {
   });
 
   it("runs a script standing in for cloudflared with the app's own executable", async () => {
-    const tunnel = await openQuickTunnel({ command: fake, port: 8543, healthProbe: healthy });
+    const tunnel = await openQuickTunnel({
+      command: fake,
+      port: 8543,
+      dnsWarmupMs: 0,
+      healthProbe: healthy,
+    });
     opened.push(tunnel);
     expect(tunnel.url).toBe("https://fake-open-to-all.trycloudflare.com");
   });
@@ -317,6 +323,7 @@ describe("opening a quick tunnel", () => {
       command: "cloudflared",
       port: 8543,
       launch: launchAs("open"),
+      dnsWarmupMs: 0,
       healthProbe: async (url) => {
         probes.push(url);
         await ready;
@@ -369,6 +376,7 @@ describe("opening a quick tunnel", () => {
       command: "cloudflared",
       port: 8543,
       launch: launchAs("drop"),
+      dnsWarmupMs: 0,
       healthProbe: healthy,
     });
     const reasons: string[] = [];
@@ -380,6 +388,7 @@ describe("opening a quick tunnel", () => {
       command: "cloudflared",
       port: 8543,
       launch: launchAs("open"),
+      dnsWarmupMs: 0,
       healthProbe: healthy,
     });
     const quiet: string[] = [];

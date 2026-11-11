@@ -1,16 +1,10 @@
+import { parseSavedServers, type SavedServer } from "@ownbase/client-core/savedSignIns";
+
 /** Electron's safeStorage adapter is supplied by the main process after app readiness. */
 export interface CredentialProtector {
   isAvailable(): boolean;
   encryptString(value: string): Buffer;
   decryptString(value: Buffer): string;
-}
-
-export interface SavedCredentialServer {
-  url: string;
-  token: string;
-  workspaceName: string;
-  handle: string;
-  lastUsedAt: number;
 }
 
 export interface ProtectedServers {
@@ -23,31 +17,10 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return value !== null && typeof value === "object" && !Array.isArray(value);
 }
 
-/** Reject malformed data without including its contents in an error or log. */
-export function validateSavedServers(value: unknown): SavedCredentialServer[] {
-  if (!Array.isArray(value)) throw new Error("Saved workspace credentials are invalid.");
-  for (const entry of value) {
-    if (
-      !isRecord(entry) ||
-      typeof entry.url !== "string" ||
-      typeof entry.token !== "string" ||
-      entry.token.length === 0 ||
-      typeof entry.workspaceName !== "string" ||
-      typeof entry.handle !== "string" ||
-      typeof entry.lastUsedAt !== "number" ||
-      !Number.isFinite(entry.lastUsedAt) ||
-      entry.lastUsedAt < 0
-    )
-      throw new Error("Saved workspace credentials are invalid.");
-    try {
-      const url = new URL(entry.url);
-      if (!/^https?:$/.test(url.protocol) || url.username || url.password || url.search || url.hash)
-        throw new Error();
-    } catch {
-      throw new Error("A saved workspace address is invalid.");
-    }
-  }
-  return value as SavedCredentialServer[];
+/** Reads sign-ins the window saves, refusing anything else without saying what it held. */
+function savedServers(value: unknown): SavedServer[] {
+  if (!Array.isArray(value)) throw new Error("Could not read saved sign-ins.");
+  return parseSavedServers(value);
 }
 
 export function validateProtectedServers(value: unknown): ProtectedServers {
@@ -65,26 +38,27 @@ export function validateProtectedServers(value: unknown): ProtectedServers {
   return value as unknown as ProtectedServers;
 }
 
-function requireProtection(protector: CredentialProtector): void {
+/** Refuses, with `refusal`, while the system's password store cannot protect a secret. */
+export function requireProtection(protector: CredentialProtector, refusal: string): void {
   let available = false;
   try {
     available = protector.isAvailable();
   } catch {
     // A locked or missing OS key store must not enable a plaintext fallback.
   }
-  if (!available)
-    throw new Error(
-      "This computer's password store is locked or unavailable. Unlock it and try again.",
-    );
+  if (!available) throw new Error(refusal);
 }
+
+const STORE_LOCKED =
+  "This computer's password store is locked or unavailable. Unlock it and try again.";
 
 export function encodeSavedServers(
   value: unknown,
   protector: CredentialProtector,
 ): ProtectedServers | [] {
-  const servers = validateSavedServers(value);
+  const servers = savedServers(value);
   if (servers.length === 0) return [];
-  requireProtection(protector);
+  requireProtection(protector, STORE_LOCKED);
   let ciphertext: Buffer;
   try {
     ciphertext = protector.encryptString(JSON.stringify(servers));
@@ -103,13 +77,10 @@ export function encodeSavedServers(
 }
 
 /** Legacy arrays are accepted here; the settings layer migrates them before returning them. */
-export function decodeSavedServers(
-  value: unknown,
-  protector: CredentialProtector,
-): SavedCredentialServer[] {
-  if (Array.isArray(value)) return validateSavedServers(value);
+export function decodeSavedServers(value: unknown, protector: CredentialProtector): SavedServer[] {
+  if (Array.isArray(value)) return savedServers(value);
   const envelope = validateProtectedServers(value);
-  requireProtection(protector);
+  requireProtection(protector, STORE_LOCKED);
   let decrypted: unknown;
   try {
     decrypted = JSON.parse(protector.decryptString(Buffer.from(envelope.ciphertext, "base64")));
@@ -118,5 +89,5 @@ export function decodeSavedServers(
       "OwnBase could not unlock your saved sign-ins. Sign in to this computer with the account that saved them, then try again.",
     );
   }
-  return validateSavedServers(decrypted);
+  return savedServers(decrypted);
 }

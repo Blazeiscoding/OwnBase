@@ -971,11 +971,11 @@
       "concepts": ["connection diagnosis", "protocol compatibility"]
     },
     {
-      "path": "packages/ui/src/lib/savedServers.ts",
+      "path": "packages/client-core/src/savedSignIns.ts",
       "plain": "Checks remembered sign-ins carefully before using them, so damaged data is reported instead of quietly erased.",
-      "summary": "Strictly validates remembered workspace credentials before restoring them.",
+      "summary": "The saved sign-ins' one home: their storage key, SavedServer, strict validation and changes, for the web client and the desktop app alike.",
       "details": [
-        "Checks list shape, nonempty tokens, presentation fields, nonnegative last-use time and HTTP(S) URL shape.",
+        "SAVED_SIGN_INS_KEY names where every shell keeps them; the desktop app's settings file encrypts what is under it. Checks list shape, nonempty tokens, presentation fields, nonnegative last-use time and HTTP(S) URL shape, without repeating a bad address in its error.",
         "Unreadable data throws instead of becoming an empty list that a later save could overwrite. App reads through this guard inside each saved sign-in turn (Q05), so a list that cannot be read is never written over.",
         "SignInChange is one change as data (use, forget or signOut), so a store can write it down and make it in one step. changeSavedServers makes one, isSignInChange checks one read back from the journal, and readSavedServers answers null where parseSavedServers throws."
       ],

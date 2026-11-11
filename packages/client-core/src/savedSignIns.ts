@@ -1,4 +1,37 @@
-import type { SavedServer } from "../platform.js";
+/**
+ * The sign-ins a device keeps, one per workspace, as every shell stores them:
+ * the browser's own storage, and the desktop app's settings file, which
+ * keeps them encrypted.
+ */
+
+/** The storage key they are kept under, in every shell. */
+export const SAVED_SIGN_INS_KEY = "servers";
+
+export interface SavedServer {
+  url: string;
+  token: string;
+  workspaceName: string;
+  handle: string;
+  lastUsedAt: number;
+}
+
+/** An http(s) address with nothing in it but where the workspace is. */
+function isSavedAddress(value: string): boolean {
+  let url: URL;
+  try {
+    url = new URL(value);
+  } catch {
+    // URL's own error repeats the address, which must not reach a log.
+    return false;
+  }
+  return (
+    ["http:", "https:"].includes(url.protocol) &&
+    !url.username &&
+    !url.password &&
+    !url.search &&
+    !url.hash
+  );
+}
 
 /** A failed/corrupt read must not become an empty list that a later save overwrites. */
 export function parseSavedServers(value: unknown): SavedServer[] {
@@ -16,15 +49,7 @@ export function parseSavedServers(value: unknown): SavedServer[] {
       entry.lastUsedAt < 0
     )
       throw new Error("Could not read saved sign-ins.");
-    const url = new URL(entry.url);
-    if (
-      !["http:", "https:"].includes(url.protocol) ||
-      url.username ||
-      url.password ||
-      url.search ||
-      url.hash
-    )
-      throw new Error("Could not read a saved workspace address.");
+    if (!isSavedAddress(entry.url)) throw new Error("Could not read a saved workspace address.");
     return {
       url: entry.url,
       token: entry.token,

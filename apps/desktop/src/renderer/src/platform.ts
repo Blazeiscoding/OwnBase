@@ -1,6 +1,7 @@
-import type { DesktopErrorCode } from "@ownbase/protocol/desktop";
+import type { DesktopErrorCode, DesktopHosting } from "@ownbase/protocol/desktop";
 import type { OpenedSystemMicrophone, Platform } from "@ownbase/ui";
 import {
+  CHANNELS,
   MICROPHONE_PORT,
   type Args,
   type Channel,
@@ -56,6 +57,23 @@ function callers<M extends Record<string, Channel>>(call: Call, channels: M): Ca
       (...args: unknown[]) => (call as (c: Channel, ...a: unknown[]) => unknown)(channel, ...args),
     ]),
   ) as unknown as Callers<M>;
+}
+
+/**
+ * Every hosting call, on the channel `hosting:` followed by its path in
+ * `DesktopHosting`, as the bridge names them all.
+ */
+export function hostingCalls(call: Call): DesktopHosting {
+  const hosting: Record<string, unknown> = {};
+  for (const channel of CHANNELS) {
+    const [prefix, ...path] = channel.split(":");
+    if (prefix !== "hosting") continue;
+    let at = hosting;
+    for (const step of path.slice(0, -1)) at = (at[step] ??= {}) as Record<string, unknown>;
+    at[path.at(-1)!] = (...args: unknown[]) =>
+      (call as (c: Channel, ...a: unknown[]) => unknown)(channel, ...args);
+  }
+  return hosting as unknown as DesktopHosting;
 }
 
 /**
@@ -143,6 +161,7 @@ export function systemMicrophone(
 export function electronPlatform(bridge: OwnBaseBridge): Platform {
   const call = invoker(bridge);
   const { capabilities } = bridge;
+  const { openAtLogin, ...hosting } = hostingCalls(call);
   const preparing = {
     capture: new Set<() => void | Promise<void>>(),
     persist: new Set<() => void | Promise<void>>(),
@@ -211,41 +230,9 @@ export function electronPlatform(bridge: OwnBaseBridge): Platform {
       subscribe: (cb) => bridge.on("deeplink", cb),
     },
     hosting: {
-      ...callers(call, {
-        status: "hosting:status",
-        start: "hosting:start",
-        stop: "hosting:stop",
-        openToAll: "hosting:openToAll",
-        endOpenToAll: "hosting:endOpenToAll",
-        setAccessPolicy: "hosting:setAccessPolicy",
-        setPublicAddress: "hosting:setPublicAddress",
-        installCloudflared: "hosting:installCloudflared",
-        lastHosted: "hosting:lastHosted",
-        list: "hosting:list",
-        backup: "hosting:backup",
-        forget: "hosting:forget",
-        rename: "hosting:rename",
-        openFolder: "hosting:openFolder",
-        icon: "hosting:icon",
-        setStartOnLaunch: "hosting:setStartOnLaunch",
-        setReopenPublicOnLaunch: "hosting:setReopenPublicOnLaunch",
-        dismissLaunchError: "hosting:dismissLaunchError",
-        setPort: "hosting:setPort",
-        setAutoBackup: "hosting:setAutoBackup",
-        retryBackups: "hosting:retryBackups",
-        restore: "hosting:restore",
-        backups: "hosting:backups",
-        restoreOver: "hosting:restoreOver",
-      }),
+      ...hosting,
       subscribe: (cb) => bridge.on("hosting:changed", cb),
-      relay: callers(call, {
-        get: "hosting:relay:get",
-        set: "hosting:relay:set",
-        test: "hosting:relay:test",
-      }),
-      openAtLogin: capabilities.openAtLogin
-        ? callers(call, { get: "hosting:openAtLogin:get", set: "hosting:openAtLogin:set" })
-        : null,
+      openAtLogin: capabilities.openAtLogin ? openAtLogin : null,
     },
   };
 }

@@ -1,5 +1,11 @@
 import { useCallback, useEffect, useId, useRef, useState } from "react";
-import type { CallRelayDraft, CallRelaySetting, Platform } from "../platform.js";
+import type { DesktopErrorCode } from "@ownbase/protocol/desktop";
+import {
+  failureCode,
+  type CallRelayDraft,
+  type CallRelaySetting,
+  type Platform,
+} from "../platform.js";
 import { probeRelay } from "../lib/relayProbe.js";
 import { inputClass, TextField } from "./TextField.js";
 import { buttonClass } from "./Button.js";
@@ -25,17 +31,17 @@ const FIELDS: Record<Kind, Field[]> = {
 };
 
 /**
- * Which field a refusal from the app is about, by its words. The app checks
+ * Which field a refusal from the app is about, by its code. The app checks
  * what the card checks, so these come from a relay the card could not judge,
  * such as Cloudflare refusing the token; the rest are about no one field.
  */
-const REFUSALS: [RegExp, Field][] = [
-  [/TURN key ID|TURN key with that ID/, "keyId"],
-  [/API token/, "apiToken"],
-  [/relay address|relay's address/, "urls"],
-  [/relay's username/, "username"],
-  [/relay's password/, "credential"],
-];
+const REFUSALS: Partial<Record<DesktopErrorCode, Field>> = {
+  "relay-key-id": "keyId",
+  "relay-api-token": "apiToken",
+  "relay-urls": "urls",
+  "relay-username": "username",
+  "relay-credential": "credential",
+};
 
 const SAVED = "Saved. Leave empty to keep it.";
 /** What a key, username or secret may not hold, as the app checks it. */
@@ -168,10 +174,9 @@ export function CallRelaySettings(props: { relay: RelayApi; disabled?: boolean }
   /** A refusal goes under the field it is about, or under the buttons when it is about none. */
   const refused = (reason: unknown) => {
     const text = errorText(reason);
-    const about = REFUSALS.find(
-      ([words, name]) => words.test(text) && FIELDS[kind].includes(name),
-    )?.[1];
-    if (about) {
+    const code = failureCode(reason);
+    const about = code && REFUSALS[code];
+    if (about && FIELDS[kind].includes(about)) {
       setProblems({ [about]: text });
       fields.current[about]?.focus();
     } else setNote({ ok: false, text });

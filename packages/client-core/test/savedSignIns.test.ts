@@ -3,9 +3,9 @@ import {
   changeSavedServers,
   isSignInChange,
   readSavedServers,
+  type SavedServer,
   type SignInChange,
-} from "../src/lib/savedServers.js";
-import type { SavedServer } from "../src/platform.js";
+} from "../src/savedSignIns.js";
 
 const signIn = (port: number, workspaceName: string, token = `${port}-not-a-credential`) =>
   ({
