@@ -6,12 +6,18 @@ import {
   type InAppCommandName,
   type ScheduleMessageBody,
 } from "@ownbase/protocol";
-import { OUTBOX_LIMIT, quoteOf, threadReplies, timelineMessages } from "@ownbase/client-core";
+import {
+  OUTBOX_LIMIT,
+  draftKey as draftKeyOf,
+  quoteOf,
+  threadReplies,
+  timelineMessages,
+} from "@ownbase/client-core";
 import { useClient, usePlatform, useWorkspace } from "../context.js";
 import { formatBytes } from "../lib/format.js";
 import { useComposerPreferences } from "../lib/composerPreferences.js";
 import { formatScheduleShort, formatScheduleTime, schedulePresets } from "../lib/schedule.js";
-import { cancelReply, conversationKey, setReplyPing, useReplyTarget } from "../lib/replyTarget.js";
+import { cancelReply, setReplyPing, useReplyTarget } from "../lib/replyTarget.js";
 import { Icon } from "./Icon.js";
 import { Menu } from "./Menu.js";
 import { iconFor } from "./Attachments.js";
@@ -75,7 +81,7 @@ export function Composer({ channelId, threadRootId, placeholder, autoFocus, onLe
   const guest = useWorkspace((s) => s.self?.role === "guest");
   /** The question the poll window opens with; null while it is closed. */
   const [pollQuestion, setPollQuestion] = useState<string | null>(null);
-  const draftKey = conversationKey(channelId, threadRootId);
+  const draftKey = draftKeyOf(channelId, threadRootId);
   /** The message the next send answers in place, chosen with Reply. */
   const replyTarget = useReplyTarget(client, draftKey);
   const replyName = replyTarget
@@ -121,7 +127,6 @@ export function Composer({ channelId, threadRootId, placeholder, autoFocus, onLe
   const held = saving?.draftKey === draftKey;
   const box = useRef<HTMLTextAreaElement>(null);
   const filePicker = useRef<HTMLInputElement>(null);
-  const lastTypingSent = useRef(0);
   const shell = useRef<HTMLDivElement>(null);
   /** Where files dragged over the conversation would land, while they are. */
   const [dropArea, setDropArea] = useState<DOMRect | null>(null);
@@ -949,11 +954,7 @@ export function Composer({ channelId, threadRootId, placeholder, autoFocus, onLe
               setText(next.stored);
               if (!scheduleLock.current && !recoveryBlocksSend)
                 suggestions.update(e.target.value, e.target.selectionStart, next);
-              const now = Date.now();
-              if (now - lastTypingSent.current > 3000 && e.target.value.trim()) {
-                lastTypingSent.current = now;
-                client.sendTyping(channelId);
-              }
+              if (e.target.value.trim()) client.sendTyping(channelId);
             }}
             onKeyDown={onKeyDown}
             onBlur={suggestions.close}

@@ -13,14 +13,14 @@ import {
 import { writeClipboard } from "../lib/useCopy.js";
 import { browserLink } from "../lib/deeplink.js";
 import type { FileMeta, ID, Message } from "@ownbase/protocol";
-import { ApiError, forwardSource, type ForwardSource } from "@ownbase/client-core";
+import { ApiError, draftKey, forwardSource, type ForwardSource } from "@ownbase/client-core";
 import { failureText } from "../lib/failure.js";
 import { OpenMessageContext, useClient, useWorkspace } from "../context.js";
 import { onlyEmoji } from "../lib/emoji.js";
 import { formatFull, formatTime } from "../lib/format.js";
 import { formatReminderTime, reminderPresets } from "../lib/schedule.js";
 import { useMessageReferences } from "../lib/messageReferences.js";
-import { conversationKey, startReply } from "../lib/replyTarget.js";
+import { startReply } from "../lib/replyTarget.js";
 import { nearestComposer, refocusComposer, useEditRequest } from "../lib/editRequest.js";
 import { useLongPress } from "../lib/useLongPress.js";
 import { useFocusAfterRender } from "../lib/keys.js";
@@ -203,7 +203,7 @@ const MessageRow = memo(function MessageRow({
   function reply(ping = true) {
     startReply(
       client,
-      conversationKey(message.channelId, inThread ? message.threadRootId : null),
+      draftKey(message.channelId, inThread ? message.threadRootId : null),
       message,
       ping,
     );

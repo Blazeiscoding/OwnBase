@@ -10,7 +10,7 @@ import { MessageItem } from "../src/components/MessageItem.js";
 import { ConfirmProvider } from "../src/components/Confirm.js";
 import { ToastProvider } from "../src/components/Toast.js";
 import { WorkspaceScreen } from "../src/screens/WorkspaceScreen.js";
-import { draftPlace, listDrafts } from "../src/lib/drafts.js";
+import { listDrafts } from "../src/lib/drafts.js";
 import { EDIT_REQUEST_MS, requestEdit } from "../src/lib/editRequest.js";
 import { writeRoute } from "../src/lib/route.js";
 import type { Platform } from "../src/platform.js";
@@ -145,20 +145,7 @@ const fourDrafts = () =>
     },
   );
 
-describe("what a draft key names", () => {
-  it("reads a conversation's, a thread's, and unsaved edits", () => {
-    expect(draftPlace("C1")).toEqual({ kind: "conversation", channelId: "C1" });
-    expect(draftPlace("C1:M1")).toEqual({ kind: "thread", channelId: "C1", rootId: "M1" });
-    expect(draftPlace("C1:edit:M1")).toEqual({ kind: "edit", channelId: "C1", messageId: "M1" });
-    expect(draftPlace("C1:scheduled-edit:S1")).toEqual({
-      kind: "scheduled-edit",
-      channelId: "C1",
-      scheduledId: "S1",
-    });
-    for (const unknown of ["", "C1:", ":M1", "C1::M1", "C1:other:M1", "C1:edit:M1:more"])
-      expect(draftPlace(unknown)).toBeNull();
-  });
-
+describe("the drafts listed", () => {
   it("lists the newest first, those with no time last, and leaves out what it cannot show", () => {
     const channels = { [general.id]: general, [design.id]: design };
     const entries = listDrafts(

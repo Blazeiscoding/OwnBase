@@ -182,6 +182,13 @@ export type SendAnswer =
   /** Nothing was taken. */
   | { kind: "refused"; reason: "empty" | "outbox_full" | "not_connected" };
 
+/**
+ * Someone typing is shown for this long after they last said so, and says so
+ * again sooner while they type, so the dots do not blink out between keys.
+ */
+const TYPING_SHOWN_FOR_MS = 5000;
+const TYPING_SAY_EVERY_MS = 3000;
+
 /** The wait after "too much at once" from a server that did not say how long. */
 const RATE_LIMIT_WAIT_MS = 2000;
 /** However long a server asks for, a send is tried again within this. */
@@ -525,8 +532,8 @@ export interface WorkspaceState extends MessageCache {
   mentionCounts: Record<ID, number>;
   /** threadRootId -> this account's follow state and read cursor for it. */
   threadFollows: Record<ID, ThreadFollow>;
-  /** channelId -> unsent composer text, restored when you come back. */
-  drafts: Record<ID, string>;
+  /** Unsent words by `draftKey`, restored when you come back. */
+  drafts: Record<string, string>;
   /**
    * Draft key -> when its text last changed, in epoch ms, as far as this
    * device knows. A draft kept by an earlier version has none.
@@ -1620,7 +1627,10 @@ export class WorkspaceClient {
         this.store.setState({
           typing: {
             ...s.typing,
-            [event.channelId]: { ...s.typing[event.channelId], [event.userId]: Date.now() + 5000 },
+            [event.channelId]: {
+              ...s.typing[event.channelId],
+              [event.userId]: Date.now() + TYPING_SHOWN_FOR_MS,
+            },
           },
         });
         break;
@@ -3518,18 +3528,18 @@ export class WorkspaceClient {
   }
 
   /** `changedAt` is when the words were written: now, or earlier for a draft put back. */
-  setDraft(channelId: ID, text: string, changedAt = Date.now()): void {
+  setDraft(key: string, text: string, changedAt = Date.now()): void {
     this.store.setState((s) => {
       const drafts = { ...s.drafts };
       const draftTimes = { ...s.draftTimes };
       if (text.trim()) {
         // The same words again change nothing, and say nothing new about when.
-        if (drafts[channelId] === text) return s;
-        drafts[channelId] = text;
-        draftTimes[channelId] = changedAt;
+        if (drafts[key] === text) return s;
+        drafts[key] = text;
+        draftTimes[key] = changedAt;
       } else {
-        delete drafts[channelId];
-        delete draftTimes[channelId];
+        delete drafts[key];
+        delete draftTimes[key];
       }
       return { drafts, draftTimes };
     });
@@ -3954,7 +3964,13 @@ export class WorkspaceClient {
     return doneOf(() => this.api.setChannelManager(channelId, userId, manager));
   }
 
+  private typingSaid = new Map<ID, number>();
+
+  /** Says this person is typing here, at most once every `TYPING_SAY_EVERY_MS`. */
   sendTyping(channelId: ID): void {
+    const now = Date.now();
+    if (now - (this.typingSaid.get(channelId) ?? 0) < TYPING_SAY_EVERY_MS) return;
+    this.typingSaid.set(channelId, now);
     this.sendSocket({ type: "typing", channelId });
   }
 

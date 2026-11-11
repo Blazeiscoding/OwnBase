@@ -2,7 +2,11 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   WorkspaceClient,
   applyDraftChanges,
+  draftKey,
+  draftPlace,
+  editDraftKey,
   isDraftChanges,
+  scheduledEditDraftKey,
   unwrapStoredDrafts,
 } from "../src/index.js";
 import { mergeDrafts, readStoredDrafts } from "../src/drafts.js";
@@ -159,5 +163,28 @@ describe("draft times", () => {
     c.hydrateDrafts({ C1: "mine" });
     expect(c.state.draftTimes).toEqual({ C1: 1_000 });
     c.destroy();
+  });
+});
+
+describe("a draft key", () => {
+  it("names a conversation's composer, a thread's, and unsaved edits, and reads back as such", () => {
+    expect(draftPlace(draftKey("C1"))).toEqual({ kind: "conversation", channelId: "C1" });
+    expect(draftPlace(draftKey("C1", "M1"))).toEqual({
+      kind: "thread",
+      channelId: "C1",
+      rootId: "M1",
+    });
+    expect(draftPlace(editDraftKey("C1", "M1"))).toEqual({
+      kind: "edit",
+      channelId: "C1",
+      messageId: "M1",
+    });
+    expect(draftPlace(scheduledEditDraftKey("C1", "S1"))).toEqual({
+      kind: "scheduled-edit",
+      channelId: "C1",
+      scheduledId: "S1",
+    });
+    for (const unknown of ["", "C1:", ":M1", "C1::M1", "C1:other:M1", "C1:edit:M1:more"])
+      expect(draftPlace(unknown)).toBeNull();
   });
 });

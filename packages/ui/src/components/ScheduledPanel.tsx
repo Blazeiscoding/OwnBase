@@ -10,7 +10,8 @@ import { ListStatus } from "./ListStatus.js";
 import { PanelLink } from "./MessageListPanel.js";
 import { usePanelFocus } from "../lib/usePanelFocus.js";
 import { useOpenList } from "../lib/pagedList.js";
-import { readScheduledEditDraft as draftText, scheduledEditDraftKey } from "../lib/drafts.js";
+import { scheduledEditDraftKey } from "@ownbase/client-core";
+import { readScheduledEditDraft as draftText } from "../lib/drafts.js";
 
 /** Messages queued to go out later, with the option to call them back. */
 export function ScheduledPanel(props: {

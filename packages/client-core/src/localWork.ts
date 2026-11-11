@@ -14,7 +14,7 @@ import {
   type StorageHost,
   type WorkspaceStorageKey,
 } from "./deviceStorage.js";
-import { keepBothDrafts, type DraftChanges } from "./drafts.js";
+import { draftKey, keepBothDrafts, type DraftChanges } from "./drafts.js";
 import {
   OUTBOX_TOMBSTONES_KEPT,
   outboxRevision,
@@ -114,9 +114,9 @@ export function readDraftTimes(value: unknown): Record<string, number> {
   return times;
 }
 
-/** The composer a send came from, as the composer keys its draft. */
+/** The composer a send came from. */
 const composerOf = (send: Pick<StoredOutboxEntry, "channelId" | "threadRootId">) =>
-  send.threadRootId ? `${send.channelId}:${send.threadRootId}` : send.channelId;
+  draftKey(send.channelId, send.threadRootId);
 
 /**
  * What makes `base` into `drafts`: each draft that differs, alone, with the

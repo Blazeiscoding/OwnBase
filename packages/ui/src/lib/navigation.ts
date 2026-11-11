@@ -3,7 +3,7 @@ import { createStore, useStore, type StoreApi } from "zustand";
 import type { ID, Message } from "@ownbase/protocol";
 import { ApiError, isMessageOnScreen, type WorkspaceClient } from "@ownbase/client-core";
 import type { AccountSection } from "./accountSections.js";
-import type { DraftPlace } from "./drafts.js";
+import type { DraftPlace } from "@ownbase/client-core";
 import { requestEdit } from "./editRequest.js";
 import {
   ROUTE_VIEWS,

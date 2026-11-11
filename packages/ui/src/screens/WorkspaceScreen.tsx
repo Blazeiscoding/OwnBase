@@ -64,7 +64,7 @@ import { loadEmoji } from "../lib/emoji.js";
 import { useHistoryKeys } from "../lib/historyKeys.js";
 import { useIdleReport } from "../lib/idle.js";
 import { PartnerTime } from "../components/PartnerTime.js";
-import { draftPlace } from "../lib/drafts.js";
+import { draftPlace } from "@ownbase/client-core";
 import { PhoneNavigation } from "../components/PhoneNavigation.js";
 import { EmptyState } from "../components/EmptyState.js";
 import { signedOutHow, type SignedOutHow } from "../lib/signOut.js";

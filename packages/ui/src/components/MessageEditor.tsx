@@ -16,7 +16,8 @@ import { insideCodeBlock, isImeKey, linkOverSelection } from "../lib/textInput.j
 import { pasteRich } from "../lib/richPaste.js";
 import { useMentionField } from "../lib/useMentionField.js";
 import { SuggestionList, useSuggestions } from "./Suggestions.js";
-import { editDraftKey, readEditDraft, type EditDraft } from "../lib/drafts.js";
+import { editDraftKey } from "@ownbase/client-core";
+import { readEditDraft, type EditDraft } from "../lib/drafts.js";
 
 export function MessageEditor({ message, onClose }: { message: Message; onClose: () => void }) {
   const client = useClient();

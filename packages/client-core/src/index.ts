@@ -55,8 +55,16 @@ export { captureFailure } from "./capture.js";
 export type { CaptureKind } from "./capture.js";
 export { applyOutboxChanges, readStoredOutbox, unwrapStoredOutbox } from "./outbox.js";
 export type { OutboxChanges, StoredOutbox } from "./outbox.js";
-export { applyDraftChanges, draftKey, isDraftChanges, unwrapStoredDrafts } from "./drafts.js";
-export type { DraftChanges } from "./drafts.js";
+export {
+  applyDraftChanges,
+  draftKey,
+  draftPlace,
+  editDraftKey,
+  isDraftChanges,
+  scheduledEditDraftKey,
+  unwrapStoredDrafts,
+} from "./drafts.js";
+export type { DraftChanges, DraftPlace } from "./drafts.js";
 export { applyRecordChanges, isRecordChanges } from "./records.js";
 export type { RecordChanges } from "./records.js";
 export { addTrustedAddress, readTrustedAddresses } from "./trustedAddresses.js";
