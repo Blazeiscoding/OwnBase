@@ -1,10 +1,11 @@
 import { endpoints, type User } from "@ownbase/protocol";
 import {
-  checkedPicture,
+  declaredPictureType,
   guestRestricted,
   requireVisibleMessage,
   type ServerContext,
 } from "../core/context.js";
+import { checkedPicture } from "../core/workspaceIcon.js";
 import { SoonestTimer } from "../core/soonest.js";
 import { HttpError } from "../httpError.js";
 
@@ -141,7 +142,7 @@ export function registerPeople(ctx: ServerContext) {
   });
 
   route(endpoints.setAvatar, async ({ req, user: me, body }) => {
-    const picture = checkedPicture(req, body, "profile picture");
+    const picture = checkedPicture(body, declaredPictureType(req), "profile picture");
     return mutate((emit) => {
       const user = store.people.setAvatar(me.id, picture);
       emit({ type: "user.updated", user });

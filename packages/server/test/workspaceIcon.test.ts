@@ -18,7 +18,7 @@ import {
   type WorkspaceChange,
   type WorkspaceServer,
 } from "../src/server.js";
-import { checkIcon, iconTypeOf, readStoredIcon } from "../src/core/workspaceIcon.js";
+import { checkedPicture, iconTypeOf, readStoredIcon } from "../src/core/workspaceIcon.js";
 import { discoveryTxt } from "../src/mdns.js";
 
 // The announcement on the local network, caught here rather than sent.
@@ -486,16 +486,15 @@ describe("what an icon is", () => {
   });
 
   it("is read back only when its rows make a whole icon", () => {
-    const checked = checkIcon(png(), "image/png");
-    if (!("icon" in checked)) throw new Error("refused");
+    const icon = checkedPicture(png(), "image/png");
     const rows = new Map<string, string>([
       ["workspace_icon_type", "image/png"],
-      ["workspace_icon_version", checked.icon.version],
+      ["workspace_icon_version", icon.version],
       ["workspace_icon_data", png().toString("base64")],
     ]);
     const read = (changes: Record<string, string | null> = {}) =>
       readStoredIcon((key) => (key in changes ? changes[key]! : (rows.get(key) ?? null)));
-    expect(read()?.version).toBe(checked.icon.version);
+    expect(read()?.version).toBe(icon.version);
     expect(read({ workspace_icon_type: "image/svg+xml" })).toBeNull();
     expect(read({ workspace_icon_type: "image/jpeg" })).toBeNull();
     expect(read({ workspace_icon_version: "0000000000000000" })).toBeNull();

@@ -42,7 +42,7 @@ import { registerExtensions } from "./sso/feature.js";
 import { Store } from "./store.js";
 import { registerThreads } from "./threads/feature.js";
 import { SERVER_VERSION } from "./version.js";
-import { checkIcon, type WorkspaceIcon } from "./core/workspaceIcon.js";
+import type { WorkspaceIcon } from "./core/workspaceIcon.js";
 
 export type { ServerOptions } from "./options.js";
 export { GUEST_SESSION_TTL_MS } from "./accounts/feature.js";
@@ -429,12 +429,13 @@ async function startWorkspaceServer(
     workspaceIcon: workspace.icon,
     setWorkspaceIcon: (bytes, type) => {
       if (!(bytes instanceof Uint8Array)) throw new TypeError("An icon is the bytes of an image.");
-      const checked = checkIcon(Buffer.from(bytes), typeof type === "string" ? type : undefined);
-      if ("refused" in checked) throw new TypeError(checked.refused.message);
-      workspace.changeIcon(checked.icon, null);
-      return checked.icon.version;
+      return workspace.setIcon(
+        Buffer.from(bytes),
+        typeof type === "string" ? type : undefined,
+        null,
+      );
     },
-    removeWorkspaceIcon: () => workspace.changeIcon(null, null),
+    removeWorkspaceIcon: () => workspace.removeIcon(null),
     onWorkspaceChange: workspace.onChange,
     reannounce: () => announce(),
     connectedPeople: () => gateway.onlineUserIds().length,

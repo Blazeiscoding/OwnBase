@@ -12,7 +12,7 @@ import {
 } from "@ownbase/protocol";
 import type { ServerContext } from "../core/context.js";
 import { secretToken } from "../ids.js";
-import type { WorkspaceIcon } from "../core/workspaceIcon.js";
+import { checkedPicture, type WorkspaceIcon } from "../core/workspaceIcon.js";
 
 /** A change to the workspace itself, as `WorkspaceServer.onWorkspaceChange` reports it. */
 export interface WorkspaceChange {
@@ -161,9 +161,8 @@ export function createWorkspace(ctx: ServerContext) {
   };
 
   /**
-   * Sets or removes the workspace's icon. The rows change in one write with
-   * the record of who did it, which names the image's type and size but
-   * never holds it.
+   * The rows change in one write with the record of who did it, which names
+   * the image's type and size but never holds it.
    */
   const changeIcon = (next: WorkspaceIcon | null, by: ID | null): void => {
     if (lifecycle.closing) throw new Error("The workspace is stopping.");
@@ -184,6 +183,13 @@ export function createWorkspace(ctx: ServerContext) {
     const iconVersion = next?.version ?? null;
     gateway.tellEveryone({ type: "workspace.icon", iconVersion });
     changed({ iconVersion, by });
+  };
+
+  /** Sets the icon to a picture of the declared `type`, once checked; returns its version. */
+  const setIcon = (bytes: Buffer, type: string | undefined, by: ID | null): string => {
+    const next = checkedPicture(bytes, type);
+    changeIcon(next, by);
+    return next.version;
   };
 
   const setLinkPreviews = (enabled: boolean, by: ID): void => {
@@ -228,7 +234,8 @@ export function createWorkspace(ctx: ServerContext) {
     icon: () => icon,
     rename,
     changeAccessPolicy,
-    changeIcon,
+    setIcon,
+    removeIcon: (by: ID | null) => changeIcon(null, by),
     setLinkPreviews,
     snapshot,
     onChange(listener: (change: WorkspaceChange) => void): () => void {

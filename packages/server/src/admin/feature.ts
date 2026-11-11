@@ -4,7 +4,7 @@ import { join } from "node:path";
 import { monitorEventLoopDelay } from "node:perf_hooks";
 import type { registerAccounts } from "../accounts/feature.js";
 import type { Backups } from "../backups/feature.js";
-import { checkedPicture, type ServerContext } from "../core/context.js";
+import { declaredPictureType, type ServerContext } from "../core/context.js";
 import { SCHEMA_VERSION } from "../db.js";
 import type { Files } from "../files/feature.js";
 import { HttpError } from "../httpError.js";
@@ -178,13 +178,11 @@ export function registerAdmin(
   });
 
   route(endpoints.setWorkspaceIcon, async ({ req, user: me, body }) => {
-    const picture = checkedPicture(req, body);
-    workspace.changeIcon(picture, me.id);
-    return { iconVersion: picture.version };
+    return { iconVersion: workspace.setIcon(body, declaredPictureType(req), me.id) };
   });
 
   route(endpoints.removeWorkspaceIcon, async ({ user: me }) => {
-    workspace.changeIcon(null, me.id);
+    workspace.removeIcon(me.id);
     return { iconVersion: null };
   });
 
