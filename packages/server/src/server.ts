@@ -311,14 +311,14 @@ async function startWorkspaceServer(
   const channels = registerChannels(ctx);
   const { joinPublicChannels } = channels;
 
-  const accounts = registerAccounts(ctx, {
+  registerAccounts(ctx, {
     joinPublicChannels,
     iconVersion: () => workspace.icon()?.version ?? null,
   });
-  registerAdmin(ctx, { instanceId, workspace, accounts, messages, files, backups });
+  registerAdmin(ctx, { instanceId, workspace, messages, files, backups });
   const people = registerPeople(ctx);
   const threads = registerThreads(ctx);
-  const apps = registerApps(ctx, { accounts, messages });
+  const apps = registerApps(ctx, { messages });
   const scheduledMessages = registerScheduled(ctx, { posting });
   const saved = registerSaved(ctx);
   registerSearch(ctx);

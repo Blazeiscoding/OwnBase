@@ -1,5 +1,4 @@
 import { endpoints, type ID, type ReportedMessage, type User } from "@ownbase/protocol";
-import type { registerAccounts } from "../accounts/feature.js";
 import { hashPassword } from "../auth.js";
 import type { ServerContext } from "../core/context.js";
 import { HttpError } from "../httpError.js";
@@ -25,12 +24,11 @@ function mayChange(me: User, target: User): void {
 export function registerMemberAdmin(
   ctx: ServerContext,
   deps: {
-    accounts: ReturnType<typeof registerAccounts>;
     messages: ReturnType<typeof registerMessages>;
   },
 ) {
   const { store, gateway, route, mutate, requireUser } = ctx;
-  const { accounts, messages } = deps;
+  const { messages } = deps;
 
   route(endpoints.listAudit, async ({ query }) => {
     const entries = store.audit.list({ before: query.before, limit: query.limit + 1 });
@@ -149,7 +147,7 @@ export function registerMemberAdmin(
     const authorize = () => resettable(requireUser(req), params.id);
     authorize();
     const temporaryPassword = secretToken().slice(0, 16);
-    const credentials = await accounts.hashing(() => hashPassword(temporaryPassword));
+    const credentials = await hashPassword(temporaryPassword);
     const { me: actor, target } = authorize();
     const revokedSessions = store.transaction(() => {
       store.accounts.setPassword(target.id, credentials.hash, credentials.salt, true);

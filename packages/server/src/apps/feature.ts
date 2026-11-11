@@ -1,4 +1,3 @@
-import type { registerAccounts } from "../accounts/feature.js";
 import type { ServerContext } from "../core/context.js";
 import type { registerMessages } from "../messages/feature.js";
 import { createAppCalls } from "./calls.js";
@@ -18,7 +17,6 @@ import { registerViews } from "./views.js";
 export function registerApps(
   ctx: ServerContext,
   deps: {
-    accounts: Pick<ReturnType<typeof registerAccounts>, "hashing">;
     messages: Pick<
       ReturnType<typeof registerMessages>,
       "posting" | "updateMessage" | "removeMessage"
@@ -40,7 +38,7 @@ export function registerApps(
   ctx.lifecycle.onStart(deliveries.start);
   ctx.lifecycle.hourly(deliveries.hourly);
 
-  registerAppManagement(ctx, { accounts: deps.accounts, calls, deliveries });
+  registerAppManagement(ctx, { calls, deliveries });
   registerSlackApi(ctx, { posting });
   const { newTrigger } = registerViews(ctx, { calls });
   const replies = registerAppReplies(ctx, {

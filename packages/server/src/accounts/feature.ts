@@ -59,19 +59,6 @@ export function registerAccounts(
     limiter?.forget("authByHandle", handle.toLowerCase());
   };
 
-  // Bound simultaneous password derivations; each scrypt job uses substantial
-  // memory. Do the expensive work off the event loop so calls/chat stay responsive.
-  let authJobs = 0;
-  const beginAuth = () => {
-    if (authJobs >= 2)
-      throw new HttpError(
-        429,
-        "auth_busy",
-        "The workspace is handling other sign-ins. Try again in a moment.",
-      );
-    authJobs++;
-  };
-
   /** Whether passwords are kept for the owner alone, an extension signing in everyone else (P9). */
   const singleSignOnRequired = () =>
     extensions.some((extension) => extension.requiresSingleSignOn?.() === true);
@@ -90,13 +77,7 @@ export function registerAccounts(
   route(endpoints.register, async ({ req, body }) => {
     ration("authByAddress", network.callerAddress(req));
     ration("authByHandle", body.handle.toLowerCase());
-    beginAuth();
-    let credentials: Awaited<ReturnType<typeof hashPassword>>;
-    try {
-      credentials = await hashPassword(body.password);
-    } finally {
-      authJobs--;
-    }
+    const credentials = await hashPassword(body.password);
     // Everything after hashing is synchronous: concurrent registrations cannot
     // both become owner or consume the same final invitation use.
     const { token, user } = mutate((emit) => {
@@ -202,13 +183,7 @@ export function registerAccounts(
     if (me.role !== "guest") throw new HttpError(400, "not_a_guest");
     ration("authByAddress", network.callerAddress(req));
     ration("authByHandle", body.handle.toLowerCase());
-    beginAuth();
-    let credentials: Awaited<ReturnType<typeof hashPassword>>;
-    try {
-      credentials = await hashPassword(body.password);
-    } finally {
-      authJobs--;
-    }
+    const credentials = await hashPassword(body.password);
     const { token, user, revoked } = mutate((emit) => {
       // Hashing yields: the guest may have been signed out meanwhile.
       const current = requireUser(req);
@@ -241,17 +216,11 @@ export function registerAccounts(
     ration("authByAddress", network.callerAddress(req));
     ration("authByHandle", body.handle.toLowerCase());
     const auth = store.people.authByHandle(body.handle);
-    beginAuth();
-    let valid = false;
-    try {
-      valid =
-        !!auth &&
-        // A guest has no password: it resumes its session or joins again.
-        auth.role !== "guest" &&
-        (await verifyPassword(body.password, auth.salt, auth.passwordHash));
-    } finally {
-      authJobs--;
-    }
+    const valid =
+      !!auth &&
+      // A guest has no password: it resumes its session or joins again.
+      auth.role !== "guest" &&
+      (await verifyPassword(body.password, auth.salt, auth.passwordHash));
     const latest = auth ? store.people.authByHandle(auth.handle) : null;
     if (
       !auth ||
@@ -395,23 +364,11 @@ export function registerAccounts(
     ration("authByHandle", me.handle.toLowerCase());
     const auth = store.people.authByHandle(me.handle);
     if (!auth) throw new HttpError(404, "user_not_found");
-    beginAuth();
-    let valid = false;
-    try {
-      valid = await verifyPassword(body.currentPassword, auth.salt, auth.passwordHash);
-    } finally {
-      authJobs--;
-    }
+    const valid = await verifyPassword(body.currentPassword, auth.salt, auth.passwordHash);
     if (!valid)
       throw new HttpError(403, "invalid_credentials", "That is not your current password.");
     authSucceeded(me.handle);
-    beginAuth();
-    let credentials: Awaited<ReturnType<typeof hashPassword>>;
-    try {
-      credentials = await hashPassword(body.newPassword);
-    } finally {
-      authJobs--;
-    }
+    const credentials = await hashPassword(body.newPassword);
     // Hashing yields: sign-out, deactivation, or another reset may have happened meanwhile.
     requireUser(req);
     const latest = store.people.authByHandle(me.handle);
@@ -442,13 +399,7 @@ export function registerAccounts(
     ration("authByHandle", me.handle.toLowerCase());
     const auth = store.people.authByHandle(me.handle);
     if (!auth) throw new HttpError(404, "user_not_found");
-    beginAuth();
-    let valid = false;
-    try {
-      valid = await verifyPassword(password, auth.salt, auth.passwordHash);
-    } finally {
-      authJobs--;
-    }
+    const valid = await verifyPassword(password, auth.salt, auth.passwordHash);
     if (!valid) throw new HttpError(403, "invalid_credentials", "That is not your password.");
     authSucceeded(me.handle);
   };
@@ -597,19 +548,6 @@ export function registerAccounts(
     return { invite: store.accounts.getInvite(invite.code)! };
   });
 
-  /**
-   * Runs one password derivation in a slot of the few there are, refusing
-   * with auth_busy when they are all taken.
-   */
-  const hashing = async <T>(work: () => Promise<T>): Promise<T> => {
-    beginAuth();
-    try {
-      return await work();
-    } finally {
-      authJobs--;
-    }
-  };
-
   route(endpoints.serverInfo, async ({ req }) => {
     const userCount = store.people.count();
     const signIn = signInInfo();
@@ -629,6 +567,4 @@ export function registerAccounts(
       ...(signIn ? { signIn } : {}),
     };
   });
-
-  return { hashing, signInInfo, singleSignOnRequired, ssoRequired, authSucceeded, confirmPassword };
 }

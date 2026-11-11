@@ -2,7 +2,6 @@ import { endpoints, type WorkspaceStatus } from "@ownbase/protocol";
 import { statfsSync, statSync } from "node:fs";
 import { join } from "node:path";
 import { monitorEventLoopDelay } from "node:perf_hooks";
-import type { registerAccounts } from "../accounts/feature.js";
 import type { Backups } from "../backups/feature.js";
 import { declaredPictureType, type ServerContext } from "../core/context.js";
 import { SCHEMA_VERSION } from "../db.js";
@@ -33,14 +32,13 @@ export function registerAdmin(
   deps: {
     instanceId: string;
     workspace: Workspace;
-    accounts: ReturnType<typeof registerAccounts>;
     messages: ReturnType<typeof registerMessages>;
     files: Files;
     backups: Backups;
   },
 ) {
   const { opts, db, store, gateway, route, ration, mutate, network } = ctx;
-  const { instanceId, workspace, accounts, messages, files, backups } = deps;
+  const { instanceId, workspace, messages, files, backups } = deps;
   const extensions = opts.extensions ?? [];
 
   route(endpoints.health, async ({ reply }) => {
@@ -139,7 +137,7 @@ export function registerAdmin(
     };
   });
 
-  registerMemberAdmin(ctx, { accounts, messages });
+  registerMemberAdmin(ctx, { messages });
 
   route(endpoints.transferOwnership, async ({ user: me, params }) => {
     const target = store.people.get(params.id);
