@@ -58,6 +58,7 @@ import {
   reduceMessages,
   stampMessages,
   threadRootMessage,
+  timelineMessages,
   unhandled,
   windowTimeline,
   withReaction,
@@ -274,6 +275,15 @@ interface ThreadLoad {
 
 const stoppedOnPurpose = (controller: AbortController) => controller.signal.aborted;
 
+/** Which window of a channel's history a request reads. */
+export type HistoryWindow = "initial" | "older" | "newer" | "latest";
+
+/** A channel's history request on its way, and the window that last failed to load. */
+export interface TimelineStatus {
+  loading: HistoryWindow | null;
+  error: HistoryWindow | null;
+}
+
 /**
  * A reply only this client can see — a slash command's private answer, or a
  * local note about one that failed. Never persisted; a reload clears them.
@@ -371,6 +381,8 @@ export function keepEphemeral(
 }
 
 export interface WorkspaceState extends MessageCache {
+  /** channelId -> its history request on its way or failed; absent when neither. */
+  timelineStatus: Record<ID, TimelineStatus>;
   friends: Friendship[];
   /** The people this account blocked (E12), whose messages fold away and who never notify it. */
   blocked: ID[];
@@ -570,6 +582,7 @@ const initialState: WorkspaceState = {
   timelines: {},
   threads: {},
   threadPages: {},
+  timelineStatus: {},
   pending: [],
   saved: {},
   removedHistory: {},
@@ -814,6 +827,9 @@ export class WorkspaceClient {
       threadPages: Object.fromEntries(
         Object.entries(s.threadPages).map(([id, page]) => [id, { ...page, loading: false }]),
       ),
+      timelineStatus: Object.fromEntries(
+        Object.entries(s.timelineStatus).map(([id, status]) => [id, { ...status, loading: null }]),
+      ),
     }));
   }
 
@@ -1022,11 +1038,11 @@ export class WorkspaceClient {
     this.writes.reshow();
     for (const id of [...this.reloadChannels]) {
       this.reloadChannels.delete(id);
-      if (channels[id]) void this.loadTimeline(id).catch(() => {});
+      if (channels[id]) void this.loadTimeline(id);
     }
     for (const [rootId, channelId] of [...this.reloadThreads]) {
       this.reloadThreads.delete(rootId);
-      if (channels[channelId]) void this.loadThread(rootId, channelId).catch(() => {});
+      if (channels[channelId]) void this.loadThread(rootId, channelId);
     }
     this.resumeHuddle(snap);
   }
@@ -1064,6 +1080,7 @@ export class WorkspaceClient {
       timelines: {},
       threads: {},
       threadPages: {},
+      timelineStatus: {},
       typing: {},
       ephemerals: {},
       ephemeralsDropped: {},
@@ -1111,6 +1128,7 @@ export class WorkspaceClient {
       }),
     );
     this.store.setState((s) => ({
+      timelineStatus: without(s.timelineStatus),
       channels: without(s.channels),
       memberships: without(s.memberships),
       repliesRead: without(s.repliesRead),
@@ -1707,8 +1725,13 @@ export class WorkspaceClient {
       this.threadLoads.delete(victim);
       this.reloadThreads.delete(victim);
     }
+    const timelineStatus = { ...state.timelineStatus };
+    for (const victim of timelineVictims) delete timelineStatus[victim];
     // Drafts, pending sends and retained attachment previews are independent of history.
-    this.store.setState(forgetAllUnlisted({ ...state, timelines, threads, threadPages }));
+    this.store.setState({
+      ...forgetAllUnlisted({ ...state, timelines, threads, threadPages }),
+      timelineStatus,
+    });
   }
 
   /**
@@ -1829,16 +1852,22 @@ export class WorkspaceClient {
    * the newest page is after it and there are older ones, the conversation
    * opens instead on a window around the first unread, so it starts at its
    * New line rather than with the rest of what was missed out of sight above.
+   * Settles once done; how it went is in `timelineStatus`.
    */
-  async loadTimeline(
+  loadTimeline(
     channelId: ID,
     opts: { older?: boolean; latest?: boolean; unreadAfter?: number } = {},
   ): Promise<void> {
     const epoch = this.historyEpoch;
     const tl = this.state.timelines[channelId];
     if (tl?.loaded) this.touchHistory("timeline", channelId);
-    if (tl?.loaded && !opts.older && !opts.latest) return;
-    if (opts.older && (!tl?.hasMore || tl.ids.length === 0)) return;
+    if (tl?.loaded && !opts.older && !opts.latest) {
+      // Opening it again forgets a page that failed earlier.
+      const status = this.state.timelineStatus[channelId];
+      if (status?.error && !status.loading) this.setTimelineStatus(channelId, null);
+      return Promise.resolve();
+    }
+    if (opts.older && (!tl?.hasMore || tl.ids.length === 0)) return Promise.resolve();
     const before = opts.older ? tl!.ids[0]! : undefined;
     // The same window already on its way: wait for it rather than ask twice.
     const key = before ? `older:${before}` : "tail";
@@ -1846,8 +1875,52 @@ export class WorkspaceClient {
     if (running?.key === key && running.shared) return running.shared;
     const captured = opts.older ? this.captureTimeline(channelId) : null;
     const ticket = this.beginTimelineRequest(channelId, key);
-    ticket.shared = this.fetchTimeline(channelId, opts, captured, epoch, ticket, before);
+    ticket.shared = this.trackTimeline(
+      channelId,
+      opts.older ? "older" : opts.latest ? "latest" : "initial",
+      ticket,
+      this.fetchTimeline(channelId, opts, captured, epoch, ticket, before),
+    );
     return ticket.shared;
+  }
+
+  /**
+   * Notes `load` in `timelineStatus` while it is the conversation's newest
+   * request; one stopped for another, or by a reset, says nothing.
+   */
+  private async trackTimeline(
+    channelId: ID,
+    window: HistoryWindow,
+    ticket: TimelineLoad,
+    load: Promise<void>,
+  ): Promise<void> {
+    this.setTimelineStatus(channelId, { loading: window, error: null });
+    const failed = await load.then(
+      () => false,
+      () => true,
+    );
+    if (this.stopped || this.timelineRequests.get(channelId) !== ticket.ticket) return;
+    this.setTimelineStatus(channelId, failed ? { loading: null, error: window } : null);
+  }
+
+  private setTimelineStatus(channelId: ID, status: TimelineStatus | null): void {
+    this.store.setState((s) => {
+      const timelineStatus = { ...s.timelineStatus };
+      if (status) timelineStatus[channelId] = status;
+      else delete timelineStatus[channelId];
+      return { timelineStatus };
+    });
+  }
+
+  /**
+   * Marks a channel read through the newest of its history loaded here; not
+   * while its timeline is anchored away from the newest, which is not on screen.
+   */
+  readLoadedTail(channelId: ID): void {
+    const timeline = this.state.timelines[channelId];
+    if (!timeline?.loaded || timeline.hasMoreNewer) return;
+    const newest = timelineMessages(this.state, channelId).at(-1)?.seq ?? 0;
+    this.markRead(channelId, timeline.readThroughSeq ?? newest);
   }
 
   private async fetchTimeline(
@@ -1944,9 +2017,10 @@ export class WorkspaceClient {
 
   /**
    * Replaces the timeline with a window centred on `messageId`, for jumping to
-   * a search hit or a pinned message.
+   * a search hit or a pinned message. Answers the thread the message is in
+   * (null when none), or undefined when another jump or window overtook it.
    */
-  async jumpToMessage(channelId: ID, messageId: ID): Promise<ID | null | undefined> {
+  async jumpToMessage(channelId: ID, messageId: ID): Promise<ID | null | undefined | ApiError> {
     const ticket = ++this.messageJump;
     const epoch = this.historyEpoch;
     const existing = this.state.timelines[channelId];
@@ -1954,42 +2028,45 @@ export class WorkspaceClient {
     // A message already on screen needs no request and must not cancel paging.
     if (existing?.loaded && !existing.hasMoreNewer && existing.ids.includes(messageId)) return null;
     const timelineTicket = this.beginTimelineRequest(channelId, `around:${messageId}`);
-    let answer: Awaited<ReturnType<Api["listMessagesAround"]>>;
     try {
-      answer = await this.api.listMessagesAround(
+      const answer = await this.api.listMessagesAround(
         channelId,
         messageId,
         PAGE_SIZE,
         timelineTicket.controller.signal,
       );
-    } catch (error) {
-      if (stoppedOnPurpose(timelineTicket.controller)) return;
-      throw error;
-    } finally {
       this.releaseTimelineRequest(channelId, timelineTicket);
+      const { messages, hasMoreOlder, hasMoreNewer, threadRootId, seq } = answer;
+      if (ticket !== this.messageJump || !this.stillWanted(channelId, epoch, timelineTicket))
+        return undefined;
+      this.landTimeline(
+        channelId,
+        timelineTicket,
+        { messages: [...messages].reverse(), seq },
+        { hasMore: hasMoreOlder, hasMoreNewer, snapshotSeq: seq },
+        null,
+        "oldest",
+      );
+      return threadRootId ?? null;
+    } catch (error) {
+      this.releaseTimelineRequest(channelId, timelineTicket);
+      if (stoppedOnPurpose(timelineTicket.controller)) return undefined;
+      return failureOf(error);
     }
-    const { messages, hasMoreOlder, hasMoreNewer, threadRootId, seq } = answer;
-    if (ticket !== this.messageJump || !this.stillWanted(channelId, epoch, timelineTicket)) return;
-    this.landTimeline(
-      channelId,
-      timelineTicket,
-      { messages: [...messages].reverse(), seq },
-      { hasMore: hasMoreOlder, hasMoreNewer, snapshotSeq: seq },
-      null,
-      "oldest",
-    );
-    return threadRootId ?? null;
   }
 
   cancelMessageJump(): void {
     this.messageJump++;
   }
 
-  /** Pages forward from an anchored view back toward the newest messages. */
-  async loadNewer(channelId: ID): Promise<void> {
+  /**
+   * Pages forward from an anchored view back toward the newest messages.
+   * Settles once done; how it went is in `timelineStatus`.
+   */
+  loadNewer(channelId: ID): Promise<void> {
     const epoch = this.historyEpoch;
     const tl = this.state.timelines[channelId];
-    if (!tl?.loaded || !tl.hasMoreNewer || tl.ids.length === 0) return;
+    if (!tl?.loaded || !tl.hasMoreNewer || tl.ids.length === 0) return Promise.resolve();
     const newest = tl.ids.at(-1)!;
     // The same page already on its way: wait for it rather than ask twice
     // (F14). A different window replaces it, as before.
@@ -1998,7 +2075,12 @@ export class WorkspaceClient {
     if (running?.key === key && running.shared) return running.shared;
     const captured = this.captureTimeline(channelId)!;
     const ticket = this.beginTimelineRequest(channelId, key);
-    ticket.shared = this.fetchNewer(channelId, captured, newest, epoch, ticket);
+    ticket.shared = this.trackTimeline(
+      channelId,
+      "newer",
+      ticket,
+      this.fetchNewer(channelId, captured, newest, epoch, ticket),
+    );
     return ticket.shared;
   }
 
@@ -2043,10 +2125,13 @@ export class WorkspaceClient {
     );
   }
 
-  /** Keeps the current window visible until the live tail has loaded successfully. */
-  async jumpToLatest(channelId: ID): Promise<void> {
+  /**
+   * Keeps the current window visible until the live tail has loaded
+   * successfully; how it went is in `timelineStatus`.
+   */
+  jumpToLatest(channelId: ID): Promise<void> {
     this.cancelMessageJump();
-    await this.loadTimeline(channelId, { latest: true });
+    return this.loadTimeline(channelId, { latest: true });
   }
 
   async loadThread(

@@ -156,6 +156,25 @@ describe("connection recovery", () => {
     expect(sent[0]?.nonce).toBe(nonce);
   });
 
+  it("says so when history reloaded after replay expiry fails, rather than loading forever", async () => {
+    await disconnect();
+    await owner.sendMessage(channelId, { text: "pruned event" });
+    await owner.sendMessage(channelId, { text: "after pruning" });
+    server.store.pruneEvents(1);
+    const listMessages = vi
+      .spyOn(client.api, "listMessages")
+      .mockRejectedValueOnce(new ApiError(500, "http_error"));
+    client.connect();
+    await expect
+      .poll(() => client.state.timelineStatus[channelId])
+      .toEqual({ loading: null, error: "initial" });
+    expect(client.state.timelines[channelId]).toBeUndefined();
+    listMessages.mockRestore();
+    await client.loadTimeline(channelId);
+    expect(client.state.timelineStatus[channelId]).toBeUndefined();
+    expect(timelineMessages(client.state, channelId).at(-1)?.text).toBe("after pruning");
+  });
+
   it("settles HTTP success even when the socket is disconnected", async () => {
     await disconnect();
     client.send(channelId, "HTTP acknowledgement");

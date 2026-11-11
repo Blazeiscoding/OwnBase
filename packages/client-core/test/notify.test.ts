@@ -58,6 +58,7 @@ const message = (over: Partial<Message> = {}): Message => ({
 
 function state(over: Partial<WorkspaceState> = {}): WorkspaceState {
   return {
+    timelineStatus: {},
     friends: [],
     blocked: [],
     serverProtocolVersion: null,

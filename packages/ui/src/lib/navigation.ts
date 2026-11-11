@@ -1,7 +1,7 @@
 import { createContext, useContext } from "react";
 import { createStore, useStore, type StoreApi } from "zustand";
 import type { ID, Message } from "@ownbase/protocol";
-import { isMessageOnScreen, type WorkspaceClient } from "@ownbase/client-core";
+import { ApiError, isMessageOnScreen, type WorkspaceClient } from "@ownbase/client-core";
 import type { AccountSection } from "./accountSections.js";
 import type { DraftPlace } from "./drafts.js";
 import { requestEdit } from "./editRequest.js";
@@ -387,10 +387,19 @@ export class Navigation {
   private jump(channelId: ID, messageId: ID) {
     const ticket = this.move();
     this.set({ dialog: { kind: "none" }, error: null, navigating: true });
-    void this.client
-      .jumpToMessage(channelId, messageId)
-      .then((rootId) => {
-        if (!this.current(ticket) || rootId === undefined) return;
+    void this.client.jumpToMessage(channelId, messageId).then((rootId) => {
+      if (!this.current(ticket)) return;
+      if (rootId instanceof ApiError) {
+        const s = this.state;
+        this.set({
+          highlightId: s.highlightId === messageId ? null : s.highlightId,
+          error: NOT_OPENED,
+          lostDraftsNote: null,
+          navigating: false,
+        });
+        return;
+      }
+      if (rootId !== undefined)
         this.set(
           {
             channelId,
@@ -399,19 +408,8 @@ export class Navigation {
           },
           true,
         );
-      })
-      .catch(() => {
-        if (!this.current(ticket)) return;
-        const s = this.state;
-        this.set({
-          highlightId: s.highlightId === messageId ? null : s.highlightId,
-          error: NOT_OPENED,
-          lostDraftsNote: null,
-        });
-      })
-      .finally(() => {
-        if (this.current(ticket)) this.set({ navigating: false });
-      });
+      this.set({ navigating: false });
+    });
   }
 
   /**
@@ -431,8 +429,8 @@ export class Navigation {
       highlightId: rootId,
       panel: { kind: "thread", rootId },
     });
-    this.client.jumpToMessage(channelId, rootId).catch(() => {
-      if (this.current(ticket)) this.set({ highlightId: null });
+    void this.client.jumpToMessage(channelId, rootId).then((answer) => {
+      if (answer instanceof ApiError && this.current(ticket)) this.set({ highlightId: null });
     });
   }
 

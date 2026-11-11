@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, onTestFinished, vi } from "vitest";
 import { cleanup, render, screen, waitFor } from "@testing-library/react";
-import { WorkspaceClient } from "@ownbase/client-core";
+import { ApiError, WorkspaceClient } from "@ownbase/client-core";
 import type { Channel, User } from "@ownbase/protocol";
 import { ClientContext, OpenMessageContext, PlatformContext } from "../src/context.js";
 import { ConfirmProvider } from "../src/components/Confirm.js";
@@ -53,7 +53,7 @@ afterEach(() => {
 
 function openAt(
   target: { channelId: string; messageId: string },
-  answer: () => Promise<string | null | undefined>,
+  answer: () => Promise<string | null | undefined | ApiError>,
 ) {
   vi.stubGlobal("matchMedia", () => ({
     matches: false,
@@ -103,7 +103,7 @@ function openAt(
 describe("a link to a message, opened as the workspace starts", () => {
   it("reads the conversation from its newest when the message is gone, and says so", async () => {
     const { load } = openAt({ channelId: engineering.id, messageId: "M_DELETED" }, () =>
-      Promise.reject(Object.assign(new Error("not found"), { status: 404 })),
+      Promise.resolve(new ApiError(404, "message_not_found")),
     );
     expect(
       await screen.findByText(/^Could not open this message\./, undefined, { timeout: 3_000 }),

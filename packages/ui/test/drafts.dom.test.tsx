@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, onTestFinished, vi } from "vitest";
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { WorkspaceClient } from "@ownbase/client-core";
+import { ApiError, WorkspaceClient } from "@ownbase/client-core";
 import type { Channel, Message, ScheduledMessage, User } from "@ownbase/protocol";
 import { ClientContext, OpenMessageContext, PlatformContext } from "../src/context.js";
 import { DraftPersistence } from "../src/components/DraftPersistence.js";
@@ -381,7 +381,7 @@ describe("opening a draft from the Drafts panel", () => {
 
   it("reads a thread's conversation from its newest when its root cannot be read", async () => {
     const { client, user, jump } = screenWith();
-    jump.mockRejectedValue(new Error("offline"));
+    jump.mockResolvedValue(new ApiError(0, "network_error"));
     const panel = await openDrafts(user);
     const load = vi.mocked(client.loadTimeline);
     const before = load.mock.calls.length;

@@ -163,7 +163,8 @@ describe("history requests (REV-05)", () => {
   it("still reports a failure that was nobody's choice", async () => {
     const c = client();
     vi.spyOn(c.api, "listMessages").mockRejectedValue(new ApiError(500, "http_error"));
-    await expect(c.loadTimeline("C1")).rejects.toMatchObject({ status: 500 });
+    await c.loadTimeline("C1");
+    expect(c.state.timelineStatus.C1).toEqual({ loading: null, error: "initial" });
   });
 });
 
