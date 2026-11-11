@@ -27,7 +27,18 @@ import {
   readStoppedWorkspace as readWorkspace,
   renameStoppedWorkspace as writeWorkspaceName,
 } from "@ownbase/server/stoppedWorkspace";
-import { TunnelCleanupError, type Tunnel } from "../src/main/tunnel.js";
+import { TunnelCleanupError, type PublicAddressConfig, type Tunnel } from "../src/main/tunnel.js";
+
+/** A stable address OwnBase carries itself, with Cloudflare's connector. */
+const managedAt = (publicUrl: string) => () => ({
+  saved: null,
+  config: { carrier: "ownbase" as const, publicUrl, tokenFile: "tunnel-token" },
+});
+
+/** A stable address the host saved, which something else carries here. */
+const carriedAt =
+  (publicUrl: string, saved: string | null = publicUrl) =>
+  () => ({ saved, config: { carrier: "elsewhere" as const, publicUrl } });
 import {
   backupWorkspace,
   createWorkspaceServer,
@@ -121,7 +132,7 @@ const inUse = () =>
 /** A controller over fake servers, with hooks to hold or fail each step. */
 function harness(
   options: {
-    publicAddress?: () => { setting?: string; url?: string; managed?: boolean; error?: string };
+    publicAddress?: () => { saved: string | null; config: PublicAddressConfig };
     savePublicAddress?: (address: string | null) => Promise<void> | void;
     verifyLoopback?: (port: number, instanceId?: string) => Promise<boolean>;
     cleanupTimeoutMs?: number;
@@ -344,7 +355,7 @@ function harness(
       h.changes.push(h.controller.status());
     },
     tunnelAvailable: () => true,
-    openTunnel: async (port: number, signal: AbortSignal, instanceId?: string) => {
+    openTunnel: async (port: number, signal: AbortSignal, instanceId: string) => {
       h.events.push("tunnel:open");
       h.tunnelStarts.push({ port, signal, instanceId });
       await h.beforeTunnel(port, signal);
@@ -364,7 +375,7 @@ function harness(
       h.tunnels.push(tunnel);
       return tunnel;
     },
-    publicAddress: options.publicAddress ?? (() => ({})),
+    publicAddress: options.publicAddress ?? (() => ({ saved: null, config: null })),
     verifyLoopback: options.verifyLoopback ?? (async () => true),
     ...(options.cleanupTimeoutMs ? { cleanupTimeoutMs: options.cleanupTimeoutMs } : {}),
     savePublicAddress: async (address: string | null) => {
@@ -2380,11 +2391,54 @@ describe("remembering the last hosted workspace", () => {
 });
 
 describe("a stable public address configured for this computer", () => {
+  it("says what the setting holds, who carries the address, and whether this app may change it", () => {
+    const status = (publicAddress: NonNullable<Parameters<typeof harness>[0]>["publicAddress"]) =>
+      harness({ publicAddress }).controller.status();
+    const fields = (s: HostingSnapshot) => ({
+      publicAddress: s.publicAddress,
+      publicAddressSetting: s.publicAddressSetting,
+      publicAddressLocked: s.publicAddressLocked,
+      publicAddressManaged: s.publicAddressManaged,
+      publicAddressError: s.publicAddressError,
+    });
+    expect(fields(status(carriedAt("https://chat.example.org", "chat.example.org")))).toEqual({
+      publicAddress: "https://chat.example.org",
+      publicAddressSetting: "chat.example.org",
+      publicAddressLocked: undefined,
+      publicAddressManaged: undefined,
+      publicAddressError: undefined,
+    });
+    // Set in the environment, it is shown but cannot be changed here.
+    expect(fields(status(carriedAt("https://chat.example.org", null)))).toEqual({
+      publicAddress: "https://chat.example.org",
+      publicAddressSetting: "https://chat.example.org",
+      publicAddressLocked: true,
+      publicAddressManaged: undefined,
+      publicAddressError: undefined,
+    });
+    expect(fields(status(managedAt("https://chat.example.org")))).toEqual({
+      publicAddress: "https://chat.example.org",
+      publicAddressSetting: undefined,
+      publicAddressLocked: undefined,
+      publicAddressManaged: true,
+      publicAddressError: undefined,
+    });
+    expect(
+      fields(status(() => ({ saved: "not an address", config: { error: "Enter an address." } }))),
+    ).toEqual({
+      publicAddress: undefined,
+      publicAddressSetting: "not an address",
+      publicAddressLocked: undefined,
+      publicAddressManaged: undefined,
+      publicAddressError: "Enter an address.",
+    });
+  });
+
   const configured = "https://chat.example.org";
 
   it("says where to repoint the carrier when the usual port was taken", async () => {
     const h = harness({
-      publicAddress: () => ({ url: configured, setting: configured }),
+      publicAddress: carriedAt(configured),
     });
     h.beforeBind = (port) => {
       if (port === 8543) throw inUse();
@@ -2404,7 +2458,7 @@ describe("a stable public address configured for this computer", () => {
 
   it("shows the configured address and opens it for the running workspace", async () => {
     const h = harness({
-      publicAddress: () => ({ url: configured, setting: configured }),
+      publicAddress: carriedAt(configured),
     });
     await h.controller.start({ workspaceName: "Rocket Team" });
     expect(h.controller.status()).toMatchObject({ publicAddress: configured });
@@ -2429,7 +2483,7 @@ describe("a stable public address configured for this computer", () => {
   it("reopens a stable address when started with OwnBase, only when asked, and invite-only", async () => {
     let address = configured;
     const first = harness({
-      publicAddress: () => ({ url: address, managed: true }),
+      publicAddress: managedAt(address),
     });
     await first.controller.start({ workspaceName: "Rocket Team" });
     const folder = registryOf(first)[0]!.folder;
@@ -2442,7 +2496,7 @@ describe("a stable public address configured for this computer", () => {
     const next = harness({
       root: join(first.dataRoot, ".."),
       settings: first.settings,
-      publicAddress: () => ({ url: address, managed: true }),
+      publicAddress: managedAt(address),
     });
     for (const [path, found] of first.databases) next.databases.set(path, found);
     await next.controller.startForLaunch();
@@ -2457,7 +2511,7 @@ describe("a stable public address configured for this computer", () => {
     const moved = harness({
       root: join(first.dataRoot, ".."),
       settings: first.settings,
-      publicAddress: () => ({ url: address, managed: true }),
+      publicAddress: managedAt(address),
     });
     for (const [path, found] of first.databases) moved.databases.set(path, found);
     await moved.controller.startForLaunch();
@@ -2469,7 +2523,7 @@ describe("a stable public address configured for this computer", () => {
 
   it("keeps hosting and says so when the stable address cannot be reopened", async () => {
     const first = harness({
-      publicAddress: () => ({ url: configured, managed: true }),
+      publicAddress: managedAt(configured),
     });
     await first.controller.start({ workspaceName: "Rocket Team" });
     await first.controller.setStartOnLaunch(registryOf(first)[0]!.folder);
@@ -2478,7 +2532,7 @@ describe("a stable public address configured for this computer", () => {
     const next = harness({
       root: join(first.dataRoot, ".."),
       settings: first.settings,
-      publicAddress: () => ({ url: configured, managed: true }),
+      publicAddress: managedAt(configured),
     });
     for (const [path, found] of first.databases) next.databases.set(path, found);
     next.beforeTunnel = () => {
@@ -2549,7 +2603,7 @@ describe("a stable public address configured for this computer", () => {
   /** A next launch of Rocket Team, chosen to start with OwnBase and reopen its address. */
   async function reopeningLaunch() {
     const first = harness({
-      publicAddress: () => ({ url: configured, managed: true }),
+      publicAddress: managedAt(configured),
     });
     await first.controller.start({ workspaceName: "Rocket Team" });
     const folder = registryOf(first)[0]!.folder;
@@ -2559,7 +2613,7 @@ describe("a stable public address configured for this computer", () => {
     const next = harness({
       root: join(first.dataRoot, ".."),
       settings: first.settings,
-      publicAddress: () => ({ url: configured, managed: true }),
+      publicAddress: managedAt(configured),
     });
     for (const [path, found] of first.databases) next.databases.set(path, found);
     return { next, folder };
@@ -2633,7 +2687,7 @@ describe("a stable public address configured for this computer", () => {
 
   it("trusts the loopback visitor header for a Cloudflare connector it owns", async () => {
     const h = harness({
-      publicAddress: () => ({ url: configured, managed: true }),
+      publicAddress: managedAt(configured),
     });
     await h.controller.start({ workspaceName: "Rocket Team" });
     await h.controller.openToAll({ accessPolicy: "invite_only" });
@@ -2642,7 +2696,7 @@ describe("a stable public address configured for this computer", () => {
 
   it("secures registration when it stops publishing an externally carried address", async () => {
     const h = harness({
-      publicAddress: () => ({ url: configured, setting: configured }),
+      publicAddress: carriedAt(configured),
     });
     await h.controller.start({ workspaceName: "Rocket Team" });
     await h.controller.openToAll({ accessPolicy: "account_required" });
@@ -2655,7 +2709,7 @@ describe("a stable public address configured for this computer", () => {
 
   it("keeps registration secured when an external address fails verification", async () => {
     const h = harness({
-      publicAddress: () => ({ url: configured, setting: configured }),
+      publicAddress: carriedAt(configured),
     });
     h.beforeTunnel = () => {
       throw new Error("address did not reach this workspace");
@@ -2701,7 +2755,7 @@ describe("a stable public address configured for this computer", () => {
 
   it("refuses to open a link, and changes nothing, while its configuration is unusable", async () => {
     const error = "Set both OWNBASE_TUNNEL_URL and OWNBASE_TUNNEL_TOKEN_FILE.";
-    const h = harness({ publicAddress: () => ({ error }) });
+    const h = harness({ publicAddress: () => ({ saved: null, config: { error } }) });
     await h.controller.start({ workspaceName: "Rocket Team" });
     expect(h.controller.status()).toMatchObject({ publicAddressError: error });
     expect(h.controller.status()).not.toHaveProperty("publicAddress");
@@ -2715,7 +2769,7 @@ describe("a stable public address configured for this computer", () => {
   });
 
   it("leaves a temporary address alone when nothing is configured", async () => {
-    const h = harness({ publicAddress: () => ({}) });
+    const h = harness({ publicAddress: () => ({ saved: null, config: null }) });
     await h.controller.start({ workspaceName: "Rocket Team" });
     await h.controller.openToAll({ accessPolicy: "invite_only" });
     expect(h.controller.status()).not.toHaveProperty("publicAddress");
@@ -3698,7 +3752,7 @@ describe("following changes made inside a hosted workspace", () => {
 
   it("closes joining whatever was chosen meanwhile, when another program may carry the address", async () => {
     const h = harness({
-      publicAddress: () => ({ setting: "chat.example.org", url: "https://chat.example.org" }),
+      publicAddress: carriedAt("https://chat.example.org", "chat.example.org"),
     });
     await h.controller.start({ workspaceName: "Rocket Team" });
     h.beforeTunnel = () => {

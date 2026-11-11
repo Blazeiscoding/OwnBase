@@ -42,6 +42,7 @@ import {
   openQuickTunnel,
   probeHealth,
   resolvePublicAddress,
+  stableAddress,
   validatePublicAddress,
 } from "./tunnel.js";
 
@@ -177,27 +178,6 @@ export function createHostingService(options: HostingServiceOptions) {
     installer.forget();
   }
 
-  function addressCarriedElsewhere(): boolean {
-    const config = addressConfig.get();
-    return !!config && !("error" in config) && config.carrier === "elsewhere";
-  }
-
-  function publicAddressStatus() {
-    const config = addressConfig.get();
-    // A saved address the app can change, against one the environment fixed.
-    const setting =
-      savedAddress ??
-      (config && !("error" in config) && config.carrier === "elsewhere" ? config.publicUrl : null);
-    return {
-      ...(setting ? { setting } : {}),
-      ...(setting && !savedAddress ? { locked: true } : {}),
-      ...(config && "error" in config ? { error: config.error } : {}),
-      ...(config && !("error" in config)
-        ? { url: config.publicUrl, ...(config.carrier === "ownbase" ? { managed: true } : {}) }
-        : {}),
-    };
-  }
-
   /** Running workspaces that calls can be given a relay by, so a change reaches them at once. */
   const relayServers = new Set<WorkspaceServer>();
   let relay: Promise<CallRelay | null> | null = null;
@@ -250,10 +230,7 @@ export function createHostingService(options: HostingServiceOptions) {
         webDistPath: options.webDistPath,
         savedRelay,
         relayServers,
-        publicAddressConfigured: () => {
-          const config = addressConfig.get();
-          return !!config && !("error" in config);
-        },
+        publicAddressConfigured: () => stableAddress(addressConfig.get()) !== null,
       }),
     verifyLoopback: async (port, instanceId) =>
       // Only a reply from something that is not this run proves the port leads
@@ -263,8 +240,9 @@ export function createHostingService(options: HostingServiceOptions) {
         AbortSignal.timeout(3_000),
         instanceId,
       )) !== "something-else",
-    tunnelAvailable: () => cloudflared.get() !== null || addressCarriedElsewhere(),
-    publicAddress: publicAddressStatus,
+    tunnelAvailable: () =>
+      cloudflared.get() !== null || stableAddress(addressConfig.get())?.carrier === "elsewhere",
+    publicAddress: () => ({ saved: savedAddress, config: addressConfig.get() }),
     savePublicAddress: async (address) => {
       try {
         await settings.set(PUBLIC_ADDRESS_KEY, address);
@@ -277,24 +255,17 @@ export function createHostingService(options: HostingServiceOptions) {
       savedAddress = address;
       addressConfig.forget();
     },
-    openTunnel: (port, signal, instanceId) => {
-      lookAgain();
-      const configured = addressConfig.get();
-      if (configured && "error" in configured) throw new Error(configured.error);
-      if (configured && !instanceId)
-        throw new Error(
-          "OwnBase cannot check that the public address leads to this workspace. Stop hosting, then start it again.",
-        );
+    openTunnel: (port, signal, instanceId, address) => {
       // Nothing to install or start when something else already carries the address.
-      if (configured?.carrier === "elsewhere")
-        return openConfiguredAddress({ ...configured, port, signal, instanceId: instanceId! });
+      if (address?.carrier === "elsewhere")
+        return openConfiguredAddress({ ...address, port, signal, instanceId });
+      cloudflared.forget();
       const command = cloudflared.get();
       if (!command)
         throw new Error(
           "A public link needs cloudflared, a free program from Cloudflare. Install it, then try again.",
         );
-      if (configured)
-        return openNamedTunnel({ ...configured, command, port, signal, instanceId: instanceId! });
+      if (address) return openNamedTunnel({ ...address, command, port, signal, instanceId });
       return openQuickTunnel({ command, port, signal, instanceId });
     },
   });
@@ -330,7 +301,11 @@ export function createHostingService(options: HostingServiceOptions) {
     },
     "hosting:start": (_event, request) => controller.start(request),
     "hosting:stop": () => controller.stop(),
-    "hosting:openToAll": (_event, accessPolicy) => controller.openToAll({ accessPolicy }),
+    "hosting:openToAll": (_event, accessPolicy) => {
+      // What carries the link is looked for again, as the host may have just set it up.
+      lookAgain();
+      return controller.openToAll({ accessPolicy });
+    },
     "hosting:endOpenToAll": () => controller.endOpenToAll(),
     "hosting:setAccessPolicy": (_event, accessPolicy) => controller.setAccessPolicy(accessPolicy),
     "hosting:setPublicAddress": (_event, value) => {

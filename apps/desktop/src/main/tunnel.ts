@@ -302,6 +302,14 @@ export type PublicAddressConfig =
   | { error: string }
   | null;
 
+/** A stable address that can be published, and who carries it. */
+export type StableAddress = Extract<PublicAddressConfig, { publicUrl: string }>;
+
+/** The configured address, when it can be published; null when there is none or it is wrong. */
+export function stableAddress(config: PublicAddressConfig): StableAddress | null {
+  return config && "publicUrl" in config ? config : null;
+}
+
 /**
  * Which stable address to publish, and who carries it. A saved address comes
  * first: someone typed it into this app and can see it there, so an

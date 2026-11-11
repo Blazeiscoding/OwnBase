@@ -30,7 +30,13 @@ import type {
 } from "@ownbase/server/stoppedWorkspace";
 import type { WorkspaceIcon } from "@ownbase/server/workspaceIcon";
 import { DesktopError } from "../shared/desktopError.js";
-import { TunnelCleanupError, type Tunnel } from "./tunnel.js";
+import {
+  stableAddress,
+  TunnelCleanupError,
+  type PublicAddressConfig,
+  type StableAddress,
+  type Tunnel,
+} from "./tunnel.js";
 import {
   REGISTRY_KEY,
   RegistryFormatError,
@@ -177,22 +183,21 @@ interface HostingOptions {
   defaultPort: number;
   lanUrls(port: number): string[];
   onChange(): void;
-  /** Opens a tunnel to a port on this computer. */
-  openTunnel(port: number, signal: AbortSignal, instanceId?: string): Promise<Tunnel>;
+  /** Opens a tunnel to a port on this computer: to the stable address given, or a temporary one. */
+  openTunnel(
+    port: number,
+    signal: AbortSignal,
+    instanceId: string,
+    address: StableAddress | null,
+  ): Promise<Tunnel>;
   /** Whether a public link can be opened: cloudflared is here, or something else carries the address. */
   tunnelAvailable(): boolean;
   /**
-   * The stable public address configured for this computer: what the setting
-   * holds, the address that passed validation, who carries it, and what is
-   * wrong with it.
+   * The stable public address configured for this computer, read for each
+   * use so correcting it takes effect without a restart: the address the
+   * host saved, if they did, and what the configuration resolves to.
    */
-  publicAddress(): {
-    setting?: string;
-    locked?: boolean;
-    url?: string;
-    managed?: boolean;
-    error?: string;
-  };
+  publicAddress(): { saved: string | null; config: PublicAddressConfig };
   /** Persists an address the host supplied, after the controller makes the change safe. */
   savePublicAddress(address: string | null): Promise<void>;
   /**
@@ -416,21 +421,16 @@ export function createHostingController(options: HostingOptions) {
     }
   }
 
-  /**
-   * Read for each snapshot, so correcting the configuration takes effect
-   * without a restart. Configuration that cannot be read at all leaves the
-   * temporary address available rather than failing the status call.
-   */
-  function publicAddress(): NonNullable<ReturnType<NonNullable<HostingOptions["publicAddress"]>>> {
-    try {
-      return options.publicAddress();
-    } catch {
-      return {};
-    }
+  /** The stable address a public link would be opened at now, if one is configured and valid. */
+  function stableUrl(): string | undefined {
+    return stableAddress(options.publicAddress().config)?.publicUrl;
   }
 
   function status(): HostingSnapshot {
-    const address = publicAddress();
+    const { saved, config } = options.publicAddress();
+    const usable = stableAddress(config);
+    // A saved address the app can change, against one the environment fixed.
+    const setting = saved ?? (usable?.carrier === "elsewhere" ? usable.publicUrl : null);
     return {
       running: server !== null,
       phase: phase === "running" && stopsAsked > 0 ? "stopping" : phase,
@@ -444,11 +444,11 @@ export function createHostingController(options: HostingOptions) {
           : {}),
       ...(openError ? { openToAllError: openError } : {}),
       tunnelAvailable: options.tunnelAvailable(),
-      ...(address.url ? { publicAddress: address.url } : {}),
-      ...(address.setting ? { publicAddressSetting: address.setting } : {}),
-      ...(address.locked ? { publicAddressLocked: true } : {}),
-      ...(address.managed ? { publicAddressManaged: true } : {}),
-      ...(address.error ? { publicAddressError: address.error } : {}),
+      ...(usable ? { publicAddress: usable.publicUrl } : {}),
+      ...(setting ? { publicAddressSetting: setting } : {}),
+      ...(setting && !saved ? { publicAddressLocked: true } : {}),
+      ...(usable?.carrier === "ownbase" ? { publicAddressManaged: true } : {}),
+      ...(config && "error" in config ? { publicAddressError: config.error } : {}),
       ...(portWarning || warning || registryUnsaved
         ? { warning: [portWarning, warning, registryUnsaved].filter(Boolean).join(" ") }
         : {}),
@@ -467,7 +467,7 @@ export function createHostingController(options: HostingOptions) {
       workspace &&
       reopenPublic &&
       reopenPublic.folder === workspace.folder &&
-      reopenPublic.address === address.url
+      reopenPublic.address === usable?.publicUrl
         ? { reopensPublicOnLaunch: true }
         : {}),
     };
@@ -893,7 +893,7 @@ export function createHostingController(options: HostingOptions) {
       // while it can still be corrected, rather than letting Open to all
       // fail later with only "did not answer as this workspace".
       if (movedFrom !== undefined) {
-        const configured = publicAddress().url;
+        const configured = stableUrl();
         portWarning = configured
           ? `Port ${movedFrom} was already in use, so this workspace is on ${server.port}. Point ${configured} at http://127.0.0.1:${server.port}, or it will reach whatever is using ${movedFrom}.`
           : `Port ${movedFrom} was already in use, so this workspace is on ${server.port}. Links that name ${movedFrom} will not reach it.`;
@@ -1744,12 +1744,12 @@ export function createHostingController(options: HostingOptions) {
     const launched = () => server !== null && workspace?.folder === folder && runs === run;
     const wanted = await readReopenPublic();
     if (!launched() || !wanted || wanted.folder !== folder || isolatedRun) return;
-    const current = publicAddress();
-    if (current.url !== wanted.address) {
+    const current = stableUrl();
+    if (current !== wanted.address) {
       launchError = {
         part: "public-address",
         folder,
-        message: `${name} started, but the public link at ${wanted.address} was not reopened. The address OwnBase uses has changed${current.url ? ` to ${current.url}` : ""}. Press Get a public link, then turn on reopening it again.`,
+        message: `${name} started, but the public link at ${wanted.address} was not reopened. The address OwnBase uses has changed${current ? ` to ${current}` : ""}. Press Get a public link, then turn on reopening it again.`,
       };
       changed();
       return;
@@ -1787,13 +1787,12 @@ export function createHostingController(options: HostingOptions) {
           throw new Error(
             "A restored copy you are looking inside has no public address to reopen.",
           );
-        const address = publicAddress();
-        if (!address.url || address.error)
+        if (!stableUrl())
           throw new Error(
             "OwnBase can reopen the public link only if it keeps the same address. Without your own address, the link changes every time. Enter your own address first.",
           );
       }
-      const next = value ? { folder: workspace!.folder, address: publicAddress().url! } : null;
+      const next = value ? { folder: workspace!.folder, address: stableUrl()! } : null;
       try {
         await options.settings.set(REOPEN_PUBLIC_KEY, next);
       } catch {
@@ -2082,9 +2081,10 @@ export function createHostingController(options: HostingOptions) {
       // A configured stable address that cannot be used has to be corrected.
       // Falling back would publish a temporary link nobody was given. An
       // already open link keeps working, so its policy can still be changed.
-      const configured = publicAddress();
-      const carriedElsewhere = !!configured.url && !configured.managed;
-      if (!tunnel && configured.error) throw new Error(configured.error);
+      const { config } = options.publicAddress();
+      if (!tunnel && config && "error" in config) throw new Error(config.error);
+      const configured = stableAddress(config);
+      const carriedElsewhere = configured?.carrier === "elsewhere";
       const setPolicy = target.setAccessPolicy;
       // Through a tunnel nothing counts as this computer's own, so the owner
       // would need the claim code to create their account. Theirs comes first.
@@ -2118,7 +2118,12 @@ export function createHostingController(options: HostingOptions) {
       changed();
       let opened: Tunnel;
       try {
-        opened = await options.openTunnel(target.port, attempt.signal, target.instanceId);
+        opened = await options.openTunnel(
+          target.port,
+          attempt.signal,
+          target.instanceId,
+          configured,
+        );
       } catch (error) {
         if (error instanceof TunnelCleanupError) {
           cleanupTunnel = error.tunnel;
@@ -2192,7 +2197,7 @@ export function createHostingController(options: HostingOptions) {
         externalCarrier = false;
         closeReach(target);
         if (wasExternal) setPolicy("invite_only");
-        openError = configured.url
+        openError = configured
           ? `The public link stopped working (${reason}). Fix its connection, then press Get a public link to open it at the same address.`
           : `The public link stopped working (${reason}). Press Get a public link for a new one.`;
         changed();
