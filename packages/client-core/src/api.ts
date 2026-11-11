@@ -148,7 +148,6 @@ export class Api {
     return this.http.json(route, { body: values });
   }
 
-  /** Joins with a display name alone, where the workspace allows guests. */
   joinAsGuest(displayName: string) {
     return this.http.json(endpoints.joinAsGuest, { body: { displayName } });
   }
@@ -195,12 +194,10 @@ export class Api {
     return this.http.json(endpoints.startTwoStep, { body: { password } });
   }
 
-  /** Turns two-step sign-in on with a code from the new key; the recovery codes, shown once. */
   enableTwoStep(code: string) {
     return this.http.json(endpoints.enableTwoStep, { body: { code } });
   }
 
-  /** A new set of recovery codes in place of the old (E11), shown once. */
   newRecoveryCodes(password: string) {
     return this.http.json(endpoints.newRecoveryCodes, { body: { password } });
   }
@@ -209,7 +206,6 @@ export class Api {
     return this.http.json(endpoints.disableTwoStep, { body: { password } });
   }
 
-  /** Turns someone's two-step sign-in off, for one who lost their app and codes. Admins only. */
   resetTwoStep(userId: ID) {
     return this.http.json(endpoints.resetTwoStep, { params: { id: userId } });
   }
@@ -313,7 +309,6 @@ export class Api {
     return this.http.json(endpoints.setAvatar, { body: image });
   }
 
-  /** Removes this account's picture; its initials show again. */
   removeAvatar() {
     return this.http.json(endpoints.removeAvatar);
   }
@@ -504,7 +499,6 @@ export class Api {
     return this.http.json(endpoints.setChannelPrefs, { params: { id: channelId }, body });
   }
 
-  /** What conversations notify about unless one is set on its own (v53). */
   setNotifyDefault(level: NotifyLevel) {
     return this.http.json(endpoints.setNotifyDefault, { body: { level } });
   }
@@ -551,7 +545,6 @@ export class Api {
     return this.http.json(endpoints.renameSidebarSection, { params: { id }, body: { name } });
   }
 
-  /** Deletes a section; its conversations go back where they would be. */
   deleteSidebarSection(id: ID) {
     return this.http.json(endpoints.deleteSidebarSection, { params: { id } });
   }
@@ -767,7 +760,6 @@ export class Api {
     return this.http.json(endpoints.createInvite, { body });
   }
 
-  /** What happened in huddles lately, for the owner and admins. Memory only. */
   callLog() {
     return this.http.json(endpoints.callLog);
   }
