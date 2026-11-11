@@ -782,7 +782,7 @@ export function createHostingController(options: HostingOptions) {
           portChosen: requested.port !== undefined && requested.port !== 0,
           lastHostedAt: now(),
         };
-        const dataDir = join(options.dataRoot, entry.folder);
+        const dataDir = dataDirOf(entry);
         await mkdir(options.dataRoot, { recursive: true });
         await mkdir(dataDir);
         registry = [...list, entry];
@@ -799,7 +799,7 @@ export function createHostingController(options: HostingOptions) {
       workspace = {
         workspaceName: entry.name,
         folder: entry.folder,
-        dataDir: join(options.dataRoot, entry.folder),
+        dataDir: dataDirOf(entry),
       };
       // A restored workspace starts only for looking inside until it is put
       // back in use on purpose: its queue, apps and sign-ins are live otherwise.
@@ -883,9 +883,7 @@ export function createHostingController(options: HostingOptions) {
           registry = list;
           // Kept while the list still names it, so it is adopted rather than lost.
           if (await keepRegistry())
-            await rm(join(options.dataRoot, entry.folder), { recursive: true, force: true }).catch(
-              () => {},
-            );
+            await rm(dataDirOf(entry), { recursive: true, force: true }).catch(() => {});
         }
         changed();
         throw startFailure(error);
@@ -970,7 +968,7 @@ export function createHostingController(options: HostingOptions) {
         .sort((a, b) => b.lastHostedAt - a.lastHostedAt)
         .map((entry) => {
           const running = server !== null && workspace?.folder === entry.folder;
-          const missing = !existsSync(join(options.dataRoot, entry.folder));
+          const missing = !existsSync(dataDirOf(entry));
           return {
             folder: entry.folder,
             name: entry.name,
@@ -992,7 +990,7 @@ export function createHostingController(options: HostingOptions) {
               ? (server?.workspaceIcon()?.version ?? null)
               : missing
                 ? null
-                : options.stopped.iconVersion(join(options.dataRoot, entry.folder)),
+                : options.stopped.iconVersion(dataDirOf(entry)),
           };
         }),
       unreadable: unreadableFolders,
@@ -1010,7 +1008,7 @@ export function createHostingController(options: HostingOptions) {
     if (server && workspace?.folder === entry.folder) {
       return iconUrl(server.workspaceIcon());
     }
-    const dataDir = join(options.dataRoot, entry.folder);
+    const dataDir = dataDirOf(entry);
     return existsSync(dataDir) ? iconUrl(options.stopped.icon(dataDir)) : null;
   }
 
@@ -1039,7 +1037,7 @@ export function createHostingController(options: HostingOptions) {
     entry: HostedWorkspace,
     destination: string,
   ): Promise<{ path: string; at: number }> {
-    const dataDir = join(options.dataRoot, entry.folder);
+    const dataDir = dataDirOf(entry);
     if (!existsSync(dataDir))
       throw new BackupFailed(
         "source",
@@ -1197,7 +1195,7 @@ export function createHostingController(options: HostingOptions) {
       const manifest = await options.verifyBackup(backupDir);
       const id = read(backupDir)?.id ?? null;
       const listed = id ? list.find((e) => e.id === id) : undefined;
-      if (listed && existsSync(join(options.dataRoot, listed.folder)))
+      if (listed && existsSync(dataDirOf(listed)))
         throw new Error(
           `${listed.name} is already hosted on this computer, so this backup was not restored over it.`,
         );
@@ -1299,7 +1297,7 @@ export function createHostingController(options: HostingOptions) {
       const listed = entryIn(list, folder);
       if (server && workspace?.folder === listed.folder)
         throw new Error(`Stop hosting ${listed.name} before restoring an earlier copy over it.`);
-      const dataDir = join(options.dataRoot, listed.folder);
+      const dataDir = dataDirOf(listed);
       if (!existsSync(dataDir))
         throw new Error(
           `The folder that held ${listed.name} is missing. Restore from a backup brings it back into it.`,
@@ -1354,7 +1352,7 @@ export function createHostingController(options: HostingOptions) {
       const list = await loadRegistry();
       const entry = list.find((e) => e.folder === value);
       if (!entry) return;
-      if (existsSync(join(options.dataRoot, entry.folder)))
+      if (existsSync(dataDirOf(entry)))
         throw new Error(`${entry.name} is still on this computer, so it stays in the list.`);
       registry = list.filter((e) => e.folder !== entry.folder);
       try {
@@ -1514,7 +1512,7 @@ export function createHostingController(options: HostingOptions) {
           // backups until it is put back in use: a newer one there may be the
           // only copy of what the restore went back past.
           if (!entry || !schedule || entry.restoredHold !== undefined || closing) return false;
-          if (!existsSync(join(options.dataRoot, entry.folder))) return false;
+          if (!existsSync(dataDirOf(entry))) return false;
           if (schedule.retry && now() < schedule.retry.nextAt && !retryFailed) return false;
           // Never backed up by this schedule into its folder, it is due now.
           // Otherwise a little early is fine: the check runs every few minutes.
@@ -1951,7 +1949,7 @@ export function createHostingController(options: HostingOptions) {
   async function openFolder(value: unknown): Promise<void> {
     if (typeof value !== "string") throw new Error("Choose a workspace whose folder to open.");
     const entry = await listedEntry(value);
-    const dataDir = join(options.dataRoot, entry.folder);
+    const dataDir = dataDirOf(entry);
     if (!existsSync(dataDir)) throw new Error(`The folder that held ${entry.name} is missing.`);
     // The system's reason can hold the path, and with it the account name.
     if (await options.openFolder(dataDir))
