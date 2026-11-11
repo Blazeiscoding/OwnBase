@@ -165,6 +165,9 @@ export type SendAnswer =
 const TYPING_SHOWN_FOR_MS = 5000;
 const TYPING_SAY_EVERY_MS = 3000;
 
+/** How long a request to join a huddle waits for the server's answer. */
+const HUDDLE_JOIN_WAIT_MS = 10_000;
+
 /** The wait after "too much at once" from a server that did not say how long. */
 const RATE_LIMIT_WAIT_MS = 2000;
 /** However long a server asks for, a send is tried again within this. */
@@ -3269,24 +3272,13 @@ export class WorkspaceClient {
       return;
     }
     try {
-      const requestId = `join-${attempt}`;
       await new Promise<void>((resolve, reject) => {
-        const timer = setTimeout(() => {
-          this.pendingHuddleJoin?.finish(
-            new Error("The huddle did not answer. Check your connection, then try again."),
-          );
-        }, 10_000);
-        this.pendingHuddleJoin = {
+        this.askToJoin(
           channelId,
-          requestId,
-          finish: (error) => {
-            clearTimeout(timer);
-            this.pendingHuddleJoin = null;
-            if (error) reject(error);
-            else resolve();
-          },
-        };
-        this.sendSocket({ type: "huddle.join", channelId, requestId });
+          `join-${attempt}`,
+          "The huddle did not answer. Check your connection, then try again.",
+          (error) => (error ? reject(error) : resolve()),
+        );
         session.note("Asked the server to join the huddle.");
       });
       session.note("The server let this device into the huddle.");
@@ -3422,16 +3414,11 @@ export class WorkspaceClient {
       this.publishHuddleState();
     };
     session.note("The connection to the server came back. Asking to go on with the huddle.");
-    const requestId = `rejoin-${attempt}-${++this.rejoins}`;
-    const timer = setTimeout(() => {
-      this.pendingHuddleJoin?.finish(new Error("The huddle did not answer."));
-    }, 10_000);
-    this.pendingHuddleJoin = {
+    this.askToJoin(
       channelId,
-      requestId,
-      finish: (error) => {
-        clearTimeout(timer);
-        if (this.pendingHuddleJoin?.requestId === requestId) this.pendingHuddleJoin = null;
+      `rejoin-${attempt}-${++this.rejoins}`,
+      "The huddle did not answer.",
+      (error) => {
         if (!error) return back();
         if (error instanceof HuddleRejoinCancelled) return;
         if (attempt !== this.huddleAttempt || this.session !== session) return;
@@ -3442,6 +3429,31 @@ export class WorkspaceClient {
           },
           !(error instanceof HuddleJoinRefusedError),
         );
+      },
+    );
+  }
+
+  /**
+   * Asks the server to let this device into the huddle. `onFinish` hears its
+   * answer, or, after `HUDDLE_JOIN_WAIT_MS` without one, `unanswered`.
+   */
+  private askToJoin(
+    channelId: ID,
+    requestId: string,
+    unanswered: string,
+    onFinish: (error?: Error) => void,
+  ): void {
+    const timer = setTimeout(() => {
+      if (this.pendingHuddleJoin?.requestId === requestId)
+        this.pendingHuddleJoin.finish(new Error(unanswered));
+    }, HUDDLE_JOIN_WAIT_MS);
+    this.pendingHuddleJoin = {
+      channelId,
+      requestId,
+      finish: (error) => {
+        clearTimeout(timer);
+        if (this.pendingHuddleJoin?.requestId === requestId) this.pendingHuddleJoin = null;
+        onFinish(error);
       },
     };
     this.sendSocket({ type: "huddle.join", channelId, requestId });
