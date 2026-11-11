@@ -22,6 +22,13 @@ import {
   type StartedWorkspace,
 } from "@ownbase/protocol/desktop";
 import type { WorkspaceChange, WorkspaceServer } from "@ownbase/server";
+import type {
+  readStoppedIcon,
+  readStoppedIconVersion,
+  readStoppedWorkspace,
+  renameStoppedWorkspace,
+} from "@ownbase/server/stoppedWorkspace";
+import type { WorkspaceIcon } from "@ownbase/server/workspaceIcon";
 import { DesktopError } from "../shared/desktopError.js";
 import { TunnelCleanupError, type Tunnel } from "./tunnel.js";
 import {
@@ -32,11 +39,7 @@ import {
   newFolder,
   parseAutoBackup,
   parseRegistry,
-  readWorkspace,
-  readWorkspaceIcon,
-  readWorkspaceIconVersion,
   serializeRegistry,
-  writeWorkspaceName,
   type AutoBackup,
   type BackupFailure,
   type BackupFailureKind,
@@ -119,6 +122,14 @@ export type HostedServer = Pick<
   | "accountCount"
 >;
 
+/** The server's readers and writer of a stopped workspace's database. */
+export interface StoppedWorkspaces {
+  read: typeof readStoppedWorkspace;
+  icon: typeof readStoppedIcon;
+  iconVersion: typeof readStoppedIconVersion;
+  rename: typeof renameStoppedWorkspace;
+}
+
 interface HostingOptions {
   /** `workspaceName` is given for a new workspace only; an existing one keeps its own. */
   startServer(options: {
@@ -136,13 +147,8 @@ interface HostingOptions {
     ): Promise<unknown>;
     set(key: string, value: unknown): Promise<void>;
   };
-  /** Reads a workspace's identity from its folder without starting it. */
-  readWorkspace?: typeof readWorkspace;
-  /** Reads a stopped workspace's icon, and its version alone, from its folder without starting it. */
-  readWorkspaceIcon?: typeof readWorkspaceIcon;
-  readWorkspaceIconVersion?: typeof readWorkspaceIconVersion;
-  /** Writes a stopped workspace's new name into its database. */
-  writeWorkspaceName?: typeof writeWorkspaceName;
+  /** A workspace's own database, read or renamed from its folder without starting it. */
+  stopped: StoppedWorkspaces;
   /**
    * Shows a folder in the system's file manager, as Electron's
    * `shell.openPath` does: resolves to why it could not, or to "" when it did.
@@ -320,6 +326,10 @@ function backupFailureNote(name: string, failure: BackupFailure | undefined): st
   ).trim();
 }
 
+function iconUrl(icon: WorkspaceIcon | null): string | null {
+  return icon && `data:${icon.type};base64,${Buffer.from(icon.bytes).toString("base64")}`;
+}
+
 /** Owns the embedded server, including operations accepted just before app shutdown. */
 export function createHostingController(options: HostingOptions) {
   let server: HostedServer | null = null;
@@ -330,10 +340,7 @@ export function createHostingController(options: HostingOptions) {
   let reopenPublic: { folder: string; address: string } | null | undefined;
   let phase: HostingSnapshot["phase"] = "stopped";
   const now = options.now ?? Date.now;
-  const read = options.readWorkspace ?? readWorkspace;
-  const readIcon = options.readWorkspaceIcon ?? readWorkspaceIcon;
-  const readIconVersion = options.readWorkspaceIconVersion ?? readWorkspaceIconVersion;
-  const writeName = options.writeWorkspaceName ?? writeWorkspaceName;
+  const read = options.stopped.read;
   /** Every workspace hosted here, once read. Null until then, or while it cannot be. */
   let registry: HostedWorkspace[] | null = null;
   let registryLoad: Promise<HostedWorkspace[]> | null = null;
@@ -946,7 +953,7 @@ export function createHostingController(options: HostingOptions) {
               ? (server?.workspaceIcon()?.version ?? null)
               : missing
                 ? null
-                : readIconVersion(join(options.dataRoot, entry.folder)),
+                : options.stopped.iconVersion(join(options.dataRoot, entry.folder)),
           };
         }),
       unreadable: unreadableFolders,
@@ -963,11 +970,10 @@ export function createHostingController(options: HostingOptions) {
     const entry = (await loadRegistry()).find((e) => e.folder === value);
     if (!entry) throw new Error("That workspace is not in the list hosted on this computer.");
     if (server && workspace?.folder === entry.folder) {
-      const live = server.workspaceIcon();
-      return live ? `data:${live.type};base64,${Buffer.from(live.bytes).toString("base64")}` : null;
+      return iconUrl(server.workspaceIcon());
     }
     const dataDir = join(options.dataRoot, entry.folder);
-    return existsSync(dataDir) ? (readIcon(dataDir)?.url ?? null) : null;
+    return existsSync(dataDir) ? iconUrl(options.stopped.icon(dataDir)) : null;
   }
 
   /**
@@ -1866,7 +1872,7 @@ export function createHostingController(options: HostingOptions) {
             `The folder for ${entry.name} holds a different workspace, so it was not renamed.`,
           );
         try {
-          writeName(dataDir, next);
+          options.stopped.rename(dataDir, next);
         } catch {
           // SQLite's own message can name the file, and with it the account.
           throw new Error(

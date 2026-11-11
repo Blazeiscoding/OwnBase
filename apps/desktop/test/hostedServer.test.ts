@@ -7,7 +7,7 @@ import { crc32, deflateSync } from "node:zlib";
 import { createWorkspaceServer, type WorkspaceServer } from "@ownbase/server";
 import { holdWorkspace } from "@ownbase/server/ownership";
 import { startHostedServer, type HostedServerHost } from "../src/main/hostedServer.js";
-import { readWorkspaceIcon, readWorkspaceIconVersion } from "../src/main/registry.js";
+import { readStoppedIcon, readStoppedIconVersion } from "@ownbase/server/stoppedWorkspace";
 
 let root: string;
 let dataDir: string;
@@ -181,16 +181,17 @@ describe("starting a hosted workspace's server", () => {
     expect(heard).toEqual([{ iconVersion, by: user.id }]);
     expect(hosted.workspaceIcon!()).toMatchObject({ type: "image/png", version: iconVersion });
     // Read from the folder while the server holds it too: reading changes nothing.
-    expect(readWorkspaceIconVersion(dataDir)).toBe(iconVersion);
+    expect(readStoppedIconVersion(dataDir)).toBe(iconVersion);
     await hosted.stop();
 
-    expect(readWorkspaceIconVersion(dataDir)).toBe(iconVersion);
-    expect(readWorkspaceIcon(dataDir)).toEqual({
+    expect(readStoppedIconVersion(dataDir)).toBe(iconVersion);
+    expect(readStoppedIcon(dataDir)).toEqual({
+      type: "image/png",
       version: iconVersion,
-      url: `data:image/png;base64,${Buffer.from(bytes).toString("base64")}`,
+      bytes: Buffer.from(bytes),
     });
-    expect(readWorkspaceIcon(join(root, "nothing-here"))).toBeNull();
-    expect(readWorkspaceIconVersion(join(root, "nothing-here"))).toBeNull();
+    expect(readStoppedIcon(join(root, "nothing-here"))).toBeNull();
+    expect(readStoppedIconVersion(join(root, "nothing-here"))).toBeNull();
   });
 
   it("stops the server it made when joining cannot be closed, and gives the folder back (Q12)", async () => {

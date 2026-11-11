@@ -20,13 +20,13 @@ import {
   type HostedServer,
   type HostingSnapshot,
 } from "../src/main/hosting.js";
+import { parseAutoBackup, parseRegistry, type HostedWorkspace } from "../src/main/registry.js";
 import {
-  parseAutoBackup,
-  parseRegistry,
-  readWorkspace,
-  writeWorkspaceName,
-  type HostedWorkspace,
-} from "../src/main/registry.js";
+  readStoppedIcon,
+  readStoppedIconVersion,
+  readStoppedWorkspace as readWorkspace,
+  renameStoppedWorkspace as writeWorkspaceName,
+} from "@ownbase/server/stoppedWorkspace";
 import { TunnelCleanupError, type Tunnel } from "../src/main/tunnel.js";
 import {
   backupWorkspace,
@@ -215,14 +215,18 @@ function harness(
     defaultPort: 8543,
     lanUrls: (port) => [`192.168.1.20:${port}`],
     now: () => h.clock++,
-    readWorkspace: inside,
-    writeWorkspaceName: (dataDir, name) => {
-      if (h.writeFails)
-        throw new Error(`database is locked: ${join(dataDir, "workspace.db")} (C:\\Users\\sam)`);
-      h.written.push({ dataDir, name });
-      const fake = h.databases.get(dataDir);
-      if (fake) fake.name = name;
-      else writeWorkspaceName(dataDir, name);
+    stopped: {
+      read: inside,
+      icon: readStoppedIcon,
+      iconVersion: readStoppedIconVersion,
+      rename: (dataDir, name) => {
+        if (h.writeFails)
+          throw new Error(`database is locked: ${join(dataDir, "workspace.db")} (C:\\Users\\sam)`);
+        h.written.push({ dataDir, name });
+        const fake = h.databases.get(dataDir);
+        if (fake) fake.name = name;
+        else writeWorkspaceName(dataDir, name);
+      },
     },
     openFolder: async (path) => {
       h.opened.push(path);
@@ -473,7 +477,11 @@ describe("hosting a workspace from the desktop app", () => {
     }
     expect(h.starts).toEqual([]);
     expect(h.changes).toEqual([]);
-    expect(h.controller.status()).toEqual({ running: false, phase: "stopped", tunnelAvailable: true });
+    expect(h.controller.status()).toEqual({
+      running: false,
+      phase: "stopped",
+      tunnelAvailable: true,
+    });
     // The longest name allowed is still allowed.
     await h.controller.start({ workspaceName: "x".repeat(80) });
     expect(h.controller.status().running).toBe(true);
@@ -501,7 +509,11 @@ describe("hosting a workspace from the desktop app", () => {
       "Port 9000 is already in use on this computer. Choose another, or leave the port empty to use one that is free.",
     );
     expect(chosen.starts.map((s) => s.port)).toEqual([9000]);
-    expect(chosen.controller.status()).toEqual({ running: false, phase: "stopped", tunnelAvailable: true });
+    expect(chosen.controller.status()).toEqual({
+      running: false,
+      phase: "stopped",
+      tunnelAvailable: true,
+    });
   });
 
   it("keeps a port chosen at creation when it is busy on reopening, and does not start", async () => {
@@ -586,7 +598,11 @@ describe("hosting a workspace from the desktop app", () => {
     // what the caller has already been told.
     expect(h.starts).toHaveLength(1);
     expect(h.saved).toEqual([]);
-    expect(h.controller.status()).toEqual({ running: false, phase: "stopped", tunnelAvailable: true });
+    expect(h.controller.status()).toEqual({
+      running: false,
+      phase: "stopped",
+      tunnelAvailable: true,
+    });
     // A new workspace that never started is taken back out, folder and all.
     expect(registryOf(h)).toEqual([]);
     expect(readdirSync(h.dataRoot)).toEqual([]);
@@ -736,7 +752,11 @@ describe("hosting a workspace from the desktop app", () => {
     await stopped;
     expect(h.starts).toHaveLength(1);
     expect(h.servers[0]!.stop).toHaveBeenCalledOnce();
-    expect(h.controller.status()).toEqual({ running: false, phase: "stopped", tunnelAvailable: true });
+    expect(h.controller.status()).toEqual({
+      running: false,
+      phase: "stopped",
+      tunnelAvailable: true,
+    });
   });
 
   it("keeps the server, and says so, when stopping it fails", async () => {
@@ -754,7 +774,11 @@ describe("hosting a workspace from the desktop app", () => {
     );
 
     await h.controller.stop();
-    expect(h.controller.status()).toEqual({ running: false, phase: "stopped", tunnelAvailable: true });
+    expect(h.controller.status()).toEqual({
+      running: false,
+      phase: "stopped",
+      tunnelAvailable: true,
+    });
     await h.controller.start({ workspaceName: "Rocket Team" });
     expect(h.starts).toHaveLength(2);
   });
@@ -781,7 +805,11 @@ describe("hosting a workspace from the desktop app", () => {
 
     // Asking again carries on from where the first try stopped.
     await h.controller.stop();
-    expect(h.controller.status()).toEqual({ running: false, phase: "stopped", tunnelAvailable: true });
+    expect(h.controller.status()).toEqual({
+      running: false,
+      phase: "stopped",
+      tunnelAvailable: true,
+    });
     expect(closeSockets).toHaveBeenCalledTimes(2);
     // And the same workspace starts again in the same folder.
     const [entry] = (await h.controller.list()).workspaces;
@@ -800,7 +828,11 @@ describe("hosting a workspace from the desktop app", () => {
     });
     await h.controller.stop();
     expect(h.servers[0]!.stop).toHaveBeenCalledOnce();
-    expect(h.controller.status()).toEqual({ running: false, phase: "stopped", tunnelAvailable: true });
+    expect(h.controller.status()).toEqual({
+      running: false,
+      phase: "stopped",
+      tunnelAvailable: true,
+    });
   });
 
   describe("who may join a hosted workspace", () => {
@@ -1200,7 +1232,11 @@ describe("hosting a workspace from the desktop app", () => {
       await h.controller.stop();
       expect(h.tunnels[0]!.close).toHaveBeenCalledTimes(2);
       expect(h.servers[0]!.stop).toHaveBeenCalledOnce();
-      expect(h.controller.status()).toMatchObject({ running: false, phase: "stopped", tunnelAvailable: true });
+      expect(h.controller.status()).toMatchObject({
+        running: false,
+        phase: "stopped",
+        tunnelAvailable: true,
+      });
     });
   });
 
@@ -1221,7 +1257,11 @@ describe("hosting a workspace from the desktop app", () => {
       await quitting;
       expect(h.servers).toHaveLength(1);
       expect(h.servers[0]!.stop).toHaveBeenCalledOnce();
-      expect(h.controller.status()).toEqual({ running: false, phase: "stopped", tunnelAvailable: true });
+      expect(h.controller.status()).toEqual({
+        running: false,
+        phase: "stopped",
+        tunnelAvailable: true,
+      });
       await expect(h.controller.start({ workspaceName: "Rocket Team" })).rejects.toThrow(
         /quitting/,
       );
@@ -1241,7 +1281,11 @@ describe("hosting a workspace from the desktop app", () => {
       await h.controller.shutdown();
       expect(h.servers).toHaveLength(1);
       expect(h.servers[0]!.stop).toHaveBeenCalledTimes(2);
-      expect(h.controller.status()).toEqual({ running: false, phase: "stopped", tunnelAvailable: true });
+      expect(h.controller.status()).toEqual({
+        running: false,
+        phase: "stopped",
+        tunnelAvailable: true,
+      });
     });
 
     it("bounds an unanswered stop while retaining its server for recovery", async () => {
@@ -1279,7 +1323,11 @@ describe("hosting a workspace from the desktop app", () => {
       // No longer quitting, and the same server is there to stop on the next try.
       await h.controller.shutdown();
       expect(h.servers[0]!.stop).toHaveBeenCalledOnce();
-      expect(h.controller.status()).toEqual({ running: false, phase: "stopped", tunnelAvailable: true });
+      expect(h.controller.status()).toEqual({
+        running: false,
+        phase: "stopped",
+        tunnelAvailable: true,
+      });
     });
 
     it("waits its turn behind work that finishes within the wait", async () => {
@@ -1297,7 +1345,11 @@ describe("hosting a workspace from the desktop app", () => {
       await backing;
       await quitting;
       expect(h.servers[0]!.stop).toHaveBeenCalledOnce();
-      expect(h.controller.status()).toEqual({ running: false, phase: "stopped", tunnelAvailable: true });
+      expect(h.controller.status()).toEqual({
+        running: false,
+        phase: "stopped",
+        tunnelAvailable: true,
+      });
     });
   });
 
@@ -1330,7 +1382,11 @@ describe("hosting a workspace from the desktop app", () => {
 
       await h.controller.stop();
       expect(h.servers[0]!.stop).toHaveBeenCalledOnce();
-      expect(h.controller.status()).toEqual({ running: false, phase: "stopped", tunnelAvailable: true });
+      expect(h.controller.status()).toEqual({
+        running: false,
+        phase: "stopped",
+        tunnelAvailable: true,
+      });
     });
 
     it("waits its turn behind work that finishes within the wait", async () => {
@@ -1348,7 +1404,11 @@ describe("hosting a workspace from the desktop app", () => {
       await backing;
       await stopping;
       expect(h.servers[0]!.stop).toHaveBeenCalledOnce();
-      expect(h.controller.status()).toEqual({ running: false, phase: "stopped", tunnelAvailable: true });
+      expect(h.controller.status()).toEqual({
+        running: false,
+        phase: "stopped",
+        tunnelAvailable: true,
+      });
     });
 
     it("keeps a warning that was there before it gave up", async () => {

@@ -11,6 +11,7 @@
     "./cli": "./src/cli/run.ts",
     "./cliFlags": "./src/cli/flags.ts",
     "./ownership": "./src/core/ownership.ts",
+    "./stoppedWorkspace": "./src/core/stoppedWorkspace.ts",
     "./workspaceIcon": "./src/admin/workspaceIcon.ts"
   },
   "scripts": {

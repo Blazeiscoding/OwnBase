@@ -11,6 +11,12 @@ import {
   type CallRelay,
   type WorkspaceServer,
 } from "@ownbase/server";
+import {
+  readStoppedIcon,
+  readStoppedIconVersion,
+  readStoppedWorkspace,
+  renameStoppedWorkspace,
+} from "@ownbase/server/stoppedWorkspace";
 import type { Channel } from "../shared/bridge.js";
 import { DesktopError } from "../shared/desktopError.js";
 import type { BackupJob } from "./backupWorker.js";
@@ -222,6 +228,12 @@ export function createHostingService(options: HostingServiceOptions) {
     defaultPort: DEFAULT_PORT,
     lanUrls,
     settings,
+    stopped: {
+      read: readStoppedWorkspace,
+      icon: readStoppedIcon,
+      iconVersion: readStoppedIconVersion,
+      rename: renameStoppedWorkspace,
+    },
     backupWorkspace: (request) => options.inWorker({ kind: "backup", ...request }),
     verifyBackup: (dir) => options.inWorker({ kind: "verify", dir }),
     restoreWorkspace: (request) => options.inWorker({ kind: "restore", ...request }),

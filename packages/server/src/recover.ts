@@ -1,8 +1,8 @@
-import { join } from "node:path";
 import { existsSync } from "node:fs";
 import type { DatabaseSync } from "node:sqlite";
 import { openDb } from "./db.js";
 import { holdWorkspace } from "./core/ownership.js";
+import { workspaceDatabase } from "./core/stoppedWorkspace.js";
 import { Store } from "./store.js";
 import { hashPassword } from "./auth.js";
 import { secretToken } from "./ids.js";
@@ -26,7 +26,7 @@ export interface RecoverableAccount {
  * still live is not a recovery.
  */
 function openWorkspace(dataDir: string) {
-  const path = join(dataDir, "workspace.db");
+  const path = workspaceDatabase(dataDir);
   if (!existsSync(path)) {
     throw new Error(
       `No workspace found at ${path}. Check that --data points at the data directory.`,
