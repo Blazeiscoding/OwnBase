@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { LOCAL_WORK } from "../src/workspace.js";
 import { createWorkspaceServer, type WorkspaceServer } from "@ownbase/server";
 import { SEND_RETRY_WINDOW_MS } from "@ownbase/protocol";
 import { Api, ApiError, OUTBOX_LIMIT, WorkspaceClient } from "../src/index.js";
@@ -156,6 +157,25 @@ describe("connection recovery", () => {
     expect(sent[0]?.nonce).toBe(nonce);
   });
 
+  it("says so when history reloaded after replay expiry fails, rather than loading forever", async () => {
+    await disconnect();
+    await owner.sendMessage(channelId, { text: "pruned event" });
+    await owner.sendMessage(channelId, { text: "after pruning" });
+    server.store.pruneEvents(1);
+    const listMessages = vi
+      .spyOn(client.api, "listMessages")
+      .mockRejectedValueOnce(new ApiError(500, "http_error"));
+    client.connect();
+    await expect
+      .poll(() => client.state.timelineStatus[channelId])
+      .toEqual({ loading: null, error: "initial" });
+    expect(client.state.timelines[channelId]).toBeUndefined();
+    listMessages.mockRestore();
+    await client.loadTimeline(channelId);
+    expect(client.state.timelineStatus[channelId]).toBeUndefined();
+    expect(timelineMessages(client.state, channelId).at(-1)?.text).toBe("after pruning");
+  });
+
   it("settles HTTP success even when the socket is disconnected", async () => {
     await disconnect();
     client.send(channelId, "HTTP acknowledgement");
@@ -240,14 +260,14 @@ describe("connection recovery", () => {
 describe("outbox durability", () => {
   /** Stands in for a restart: a second client for the same account, fresh state. */
   async function restart(): Promise<WorkspaceClient> {
-    const snapshot = client.outboxSnapshot();
+    const snapshot = client[LOCAL_WORK].outboxSnapshot();
     const base = client.baseUrl;
     const token = (client as unknown as { token: string }).token;
     client.destroy();
     client = new WorkspaceClient(base, token);
     client.connect();
     await expect.poll(() => client.state.status).toBe("online");
-    client.restoreOutbox(snapshot);
+    client[LOCAL_WORK].restoreOutbox(snapshot);
     return client;
   }
 
@@ -309,14 +329,16 @@ describe("outbox durability", () => {
     await disconnect();
     vi.spyOn(client.api, "sendMessage").mockRejectedValue(new Error("network is down"));
     for (let i = 1; i <= OUTBOX_LIMIT; i++)
-      expect(client.send(channelId, `queued ${i}`)).toBe(true);
+      expect(client.send(channelId, `queued ${i}`).kind).toBe("queued");
     await expect.poll(() => client.state.pending.every((p) => p.failed)).toBe(true);
 
     // The composer keeps this one: nothing was taken, so nothing can be lost.
-    expect(client.outboxFull()).toBe(true);
-    expect(client.send(channelId, "one too many")).toBe(false);
+    expect(client.send(channelId, "one too many")).toEqual({
+      kind: "refused",
+      reason: "outbox_full",
+    });
     expect(client.state.pending).toHaveLength(OUTBOX_LIMIT);
-    expect(client.outboxSnapshot().map((e) => e.text)).toEqual(
+    expect(client[LOCAL_WORK].outboxSnapshot().map((e) => e.text)).toEqual(
       Array.from({ length: OUTBOX_LIMIT }, (_, i) => `queued ${i + 1}`),
     );
 
@@ -340,7 +362,7 @@ describe("outbox durability", () => {
       attachments: [],
     });
     const send = vi.spyOn(client.api, "sendMessage");
-    client.restoreOutbox([
+    client[LOCAL_WORK].restoreOutbox([
       entry("stale-1", "written long ago", SEND_RETRY_WINDOW_MS + 60_000),
       entry("fresh-1", "written just inside the window", SEND_RETRY_WINDOW_MS - 60_000),
     ]);
@@ -373,7 +395,7 @@ describe("outbox durability", () => {
     server.store.transaction(() => server.store.messages.purgeBefore(Date.now() + 1));
     expect(server.store.messages.get(posted.message.id)).toBeNull();
 
-    client.restoreOutbox([
+    client[LOCAL_WORK].restoreOutbox([
       {
         nonce: "aged-1",
         channelId,
@@ -405,9 +427,11 @@ describe("outbox durability", () => {
       attachments: [],
       refusal: "This conversation is archived.",
     }));
-    client.restoreOutbox(waiting);
+    client[LOCAL_WORK].restoreOutbox(waiting);
     expect(client.state.pending).toHaveLength(OUTBOX_LIMIT + 10);
-    expect(client.outboxSnapshot().map((e) => e.nonce)).toEqual(waiting.map((e) => e.nonce));
+    expect(client[LOCAL_WORK].outboxSnapshot().map((e) => e.nonce)).toEqual(
+      waiting.map((e) => e.nonce),
+    );
   });
 
   it("keeps a send the server refused refused across a restart, until the author retries", async () => {
@@ -456,7 +480,7 @@ describe("outbox durability", () => {
     );
     client.send(channelId, "outcome unknown");
     await expect.poll(() => client.state.pending[0]?.failed).toBe(true);
-    expect(client.outboxSnapshot()[0]!.refusal).toBeUndefined();
+    expect(client[LOCAL_WORK].outboxSnapshot()[0]!.refusal).toBeUndefined();
 
     await restart();
     await expect.poll(() => client.state.pending).toHaveLength(0);
@@ -467,7 +491,7 @@ describe("outbox durability", () => {
   it("keeps one account's unsent work out of another's", async () => {
     await disconnect();
     client.send(channelId, "mine");
-    const mine = client.outboxSnapshot().map((e) => ({ ...e, userId: "someone-else" }));
+    const mine = client[LOCAL_WORK].outboxSnapshot().map((e) => ({ ...e, userId: "someone-else" }));
     expect(mine).toHaveLength(1);
     const fresh = new WorkspaceClient(
       client.baseUrl,
@@ -475,7 +499,7 @@ describe("outbox durability", () => {
     );
     fresh.connect();
     await expect.poll(() => fresh.state.status).toBe("online");
-    fresh.restoreOutbox(mine);
+    fresh[LOCAL_WORK].restoreOutbox(mine);
     expect(fresh.state.pending).toHaveLength(0);
     fresh.destroy();
   });

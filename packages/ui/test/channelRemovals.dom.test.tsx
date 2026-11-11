@@ -274,7 +274,6 @@ describe("Activity's badge", () => {
     setup.client.store.setState({ memberships: { [general.id]: 9, [ops.id]: 4 } });
     writeRoute(setup.client.baseUrl, { channelId: general.id, threadRootId: null }, "replace");
     vi.spyOn(setup.client, "loadTimeline").mockResolvedValue();
-    vi.spyOn(setup.client, "loadCommands").mockResolvedValue();
     render(
       <PlatformContext.Provider value={platform}>
         <ToastProvider>

@@ -1,9 +1,8 @@
 import {
-  broadcastLabel,
-  USER_MENTION,
   broadcastsIn,
   effectiveNotifyLevel,
   isDirect,
+  plainText,
   userMentionsIn,
   type ID,
   type Message,
@@ -165,21 +164,13 @@ export function isMessageOnScreen(message: Message, screen: OnScreen): boolean {
 
 /** Message text with mention markup resolved to readable names, as a notification shows it. */
 export function readableText(state: WorkspaceState, text: string): string {
-  // Deliberately permissive: an id format change should not silently stop
-  // mentions from resolving to names.
-  return (
-    text
-      .replaceAll(USER_MENTION, (_all, id: ID) => {
-        const user = state.users[id];
-        return user ? `@${user.displayName}` : "@someone";
-      })
-      .replaceAll(/<!(channel|here|everyone)>/g, (_all, who: string) => broadcastLabel(who))
-      // A labelled link reads as its label, and an unlabelled one as its address.
-      .replaceAll(
-        /<(https?:\/\/[^\s|<>]+)(?:\|([^<>\n]+))?>/g,
-        (_all, url: string, label?: string) => label?.trim() || url,
-      )
-  );
+  return plainText(text, {
+    user: (id) => {
+      const user = state.users[id];
+      return user ? `@${user.displayName}` : "@someone";
+    },
+    channel: (id) => `#${state.channels[id]?.name || "unknown"}`,
+  });
 }
 
 /**

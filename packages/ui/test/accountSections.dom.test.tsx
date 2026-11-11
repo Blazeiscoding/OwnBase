@@ -312,11 +312,4 @@ describe("the account's default for what notifies (v53)", () => {
     expect(await within(group).findByRole("alert")).toHaveTextContent("Your choice was not saved.");
     expect(within(group).getByRole("radio", { name: /Every message/ })).toBeChecked();
   });
-
-  it("is not offered by a server without one, which points to each channel instead", () => {
-    browserNotifications("granted");
-    const { dialog } = settings("notifications");
-    expect(within(dialog).queryByRole("group", { name: "Notify me about" })).toBeNull();
-    expect(within(dialog).getByText(/open its details and go to Notifications/)).toBeVisible();
-  });
 });

@@ -10,7 +10,8 @@ import { ListStatus } from "./ListStatus.js";
 import { PanelLink } from "./MessageListPanel.js";
 import { usePanelFocus } from "../lib/usePanelFocus.js";
 import { useOpenList } from "../lib/pagedList.js";
-import { readScheduledEditDraft as draftText, scheduledEditDraftKey } from "../lib/drafts.js";
+import { scheduledEditDraftKey } from "@ownbase/client-core";
+import { readScheduledEditDraft as draftText } from "../lib/drafts.js";
 
 /** Messages queued to go out later, with the option to call them back. */
 export function ScheduledPanel(props: {
@@ -65,25 +66,23 @@ export function ScheduledPanel(props: {
     mutating.current = true;
     setBusy(editing.id);
     setEditError(null);
-    let failed = false;
-    try {
-      await list.edit(editing.id, { text: editText, expectedText: editing.text });
-      if (draftText(client.state.drafts[editKey]) === editText) client.setDraft(editKey, "");
-      if (alive.current) setEditing(null);
-    } catch (err) {
-      failed = true;
-      if (alive.current)
-        setEditError(
-          err instanceof ApiError && err.code === "scheduled_changed"
-            ? "The text changed on another device, so this edit was not saved. Your edit is still here."
-            : "Could not tell if your edit was saved. Your edit is still here. Check the list to see if the message has already sent or changed.",
-        );
-    } finally {
-      mutating.current = false;
-      if (alive.current) setBusy(null);
+    const refused = await list.edit(editing.id, { text: editText, expectedText: editing.text });
+    mutating.current = false;
+    if (!refused && draftText(client.state.drafts[editKey]) === editText)
+      client.setDraft(editKey, "");
+    if (!alive.current) return;
+    setBusy(null);
+    if (!refused) {
+      setEditing(null);
+      return;
     }
+    setEditError(
+      refused.code === "scheduled_changed"
+        ? "The text changed on another device, so this edit was not saved. Your edit is still here."
+        : "Could not tell if your edit was saved. Your edit is still here. Check the list to see if the message has already sent or changed.",
+    );
     // What the queue holds now: the current text to compare, or the message gone.
-    if (failed && alive.current) void list.reload();
+    void list.reload();
   }
 
   function startEditing(s: ScheduledMessage) {
@@ -110,22 +109,18 @@ export function ScheduledPanel(props: {
     mutating.current = true;
     setBusy(id);
     setError(null);
-    try {
-      if (sendAt === undefined) await list.cancel(id);
-      else await list.reschedule(id, sendAt);
-      if (alive.current) {
-        setConfirmation(null);
-        setChanging(null);
-      }
-    } catch {
-      if (alive.current)
-        setError(
-          "Could not tell if this change went through. The message may already have sent, or changed on another device. Refresh the list before you try again.",
-        );
-    } finally {
-      mutating.current = false;
-      if (alive.current) setBusy(null);
-    }
+    const refused =
+      sendAt === undefined ? await list.cancel(id) : await list.reschedule(id, sendAt);
+    mutating.current = false;
+    if (!alive.current) return;
+    setBusy(null);
+    if (!refused) {
+      setConfirmation(null);
+      setChanging(null);
+    } else
+      setError(
+        "Could not tell if this change went through. The message may already have sent, or changed on another device. Refresh the list before you try again.",
+      );
   }
 
   return (

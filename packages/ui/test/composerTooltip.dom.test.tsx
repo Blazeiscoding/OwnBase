@@ -7,6 +7,7 @@ import { describe, expect, it, vi } from "vitest";
 import { Composer } from "../src/components/Composer.js";
 import { ClientContext, PlatformContext } from "../src/context.js";
 import type { Platform } from "../src/platform.js";
+import { QUEUED } from "./sendAnswers.js";
 
 const sam: User = {
   id: "U_SAM",
@@ -42,7 +43,7 @@ function renderComposer(enterSends: boolean) {
     channels: { [design.id]: design },
     status: "online",
   });
-  const send = vi.spyOn(client, "send").mockImplementation(() => true);
+  const send = vi.spyOn(client, "send").mockReturnValue(QUEUED);
   const platform: Platform = {
     kind: "web",
     storage: {
@@ -119,7 +120,6 @@ describe.each([
       threadRootId: undefined,
       files: [],
       alsoSendToChannel: false,
-      onQueued: expect.any(Function),
     });
     expect(textbox).toHaveValue("");
   });

@@ -1,7 +1,8 @@
 import { useMemo } from "react";
 import { readableText } from "@ownbase/client-core";
 import { useClient, useWorkspace } from "../context.js";
-import { listDrafts, type DraftEntry, type DraftPlace } from "../lib/drafts.js";
+import type { DraftPlace } from "@ownbase/client-core";
+import { listDrafts, type DraftEntry } from "../lib/drafts.js";
 import { channelTitle, formatFull } from "../lib/format.js";
 import { usePanelFocus } from "../lib/usePanelFocus.js";
 import { dropRepeatClick } from "../lib/repeatClick.js";

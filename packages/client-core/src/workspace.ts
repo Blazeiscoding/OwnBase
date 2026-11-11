@@ -24,7 +24,6 @@ import {
   type ReplyReference,
   type CreateChannelBody,
   type ReportReason,
-  type ScheduleMessageBody,
   type SendMessageBody,
   type ServerToClient,
   type UpdateChannelBody,
@@ -35,13 +34,17 @@ import {
   type SidebarSection,
   type User,
   type ViewSubmitted,
+  isInAppCommand,
+  parseCommand,
+  type InAppCommandName,
+  type ParsedCommand,
 } from "@ownbase/protocol";
 import { Api, ApiError, type CommandHint } from "./api.js";
 import { AccountActions } from "./account.js";
 import { AdminActions } from "./admin.js";
 import { AppActions } from "./apps.js";
 import { Lists } from "./lists.js";
-import { LocalLedger } from "./localWork.js";
+import { LocalLedger, type LocalOutcome } from "./localWork.js";
 import { FileCache, previewImageKey } from "./fileCache.js";
 import { AvatarCache } from "./avatars.js";
 import { captureFailure } from "./capture.js";
@@ -58,6 +61,7 @@ import {
   reduceMessages,
   stampMessages,
   threadRootMessage,
+  timelineMessages,
   unhandled,
   windowTimeline,
   withReaction,
@@ -65,7 +69,22 @@ import {
   type MessageCache,
   type MessageEvent,
 } from "./messageCache.js";
-import { OptimisticWrites, failureOf, type WriteSpec } from "./optimisticWrites.js";
+import {
+  answerOf,
+  doneOf,
+  failureOf,
+  fileRefusal,
+  notConnected,
+  refusalReason,
+} from "./answers.js";
+import {
+  newNonce,
+  storedPending,
+  type FileDescription,
+  type OutgoingSend,
+  type StoredPending,
+} from "./outbox.js";
+import { OptimisticWrites, type WriteSpec } from "./optimisticWrites.js";
 import { pollChoicesKey, pollChoicesOfKey, serverPollChoices, type PollDraft } from "./polls.js";
 import type {
   CallLogLine,
@@ -91,29 +110,13 @@ export type ConnectionStatus =
   | "closed";
 
 /** A file shown in the composer or in an optimistic message, before the server has it. */
-export interface LocalAttachment {
-  name: string;
-  size: number;
-  mime: string;
+export interface LocalAttachment extends FileDescription {
   /** Object URL for instant local preview of images. */
   previewUrl: string | null;
 }
 
-export interface PendingMessage {
-  nonce: string;
-  channelId: ID;
-  threadRootId: ID | null;
-  /** A reply the author also chose to show in the channel. */
-  broadcast?: boolean;
-  /** The message this one answers in place, as it was when the reply was sent. */
-  replyTo?: ReplyReference;
-  /** The message this one passes on, as it was when it was forwarded. */
-  forward?: ForwardReference;
-  /** The choices it asks people to pick from, its words the question (E6). */
-  poll?: PollDraft;
-  text: string;
-  userId: ID;
-  createdAt: number;
+/** A send in the outbox, as this window shows it. */
+export interface PendingMessage extends Omit<StoredPending, "attachments" | "refusal"> {
   failed: boolean;
   /** Why it did not send, in words the author can act on. Null while in flight. */
   failureReason: string | null;
@@ -127,28 +130,14 @@ export interface PendingMessage {
   uploadProgress: number | null;
 }
 
-/**
- * An outbox entry as it survives a restart. File objects cannot be serialized,
- * so only their descriptions travel; see `restoreOutbox` for what that means.
- */
-export interface StoredPending {
-  nonce: string;
-  channelId: ID;
-  threadRootId: ID | null;
-  broadcast?: boolean;
-  replyTo?: ReplyReference;
-  forward?: ForwardReference;
-  poll?: PollDraft;
-  text: string;
-  userId: ID;
-  createdAt: number;
-  attachments: { name: string; size: number; mime: string }[];
-  /**
-   * What the author was told when the server refused this send. Present only
-   * for a known refusal, which comes back failed and waits for Retry; a send
-   * whose outcome is unknown has none and is sent again, under the same nonce.
-   */
-  refusal?: string;
+/** How `LocalWork` reaches the outbox and drafts, which nothing else should change. */
+export const LOCAL_WORK = Symbol("localWork");
+
+export interface LocalWorkHost {
+  outboxSnapshot(): StoredPending[];
+  restoreOutbox(entries: StoredPending[]): void;
+  adoptRefusal(nonce: string, reason: string): void;
+  hydrateDrafts(drafts: Record<string, string>, stored?: Record<string, number>): void;
 }
 
 /**
@@ -157,6 +146,27 @@ export interface StoredPending {
  * only in memory where a restart would lose it.
  */
 export const OUTBOX_LIMIT = 50;
+
+/** What `send` did with what it was given. */
+export type SendAnswer =
+  /** Waiting in the outbox; `kept` settles once this device holds its words, null when nothing keeps them. */
+  | { kind: "queued"; nonce: string; kept: Promise<LocalOutcome> | null }
+  /** A command the server runs: anything it says comes back as a private answer. */
+  | { kind: "command" }
+  /** A command the app runs itself, which `send` does not: nothing was sent. */
+  | ({ kind: "in_app"; name: InAppCommandName } & Omit<ParsedCommand, "name">)
+  /** Nothing was taken. */
+  | { kind: "refused"; reason: "empty" | "outbox_full" | "not_connected" };
+
+/**
+ * Someone typing is shown for this long after they last said so, and says so
+ * again sooner while they type, so the dots do not blink out between keys.
+ */
+const TYPING_SHOWN_FOR_MS = 5000;
+const TYPING_SAY_EVERY_MS = 3000;
+
+/** How long a request to join a huddle waits for the server's answer. */
+const HUDDLE_JOIN_WAIT_MS = 10_000;
 
 /** The wait after "too much at once" from a server that did not say how long. */
 const RATE_LIMIT_WAIT_MS = 2000;
@@ -182,14 +192,6 @@ function isRefusal(error: unknown): boolean {
     error.status < 500 &&
     ![401, 408, 429].includes(error.status)
   );
-}
-
-/** Why a slash command did not run, as a sentence: the server's words when it gave some. */
-function commandFailure(err: unknown): string {
-  if (!(err instanceof ApiError)) return "The workspace did not answer. Check your connection.";
-  const text = err.message && err.message !== err.code && /\s/.test(err.message) ? err.message : "";
-  if (!text) return "The workspace turned it down.";
-  return text.charAt(0).toUpperCase() + text.slice(1) + (/[.!?]$/.test(text) ? "" : ".");
 }
 
 function sendFailureReason(error: unknown): string {
@@ -223,9 +225,9 @@ function sendFailureReason(error: unknown): string {
     case "forward_unavailable":
       return "What this forwards is private or deleted, so it cannot be passed on.";
     case "file_too_large":
-      return "A file is over this workspace's size limit. Discard this and attach a smaller one.";
+      return `${fileRefusal(error)} Discard this and attach a smaller one.`;
     case "storage_quota_exceeded":
-      return "The workspace has no room left for files. Ask whoever hosts it to free space or raise the limit, then press Retry.";
+      return `${fileRefusal(error)} Ask whoever hosts it to free space or raise the limit, then press Retry.`;
     case "nonce_conflict":
     case "message_deleted":
       return "This was already sent once. Discard it to clear it.";
@@ -280,6 +282,15 @@ interface ThreadLoad {
 }
 
 const stoppedOnPurpose = (controller: AbortController) => controller.signal.aborted;
+
+/** Which window of a channel's history a request reads. */
+export type HistoryWindow = "initial" | "older" | "newer" | "latest";
+
+/** A channel's history request on its way, and the window that last failed to load. */
+export interface TimelineStatus {
+  loading: HistoryWindow | null;
+  error: HistoryWindow | null;
+}
 
 /**
  * A reply only this client can see — a slash command's private answer, or a
@@ -378,6 +389,8 @@ export function keepEphemeral(
 }
 
 export interface WorkspaceState extends MessageCache {
+  /** channelId -> its history request on its way or failed; absent when neither. */
+  timelineStatus: Record<ID, TimelineStatus>;
   friends: Friendship[];
   /** The people this account blocked (E12), whose messages fold away and who never notify it. */
   blocked: ID[];
@@ -413,11 +426,8 @@ export interface WorkspaceState extends MessageCache {
    * is `ChannelPrefs.sectionId`; one naming a section not here has none.
    */
   sidebarSections: SidebarSection[];
-  /**
-   * What this account's conversations notify about unless one was set on its
-   * own (v53); null until the first snapshot.
-   */
-  notifyDefault: NotifyLevel | null;
+  /** What this account's conversations notify about unless one was set on its own (v53). */
+  notifyDefault: NotifyLevel;
   /** This account's reminders by message id, waiting and due (E4). */
   reminders: Record<ID, Reminder>;
   /**
@@ -498,8 +508,8 @@ export interface WorkspaceState extends MessageCache {
   mentionCounts: Record<ID, number>;
   /** threadRootId -> this account's follow state and read cursor for it. */
   threadFollows: Record<ID, ThreadFollow>;
-  /** channelId -> unsent composer text, restored when you come back. */
-  drafts: Record<ID, string>;
+  /** Unsent words by `draftKey`, restored when you come back. */
+  drafts: Record<string, string>;
   /**
    * Draft key -> when its text last changed, in epoch ms, as far as this
    * device knows. A draft kept by an earlier version has none.
@@ -552,7 +562,7 @@ const initialState: WorkspaceState = {
   serverProtocolVersion: null,
   clockSkewMs: null,
   sidebarSections: [],
-  notifyDefault: null,
+  notifyDefault: "mentions",
   reminders: {},
   channelRemovals: {},
   pollChoices: {},
@@ -577,6 +587,7 @@ const initialState: WorkspaceState = {
   timelines: {},
   threads: {},
   threadPages: {},
+  timelineStatus: {},
   pending: [],
   saved: {},
   removedHistory: {},
@@ -713,7 +724,7 @@ export class WorkspaceClient {
     this.admin = new AdminActions(this.api, (users) =>
       users.forEach((user) => this.keepUser(user)),
     );
-    this.apps = new AppActions(this.api);
+    this.apps = new AppActions(this.api, () => void this.loadCommands());
     this.lists = new Lists(this.api, this.store);
     // A session that has ended keeps nothing it downloaded (F07).
     this.store.subscribe((now, before) => {
@@ -820,6 +831,9 @@ export class WorkspaceClient {
       status: "closed",
       threadPages: Object.fromEntries(
         Object.entries(s.threadPages).map(([id, page]) => [id, { ...page, loading: false }]),
+      ),
+      timelineStatus: Object.fromEntries(
+        Object.entries(s.timelineStatus).map(([id, status]) => [id, { ...status, loading: null }]),
       ),
     }));
   }
@@ -1029,11 +1043,11 @@ export class WorkspaceClient {
     this.writes.reshow();
     for (const id of [...this.reloadChannels]) {
       this.reloadChannels.delete(id);
-      if (channels[id]) void this.loadTimeline(id).catch(() => {});
+      if (channels[id]) void this.loadTimeline(id);
     }
     for (const [rootId, channelId] of [...this.reloadThreads]) {
       this.reloadThreads.delete(rootId);
-      if (channels[channelId]) void this.loadThread(rootId, channelId).catch(() => {});
+      if (channels[channelId]) void this.loadThread(rootId, channelId);
     }
     this.resumeHuddle(snap);
   }
@@ -1071,6 +1085,7 @@ export class WorkspaceClient {
       timelines: {},
       threads: {},
       threadPages: {},
+      timelineStatus: {},
       typing: {},
       ephemerals: {},
       ephemeralsDropped: {},
@@ -1118,6 +1133,7 @@ export class WorkspaceClient {
       }),
     );
     this.store.setState((s) => ({
+      timelineStatus: without(s.timelineStatus),
       channels: without(s.channels),
       memberships: without(s.memberships),
       repliesRead: without(s.repliesRead),
@@ -1575,7 +1591,7 @@ export class WorkspaceClient {
         break;
       case "view.open": {
         // The server says what is open now, bottom first.
-        const stack = event.stack?.length ? event.stack : [event.view];
+        const { stack } = event;
         this.store.setState({ modal: stack.at(-1)!, modalsBelow: stack.slice(0, -1) });
         break;
       }
@@ -1587,7 +1603,10 @@ export class WorkspaceClient {
         this.store.setState({
           typing: {
             ...s.typing,
-            [event.channelId]: { ...s.typing[event.channelId], [event.userId]: Date.now() + 5000 },
+            [event.channelId]: {
+              ...s.typing[event.channelId],
+              [event.userId]: Date.now() + TYPING_SHOWN_FOR_MS,
+            },
           },
         });
         break;
@@ -1646,15 +1665,15 @@ export class WorkspaceClient {
   async submitModal(
     values: Record<string, Record<string, string | string[]>>,
     viewId = this.state.modal?.id,
-  ): Promise<ViewSubmitted> {
+  ): Promise<ViewSubmitted | ApiError> {
     const modal = this.state.modal;
     if (!modal || modal.id !== viewId)
       return { ok: false, errors: {}, message: "This form is no longer available." };
-    const result = await this.api.submitView(modal.id, values);
+    const result = await answerOf(() => this.api.submitView(modal.id, values));
     // The server names what closed: none when the app changed the form or
     // stacked another on it. Only ever closing keeps a late answer from
     // reopening one.
-    if (result.ok) this.forgetModals(result.closedViewIds);
+    if (!(result instanceof ApiError) && result.ok) this.forgetModals(result.closedViewIds);
     return result;
   }
 
@@ -1714,8 +1733,13 @@ export class WorkspaceClient {
       this.threadLoads.delete(victim);
       this.reloadThreads.delete(victim);
     }
+    const timelineStatus = { ...state.timelineStatus };
+    for (const victim of timelineVictims) delete timelineStatus[victim];
     // Drafts, pending sends and retained attachment previews are independent of history.
-    this.store.setState(forgetAllUnlisted({ ...state, timelines, threads, threadPages }));
+    this.store.setState({
+      ...forgetAllUnlisted({ ...state, timelines, threads, threadPages }),
+      timelineStatus,
+    });
   }
 
   /**
@@ -1776,14 +1800,14 @@ export class WorkspaceClient {
   private landTimeline(
     channelId: ID,
     ticket: TimelineLoad,
-    page: { messages: Message[]; seq: number | undefined },
+    page: { messages: Message[]; seq: number },
     shape: Pick<ChannelTimeline, "hasMore" | "hasMoreNewer" | "readThroughSeq" | "snapshotSeq">,
     join: { side: "before" | "after"; captured: CapturedTimeline } | null,
     drop: "oldest" | "newest",
   ): void {
     const replayed = this.timelineEvents(ticket, page.seq);
     if (join) {
-      const since = Math.min(page.seq ?? 0, ticket.startSeq);
+      const since = Math.min(page.seq, ticket.startSeq);
       replayed.splice(0, replayed.length, ...this.timelineEvents(ticket, since));
     }
     this.store.setState((s) => {
@@ -1836,16 +1860,22 @@ export class WorkspaceClient {
    * the newest page is after it and there are older ones, the conversation
    * opens instead on a window around the first unread, so it starts at its
    * New line rather than with the rest of what was missed out of sight above.
+   * Settles once done; how it went is in `timelineStatus`.
    */
-  async loadTimeline(
+  loadTimeline(
     channelId: ID,
     opts: { older?: boolean; latest?: boolean; unreadAfter?: number } = {},
   ): Promise<void> {
     const epoch = this.historyEpoch;
     const tl = this.state.timelines[channelId];
     if (tl?.loaded) this.touchHistory("timeline", channelId);
-    if (tl?.loaded && !opts.older && !opts.latest) return;
-    if (opts.older && (!tl?.hasMore || tl.ids.length === 0)) return;
+    if (tl?.loaded && !opts.older && !opts.latest) {
+      // Opening it again forgets a page that failed earlier.
+      const status = this.state.timelineStatus[channelId];
+      if (status?.error && !status.loading) this.setTimelineStatus(channelId, null);
+      return Promise.resolve();
+    }
+    if (opts.older && (!tl?.hasMore || tl.ids.length === 0)) return Promise.resolve();
     const before = opts.older ? tl!.ids[0]! : undefined;
     // The same window already on its way: wait for it rather than ask twice.
     const key = before ? `older:${before}` : "tail";
@@ -1853,8 +1883,52 @@ export class WorkspaceClient {
     if (running?.key === key && running.shared) return running.shared;
     const captured = opts.older ? this.captureTimeline(channelId) : null;
     const ticket = this.beginTimelineRequest(channelId, key);
-    ticket.shared = this.fetchTimeline(channelId, opts, captured, epoch, ticket, before);
+    ticket.shared = this.trackTimeline(
+      channelId,
+      opts.older ? "older" : opts.latest ? "latest" : "initial",
+      ticket,
+      this.fetchTimeline(channelId, opts, captured, epoch, ticket, before),
+    );
     return ticket.shared;
+  }
+
+  /**
+   * Notes `load` in `timelineStatus` while it is the conversation's newest
+   * request; one stopped for another, or by a reset, says nothing.
+   */
+  private async trackTimeline(
+    channelId: ID,
+    window: HistoryWindow,
+    ticket: TimelineLoad,
+    load: Promise<void>,
+  ): Promise<void> {
+    this.setTimelineStatus(channelId, { loading: window, error: null });
+    const failed = await load.then(
+      () => false,
+      () => true,
+    );
+    if (this.stopped || this.timelineRequests.get(channelId) !== ticket.ticket) return;
+    this.setTimelineStatus(channelId, failed ? { loading: null, error: window } : null);
+  }
+
+  private setTimelineStatus(channelId: ID, status: TimelineStatus | null): void {
+    this.store.setState((s) => {
+      const timelineStatus = { ...s.timelineStatus };
+      if (status) timelineStatus[channelId] = status;
+      else delete timelineStatus[channelId];
+      return { timelineStatus };
+    });
+  }
+
+  /**
+   * Marks a channel read through the newest of its history loaded here; not
+   * while its timeline is anchored away from the newest, which is not on screen.
+   */
+  readLoadedTail(channelId: ID): void {
+    const timeline = this.state.timelines[channelId];
+    if (!timeline?.loaded || timeline.hasMoreNewer) return;
+    const newest = timelineMessages(this.state, channelId).at(-1)?.seq ?? 0;
+    this.markRead(channelId, timeline.readThroughSeq ?? newest);
   }
 
   private async fetchTimeline(
@@ -1941,7 +2015,7 @@ export class WorkspaceClient {
       {
         hasMore,
         hasMoreNewer: false,
-        readThroughSeq: readThroughSeq ?? messages[0]?.seq ?? 0,
+        readThroughSeq,
         snapshotSeq: seq,
       },
       null,
@@ -1951,9 +2025,10 @@ export class WorkspaceClient {
 
   /**
    * Replaces the timeline with a window centred on `messageId`, for jumping to
-   * a search hit or a pinned message.
+   * a search hit or a pinned message. Answers the thread the message is in
+   * (null when none), or undefined when another jump or window overtook it.
    */
-  async jumpToMessage(channelId: ID, messageId: ID): Promise<ID | null | undefined> {
+  async jumpToMessage(channelId: ID, messageId: ID): Promise<ID | null | undefined | ApiError> {
     const ticket = ++this.messageJump;
     const epoch = this.historyEpoch;
     const existing = this.state.timelines[channelId];
@@ -1961,42 +2036,45 @@ export class WorkspaceClient {
     // A message already on screen needs no request and must not cancel paging.
     if (existing?.loaded && !existing.hasMoreNewer && existing.ids.includes(messageId)) return null;
     const timelineTicket = this.beginTimelineRequest(channelId, `around:${messageId}`);
-    let answer: Awaited<ReturnType<Api["listMessagesAround"]>>;
     try {
-      answer = await this.api.listMessagesAround(
+      const answer = await this.api.listMessagesAround(
         channelId,
         messageId,
         PAGE_SIZE,
         timelineTicket.controller.signal,
       );
-    } catch (error) {
-      if (stoppedOnPurpose(timelineTicket.controller)) return;
-      throw error;
-    } finally {
       this.releaseTimelineRequest(channelId, timelineTicket);
+      const { messages, hasMoreOlder, hasMoreNewer, threadRootId, seq } = answer;
+      if (ticket !== this.messageJump || !this.stillWanted(channelId, epoch, timelineTicket))
+        return undefined;
+      this.landTimeline(
+        channelId,
+        timelineTicket,
+        { messages: [...messages].reverse(), seq },
+        { hasMore: hasMoreOlder, hasMoreNewer, snapshotSeq: seq },
+        null,
+        "oldest",
+      );
+      return threadRootId ?? null;
+    } catch (error) {
+      this.releaseTimelineRequest(channelId, timelineTicket);
+      if (stoppedOnPurpose(timelineTicket.controller)) return undefined;
+      return failureOf(error);
     }
-    const { messages, hasMoreOlder, hasMoreNewer, threadRootId, seq } = answer;
-    if (ticket !== this.messageJump || !this.stillWanted(channelId, epoch, timelineTicket)) return;
-    this.landTimeline(
-      channelId,
-      timelineTicket,
-      { messages: [...messages].reverse(), seq },
-      { hasMore: hasMoreOlder, hasMoreNewer, snapshotSeq: seq },
-      null,
-      "oldest",
-    );
-    return threadRootId ?? null;
   }
 
   cancelMessageJump(): void {
     this.messageJump++;
   }
 
-  /** Pages forward from an anchored view back toward the newest messages. */
-  async loadNewer(channelId: ID): Promise<void> {
+  /**
+   * Pages forward from an anchored view back toward the newest messages.
+   * Settles once done; how it went is in `timelineStatus`.
+   */
+  loadNewer(channelId: ID): Promise<void> {
     const epoch = this.historyEpoch;
     const tl = this.state.timelines[channelId];
-    if (!tl?.loaded || !tl.hasMoreNewer || tl.ids.length === 0) return;
+    if (!tl?.loaded || !tl.hasMoreNewer || tl.ids.length === 0) return Promise.resolve();
     const newest = tl.ids.at(-1)!;
     // The same page already on its way: wait for it rather than ask twice
     // (F14). A different window replaces it, as before.
@@ -2005,7 +2083,12 @@ export class WorkspaceClient {
     if (running?.key === key && running.shared) return running.shared;
     const captured = this.captureTimeline(channelId)!;
     const ticket = this.beginTimelineRequest(channelId, key);
-    ticket.shared = this.fetchNewer(channelId, captured, newest, epoch, ticket);
+    ticket.shared = this.trackTimeline(
+      channelId,
+      "newer",
+      ticket,
+      this.fetchNewer(channelId, captured, newest, epoch, ticket),
+    );
     return ticket.shared;
   }
 
@@ -2050,10 +2133,13 @@ export class WorkspaceClient {
     );
   }
 
-  /** Keeps the current window visible until the live tail has loaded successfully. */
-  async jumpToLatest(channelId: ID): Promise<void> {
+  /**
+   * Keeps the current window visible until the live tail has loaded
+   * successfully; how it went is in `timelineStatus`.
+   */
+  jumpToLatest(channelId: ID): Promise<void> {
     this.cancelMessageJump();
-    await this.loadTimeline(channelId, { latest: true });
+    return this.loadTimeline(channelId, { latest: true });
   }
 
   async loadThread(
@@ -2141,7 +2227,7 @@ export class WorkspaceClient {
         const before = s.threads[threadRootId] ?? [];
         let cache: MessageCache = keepMessages(
           s,
-          response.root ? [response.root, ...response.messages] : response.messages,
+          [response.root, ...response.messages],
           response.seq,
         );
         let ids = response.messages.map((m) => m.id);
@@ -2159,12 +2245,12 @@ export class WorkspaceClient {
         }
         cache = {
           ...cache,
-          threads: { ...cache.threads, [threadRootId]: response.root ? ids : [] },
+          threads: { ...cache.threads, [threadRootId]: ids },
           threadPages: {
             ...cache.threadPages,
             [threadRootId]: {
               channelId,
-              rootGone: !response.root,
+              rootGone: false,
               hasMoreOlder,
               hasMoreNewer,
               loading: false,
@@ -2212,8 +2298,7 @@ export class WorkspaceClient {
   /**
    * Optimistic send: the message (and local image previews) appear instantly,
    * then attachments upload and the server event reconciles it by nonce.
-   * Returns false, having taken nothing, when there is nothing to send or
-   * `OUTBOX_LIMIT` messages are already waiting; the caller keeps the draft.
+   * A refused send took nothing; the caller keeps the draft.
    */
   send(
     channelId: ID,
@@ -2228,32 +2313,27 @@ export class WorkspaceClient {
       forward?: ForwardReference;
       /** Makes it a poll, `text` its question (E6); alone, without files or a forward. */
       poll?: PollDraft;
-      /** Told the nonce of the message queued, for its author to follow (F01). */
-      onQueued?: (nonce: string) => void;
     } = {},
-  ): boolean {
+  ): SendAnswer {
     const self = this.state.self;
-    if (!self) return false;
+    if (!self) return { kind: "refused", reason: "not_connected" };
     const files = opts.files ?? [];
     const forward = opts.forward;
-    if (!text.trim() && files.length === 0 && !forward) return false;
+    if (!text.trim() && files.length === 0 && !forward) return { kind: "refused", reason: "empty" };
     // A poll carries nothing else.
     const poll = opts.poll;
-    if (poll && (files.length > 0 || forward)) return false;
+    if (poll && (files.length > 0 || forward)) return { kind: "refused", reason: "empty" };
 
-    // A leading "/word" is a command, not a message. The trailing space or end
-    // of line matters: it keeps a pasted path like /Users/me/notes.txt a
-    // perfectly ordinary message.
-    if (!poll && !forward && files.length === 0 && /^\/[a-zA-Z0-9_-]+(\s|$)/.test(text.trim())) {
-      void this.runCommand(channelId, text.trim(), opts.threadRootId);
-      return true;
+    const command = !poll && !forward && files.length === 0 ? parseCommand(text) : null;
+    if (command) {
+      if (isInAppCommand(command.name))
+        return { kind: "in_app", name: command.name, args: command.args };
+      void this.runCommand(channelId, text.trim(), command.name, opts.threadRootId);
+      return { kind: "command" };
     }
-    if (this.outboxFull()) return false;
+    if (this.ownPending() >= OUTBOX_LIMIT) return { kind: "refused", reason: "outbox_full" };
 
-    // getRandomValues also works on plain HTTP LAN origins, unlike randomUUID.
-    const nonce = Array.from(crypto.getRandomValues(new Uint8Array(16)), (byte) =>
-      byte.toString(16).padStart(2, "0"),
-    ).join("");
+    const nonce = newNonce();
     const attachments: LocalAttachment[] = files.map((f) => ({
       name: f.name,
       size: f.size,
@@ -2278,24 +2358,18 @@ export class WorkspaceClient {
     };
     this.store.setState((s) => ({ pending: [...s.pending, pendingMsg] }));
     if (files.length > 0) this.retryFiles.set(nonce, files);
-    opts.onQueued?.(nonce);
+    const kept = text.trim() ? this.kept.whenKept(nonce) : null;
 
     void this.deliver(pendingMsg, files);
-    return true;
+    return { kind: "queued", nonce, kept };
   }
 
-  outboxFull(): boolean {
+  private ownPending(): number {
     const self = this.state.self?.id;
-    return this.state.pending.filter((p) => p.userId === self).length >= OUTBOX_LIMIT;
+    return this.state.pending.filter((p) => p.userId === self).length;
   }
 
-  private async deliver(
-    send: Pick<
-      PendingMessage,
-      "nonce" | "channelId" | "threadRootId" | "broadcast" | "replyTo" | "forward" | "poll" | "text"
-    >,
-    files: File[],
-  ): Promise<void> {
+  private async deliver(send: OutgoingSend, files: File[]): Promise<void> {
     const { nonce, channelId, text, threadRootId, replyTo, forward, poll } = send;
     const setProgress = (fraction: number) =>
       this.store.setState((s) => ({
@@ -2439,21 +2513,24 @@ export class WorkspaceClient {
    * The whole outbox in a form that survives a restart: every send accepted
    * stays, and a known refusal keeps its reason. Preview URLs are not kept.
    */
-  outboxSnapshot(): StoredPending[] {
-    return this.state.pending.map((p) => ({
-      nonce: p.nonce,
-      channelId: p.channelId,
-      threadRootId: p.threadRootId,
-      broadcast: p.broadcast,
-      ...(p.replyTo ? { replyTo: p.replyTo } : {}),
-      ...(p.forward ? { forward: p.forward } : {}),
-      ...(p.poll ? { poll: p.poll } : {}),
-      text: p.text,
-      userId: p.userId,
-      createdAt: p.createdAt,
-      attachments: p.attachments.map((a) => ({ name: a.name, size: a.size, mime: a.mime })),
-      ...(p.failed && p.refused ? { refusal: p.failureReason ?? "This message was refused." } : {}),
-    }));
+  private outboxSnapshot(): StoredPending[] {
+    return this.state.pending.map((p) =>
+      storedPending({
+        ...p,
+        ...(p.failed && p.refused
+          ? { refusal: p.failureReason ?? "This message was refused." }
+          : {}),
+      }),
+    );
+  }
+
+  get [LOCAL_WORK](): LocalWorkHost {
+    return {
+      outboxSnapshot: () => this.outboxSnapshot(),
+      restoreOutbox: (entries) => this.restoreOutbox(entries),
+      adoptRefusal: (nonce, reason) => this.adoptRefusal(nonce, reason),
+      hydrateDrafts: (drafts, stored) => this.hydrateDrafts(drafts, stored),
+    };
   }
 
   /**
@@ -2470,7 +2547,7 @@ export class WorkspaceClient {
    * have changed since, and that is theirs to decide. Nothing is dropped for
    * being one too many; every entry here was accepted once.
    */
-  restoreOutbox(entries: StoredPending[]): void {
+  private restoreOutbox(entries: StoredPending[]): void {
     const self = this.state.self;
     if (!self) return;
     const now = Date.now();
@@ -2510,7 +2587,7 @@ export class WorkspaceClient {
    * same send, so this one stops sending it too and waits for its author's
    * Retry instead of trying again on its own.
    */
-  adoptRefusal(nonce: string, reason: string): void {
+  private adoptRefusal(nonce: string, reason: string): void {
     const p = this.state.pending.find((x) => x.nonce === nonce);
     if (!p || p.refused) return;
     this.failPending(nonce, reason, true);
@@ -2544,7 +2621,7 @@ export class WorkspaceClient {
    */
   toggleReaction(message: Message, emoji: string): Promise<ApiError | null> {
     const selfId = this.state.self?.id;
-    if (!selfId) return Promise.resolve(failureOf(new Error("Not signed in.")));
+    if (!selfId) return Promise.resolve(notConnected());
     const mine = (m: Message) =>
       m.reactions.some((g) => g.emoji === emoji && g.userIds.includes(selfId));
     return this.writes.write(
@@ -2601,18 +2678,15 @@ export class WorkspaceClient {
   }
 
   /** Its author closes a poll for good. Resolves with the server's refusal, or null. */
-  async closePoll(message: Message): Promise<ApiError | null> {
-    try {
+  closePoll(message: Message): Promise<ApiError | null> {
+    return doneOf(async () => {
       const { message: closed } = await this.api.closePoll(message.id);
       const closedAt = closed.poll?.closedAt ?? null;
       // Only that it closed: the counts are whatever was last heard.
       this.showOnMessage(message.id, (m) =>
         m.poll && m.poll.closedAt === null ? { ...m, poll: { ...m.poll, closedAt } } : m,
       );
-      return null;
-    } catch (error) {
-      return failureOf(error);
-    }
+    });
   }
 
   /** What the server has as this account's choices in a poll, from what is held of it. */
@@ -2787,14 +2861,11 @@ export class WorkspaceClient {
    * Sets a reminder about a message, or moves the one there, once the server
    * has it. Resolves with its refusal, such as for a time already past, or null.
    */
-  async setReminder(messageId: ID, at: number): Promise<ApiError | null> {
-    try {
+  setReminder(messageId: ID, at: number): Promise<ApiError | null> {
+    return doneOf(async () => {
       const { reminder } = await this.api.setReminder(messageId, at);
       this.store.setState((s) => ({ reminders: { ...s.reminders, [messageId]: reminder } }));
-      return null;
-    } catch (error) {
-      return failureOf(error);
-    }
+    });
   }
 
   /** Removes a reminder, done or cancelled. One already gone counts as removed. */
@@ -2904,27 +2975,31 @@ export class WorkspaceClient {
    * Renames the workspace, for its owner and admins, and shows the name the
    * server kept as soon as it answers, rather than when its event arrives.
    */
-  async renameWorkspace(name: string): Promise<string> {
-    const { workspaceName } = await this.api.renameWorkspace(name);
-    if (!this.stopped) this.store.setState({ workspaceName });
-    return workspaceName;
+  renameWorkspace(name: string): Promise<string | ApiError> {
+    return answerOf(async () => {
+      const { workspaceName } = await this.api.renameWorkspace(name);
+      if (!this.stopped) this.store.setState({ workspaceName });
+      return workspaceName;
+    });
   }
 
   /**
    * Changes who may join, for its owner and admins, and shows what the server
    * kept as soon as it answers. Leaving guests allowed signs every guest out.
    */
-  async setAccessPolicy(policy: AccessPolicy): Promise<AccessPolicy> {
-    const { accessPolicy } = await this.api.setAccessPolicy(policy);
-    if (!this.stopped) this.store.setState({ accessPolicy });
-    return accessPolicy;
+  setAccessPolicy(policy: AccessPolicy): Promise<ApiError | null> {
+    return doneOf(async () => {
+      const { accessPolicy } = await this.api.setAccessPolicy(policy);
+      if (!this.stopped) this.store.setState({ accessPolicy });
+    });
   }
 
   /** Turns link previews on or off, for its owner and admins, and shows the answer at once. */
-  async setLinkPreviews(enabled: boolean): Promise<boolean> {
-    const answer = await this.api.setLinkPreviews(enabled);
-    if (!this.stopped) this.store.setState({ linkPreviews: answer.enabled });
-    return answer.enabled;
+  setLinkPreviews(enabled: boolean): Promise<ApiError | null> {
+    return doneOf(async () => {
+      const answer = await this.api.setLinkPreviews(enabled);
+      if (!this.stopped) this.store.setState({ linkPreviews: answer.enabled });
+    });
   }
 
   /**
@@ -2953,47 +3028,36 @@ export class WorkspaceClient {
    * Sets the workspace's icon, for its owner and admins, and shows the new
    * one as soon as the server keeps it, rather than when its event arrives.
    */
-  async setWorkspaceIcon(image: Blob): Promise<string> {
-    const { iconVersion } = await this.api.setWorkspaceIcon(image);
-    if (!this.stopped) this.store.setState({ iconVersion });
-    return iconVersion;
+  setWorkspaceIcon(image: Blob): Promise<ApiError | null> {
+    return doneOf(async () => {
+      const { iconVersion } = await this.api.setWorkspaceIcon(image);
+      if (!this.stopped) this.store.setState({ iconVersion });
+    });
   }
 
   /**
    * Adds a section to this account's sidebar, last, and gives it once the
    * server has it; the refusal instead, such as at the limit (E8).
    */
-  async createSidebarSection(name: string): Promise<SidebarSection | ApiError> {
-    try {
+  createSidebarSection(name: string): Promise<SidebarSection | ApiError> {
+    return answerOf(async () => {
       const { section, sections } = await this.api.createSidebarSection(name);
       this.keepSections(sections);
       return section;
-    } catch (error) {
-      return failureOf(error);
-    }
+    });
   }
 
-  /** Renames one of this account's sections; resolves with the server's refusal, or null. */
-  async renameSidebarSection(id: ID, name: string): Promise<ApiError | null> {
-    try {
-      this.keepSections((await this.api.renameSidebarSection(id, name)).sections);
-      return null;
-    } catch (error) {
-      return failureOf(error);
-    }
+  renameSidebarSection(id: ID, name: string): Promise<ApiError | null> {
+    return doneOf(async () =>
+      this.keepSections((await this.api.renameSidebarSection(id, name)).sections),
+    );
   }
 
-  /**
-   * Deletes one of this account's sections; its conversations go back where
-   * they would be. Resolves with the server's refusal, or null.
-   */
-  async deleteSidebarSection(id: ID): Promise<ApiError | null> {
-    try {
-      this.keepSections((await this.api.deleteSidebarSection(id)).sections);
-      return null;
-    } catch (error) {
-      return failureOf(error);
-    }
+  /** Deletes one of this account's sections; its conversations go back where they would be. */
+  deleteSidebarSection(id: ID): Promise<ApiError | null> {
+    return doneOf(async () =>
+      this.keepSections((await this.api.deleteSidebarSection(id)).sections),
+    );
   }
 
   /**
@@ -3020,9 +3084,11 @@ export class WorkspaceClient {
   }
 
   /** Removes the workspace's icon, for its owner and admins, at once here too. */
-  async removeWorkspaceIcon(): Promise<void> {
-    await this.api.removeWorkspaceIcon();
-    if (!this.stopped) this.store.setState({ iconVersion: null });
+  removeWorkspaceIcon(): Promise<ApiError | null> {
+    return doneOf(async () => {
+      await this.api.removeWorkspaceIcon();
+      if (!this.stopped) this.store.setState({ iconVersion: null });
+    });
   }
 
   /**
@@ -3083,7 +3149,7 @@ export class WorkspaceClient {
    * now is.
    */
   snoozeNotificationsUntil(dndUntil: number | null): Promise<ApiError | null> {
-    if (!this.state.self) return Promise.resolve(failureOf(new Error("Not signed in.")));
+    if (!this.state.self) return Promise.resolve(notConnected());
     return this.writes.write({ kind: "dnd" }, dndUntil, {
       read: () => this.state.self?.dndUntil ?? null,
       show: (until) =>
@@ -3203,24 +3269,13 @@ export class WorkspaceClient {
       return;
     }
     try {
-      const requestId = `join-${attempt}`;
       await new Promise<void>((resolve, reject) => {
-        const timer = setTimeout(() => {
-          this.pendingHuddleJoin?.finish(
-            new Error("The huddle did not answer. Check your connection, then try again."),
-          );
-        }, 10_000);
-        this.pendingHuddleJoin = {
+        this.askToJoin(
           channelId,
-          requestId,
-          finish: (error) => {
-            clearTimeout(timer);
-            this.pendingHuddleJoin = null;
-            if (error) reject(error);
-            else resolve();
-          },
-        };
-        this.sendSocket({ type: "huddle.join", channelId, requestId });
+          `join-${attempt}`,
+          "The huddle did not answer. Check your connection, then try again.",
+          (error) => (error ? reject(error) : resolve()),
+        );
         session.note("Asked the server to join the huddle.");
       });
       session.note("The server let this device into the huddle.");
@@ -3356,16 +3411,11 @@ export class WorkspaceClient {
       this.publishHuddleState();
     };
     session.note("The connection to the server came back. Asking to go on with the huddle.");
-    const requestId = `rejoin-${attempt}-${++this.rejoins}`;
-    const timer = setTimeout(() => {
-      this.pendingHuddleJoin?.finish(new Error("The huddle did not answer."));
-    }, 10_000);
-    this.pendingHuddleJoin = {
+    this.askToJoin(
       channelId,
-      requestId,
-      finish: (error) => {
-        clearTimeout(timer);
-        if (this.pendingHuddleJoin?.requestId === requestId) this.pendingHuddleJoin = null;
+      `rejoin-${attempt}-${++this.rejoins}`,
+      "The huddle did not answer.",
+      (error) => {
         if (!error) return back();
         if (error instanceof HuddleRejoinCancelled) return;
         if (attempt !== this.huddleAttempt || this.session !== session) return;
@@ -3376,6 +3426,31 @@ export class WorkspaceClient {
           },
           !(error instanceof HuddleJoinRefusedError),
         );
+      },
+    );
+  }
+
+  /**
+   * Asks the server to let this device into the huddle. `onFinish` hears its
+   * answer, or, after `HUDDLE_JOIN_WAIT_MS` without one, `unanswered`.
+   */
+  private askToJoin(
+    channelId: ID,
+    requestId: string,
+    unanswered: string,
+    onFinish: (error?: Error) => void,
+  ): void {
+    const timer = setTimeout(() => {
+      if (this.pendingHuddleJoin?.requestId === requestId)
+        this.pendingHuddleJoin.finish(new Error(unanswered));
+    }, HUDDLE_JOIN_WAIT_MS);
+    this.pendingHuddleJoin = {
+      channelId,
+      requestId,
+      finish: (error) => {
+        clearTimeout(timer);
+        if (this.pendingHuddleJoin?.requestId === requestId) this.pendingHuddleJoin = null;
+        onFinish(error);
       },
     };
     this.sendSocket({ type: "huddle.join", channelId, requestId });
@@ -3435,18 +3510,18 @@ export class WorkspaceClient {
   }
 
   /** `changedAt` is when the words were written: now, or earlier for a draft put back. */
-  setDraft(channelId: ID, text: string, changedAt = Date.now()): void {
+  setDraft(key: string, text: string, changedAt = Date.now()): void {
     this.store.setState((s) => {
       const drafts = { ...s.drafts };
       const draftTimes = { ...s.draftTimes };
       if (text.trim()) {
         // The same words again change nothing, and say nothing new about when.
-        if (drafts[channelId] === text) return s;
-        drafts[channelId] = text;
-        draftTimes[channelId] = changedAt;
+        if (drafts[key] === text) return s;
+        drafts[key] = text;
+        draftTimes[key] = changedAt;
       } else {
-        delete drafts[channelId];
-        delete draftTimes[channelId];
+        delete drafts[key];
+        delete draftTimes[key];
       }
       return { drafts, draftTimes };
     });
@@ -3458,7 +3533,7 @@ export class WorkspaceClient {
    * whose text is unchanged keeps its time; one restored takes its stored
    * time, if any; one another window changed is as new as hearing of it.
    */
-  hydrateDrafts(drafts: Record<ID, string>, stored?: Record<string, number>): void {
+  private hydrateDrafts(drafts: Record<string, string>, stored?: Record<string, number>): void {
     this.store.setState((s) => {
       const draftTimes: Record<string, number> = {};
       const now = Date.now();
@@ -3583,7 +3658,7 @@ export class WorkspaceClient {
             this.readRequests.get(channelId) !== controller
           )
             return;
-          const acknowledged = result.seq ?? seq;
+          const acknowledged = result.seq;
           if ((this.pendingReads.get(channelId) ?? 0) <= acknowledged)
             this.pendingReads.delete(channelId);
           this.applyEphemeral({ type: "channel.read", channelId, seq: acknowledged });
@@ -3605,18 +3680,22 @@ export class WorkspaceClient {
    * an ephemeral, so the only thing handled here is the command not working at
    * all — which is still worth telling the person who typed it.
    */
-  private async runCommand(channelId: ID, text: string, threadRootId?: ID): Promise<void> {
+  private async runCommand(
+    channelId: ID,
+    text: string,
+    name: string,
+    threadRootId?: ID,
+  ): Promise<void> {
     try {
       await this.api.runCommand(channelId, {
         text,
         ...(threadRootId ? { threadRootId } : {}),
       });
     } catch (err) {
-      const name = /^\/([a-zA-Z0-9_-]+)/.exec(text)?.[1] ?? "";
       const message =
         err instanceof ApiError && err.code === "unknown_command"
           ? `\`/${name}\` is not a command here.`
-          : `\`/${name}\` could not run. ${commandFailure(err)}`;
+          : `\`/${name}\` could not run. ${refusalReason(failureOf(err)) ?? "The workspace turned it down."}`;
       this.addEphemeral({
         id: `local-${Date.now()}-${++this.nonceCounter}`,
         channelId,
@@ -3651,14 +3730,10 @@ export class WorkspaceClient {
     });
   }
 
-  /** Loads the `/` hint list. Failure is silent: hints are a convenience. */
-  async loadCommands(): Promise<void> {
-    try {
-      const { commands } = await this.api.listCommands();
-      this.store.setState({ commands });
-    } catch {
-      /* no permission: the composer shows no hints */
-    }
+  /** Loads the `/` hint list. A failure keeps the list there was: hints are a convenience. */
+  private async loadCommands(): Promise<void> {
+    const commands = await answerOf(async () => (await this.api.listCommands()).commands);
+    if (!(commands instanceof ApiError) && !this.stopped) this.store.setState({ commands });
   }
 
   /** Whether this device has gone idle, as it last told the server (E9). */
@@ -3680,16 +3755,13 @@ export class WorkspaceClient {
    * server's refusal, or null. The list is kept from the answer, before the
    * socket says it.
    */
-  async setBlocked(userId: ID, blocked: boolean): Promise<ApiError | null> {
-    try {
+  setBlocked(userId: ID, blocked: boolean): Promise<ApiError | null> {
+    return doneOf(async () => {
       const result = blocked
         ? await this.api.blockUser(userId)
         : await this.api.unblockUser(userId);
       if (!this.stopped) this.store.setState({ blocked: result.blocked });
-      return null;
-    } catch (error) {
-      return failureOf(error);
-    }
+    });
   }
 
   /**
@@ -3697,23 +3769,16 @@ export class WorkspaceClient {
    * shown at once; put back when the server refused, resolving with why.
    */
   setNotifyDefault(level: NotifyLevel): Promise<ApiError | null> {
-    if (this.state.notifyDefault === null)
-      return Promise.resolve(failureOf(new Error("Not connected yet.")));
-    return this.writes.write<NotifyLevel | null>({ kind: "notifyDefault" }, level, {
+    if (!this.state.self) return Promise.resolve(notConnected());
+    return this.writes.write<NotifyLevel>({ kind: "notifyDefault" }, level, {
       read: () => this.state.notifyDefault,
       show: (notifyDefault) => this.store.setState({ notifyDefault }),
-      send: async (chosen) => (await this.api.setNotifyDefault(chosen!)).level,
+      send: async (chosen) => (await this.api.setNotifyDefault(chosen)).level,
     });
   }
 
-  /** Changes this account's own profile; resolves with the server's refusal, or null. */
-  private async changeSelf(request: () => Promise<{ user: User }>): Promise<ApiError | null> {
-    try {
-      this.keepUser((await request()).user);
-      return null;
-    } catch (error) {
-      return failureOf(error);
-    }
+  private changeSelf(request: () => Promise<{ user: User }>): Promise<ApiError | null> {
+    return doneOf(async () => this.keepUser((await request()).user));
   }
 
   /** Away by hand, until set back (E9). */
@@ -3750,13 +3815,9 @@ export class WorkspaceClient {
    */
   private afterReady(snap: ReadySnapshot): void {
     if (this.idle) this.sendSocket({ type: "idle", idle: true });
+    void this.loadCommands();
     if (snap.self.timeZone) return;
-    let zone: string | undefined;
-    try {
-      zone = Intl.DateTimeFormat().resolvedOptions().timeZone;
-    } catch {
-      return;
-    }
+    const zone = Intl.DateTimeFormat().resolvedOptions().timeZone;
     if (zone) void this.setTimeZone(zone);
   }
 
@@ -3765,18 +3826,11 @@ export class WorkspaceClient {
     return this.changeSelf(() => this.api.updateMe(body));
   }
 
-  /** Asks, accepts or ends a friendship; resolves with the server's refusal, or null. */
-  async setFriendship(
-    userId: ID,
-    action: "request" | "accept" | "remove",
-  ): Promise<ApiError | null> {
-    try {
+  setFriendship(userId: ID, action: "request" | "accept" | "remove"): Promise<ApiError | null> {
+    return doneOf(async () => {
       const { friends } = await this.api.updateFriend(userId, action);
       if (!this.stopped) this.store.setState({ friends });
-      return null;
-    } catch (error) {
-      return failureOf(error);
-    }
+    });
   }
 
   private signingOut = false;
@@ -3786,14 +3840,11 @@ export class WorkspaceClient {
    * sign-in that ended, often before the answer arrives; `signedOutOnPurpose`
    * tells the two apart.
    */
-  async signOut(): Promise<void> {
+  async signOut(): Promise<ApiError | null> {
     this.signingOut = true;
-    try {
-      await this.api.logout();
-    } catch (error) {
-      this.signingOut = false;
-      throw error;
-    }
+    const refused = await doneOf(() => this.api.logout());
+    if (refused) this.signingOut = false;
+    return refused;
   }
 
   get signedOutOnPurpose(): boolean {
@@ -3801,7 +3852,7 @@ export class WorkspaceClient {
   }
 
   serverInfo() {
-    return this.api.serverInfo();
+    return answerOf(() => this.api.serverInfo());
   }
 
   private fileLimit: Promise<number | null> | null = null;
@@ -3822,98 +3873,90 @@ export class WorkspaceClient {
   }
 
   search(q: string, limit?: number, opts?: { cursor?: ID; channelId?: ID; signal?: AbortSignal }) {
-    return this.api.search(q, limit, opts);
+    return answerOf(() => this.api.search(q, limit, opts));
   }
 
   /** One message, for the card under a link to it; a 404 when it is gone or not readable. */
   getMessage(channelId: ID, messageId: ID, signal?: AbortSignal) {
-    return this.api.getMessage(channelId, messageId, signal);
+    return answerOf(async () => (await this.api.getMessage(channelId, messageId, signal)).message);
   }
 
   /** Refused as `message_changed` if the words are no longer `expectedText`. */
   editMessage(messageId: ID, text: string, expectedText: string) {
-    return this.api.editMessage(messageId, text, expectedText);
+    return doneOf(() => this.api.editMessage(messageId, text, expectedText));
   }
 
   deleteMessage(messageId: ID) {
-    return this.api.deleteMessage(messageId);
+    return doneOf(() => this.api.deleteMessage(messageId));
   }
 
   /** Presses a button an app put on a message. */
   runMessageAction(messageId: ID, actionId: string) {
-    return this.api.runMessageAction(messageId, actionId);
+    return answerOf(() => this.api.runMessageAction(messageId, actionId));
   }
 
   /** Reports a message to the workspace's admins (E12), with why and anything to add. */
   reportMessage(messageId: ID, reason: ReportReason, note?: string) {
-    return this.api.reportMessage(messageId, reason, note);
-  }
-
-  /** Uploads one file to a channel; attach the returned id to a message. */
-  uploadFile(
-    channelId: ID,
-    file: Blob,
-    name: string,
-    opts?: { onProgress?: (fraction: number) => void; signal?: AbortSignal },
-  ) {
-    return this.api.uploadFile(channelId, file, name, opts);
-  }
-
-  scheduleMessage(channelId: ID, body: ScheduleMessageBody) {
-    return this.api.scheduleMessage(channelId, body);
+    return doneOf(() => this.api.reportMessage(messageId, reason, note));
   }
 
   /** An address that downloads the file once, within a minute, by a browser's navigation. */
   downloadUrl(fileId: ID) {
-    return this.api.downloadUrl(fileId);
+    return answerOf(() => this.api.downloadUrl(fileId));
   }
 
   reminders(signal?: AbortSignal) {
-    return this.api.listReminders(signal);
+    return answerOf(async () => (await this.api.listReminders(signal)).reminders);
   }
 
   latestDirectMessages(signal?: AbortSignal) {
-    return this.api.latestDirectMessages(signal);
+    return answerOf(() => this.api.latestDirectMessages(signal));
   }
 
   /** Every channel this account can see, with how many active people each room holds. */
   browseChannels(signal?: AbortSignal) {
-    return this.api.listChannels(signal);
+    return answerOf(() => this.api.listChannels(signal));
   }
 
   updateChannel(channelId: ID, body: UpdateChannelBody) {
-    return this.api.updateChannel(channelId, body);
+    return doneOf(() => this.api.updateChannel(channelId, body));
   }
 
   joinChannel(channelId: ID) {
-    return this.api.joinChannel(channelId);
+    return doneOf(() => this.api.joinChannel(channelId));
   }
 
   leaveChannel(channelId: ID) {
-    return this.api.leaveChannel(channelId);
+    return doneOf(() => this.api.leaveChannel(channelId));
   }
 
   channelMembers(channelId: ID) {
-    return this.api.channelMembers(channelId);
+    return answerOf(async () => (await this.api.channelMembers(channelId)).memberIds);
   }
 
   addToChannel(channelId: ID, userId: ID) {
-    return this.api.inviteMember(channelId, userId);
+    return doneOf(() => this.api.inviteMember(channelId, userId));
   }
 
   removeFromChannel(channelId: ID, userId: ID) {
-    return this.api.removeChannelMember(channelId, userId);
+    return doneOf(() => this.api.removeChannelMember(channelId, userId));
   }
 
   setChannelManager(channelId: ID, userId: ID, manager: boolean) {
-    return this.api.setChannelManager(channelId, userId, manager);
+    return doneOf(() => this.api.setChannelManager(channelId, userId, manager));
   }
 
+  private typingSaid = new Map<ID, number>();
+
+  /** Says this person is typing here, at most once every `TYPING_SAY_EVERY_MS`. */
   sendTyping(channelId: ID): void {
+    const now = Date.now();
+    if (now - (this.typingSaid.get(channelId) ?? 0) < TYPING_SAY_EVERY_MS) return;
+    this.typingSaid.set(channelId, now);
     this.sendSocket({ type: "typing", channelId });
   }
 
-  openDm(userIds: ID[]): Promise<Channel> {
+  openDm(userIds: ID[]): Promise<Channel | ApiError> {
     return this.createChannel({
       type: userIds.length === 1 ? "dm" : "group_dm",
       memberIds: userIds,
@@ -3921,16 +3964,20 @@ export class WorkspaceClient {
   }
 
   /** Makes a conversation this account is in, shown at once rather than when its event comes. */
-  async createChannel(body: CreateChannelBody): Promise<Channel> {
-    const { channel } = await this.api.createChannel(body);
-    if (this.stopped) return channel;
-    this.store.setState((s) => ({
-      channels: { ...s.channels, [channel.id]: channel },
-      memberships: { ...s.memberships, [channel.id]: s.memberships[channel.id] ?? 0 },
-      repliesRead:
-        channel.id in s.memberships ? s.repliesRead : joined(s.repliesRead, channel.id, s.lastSeq),
-    }));
-    return channel;
+  createChannel(body: CreateChannelBody): Promise<Channel | ApiError> {
+    return answerOf(async () => {
+      const { channel } = await this.api.createChannel(body);
+      if (this.stopped) return channel;
+      this.store.setState((s) => ({
+        channels: { ...s.channels, [channel.id]: channel },
+        memberships: { ...s.memberships, [channel.id]: s.memberships[channel.id] ?? 0 },
+        repliesRead:
+          channel.id in s.memberships
+            ? s.repliesRead
+            : joined(s.repliesRead, channel.id, s.lastSeq),
+      }));
+      return channel;
+    });
   }
 }
 

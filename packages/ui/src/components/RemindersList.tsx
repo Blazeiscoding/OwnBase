@@ -1,5 +1,5 @@
 import { lazy, Suspense, useEffect, useRef, useState } from "react";
-import { notificationBody } from "@ownbase/client-core";
+import { ApiError, notificationBody } from "@ownbase/client-core";
 import type { ID, ReminderItem } from "@ownbase/protocol";
 import { useClient, useWorkspace } from "../context.js";
 import { channelTitle } from "../lib/format.js";
@@ -44,15 +44,12 @@ export function RemindersList({ onJump }: { onJump: (channelId: ID, messageId: I
 
   useEffect(() => {
     const controller = new AbortController();
-    client.reminders(controller.signal).then(
-      ({ reminders }) => {
+    void client.reminders(controller.signal).then((reminders) => {
+      if (!(reminders instanceof ApiError)) {
         setItems(reminders);
         setFailed(false);
-      },
-      () => {
-        if (!controller.signal.aborted) setFailed(true);
-      },
-    );
+      } else if (!controller.signal.aborted) setFailed(true);
+    });
     return () => controller.abort();
   }, [client, signature, attempt]);
 

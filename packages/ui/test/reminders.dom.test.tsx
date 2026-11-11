@@ -328,7 +328,6 @@ describe("a reminder come due", () => {
     client.store.setState({ self, users: { [sam.id]: self, [priya.id]: priya } });
     writeRoute(client.baseUrl, { channelId: general.id, threadRootId: null }, "replace");
     vi.spyOn(client, "loadTimeline").mockResolvedValue();
-    vi.spyOn(client, "loadCommands").mockResolvedValue();
     const notify = vi.fn();
     const shown: Platform = { ...platform, notify };
     render(

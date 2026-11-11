@@ -128,7 +128,7 @@ describe("unsent work kept in IndexedDB (F01)", () => {
     mount(next, webPlatform());
     await waitFor(() => expect(next.state.drafts[launch.id]).toBe("typed as the tab closed"));
     await waitFor(() =>
-      expect(next.outboxSnapshot().map((send) => send.text)).toEqual([
+      expect(next.state.pending.map((send) => send.text)).toEqual([
         "sent just before",
         "sent as the tab closed",
       ]),

@@ -47,18 +47,18 @@ export function ReportMessageDialog({
     }
     setBusy(true);
     setError(null);
-    try {
-      await client.reportMessage(message.id, reason, note);
+    const refused = await client.reportMessage(message.id, reason, note);
+    if (!refused) {
       toast({ message: "Reported. The workspace's admins will look at it.", kind: "success" });
       onClose();
-    } catch (err) {
-      setError(
-        err instanceof ApiError && err.code === "message_not_found"
-          ? "That message is gone, so there is nothing to report."
-          : "Your report was not sent. Check your connection and try again.",
-      );
-      setBusy(false);
+      return;
     }
+    setError(
+      refused.code === "message_not_found"
+        ? "That message is gone, so there is nothing to report."
+        : "Your report was not sent. Check your connection and try again.",
+    );
+    setBusy(false);
   }
 
   return (

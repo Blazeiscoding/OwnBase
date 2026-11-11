@@ -1,8 +1,14 @@
 import { lazy, Suspense, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
-import { MESSAGE_TEXT_MAX, type ID, type ScheduleMessageBody } from "@ownbase/protocol";
 import {
-  ApiError,
+  MESSAGE_TEXT_MAX,
+  parseCommand,
+  type ID,
+  type InAppCommandName,
+  type ScheduleMessageBody,
+} from "@ownbase/protocol";
+import {
   OUTBOX_LIMIT,
+  draftKey as draftKeyOf,
   quoteOf,
   threadReplies,
   timelineMessages,
@@ -11,7 +17,7 @@ import { useClient, usePlatform, useWorkspace } from "../context.js";
 import { formatBytes } from "../lib/format.js";
 import { useComposerPreferences } from "../lib/composerPreferences.js";
 import { formatScheduleShort, formatScheduleTime, schedulePresets } from "../lib/schedule.js";
-import { cancelReply, conversationKey, setReplyPing, useReplyTarget } from "../lib/replyTarget.js";
+import { cancelReply, setReplyPing, useReplyTarget } from "../lib/replyTarget.js";
 import { Icon } from "./Icon.js";
 import { Menu } from "./Menu.js";
 import { iconFor } from "./Attachments.js";
@@ -28,14 +34,9 @@ import { useConnectionDown } from "../lib/online.js";
 import { useMentionField } from "../lib/useMentionField.js";
 import { useListbox } from "../lib/useListbox.js";
 import { SuggestionList, useSuggestions } from "./Suggestions.js";
-import { appCommand, offeredCommands, runAppCommand } from "../lib/appCommands.js";
+import { offeredCommands, runAppCommand } from "../lib/appCommands.js";
 import { useToast } from "./Toast.js";
-import {
-  readWorkspaceStorage,
-  workspaceStorageKey,
-  writeWorkspaceStorage,
-  type WorkspaceStorageKey,
-} from "@ownbase/client-core";
+import { ScheduledSends, type ScheduleAnswer } from "@ownbase/client-core";
 import {
   FormattingToolbar,
   formatList,
@@ -53,9 +54,6 @@ const TimePopover = lazy(() =>
 const PollDialog = lazy(() =>
   import("./PollDialog.js").then((module) => ({ default: module.PollDialog })),
 );
-
-/** `/poll` and any words after it, which become the question. */
-const POLL_COMMAND = /^\/poll(?:\s+([\s\S]*))?$/i;
 
 interface Props {
   channelId: ID;
@@ -83,20 +81,19 @@ export function Composer({ channelId, threadRootId, placeholder, autoFocus, onLe
   const guest = useWorkspace((s) => s.self?.role === "guest");
   /** The question the poll window opens with; null while it is closed. */
   const [pollQuestion, setPollQuestion] = useState<string | null>(null);
-  const draftKey = conversationKey(channelId, threadRootId);
+  const draftKey = draftKeyOf(channelId, threadRootId);
   /** The message the next send answers in place, chosen with Reply. */
   const replyTarget = useReplyTarget(client, draftKey);
   const replyName = replyTarget
     ? (users[replyTarget.message.userId]?.displayName ?? "unknown")
     : "";
-  const scheduleStorageKey = useMemo(
-    () => workspaceStorageKey(client.baseUrl, workspaceId, selfId, "schedule-request", draftKey),
-    [client, workspaceId, selfId, draftKey],
-  );
-  const [scheduleLoadedKey, setScheduleLoadedKey] = useState<WorkspaceStorageKey | null>(null);
+  const schedules = useMemo(() => new ScheduledSends(client, platform), [client, platform]);
+  /** Whose request for which composer the device is asked for: it is kept per account. */
+  const scheduleScope = selfId ? `${workspaceId ?? ""} ${selfId} ${draftKey}` : null;
+  const [scheduleLoadedKey, setScheduleLoadedKey] = useState<string | null>(null);
   const [pendingSchedule, setPendingSchedule] = useState<ScheduleMessageBody | null>(null);
   const [restoreAttempt, setRestoreAttempt] = useState(0);
-  const scheduleReady = scheduleStorageKey !== null && scheduleLoadedKey === scheduleStorageKey;
+  const scheduleReady = scheduleScope !== null && scheduleLoadedKey === scheduleScope;
   const recoveryBlocksSend = !scheduleReady || pendingSchedule !== null;
   const savedDraft = useWorkspace((s) => s.drafts[draftKey] ?? "");
   const [text, setText] = useState(savedDraft);
@@ -111,7 +108,6 @@ export function Composer({ channelId, threadRootId, placeholder, autoFocus, onLe
   const scheduleLock = useRef(false);
   const scheduleContext = useRef<object>({});
   const uploadController = useRef<AbortController | null>(null);
-  const scheduleUploads = useRef(new WeakMap<File, ID>());
   const [preview, setPreview] = useState(false);
   /** Replies only: also show this one in the channel's own timeline. */
   const [alsoToChannel, setAlsoToChannel] = useState(false);
@@ -131,7 +127,6 @@ export function Composer({ channelId, threadRootId, placeholder, autoFocus, onLe
   const held = saving?.draftKey === draftKey;
   const box = useRef<HTMLTextAreaElement>(null);
   const filePicker = useRef<HTMLInputElement>(null);
-  const lastTypingSent = useRef(0);
   const shell = useRef<HTMLDivElement>(null);
   /** Where files dragged over the conversation would land, while they are. */
   const [dropArea, setDropArea] = useState<DOMRect | null>(null);
@@ -161,59 +156,35 @@ export function Composer({ channelId, threadRootId, placeholder, autoFocus, onLe
     setScheduleError(null);
     setScheduling(false);
     scheduleLock.current = false;
-    scheduleUploads.current = new WeakMap();
     scheduleContext.current = {};
     return () => {
       scheduleContext.current = {};
       uploadController.current?.abort();
     };
-  }, [client, draftKey, scheduleStorageKey]);
+  }, [client, draftKey, scheduleScope]);
 
   useEffect(() => {
     let active = true;
     setPendingSchedule(null);
     setScheduleLoadedKey(null);
-    if (!scheduleStorageKey) return;
-    void readWorkspaceStorage<unknown>(platform, scheduleStorageKey)
-      .then(async (value) => {
-        if (!active) return;
-        // The request schemas bring their validation library with them, which
-        // is most of a tenth of the app. A saved request is rare, so they load
-        // only when there is one to check.
-        const parsed =
-          value == null
-            ? null
-            : (await import("@ownbase/protocol/rest")).scheduleMessageBody.safeParse(value);
-        if (!active) return;
-        if (
-          parsed &&
-          (!parsed.success ||
-            !parsed.data.nonce ||
-            (parsed.data.threadRootId ?? null) !== (threadRootId ?? null))
-        ) {
-          setScheduleError(
-            "Could not read a message you were scheduling. Your draft is still here. Look in Scheduled before you send it again.",
-          );
-          return;
-        }
-        const body = parsed?.success ? parsed.data : null;
-        setPendingSchedule(body);
-        setScheduleLoadedKey(scheduleStorageKey);
-        if (body && !client.state.drafts[draftKey]) {
-          setText(body.text);
-          client.setDraft(draftKey, body.text);
-        }
-      })
-      .catch(() => {
-        if (active)
-          setScheduleError(
-            "Could not load a message you were scheduling. Press Try again before you send this draft.",
-          );
-      });
+    if (!scheduleScope) return;
+    void schedules.saved({ channelId, threadRootId }).then((saved) => {
+      if (!active) return;
+      if ("failed" in saved) {
+        setScheduleError(saved.failed);
+        return;
+      }
+      setPendingSchedule(saved.request);
+      setScheduleLoadedKey(scheduleScope);
+      if (saved.request && !client.state.drafts[draftKey]) {
+        setText(saved.request.text);
+        client.setDraft(draftKey, saved.request.text);
+      }
+    });
     return () => {
       active = false;
     };
-  }, [client, platform, scheduleStorageKey, draftKey, threadRootId, restoreAttempt]);
+  }, [client, schedules, scheduleScope, channelId, threadRootId, restoreAttempt]);
 
   // Drafts load from disk asynchronously, so they can arrive after this mounts,
   // and another window can change or clear this conversation's draft. Either
@@ -453,57 +424,23 @@ export function Composer({ channelId, threadRootId, placeholder, autoFocus, onLe
     if (archived || scheduleLock.current || recoveryBlocksSend || held) return;
     const trimmed = text.trim();
     if ((!trimmed && attached.length === 0) || text.length > MESSAGE_TEXT_MAX) return;
-    // /poll opens the poll window, its words the question, as the + menu does.
-    const asked = attached.length === 0 ? POLL_COMMAND.exec(trimmed) : null;
-    if (asked) {
-      if (guest) {
-        setSendRefusal("Guests cannot make polls. Create an account to make one.");
-        return;
-      }
-      setSendRefusal(null);
-      setPollQuestion(asked[1]?.trim() ?? "");
-      return;
-    }
-    // /away, /topic and the like the app runs itself (U4).
-    const ours = attached.length === 0 && !guest ? appCommand(trimmed, commands) : null;
-    if (ours) {
-      if (runningCommand.current) return;
-      runningCommand.current = true;
-      setSendRefusal(null);
-      const key = draftKey;
-      void runAppCommand(ours.name, ours.args, { client, channelId })
-        .then((outcome) => {
-          if (!outcome.ok) {
-            setSendRefusal(outcome.said);
-            return;
-          }
-          toast({ message: outcome.said, kind: "success" });
-          if (key === currentDraftKey.current) {
-            suggestions.close();
-            clearSent(key);
-          } else client.setDraft(key, "");
-          if (ours.name === "leave") onLeft?.();
-        })
-        .finally(() => (runningCommand.current = false));
-      return;
-    }
-    let queued: string | null = null;
-    const accepted = client.send(channelId, trimmed, {
+    if (runningCommand.current) return;
+    const answer = client.send(channelId, trimmed, {
       threadRootId,
       files: attached,
       alsoSendToChannel: alsoToChannel,
       ...(replyTarget ? { replyTo: quoteOf(replyTarget.message, replyTarget.ping) } : {}),
-      onQueued: (nonce) => (queued = nonce),
     });
-    if (!accepted) {
+    if (answer.kind === "refused") {
       // Nothing was taken, so the words stay here rather than only in memory.
       setSendRefusal(
-        client.outboxFull()
+        answer.reason === "outbox_full"
           ? `${OUTBOX_LIMIT} messages are already waiting to send. You can send this one once they go out, or after you discard some.`
           : "Could not send this message. Your text is still here. Try again.",
       );
       return;
     }
+    if (answer.kind === "in_app") return runInApp(answer.name, answer.args);
     setSendRefusal(null);
     // A deliberate choice per reply, not a mode to get stuck in.
     setAlsoToChannel(false);
@@ -513,9 +450,9 @@ export function Composer({ channelId, threadRootId, placeholder, autoFocus, onLe
     setAttachmentNote(null);
     // The words stay here, and in the saved draft, until the device keeps the
     // send itself: until then a closed window would lose them (GL-02).
-    const kept = queued && trimmed ? client.kept.whenKept(queued) : null;
-    if (!kept) return clearSent(draftKey);
-    const sending = { draftKey, nonce: queued! };
+    if (answer.kind !== "queued" || !answer.kept) return clearSent(draftKey);
+    const { kept } = answer;
+    const sending = { draftKey, nonce: answer.nonce };
     setSaving(sending);
     void kept.then((outcome) => {
       setSaving((now) => (now?.nonce === sending.nonce ? null : now));
@@ -533,6 +470,36 @@ export function Composer({ channelId, threadRootId, placeholder, autoFocus, onLe
     });
   }
 
+  /** A command the app runs itself (U4); /poll opens the poll window, its words the question. */
+  function runInApp(name: InAppCommandName, args: string) {
+    if (guest) {
+      setSendRefusal(
+        name === "poll"
+          ? "Guests cannot make polls. Create an account to make one."
+          : `Guests cannot use /${name}. Create an account to use it.`,
+      );
+      return;
+    }
+    setSendRefusal(null);
+    if (name === "poll") return setPollQuestion(args);
+    runningCommand.current = true;
+    const key = draftKey;
+    void runAppCommand(name, args, { client, channelId })
+      .then((outcome) => {
+        if (!outcome.ok) {
+          setSendRefusal(outcome.said);
+          return;
+        }
+        toast({ message: outcome.said, kind: "success" });
+        if (key === currentDraftKey.current) {
+          suggestions.close();
+          clearSent(key);
+        } else client.setDraft(key, "");
+        if (name === "leave") onLeft?.();
+      })
+      .finally(() => (runningCommand.current = false));
+  }
+
   /** Empties the box after a send is taken, and the draft it came from. */
   function clearSent(key: string) {
     setText("");
@@ -547,12 +514,10 @@ export function Composer({ channelId, threadRootId, placeholder, autoFocus, onLe
       setScheduleError("Choose a date and time in the future.");
       return;
     }
-    const trimmed = text.trim();
     if (
       scheduleLock.current ||
       recoveryBlocksSend ||
-      !scheduleStorageKey ||
-      (!trimmed && attached.length === 0) ||
+      (!text.trim() && attached.length === 0) ||
       text.length > MESSAGE_TEXT_MAX
     )
       return;
@@ -563,97 +528,60 @@ export function Composer({ channelId, threadRootId, placeholder, autoFocus, onLe
     const context = scheduleContext.current;
     const controller = new AbortController();
     uploadController.current = controller;
-    const current = () => scheduleContext.current === context;
-    let submitted = false;
-    let savingRecovery = false;
     // Keep the draft if the user leaves while the request is in flight.
     client.setDraft(draftKey, text);
-    try {
-      const fileIds: ID[] = [];
-      for (const file of attached) {
-        let id = scheduleUploads.current.get(file);
-        if (!id) {
-          const { file: uploaded } = await client.uploadFile(channelId, file, file.name, {
-            signal: controller.signal,
-          });
-          if (!current()) return;
-          id = uploaded.id;
-          scheduleUploads.current.set(file, id);
-        }
-        fileIds.push(id);
-      }
-      if (!current()) return;
-      const body: ScheduleMessageBody = {
-        // getRandomValues remains available on plain HTTP LAN origins.
-        nonce: Array.from(crypto.getRandomValues(new Uint8Array(16)), (byte) =>
-          byte.toString(16).padStart(2, "0"),
-        ).join(""),
-        text: trimmed,
-        sendAt: at.getTime(),
-        ...(threadRootId ? { threadRootId } : {}),
-        // The choice travels with the request, so the reply lands where it said.
-        ...(threadRootId && alsoToChannel ? { alsoSendToChannel: true } : {}),
-        ...(fileIds.length > 0 ? { fileIds } : {}),
-      };
-      // Persist the exact payload before it can reach the server, including
-      // uploaded IDs and the original time. A retry never creates a new key.
-      savingRecovery = true;
-      await writeWorkspaceStorage(platform, scheduleStorageKey, body);
-      savingRecovery = false;
-      if (!current()) return;
-      setPendingSchedule(body);
-      submitted = true;
-      await confirmSchedule(body, scheduleStorageKey, context);
-    } catch (error) {
-      if (!current()) return;
-      if (
-        error instanceof ApiError &&
-        (error.code === "invalid_attachments" || error.code === "attachments_scheduled")
-      )
-        scheduleUploads.current = new WeakMap();
-      if (submitted && error instanceof ApiError && error.code === "scheduled_limit") {
-        // Refused outright: nothing was queued, so there is nothing to confirm.
-        try {
-          await writeWorkspaceStorage(platform, scheduleStorageKey, null);
-          if (current()) setPendingSchedule(null);
-        } catch {
-          // The record stays, and confirming it again gives the same answer.
-        }
-        if (current()) setScheduleError(`${error.message} Your draft is still here.`);
-        return;
-      }
-      setScheduleError(
-        savingRecovery
-          ? "Nothing was scheduled because this device could not save a copy first. Your draft is still here."
-          : submitted
-            ? "Could not finish scheduling. Press Check again to see if the message was scheduled."
-            : error instanceof ApiError && error.code === "storage_quota_exceeded"
-              ? "The workspace has no room left for files. Your draft is still here. Ask the host to free space or raise the limit, then try again."
-              : error instanceof ApiError && error.code === "file_too_large"
-                ? "One of these files is bigger than this workspace allows. Remove it and try again."
-                : "Could not upload the files. Your draft is still here. Try again when you're back online.",
-      );
-    } finally {
-      if (current()) {
-        scheduleLock.current = false;
-        setScheduling(false);
-        uploadController.current = null;
-      }
-    }
+    const answer = await schedules.schedule(
+      { channelId, threadRootId },
+      { text, files: attached, sendAt: at.getTime(), alsoToChannel },
+      controller.signal,
+    );
+    if (scheduleContext.current !== context) return;
+    uploadController.current = null;
+    scheduled(answer);
   }
 
-  async function confirmSchedule(
-    body: ScheduleMessageBody,
-    storageKey: WorkspaceStorageKey,
-    context: object,
-  ) {
-    const { scheduled } = await client.scheduleMessage(channelId, body);
-    if (scheduleContext.current !== context) return;
-    // If clearing recovery fails, leave the same request available for retry.
-    await writeWorkspaceStorage(platform, storageKey, null);
-    if (scheduleContext.current !== context) return;
+  async function recoverSchedule(dismiss = false) {
+    if (scheduleLock.current || !scheduleScope) return;
+    const context = scheduleContext.current;
+    scheduleLock.current = true;
+    setScheduling(true);
+    setScheduleError(null);
+    const place = { channelId, threadRootId };
+    if (dismiss) {
+      const forgotten = await schedules.forget(place);
+      if (scheduleContext.current !== context) return;
+      if (forgotten) {
+        setPendingSchedule(null);
+        setScheduleLoadedKey(scheduleScope);
+      } else
+        setScheduleError(
+          "Could not check if the message was scheduled. Your message is still saved here. Try again when you're back online.",
+        );
+      scheduleLock.current = false;
+      setScheduling(false);
+      return;
+    }
+    if (!pendingSchedule) {
+      scheduleLock.current = false;
+      setScheduling(false);
+      return;
+    }
+    const answer = await schedules.check(place, pendingSchedule);
+    if (scheduleContext.current === context) scheduled(answer);
+  }
+
+  /** Shows what scheduling came to, in the composer it was asked from. */
+  function scheduled(answer: ScheduleAnswer) {
+    scheduleLock.current = false;
+    setScheduling(false);
+    if (!answer.ok) {
+      setPendingSchedule(answer.saved);
+      setScheduleError(answer.reason);
+      return;
+    }
+    const { scheduled, request } = answer;
     setPendingSchedule(null);
-    if (typed.current.text.trim() === body.text) {
+    if (typed.current.text.trim() === request.text) {
       setText("");
       edited.current = false;
       client.setDraft(draftKey, "");
@@ -661,48 +589,12 @@ export function Composer({ channelId, threadRootId, placeholder, autoFocus, onLe
     setAttached([]);
     // As after sending: a deliberate choice per reply, not a mode.
     setAlsoToChannel(false);
-    scheduleUploads.current = new WeakMap();
     setScheduleError(null);
     setScheduleNote(
       scheduled.status === "sent"
         ? "This message was already sent."
         : `Scheduled for ${formatScheduleTime(scheduled.sendAt)}. Change or remove it in Scheduled.`,
     );
-  }
-
-  async function recoverSchedule(dismiss = false) {
-    if (!scheduleStorageKey || scheduleLock.current) return;
-    const context = scheduleContext.current;
-    scheduleLock.current = true;
-    setScheduling(true);
-    setScheduleError(null);
-    try {
-      if (dismiss) {
-        await writeWorkspaceStorage(platform, scheduleStorageKey, null);
-        if (scheduleContext.current === context) {
-          setPendingSchedule(null);
-          setScheduleLoadedKey(scheduleStorageKey);
-        }
-      } else if (pendingSchedule) {
-        await confirmSchedule(pendingSchedule, scheduleStorageKey, context);
-      }
-    } catch (error) {
-      if (scheduleContext.current === context)
-        setScheduleError(
-          error instanceof ApiError && error.code === "scheduled_removed"
-            ? "This message was scheduled, then removed from Scheduled. OwnBase did not schedule it again."
-            : error instanceof ApiError && error.code === "send_at_in_past"
-              ? "The time you picked has passed, so the message was not scheduled. Keep the draft and pick a new time."
-              : error instanceof ApiError && error.code === "scheduled_limit"
-                ? `${error.message} Your message is still saved here.`
-                : "Could not check if the message was scheduled. Your message is still saved here. Try again when you're back online.",
-        );
-    } finally {
-      if (scheduleContext.current === context) {
-        scheduleLock.current = false;
-        setScheduling(false);
-      }
-    }
   }
 
   function onKeyDown(e: React.KeyboardEvent<HTMLTextAreaElement>) {
@@ -1062,11 +954,7 @@ export function Composer({ channelId, threadRootId, placeholder, autoFocus, onLe
               setText(next.stored);
               if (!scheduleLock.current && !recoveryBlocksSend)
                 suggestions.update(e.target.value, e.target.selectionStart, next);
-              const now = Date.now();
-              if (now - lastTypingSent.current > 3000 && e.target.value.trim()) {
-                lastTypingSent.current = now;
-                client.sendTyping(channelId);
-              }
+              if (e.target.value.trim()) client.sendTyping(channelId);
             }}
             onKeyDown={onKeyDown}
             onBlur={suggestions.close}
@@ -1228,7 +1116,7 @@ export function Composer({ channelId, threadRootId, placeholder, autoFocus, onLe
               onClose={() => setPollQuestion(null)}
               onSent={() => {
                 // The /poll that opened it is done with.
-                if (POLL_COMMAND.test(text.trim())) clearSent(draftKey);
+                if (parseCommand(text)?.name === "poll") clearSent(draftKey);
               }}
             />
           </Suspense>

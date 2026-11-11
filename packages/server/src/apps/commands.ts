@@ -1,4 +1,11 @@
-import { endpoints, escapeMrkdwn, type User } from "@ownbase/protocol";
+import {
+  endpoints,
+  escapeMrkdwn,
+  IN_APP_COMMANDS,
+  isInAppCommand,
+  parseCommand,
+  type User,
+} from "@ownbase/protocol";
 import { requireChannelAccess, type ServerContext } from "../core/context.js";
 import { HttpError } from "../httpError.js";
 import type { Posting } from "../messages/posting.js";
@@ -14,12 +21,10 @@ import type { NewTrigger } from "./views.js";
  *
  * `run` returns the message text to post, or null when the arguments are wrong.
  */
-export interface BuiltinCommand {
+interface BuiltinCommand {
   description: string;
   usageHint: string;
   run: (text: string, user: User) => string | null;
-  /** Run by the app itself: the server only lists the name and reserves it. */
-  inApp?: true;
 }
 
 /**
@@ -28,7 +33,7 @@ export interface BuiltinCommand {
  */
 const SHRUG = escapeMrkdwn("¯\\_(ツ)_/¯");
 
-export const BUILTIN_COMMANDS = new Map<string, BuiltinCommand>([
+const BUILTIN_COMMANDS = new Map<string, BuiltinCommand>([
   [
     "shrug",
     {
@@ -46,39 +51,9 @@ export const BUILTIN_COMMANDS = new Map<string, BuiltinCommand>([
       run: (text) => (text ? `_${text}_` : null),
     },
   ],
-  [
-    "poll",
-    {
-      description: "Ask a question with choices to vote on",
-      usageHint: "[question]",
-      // The app opens its poll window for this.
-      run: () => null,
-      inApp: true,
-    },
-  ],
-  // Run by the app itself, as Slack's own are (U4): listed and reserved here,
-  // so no app can claim them.
-  ...(
-    [
-      ["away", "Show yourself as away", ""],
-      ["active", "Show yourself as active", ""],
-      ["status", "Set your status, or clear it", "[emoji] [what you're doing] | clear"],
-      ["topic", "Set this channel's topic", "[topic]"],
-      ["invite", "Add people to this channel", "@person [@person…]"],
-      ["leave", "Leave this channel", ""],
-      ["mute", "Mute this conversation", ""],
-      ["unmute", "Unmute this conversation", ""],
-    ] as const
-  ).map(([command, description, usageHint]): [string, BuiltinCommand] => [
-    command,
-    {
-      description,
-      usageHint,
-      run: () => null,
-      inApp: true,
-    },
-  ]),
 ]);
+
+const reserved = (name: string) => BUILTIN_COMMANDS.has(name) || isInAppCommand(name);
 
 /** Slash commands: the ones apps add, and running any command, built in or an app's. */
 export function registerCommands(
@@ -91,7 +66,7 @@ export function registerCommands(
   route(endpoints.createCommand, async ({ user: me, body, params }) => {
     const owner = store.apps.get(params.id);
     if (!owner) throw new HttpError(404, "not_found");
-    if (BUILTIN_COMMANDS.has(body.command) || store.apps.commandByName(body.command)) {
+    if (reserved(body.command) || store.apps.commandByName(body.command)) {
       throw new HttpError(409, "command_taken", `/${body.command} is already in use`);
     }
     const command = store.transaction(() => {
@@ -141,12 +116,14 @@ export function registerCommands(
   });
 
   route(endpoints.listCommands, async () => {
-    const builtins = [...BUILTIN_COMMANDS.entries()].map(([command, b]) => ({
-      command,
-      description: b.description,
-      usageHint: b.usageHint,
-      builtin: true,
-    }));
+    const builtins = [...BUILTIN_COMMANDS.entries(), ...Object.entries(IN_APP_COMMANDS)].map(
+      ([command, b]) => ({
+        command,
+        description: b.description,
+        usageHint: b.usageHint,
+        builtin: true,
+      }),
+    );
     const fromApps = store.apps.listAllCommands().map((c) => ({
       command: c.command,
       description: c.description,
@@ -161,16 +138,15 @@ export function registerCommands(
     if (channel.archived) throw new HttpError(400, "channel_archived");
     const threadRootId = body.threadRootId ?? null;
 
-    const parsed = /^\/([a-zA-Z0-9_-]+)\s*([\s\S]*)$/.exec(body.text.trim());
+    const parsed = parseCommand(body.text);
     if (!parsed) throw new HttpError(400, "not_a_command");
-    const name = parsed[1]!.toLowerCase();
-    const argText = parsed[2]!.trim();
+    const { name, args } = parsed;
+    if (isInAppCommand(name))
+      throw new HttpError(400, "in_app_command", `/${name} is run by the app, not the server.`);
 
     const builtin = BUILTIN_COMMANDS.get(name);
     if (builtin) {
-      if (builtin.inApp)
-        throw new HttpError(400, "in_app_command", `/${name} is run by the app, not the server.`);
-      const text = builtin.run(argText, me);
+      const text = builtin.run(args, me);
       if (text === null)
         throw new HttpError(400, "usage", `Use it like this: /${name} ${builtin.usageHint}`);
       posting.post({
@@ -204,7 +180,7 @@ export function registerCommands(
       };
       const form = new URLSearchParams({
         command: `/${name}`,
-        text: argText,
+        text: args,
         team_id: settings.get("workspaceId"),
         team_domain: settings.get("workspaceName"),
         channel_id: channel.id,

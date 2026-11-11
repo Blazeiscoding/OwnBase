@@ -141,7 +141,6 @@ describe("an app's forms", () => {
   async function open() {
     const client = workspace(person("U_SAM", "sam", "owner"));
     vi.spyOn(client.api, "listApps").mockResolvedValue({ apps: [deployBot] });
-    vi.spyOn(client, "loadCommands").mockResolvedValue(undefined);
     render(
       <ConfirmProvider>
         <ClientContext.Provider value={client}>

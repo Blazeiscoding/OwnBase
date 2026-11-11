@@ -45,6 +45,8 @@ const general = room("C_GENERAL", "general");
 const dm: Channel = { ...room("D_OMAR", ""), type: "dm", memberIds: [hana.id, omar.id] };
 
 let made = 0;
+/** One reading of the clock, so the order messages came in is their seq, never a tick between two. */
+const minuteAgo = Date.now() - 60_000;
 const message = (
   channelId: string,
   userId: string,
@@ -59,7 +61,7 @@ const message = (
   threadRootId: null,
   broadcast: false,
   seq,
-  createdAt: Date.now() - 60_000,
+  createdAt: minuteAgo + seq,
   editedAt: null,
   nonce: null,
   replyCount: 0,

@@ -214,10 +214,10 @@ describe("signing out", () => {
   it("is on purpose once asked for, and not after it failed", async () => {
     const { client } = signedIn();
     vi.spyOn(client.api, "logout").mockRejectedValueOnce(new TypeError("Failed to fetch"));
-    await expect(client.signOut()).rejects.toThrow("Failed to fetch");
+    expect(await client.signOut()).toMatchObject({ code: "network_error" });
     expect(client.signedOutOnPurpose).toBe(false);
     vi.spyOn(client.api, "logout").mockResolvedValue({ ok: true });
-    await client.signOut();
+    expect(await client.signOut()).toBeNull();
     expect(client.signedOutOnPurpose).toBe(true);
   });
 });

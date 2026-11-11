@@ -9,6 +9,7 @@ import { useEditRequest } from "../src/lib/editRequest.js";
 import { ClientContext, PlatformContext } from "../src/context.js";
 import type { Platform } from "../src/platform.js";
 import { held } from "./heldMessages.js";
+import { QUEUED } from "./sendAnswers.js";
 
 /**
  * The composer's keyboard and formatting: which key sends under each setting,
@@ -49,7 +50,7 @@ async function renderComposer(enterSends = true, threadRootId?: string) {
     channels: { [design.id]: design },
     status: "online",
   });
-  const send = vi.spyOn(client, "send").mockImplementation(() => true);
+  const send = vi.spyOn(client, "send").mockReturnValue(QUEUED);
   const values = new Map<string, unknown>();
   const platform: Platform = {
     kind: "web",
@@ -154,7 +155,6 @@ describe.each([
       threadRootId: undefined,
       files: [],
       alsoSendToChannel: false,
-      onQueued: expect.any(Function),
     });
     expect(box).toHaveValue("");
   });
@@ -222,8 +222,7 @@ describe("a send the outbox cannot take", () => {
   it("keeps the words in the composer and says why, then sends once there is room", async () => {
     const user = userEvent.setup();
     const { client, send, box } = await renderComposer();
-    const full = vi.spyOn(client, "outboxFull").mockReturnValue(true);
-    send.mockImplementation(() => false);
+    send.mockReturnValue({ kind: "refused", reason: "outbox_full" });
     await user.type(box, "one more thing{Enter}");
     expect(send).toHaveBeenCalledOnce();
     expect(box).toHaveValue("one more thing");
@@ -231,8 +230,7 @@ describe("a send the outbox cannot take", () => {
       "50 messages are already waiting to send. You can send this one once they go out, or after you discard some.",
     );
 
-    full.mockReturnValue(false);
-    send.mockImplementation(() => true);
+    send.mockReturnValue(QUEUED);
     await user.keyboard("{Enter}");
     expect(send).toHaveBeenLastCalledWith(design.id, "one more thing", expect.anything());
     expect(box).toHaveValue("");

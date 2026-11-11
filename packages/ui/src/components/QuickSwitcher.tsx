@@ -1,3 +1,4 @@
+import { ApiError } from "@ownbase/client-core";
 import { Fragment, useEffect, useEffectEvent, useMemo, useRef, useState } from "react";
 import type { ID } from "@ownbase/protocol";
 import { useClient, useWorkspace } from "../context.js";
@@ -241,15 +242,12 @@ export function QuickSwitcher(props: {
     if (opening) return;
     setOpening(r);
     setFailed(null);
-    try {
-      const channel = await client.openDm([r.id]);
-      // Closed while the server answered: somebody who pressed Escape has moved on.
-      if (mounted.current) props.onOpen(channel.id);
-    } catch {
-      if (mounted.current) setFailed(r);
-    } finally {
-      if (mounted.current) setOpening(null);
-    }
+    const channel = await client.openDm([r.id]);
+    // Closed while the server answered: somebody who pressed Escape has moved on.
+    if (!mounted.current) return;
+    setOpening(null);
+    if (channel instanceof ApiError) setFailed(r);
+    else props.onOpen(channel.id);
   }
 
   // Once, as the palette arrives: the Enter was for what had been typed then.

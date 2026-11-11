@@ -7,13 +7,11 @@ import type {
   SharedFile,
 } from "@ownbase/protocol";
 import type { StoreApi } from "zustand/vanilla";
-import type { Api } from "./api.js";
+import { answerOf, doneOf } from "./answers.js";
+import type { Api, ApiError } from "./api.js";
 import { timelineMessages } from "./messageCache.js";
 import { PagedList } from "./pagedList.js";
 import type { WorkspaceState } from "./workspace.js";
-
-/** How long a sign that Activity may be out of date waits for others like it (REV-05). */
-const ACTIVITY_REFRESH_DELAY_MS = 250;
 
 /** What Activity's tabs ask the server for. */
 export type ActivityAsk = "unread" | "mentions" | "threads";
@@ -117,7 +115,7 @@ export class Lists {
     return new PagedList<Message>(
       async (cursor, signal) => {
         const page = await this.api.listSaved(cursor, signal);
-        return { items: page.messages, nextCursor: page.nextCursor ?? null };
+        return { items: page.messages, nextCursor: page.nextCursor };
       },
       {
         watch: refreshWhen(
@@ -140,7 +138,7 @@ export class Lists {
     return new PagedList<Message>(
       async (cursor, signal) => {
         const page = await this.api.listPins(channelId, signal, cursor);
-        return { items: page.messages, nextCursor: page.nextCursor ?? null };
+        return { items: page.messages, nextCursor: page.nextCursor };
       },
       {
         watch: refreshWhen(
@@ -154,13 +152,12 @@ export class Lists {
     );
   }
 
-  /**
-   * How many messages a channel has pinned and the newest of them, for its
-   * header. Rejects as the server does.
-   */
-  async pinSummary(channelId: ID, signal?: AbortSignal) {
-    const page = await this.api.listPins(channelId, signal, undefined, 1);
-    return { total: page.total, newest: page.messages[0] };
+  /** How many messages a channel has pinned and the newest of them, for its header. */
+  pinSummary(channelId: ID, signal?: AbortSignal) {
+    return answerOf(async () => {
+      const page = await this.api.listPins(channelId, signal, undefined, 1);
+      return { total: page.total, newest: page.messages[0] };
+    });
   }
 
   /**
@@ -177,7 +174,7 @@ export class Lists {
         if (!signal.aborted)
           for (const t of page.threads)
             details.set(t.root.id, { unreadCount: t.unreadCount, latestReply: t.latestReply });
-        return { items: page.threads.map((t) => t.root), nextCursor: page.nextCursor ?? null };
+        return { items: page.threads.map((t) => t.root), nextCursor: page.nextCursor };
       },
       {
         watch: refreshWhen(
@@ -218,7 +215,6 @@ export class Lists {
         return { items: page.messages, nextCursor: page.nextCursor };
       },
       {
-        delayMs: ACTIVITY_REFRESH_DELAY_MS,
         watch: refreshWhen(
           this.store,
           (now, before, list) =>
@@ -302,8 +298,8 @@ export class ScheduledList {
     }
   }
 
-  /** Calls one back. Rejects as the server does; the list is unchanged then. */
-  cancel(id: ID): Promise<void> {
+  /** Calls one back. A refusal leaves the list unchanged. */
+  cancel(id: ID): Promise<ApiError | null> {
     return this.change(async () => {
       await this.api.cancelScheduled(id);
       return this.state.items?.filter((item) => item.id !== id) ?? null;
@@ -311,7 +307,7 @@ export class ScheduledList {
   }
 
   /** Requeues one for `sendAt`; a past time sends it on the next flush. */
-  reschedule(id: ID, sendAt: number): Promise<void> {
+  reschedule(id: ID, sendAt: number): Promise<ApiError | null> {
     return this.change(async () => {
       const { scheduled } = await this.api.rescheduleMessage(id, sendAt);
       return (
@@ -323,24 +319,22 @@ export class ScheduledList {
   }
 
   /** With `expectedText`, refused as `scheduled_changed` if the words are no longer those. */
-  edit(id: ID, body: EditScheduledBody): Promise<void> {
+  edit(id: ID, body: EditScheduledBody): Promise<ApiError | null> {
     return this.change(async () => {
       const { scheduled } = await this.api.editScheduledMessage(id, body);
       return this.state.items?.map((item) => (item.id === id ? scheduled : item)) ?? null;
     });
   }
 
-  private async change(make: () => Promise<ScheduledMessage[] | null>): Promise<void> {
-    if (this.changing) return;
+  private async change(make: () => Promise<ScheduledMessage[] | null>): Promise<ApiError | null> {
+    if (this.changing) return null;
     this.changing = true;
     this.request?.abort();
     this.request = null;
     this.set({ loading: false });
-    try {
-      this.set({ items: await make() });
-    } finally {
-      this.changing = false;
-    }
+    const refused = await doneOf(async () => this.set({ items: await make() }));
+    this.changing = false;
+    return refused;
   }
 
   private set(patch: Partial<ScheduledListState>): void {

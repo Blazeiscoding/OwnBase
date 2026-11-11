@@ -1,6 +1,6 @@
 import type { AppScope, CreateCommandBody, CreateSubscriptionBody, ID } from "@ownbase/protocol";
 import type { Api } from "./api.js";
-import { answerOf, doneOf } from "./optimisticWrites.js";
+import { answerOf, doneOf } from "./answers.js";
 
 /**
  * The workspace's apps and what each is given: tokens, webhooks, commands,
@@ -9,7 +9,11 @@ import { answerOf, doneOf } from "./optimisticWrites.js";
  * answers what the server said, or the `ApiError` saying why not.
  */
 export class AppActions {
-  constructor(private readonly api: Api) {}
+  constructor(
+    private readonly api: Api,
+    /** Loads the `/` hint list again after commands come or go. */
+    private readonly refreshCommands: () => void,
+  ) {}
 
   list() {
     return answerOf(async () => (await this.api.listApps()).apps);
@@ -20,8 +24,11 @@ export class AppActions {
     return answerOf(() => this.api.createApp(body));
   }
 
-  remove(appId: ID) {
-    return doneOf(() => this.api.deleteApp(appId));
+  /** Its commands go with it. */
+  async remove(appId: ID) {
+    const failed = await doneOf(() => this.api.deleteApp(appId));
+    this.refreshCommands();
+    return failed;
   }
 
   setScopes(appId: ID, scopes: AppScope[]) {
@@ -60,11 +67,18 @@ export class AppActions {
   }
 
   createCommand(appId: ID, body: CreateCommandBody) {
-    return answerOf(async () => (await this.api.createCommand(appId, body)).command);
+    return answerOf(async () => {
+      const { command } = await this.api.createCommand(appId, body);
+      this.refreshCommands();
+      return command;
+    });
   }
 
   removeCommand(commandId: ID) {
-    return doneOf(() => this.api.deleteCommand(commandId));
+    return doneOf(async () => {
+      await this.api.deleteCommand(commandId);
+      this.refreshCommands();
+    });
   }
 
   /** A command whose app failed answers `ok: false` with why, in `message`. */

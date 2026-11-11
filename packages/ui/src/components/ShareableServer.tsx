@@ -13,7 +13,7 @@ import { isLoopbackUrl, shareableServer, type ShareableServer } from "../lib/dee
 import { useKeyed } from "../lib/useKeyed.js";
 import { normalizeServerUrlSafe } from "../lib/deeplinkHelpers.js";
 import { useHostingStatus } from "../lib/hosting.js";
-import { trustedWorkspaceAddresses } from "@ownbase/client-core";
+import { ApiError, trustedWorkspaceAddresses } from "@ownbase/client-core";
 
 const ShareableServerContext = createContext<ShareableServer | null>(null);
 const WorkspaceAddressesContext = createContext<ReadonlySet<string> | null>(null);
@@ -44,17 +44,14 @@ export function ShareableServerProvider(props: { platform: Platform; children: R
     let applied = 0;
     const refresh = () => {
       const request = ++revision;
-      void client
-        .serverInfo()
-        .then((info) => {
-          // A later successful read wins. If that later read fails, an older
-          // successful response is still better than leaving the address unknown.
-          if (live && request > applied) {
-            applied = request;
-            setPublicUrl(info.publicUrl ?? null);
-          }
-        })
-        .catch(() => {});
+      void client.serverInfo().then((info) => {
+        // A later successful read wins. If that later read fails, an older
+        // successful response is still better than leaving the address unknown.
+        if (live && !(info instanceof ApiError) && request > applied) {
+          applied = request;
+          setPublicUrl(info.publicUrl ?? null);
+        }
+      });
     };
     const refreshWhenVisible = () => {
       if (document.visibilityState === "visible") refresh();

@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import type { FileMeta, ID, ReplyReference } from "@ownbase/protocol";
 import {
+  draftKey,
   readableText,
   threadReplies,
   threadRootMessage,
@@ -56,7 +57,7 @@ export function ThreadPanel({
   const pending = useWorkspace((s) => s.pending).filter((p) => p.threadRootId === rootId);
   // A reply being written when the message it answers was deleted: kept, as
   // the reply box keeps its draft, until copied elsewhere or deleted.
-  const unsent = useWorkspace((s) => s.drafts[`${channelId}:${rootId}`]);
+  const unsent = useWorkspace((s) => s.drafts[draftKey(channelId, rootId)]);
   // Where the thread is: a phone shows it over the conversation it came from.
   const where = useWorkspace((s) => {
     const channel = s.channels[channelId];
@@ -397,7 +398,7 @@ export function ThreadPanel({
         unsent?.trim() && (
           <UnsentReply
             text={readableText(client.state, unsent)}
-            onDelete={() => client.setDraft(`${channelId}:${rootId}`, "")}
+            onDelete={() => client.setDraft(draftKey(channelId, rootId), "")}
           />
         )
       )}

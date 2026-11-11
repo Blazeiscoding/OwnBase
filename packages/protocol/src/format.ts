@@ -47,6 +47,31 @@ export function broadcastLabel(token: string): string {
   return `@${token === "everyone" ? "channel" : token}`;
 }
 
+/** `<#id>`, the wire form of naming a channel. Global: use with matchAll or replaceAll. */
+export const CHANNEL_MENTION = /<#([A-Za-z0-9_-]+)>/g;
+
+/** `<https://…>` or `<https://…|label>`, Slack's link markup. */
+const LINK = /<(https?:\/\/[^\s|<>]+)(?:\|([^<>\n]+))?>/g;
+
+/** How the people and channels a message names read where it is shown as plain words. */
+export interface MentionLabels {
+  user: (id: ID) => string;
+  channel: (id: ID) => string;
+}
+
+/**
+ * A message's words with its markup read out: names for mentions, `@here`
+ * for broadcasts, and a link's label, or its address when it has none.
+ * Formatting marks are left for the caller, which knows how much it shows.
+ */
+export function plainText(text: string, labels: MentionLabels): string {
+  return text
+    .replaceAll(USER_MENTION, (_all, id: ID) => labels.user(id))
+    .replaceAll(CHANNEL_MENTION, (_all, id: ID) => labels.channel(id))
+    .replaceAll(BROADCAST_RE, (_all, who: string) => broadcastLabel(who))
+    .replaceAll(LINK, (_all, url: string, label?: string) => label?.trim() || url);
+}
+
 /** The most of an original's words a reply carries to show above itself. */
 export const REPLY_EXCERPT_LENGTH = 200;
 

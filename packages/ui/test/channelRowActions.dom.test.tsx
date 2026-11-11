@@ -274,7 +274,6 @@ describe("the gear on a channel's row", () => {
     });
     writeRoute(client.baseUrl, { channelId: general.id, threadRootId: null }, "replace");
     vi.spyOn(client, "loadTimeline").mockResolvedValue();
-    vi.spyOn(client, "loadCommands").mockResolvedValue();
     vi.spyOn(client.api, "channelMembers").mockResolvedValue({ memberIds: [owner.id] } as never);
     const platform: Platform = {
       kind: "web",

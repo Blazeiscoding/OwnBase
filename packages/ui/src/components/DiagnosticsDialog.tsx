@@ -94,7 +94,7 @@ export function DiagnosticsDialog({
       });
     };
     void Promise.all([
-      client.serverInfo().catch(failure),
+      client.serverInfo().then((info) => (info instanceof ApiError ? failure(info) : info)),
       admin ? client.admin.workspaceStatus().then(orWhy) : undefined,
       admin ? client.admin.callLog().then(orWhy) : undefined,
     ]).then(([server, workspace, calls]) => alive && take(server, workspace, calls));

@@ -1,6 +1,5 @@
 import {
-  USER_MENTION,
-  broadcastLabel,
+  plainText,
   type Channel,
   type ID,
   type ReplyReference,
@@ -19,14 +18,10 @@ export function quoteLine(
   users: Record<ID, User>,
   channels: Record<ID, Channel>,
 ): string {
-  return text
-    .replaceAll(USER_MENTION, (_all, id: ID) => userMentionLabel(users[id]))
-    .replaceAll(/<#([A-Za-z0-9_-]+)>/g, (_all, id: ID) => channelMentionLabel(channels[id]))
-    .replaceAll(/<!(channel|here|everyone)>/g, (_all, who: string) => broadcastLabel(who))
-    .replaceAll(
-      /<(https?:\/\/[^\s|<>]+)(?:\|([^<>\n]+))?>/g,
-      (_all, url: string, label?: string) => label?.trim() || url,
-    )
+  return plainText(text, {
+    user: (id) => userMentionLabel(users[id]),
+    channel: (id) => channelMentionLabel(channels[id]),
+  })
     .replaceAll("```", " ")
     .replaceAll(/(^|[\s(])([*_~`])(?=\S)(.+?)(?<=\S)\2(?=$|[\s.,:;!?)])/g, "$1$3")
     .replaceAll(/\s+/g, " ")

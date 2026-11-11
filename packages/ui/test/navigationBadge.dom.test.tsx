@@ -69,7 +69,6 @@ function workspace() {
   });
   writeRoute(client.baseUrl, { channelId: general.id, threadRootId: null }, "replace");
   vi.spyOn(client, "loadTimeline").mockResolvedValue();
-  vi.spyOn(client, "loadCommands").mockResolvedValue();
   const platform: Platform = {
     kind: "web",
     storage: { get: async () => null, set: async () => {} },

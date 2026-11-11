@@ -1,4 +1,5 @@
 import type { ID } from "@ownbase/protocol";
+import { failureOf } from "./answers.js";
 import { ApiError } from "./api.js";
 import { unhandled } from "./messageCache.js";
 
@@ -90,31 +91,6 @@ interface Entry<V, P> {
   resent: boolean;
   /** What this last showed, so a refusal puts back only what nothing else has replaced. */
   shown: V;
-}
-
-/** A failure as the error a caller can describe: the server's, or one for no answer. */
-export function failureOf(error: unknown): ApiError {
-  if (error instanceof ApiError) return error;
-  return new ApiError(0, "network_error", error instanceof Error ? error.message : undefined);
-}
-
-/** What the server answered, or why there was no answer. */
-export async function answerOf<T>(request: () => Promise<T>): Promise<T | ApiError> {
-  try {
-    return await request();
-  } catch (error) {
-    return failureOf(error);
-  }
-}
-
-/** Null once the server has done it; why it did not otherwise. */
-export async function doneOf(request: () => Promise<unknown>): Promise<ApiError | null> {
-  try {
-    await request();
-    return null;
-  } catch (error) {
-    return failureOf(error);
-  }
 }
 
 /** Why a write was not sent: its client had been closed. */

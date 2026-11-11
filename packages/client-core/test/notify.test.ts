@@ -6,6 +6,7 @@ import {
   dueReminderCount,
   isMessageOnScreen,
   notificationBody,
+  readableText,
 } from "../src/notify.js";
 import type { WorkspaceState } from "../src/index.js";
 
@@ -58,6 +59,7 @@ const message = (over: Partial<Message> = {}): Message => ({
 
 function state(over: Partial<WorkspaceState> = {}): WorkspaceState {
   return {
+    timelineStatus: {},
     friends: [],
     blocked: [],
     serverProtocolVersion: null,
@@ -69,7 +71,7 @@ function state(over: Partial<WorkspaceState> = {}): WorkspaceState {
     workspaceId: null,
     clockSkewMs: null,
     sidebarSections: [],
-    notifyDefault: null,
+    notifyDefault: "mentions",
     reminders: {},
     channelRemovals: {},
     pollChoices: {},
@@ -380,21 +382,6 @@ describe("decideNotification", () => {
     };
     const s = state({ notifyDefault: "nothing", prefs: { C1: own } });
     expect(decideNotification(s, message())).toEqual({ notify: true, reason: "all" });
-    // An older server says nothing of choosing: its level is the conversation's own.
-    const older = state({
-      notifyDefault: null,
-      prefs: {
-        C1: {
-          notifyLevel: "all",
-          notifyChosen: true,
-          muted: false,
-          starred: false,
-          sectionId: null,
-          hiddenSeq: null,
-        },
-      },
-    });
-    expect(decideNotification(older, message()).notify).toBe(true);
   });
 
   it("falls back to mentions-only when a channel has no stored preference", () => {
@@ -408,6 +395,14 @@ describe("notificationBody", () => {
   it("renders mentions as readable names", () => {
     const body = notificationBody(state(), message({ text: `hi <@${me.id}> and <@U_NOBODY>` }));
     expect(body).toBe("hi @Me and @someone");
+  });
+
+  it("names the channels a message points to, as Drafts and thread previews show them too", () => {
+    const s = state({ channels: { C1: channel("public") } });
+    expect(notificationBody(s, message({ text: "see <#C1> and <#C_GONE>" }))).toBe(
+      "see #general and #unknown",
+    );
+    expect(readableText(s, "moved to <#C1>")).toBe("moved to #general");
   });
 
   it("reads a labelled link as its label, and an unlabelled one as its address", () => {

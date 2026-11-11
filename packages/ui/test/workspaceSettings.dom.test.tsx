@@ -108,7 +108,6 @@ async function workspaceAs(role: User["role"]) {
   const workspace = client(self);
   writeRoute(workspace.baseUrl, { channelId: general.id, threadRootId: null }, "replace");
   vi.spyOn(workspace, "loadTimeline").mockResolvedValue();
-  vi.spyOn(workspace, "loadCommands").mockResolvedValue();
   render(
     <PlatformContext.Provider value={platform}>
       <ClientContext.Provider value={workspace}>

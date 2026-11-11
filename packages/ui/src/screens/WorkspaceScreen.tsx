@@ -65,7 +65,7 @@ import { loadEmoji } from "../lib/emoji.js";
 import { useHistoryKeys } from "../lib/historyKeys.js";
 import { useIdleReport } from "../lib/idle.js";
 import { PartnerTime } from "../components/PartnerTime.js";
-import { draftPlace } from "../lib/drafts.js";
+import { draftPlace } from "@ownbase/client-core";
 import { PhoneNavigation } from "../components/PhoneNavigation.js";
 import { EmptyState } from "../components/EmptyState.js";
 import { signedOutHow, type SignedOutHow } from "../lib/signOut.js";
@@ -429,11 +429,6 @@ function WorkspaceLayout(props: { restore: boolean; banner?: ReactNode }) {
   const [asking, setAsking] = useState(false);
   /** A server notice is on show, so the member notice after it waits (P6). */
   const [noticeShowing, setNoticeShowing] = useState(false);
-
-  // The composer's slash-command hints. Re-fetched when an admin adds one.
-  useEffect(() => {
-    void client.loadCommands();
-  }, [client]);
 
   useEffect(() => {
     // Failing here is not final: opening the palette, search, a thread, a hint or an emoji picker fetches it again.

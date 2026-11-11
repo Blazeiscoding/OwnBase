@@ -279,7 +279,7 @@ describe("the sidebar's Files row", () => {
 });
 
 describe("a conversation's menu", () => {
-  function menu(onFiles?: () => void) {
+  function menu(onFiles: () => void) {
     const client = new WorkspaceClient("http://127.0.0.1:9", "test-token-not-a-credential");
     clients.push(client);
     client.store.setState({
@@ -303,18 +303,12 @@ describe("a conversation's menu", () => {
       </AppNotices>,
     );
   }
-  it("offers the files shared there, where the server lists them", async () => {
+  it("offers the files shared there", async () => {
     const onFiles = vi.fn();
     menu(onFiles);
     const user = userEvent.setup();
     await user.click(screen.getByRole("button", { name: "Conversation options" }));
     await user.click(screen.getByRole("menuitem", { name: "Files" }));
     expect(onFiles).toHaveBeenCalled();
-  });
-
-  it("does not where the server does not", async () => {
-    menu(undefined);
-    await userEvent.setup().click(screen.getByRole("button", { name: "Conversation options" }));
-    expect(screen.queryByRole("menuitem", { name: "Files" })).toBeNull();
   });
 });

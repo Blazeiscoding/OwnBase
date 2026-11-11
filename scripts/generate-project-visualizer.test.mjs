@@ -203,7 +203,7 @@ test("workspace subpaths and literal dynamic imports connect to actual local imp
     "packages/client-core/src/records.ts",
   );
   expectImport(
-    "packages/ui/src/components/Composer.tsx",
+    "packages/client-core/src/scheduling.ts",
     "@ownbase/protocol/rest",
     "packages/protocol/src/rest.ts",
     true,

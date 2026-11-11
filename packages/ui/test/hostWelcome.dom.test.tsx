@@ -168,7 +168,6 @@ function ownersWorkspace() {
   });
   writeRoute(client.baseUrl, { channelId: general.id, threadRootId: null }, "replace");
   vi.spyOn(client, "loadTimeline").mockResolvedValue();
-  vi.spyOn(client, "loadCommands").mockResolvedValue();
   vi.spyOn(client.api, "listInvites").mockResolvedValue({ invites: [] });
   const create = vi.spyOn(client.api, "createInvite").mockResolvedValue({ invite: madeInvite });
   const screenOf = (props: { welcome?: boolean; hostingEntry?: HostingEntry }) => (

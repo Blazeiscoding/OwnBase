@@ -110,9 +110,9 @@ describe("forwarding on the client", () => {
     });
 
     // With nothing to say of its own, it still goes.
-    expect(client.send(general.id, "", { forward: forwardOf(original, general.id, true) })).toBe(
-      true,
-    );
+    expect(
+      client.send(general.id, "", { forward: forwardOf(original, general.id, true) }).kind,
+    ).toBe("queued");
     await until(client, (s) => s.pending.length === 0, "the bare forward");
   });
 

@@ -884,6 +884,16 @@
       "concepts": ["event registry", "scopes", "Slack compatibility"]
     },
     {
+      "path": "packages/protocol/src/commands.ts",
+      "plain": "The one rule for when a typed message is a slash command, and the list of commands the app runs itself.",
+      "summary": "parseCommand reads `/name args`; COMMAND_NAME is the stored name rule; IN_APP_COMMANDS lists /poll, /away, /status and the rest with their hint and whether they need a channel (untangle round 1).",
+      "details": [
+        "The server lists and reserves the in-app names but refuses to run them; client-core's send hands one back to the caller instead of sending it, and the Composer runs it.",
+        "The space or end after the name keeps a pasted path such as /Users/me/notes.txt an ordinary message."
+      ],
+      "concepts": ["slash commands", "shared rules"]
+    },
+    {
       "path": "packages/protocol/src/entities.ts",
       "plain": "The shared rules for what a person, channel, message, file and every other workspace record looks like.",
       "summary": "Defines the shared vocabulary of workspace records and feature metadata.",

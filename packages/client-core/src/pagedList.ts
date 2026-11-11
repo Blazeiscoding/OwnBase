@@ -58,10 +58,8 @@ export class PagedList<T extends { id: string }> {
   constructor(
     private readonly load: (cursor: string | undefined, signal: AbortSignal) => Promise<Page<T>>,
     {
-      delayMs = PAGED_REFRESH_DELAY_MS,
       watch,
     }: {
-      delayMs?: number;
       /**
        * Starts listening for signs that what is shown is out of date, calling
        * `refresh` on each; gives back how to stop. Listened for while open.
@@ -69,7 +67,7 @@ export class PagedList<T extends { id: string }> {
       watch?: (list: PagedList<T>) => () => void;
     } = {},
   ) {
-    this.loader = new CoalescedLoader((signal) => this.fromTop(signal), delayMs);
+    this.loader = new CoalescedLoader((signal) => this.fromTop(signal), PAGED_REFRESH_DELAY_MS);
     this.watch = watch;
   }
 

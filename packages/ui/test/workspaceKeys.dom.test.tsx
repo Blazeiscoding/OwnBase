@@ -71,7 +71,6 @@ function workspace(kind: Platform["kind"]) {
   });
   writeRoute(client.baseUrl, { channelId: general.id, threadRootId: null }, "replace");
   vi.spyOn(client, "loadTimeline").mockResolvedValue();
-  vi.spyOn(client, "loadCommands").mockResolvedValue();
   vi.spyOn(client.api, "listSaved").mockResolvedValue({ messages: [], nextCursor: null });
   const platform: Platform = {
     kind,

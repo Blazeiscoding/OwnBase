@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, onTestFinished, vi } from "vitest";
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { WorkspaceClient } from "@ownbase/client-core";
+import { ApiError, WorkspaceClient } from "@ownbase/client-core";
 import type { Channel, Message, ScheduledMessage, User } from "@ownbase/protocol";
 import { ClientContext, OpenMessageContext, PlatformContext } from "../src/context.js";
 import { DraftPersistence } from "../src/components/DraftPersistence.js";
@@ -10,7 +10,7 @@ import { MessageItem } from "../src/components/MessageItem.js";
 import { ConfirmProvider } from "../src/components/Confirm.js";
 import { ToastProvider } from "../src/components/Toast.js";
 import { WorkspaceScreen } from "../src/screens/WorkspaceScreen.js";
-import { draftPlace, listDrafts } from "../src/lib/drafts.js";
+import { listDrafts } from "../src/lib/drafts.js";
 import { EDIT_REQUEST_MS, requestEdit } from "../src/lib/editRequest.js";
 import { writeRoute } from "../src/lib/route.js";
 import type { Platform } from "../src/platform.js";
@@ -145,20 +145,7 @@ const fourDrafts = () =>
     },
   );
 
-describe("what a draft key names", () => {
-  it("reads a conversation's, a thread's, and unsaved edits", () => {
-    expect(draftPlace("C1")).toEqual({ kind: "conversation", channelId: "C1" });
-    expect(draftPlace("C1:M1")).toEqual({ kind: "thread", channelId: "C1", rootId: "M1" });
-    expect(draftPlace("C1:edit:M1")).toEqual({ kind: "edit", channelId: "C1", messageId: "M1" });
-    expect(draftPlace("C1:scheduled-edit:S1")).toEqual({
-      kind: "scheduled-edit",
-      channelId: "C1",
-      scheduledId: "S1",
-    });
-    for (const unknown of ["", "C1:", ":M1", "C1::M1", "C1:other:M1", "C1:edit:M1:more"])
-      expect(draftPlace(unknown)).toBeNull();
-  });
-
+describe("the drafts listed", () => {
   it("lists the newest first, those with no time last, and leaves out what it cannot show", () => {
     const channels = { [general.id]: general, [design.id]: design };
     const entries = listDrafts(
@@ -298,7 +285,6 @@ describe("opening a draft from the Drafts panel", () => {
     });
     writeRoute(client.baseUrl, { channelId: general.id, threadRootId: null }, "replace");
     vi.spyOn(client, "loadTimeline").mockResolvedValue();
-    vi.spyOn(client, "loadCommands").mockResolvedValue();
     vi.spyOn(client, "loadThread").mockResolvedValue();
     const jump = vi.spyOn(client, "jumpToMessage").mockResolvedValue(null);
     vi.spyOn(client.api, "listScheduled").mockResolvedValue({ scheduled: [queued] });
@@ -326,7 +312,7 @@ describe("opening a draft from the Drafts panel", () => {
 
   it("has a sidebar row only while there are drafts, or while the panel is open", async () => {
     const { client, user } = screenWith();
-    act(() => client.hydrateDrafts({}));
+    act(() => client.store.setState({ drafts: {}, draftTimes: {} }));
     await screen.findByRole("button", { name: /^Jump to…/ });
     expect(screen.queryByRole("button", { name: /^Drafts/ })).toBeNull();
     act(() => client.setDraft(design.id, "Back to it"));
@@ -381,7 +367,7 @@ describe("opening a draft from the Drafts panel", () => {
 
   it("reads a thread's conversation from its newest when its root cannot be read", async () => {
     const { client, user, jump } = screenWith();
-    jump.mockRejectedValue(new Error("offline"));
+    jump.mockResolvedValue(new ApiError(0, "network_error"));
     const panel = await openDrafts(user);
     const load = vi.mocked(client.loadTimeline);
     const before = load.mock.calls.length;

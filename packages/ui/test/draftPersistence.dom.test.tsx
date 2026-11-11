@@ -230,7 +230,7 @@ describe("queued messages kept on this device", () => {
     const key = `outbox:${client.baseUrl}:${sam.id}`;
     await waitFor(() => expect(values.has(key)).toBe(true));
 
-    expect(client.send(design.id, "on its way")).toBe(true);
+    expect(client.send(design.id, "on its way").kind).toBe("queued");
     expect(sendMessage).toHaveBeenCalledOnce();
     // Closing the app now must not lose it, and nothing waits for a pause in typing.
     await settle();
@@ -750,7 +750,9 @@ describe("words sent before their draft was ever saved", () => {
   /** What Composer does on Enter: the words go to a send and the draft empties. */
   function typeAndSend(client: WorkspaceClient, draftKey: string, text: string, rootId?: string) {
     client.setDraft(draftKey, text);
-    expect(client.send(design.id, text, rootId ? { threadRootId: rootId } : {})).toBe(true);
+    expect(client.send(design.id, text, rootId ? { threadRootId: rootId } : {}).kind).toBe(
+      "queued",
+    );
     client.setDraft(draftKey, "");
   }
 
