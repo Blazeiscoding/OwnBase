@@ -56,9 +56,21 @@
       "details": [
         "message.created's effects stamp the message's seq, follow the thread for the replier and the root's author, tell every follower its new watermark, and recount the mentions of whoever the words name or the reply pings.",
         "message.deleted drops the message's reminders and recounts its conversation's mentions; history.removed recounts too.",
-        "A message.updated that only changes previews or a poll maps to no Slack event (E2, E6)."
+        "A message.updated that only changes previews or a poll maps to no Slack event (E2, E6).",
+        "Each Slack shape is declared with its redact, which takes the words out of a copy still waiting for an app."
       ],
       "concepts": ["event registry", "Slack compatibility", "threads"]
+    },
+    {
+      "path": "packages/server/src/messages/eventLog.ts",
+      "plain": "When a message is edited or deleted, takes its old words out of the saved history of changes and out of updates still waiting to go to apps.",
+      "summary": "redactMessages, requote and reforward: rewrite the event log's and the app queue's copies of a message's words, leaving the events in place.",
+      "details": [
+        "The events stay so a client replaying the log never sees a gap; it replays an empty message followed by the edit or deletion that supersedes it.",
+        "Queued app events are redacted by the event's own app.redact, declared beside its Slack shape in messages/events.ts.",
+        "Replies quoting and messages forwarding the changed one follow its new words, or say it is gone."
+      ],
+      "concepts": ["event log", "privacy", "Slack compatibility"]
     },
     {
       "path": "packages/server/src/channels/events.ts",

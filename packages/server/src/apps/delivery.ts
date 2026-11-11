@@ -1,17 +1,6 @@
-import {
-  eventScope,
-  isAppEventType,
-  type EventEnvelope,
-  type ID,
-  type WorkspaceEvent,
-} from "@ownbase/protocol";
-import { Store } from "../store.js";
-import { appDelivery, eventChannel } from "../events/registry.js";
-
-/** An event's Slack Events API shape, or null when no app is told of it. */
-export function toSlackEvent(event: WorkspaceEvent): Record<string, unknown> | null {
-  return appDelivery(event)?.slack(event) ?? null;
-}
+import { eventScope, isAppEventType, type EventEnvelope, type ID } from "@ownbase/protocol";
+import type { Store } from "../store.js";
+import { appDelivery, eventChannel, eventMessageId } from "../events/registry.js";
 
 /**
  * Queues an event for every subscription that may have it, inside the
@@ -66,7 +55,7 @@ export function enqueueAppDeliveries(
     // replies to messages ends up replying to itself forever.
     if (actor !== null && actor === app.botUserId) continue;
     // Nor what its scopes do not let it read, whatever it subscribed to.
-    if (!app.scopes?.includes(needed)) continue;
+    if (!app.scopes.includes(needed)) continue;
     // An app sees a conversation only once its bot has been added to it, so
     // subscribing does not quietly expose every private conversation.
     if (channelId !== null && !botInChannel(app.botUserId, channelId)) continue;
@@ -77,7 +66,7 @@ export function enqueueAppDeliveries(
       envelope.seq,
       callback(),
       Date.now(),
-      Store.eventMessageId(event),
+      eventMessageId(event),
     );
     if (!queued) dropped(subscription.id);
   }

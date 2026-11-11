@@ -1,4 +1,4 @@
-import type { EventEnvelope, ID, ReplyReference, WorkspaceEvent } from "@ownbase/protocol";
+import type { EventEnvelope, ID, WorkspaceEvent } from "@ownbase/protocol";
 import type { DatabaseSync } from "node:sqlite";
 import { AccountStore } from "./accounts/store.js";
 import { AuditLog } from "./admin/auditLog.js";
@@ -121,141 +121,18 @@ export class Store {
 
   // ---------- event log ----------
 
-  appendEvent(event: WorkspaceEvent, channelId: ID | null): EventEnvelope {
+  /**
+   * `messageId` is the message it is about, kept beside the payload so that
+   * removing the message finds every copy of its words without reading the
+   * whole log (messages/eventLog.ts).
+   */
+  appendEvent(event: WorkspaceEvent, channelId: ID | null, messageId: ID | null): EventEnvelope {
     const res = this.db
       .prepare(
         "INSERT INTO events (channel_id, type, payload, created_at, message_id) VALUES (?, ?, ?, ?, ?)",
       )
-      .run(channelId, event.type, JSON.stringify(event), Date.now(), Store.eventMessageId(event));
+      .run(channelId, event.type, JSON.stringify(event), Date.now(), messageId);
     return { seq: Number(res.lastInsertRowid), event };
-  }
-
-  /**
-   * Which message an event is about, or null if it is not about one. This is
-   * stored beside the payload so that deleting a message can find every copy of
-   * its words without reading the whole log.
-   */
-  static eventMessageId(event: WorkspaceEvent): ID | null {
-    if (event.type === "message.created" || event.type === "message.updated") {
-      return event.message.id;
-    }
-    if (event.type === "message.deleted") return event.messageId;
-    return null;
-  }
-
-  /**
-   * Takes the text and attachment names of one message out of the event log,
-   * leaving the events themselves in place.
-   *
-   * The events have to stay: a client catching up replays them in order, and a
-   * missing sequence number is indistinguishable from a log it has fallen off
-   * the end of, which would send it back for a whole new snapshot. What it
-   * replays instead is a message with no words in it, immediately followed by
-   * the edit or the deletion that supersedes it, so the state it arrives at is
-   * the same one it would have reached anyway.
-   *
-   * Returns how many events were changed.
-   */
-  redactMessageEvents(messageId: ID, keepSeq?: number): number {
-    const rows = this.db
-      .prepare(
-        `SELECT seq, payload FROM events
-         WHERE message_id = ? AND type IN ('message.created', 'message.updated')
-         ${keepSeq === undefined ? "" : "AND seq != ?"}`,
-      )
-      .all(messageId, ...(keepSeq === undefined ? [] : [keepSeq])) as {
-      seq: number;
-      payload: string;
-    }[];
-    const changed = this.redactEventRows(rows);
-    this.deliveries.redact(this.deliveries.ofMessage(messageId, keepSeq));
-    return changed;
-  }
-
-  /**
-   * Brings the log's copies of these messages, quoted in replies to them, up
-   * to date: an edit's new words, or nothing at all once they are deleted
-   * (null). A reply's events stay where they are, as with `redactMessageEvents`,
-   * and the original's own edit or deletion still follows them on replay.
-   */
-  requoteEvents(quotedIds: ID[], now: Pick<ReplyReference, "text" | "fileCount"> | null): void {
-    if (quotedIds.length === 0) return;
-    const quoted = new Set(quotedIds);
-    const ph = quotedIds.map(() => "?").join(",");
-    const rows = this.db
-      .prepare(
-        `SELECT seq, payload FROM events WHERE type IN ('message.created', 'message.updated')
-         AND message_id IN (SELECT id FROM messages WHERE reply_to_id IN (${ph}))`,
-      )
-      .all(...quotedIds) as { seq: number; payload: string }[];
-    const update = this.db.prepare("UPDATE events SET payload = ? WHERE seq = ?");
-    for (const row of rows) {
-      const event = JSON.parse(row.payload) as WorkspaceEvent;
-      if (event.type !== "message.created" && event.type !== "message.updated") continue;
-      const quote = event.message.replyTo;
-      if (!quote || !quoted.has(quote.id)) continue;
-      event.message.replyTo = now
-        ? { ...quote, ...now }
-        : { ...quote, userId: "", text: "", fileCount: 0, deleted: true };
-      const after = JSON.stringify(event);
-      if (after !== row.payload) update.run(after, row.seq);
-    }
-  }
-
-  /**
-   * As `requoteEvents`, for forwards: the log's copies of messages forwarding
-   * these follow an edit's new words, or say the original is gone (null). A
-   * hidden one shows no words either way.
-   */
-  reforwardEvents(ids: ID[], now: { text: string } | null): void {
-    if (ids.length === 0) return;
-    const forwarded = new Set(ids);
-    const ph = ids.map(() => "?").join(",");
-    const rows = this.db
-      .prepare(
-        `SELECT seq, payload FROM events WHERE type IN ('message.created', 'message.updated')
-         AND message_id IN (SELECT id FROM messages WHERE forwarded_from_id IN (${ph}))`,
-      )
-      .all(...ids) as { seq: number; payload: string }[];
-    const update = this.db.prepare("UPDATE events SET payload = ? WHERE seq = ?");
-    for (const row of rows) {
-      const event = JSON.parse(row.payload) as WorkspaceEvent;
-      if (event.type !== "message.created" && event.type !== "message.updated") continue;
-      const ref = event.message.forwardedFrom;
-      if (!ref || !forwarded.has(ref.id)) continue;
-      event.message.forwardedFrom = now
-        ? ref.hidden || ref.deleted
-          ? ref
-          : { ...ref, text: now.text }
-        : { ...ref, userId: "", text: "", files: [], createdAt: 0, deleted: true };
-      const after = JSON.stringify(event);
-      if (after !== row.payload) update.run(after, row.seq);
-    }
-  }
-
-  redactEventRows(rows: { seq: number; payload: string }[]): number {
-    const update = this.db.prepare("UPDATE events SET payload = ? WHERE seq = ?");
-    let changed = 0;
-    for (const row of rows) {
-      const event = JSON.parse(row.payload) as WorkspaceEvent;
-      if (event.type !== "message.created" && event.type !== "message.updated") continue;
-      const before = row.payload;
-      event.message.text = "";
-      // A filename is often as telling as the message it was attached to.
-      event.message.files = [];
-      // Labels, values and URLs can be as revealing as the message's words.
-      // Superseded/deleted copies must not transmit their buttons on replay.
-      event.message.actions = [];
-      // A preview names the link and says what is there.
-      if (event.message.previews) event.message.previews = [];
-      // A poll's choices are words too.
-      delete event.message.poll;
-      const after = JSON.stringify(event);
-      if (after === before) continue;
-      update.run(after, row.seq);
-      changed++;
-    }
-    return changed;
   }
 
   currentSeq(): number {

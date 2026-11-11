@@ -8,10 +8,14 @@ import {
   type Message,
   type ReadySnapshot,
   type ServerToClient,
+  type WorkspaceEvent,
 } from "@ownbase/protocol";
 import { createWorkspaceServer, type WorkspaceServer } from "../src/server.js";
-import { toSlackEvent } from "../src/apps/delivery.js";
+import { appDelivery } from "../src/events/registry.js";
 import type { FetchedPreview } from "../src/linkPreview.js";
+
+/** An event's Slack Events API shape, or null when no app is told of it. */
+const toSlackEvent = (event: WorkspaceEvent) => appDelivery(event)?.slack(event) ?? null;
 
 /**
  * Link previews on the server (E2): found after a message is committed and

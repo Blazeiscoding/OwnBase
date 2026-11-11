@@ -1,6 +1,6 @@
 import type { FastifyBaseLogger } from "fastify";
 import type { EventEnvelope, WorkspaceEvent } from "@ownbase/protocol";
-import { eventChannel, writeEffects } from "../events/registry.js";
+import { eventChannel, eventMessageId, writeEffects } from "../events/registry.js";
 import type { Audiences } from "../events/outbox.js";
 import type { Gateway } from "../gateway.js";
 import type { Store } from "../store.js";
@@ -41,7 +41,7 @@ export function createCommits(deps: {
   const published: (() => void)[] = [];
 
   const recordEvent: RecordEvent = (event) => {
-    const envelope = store.appendEvent(event, eventChannel(event));
+    const envelope = store.appendEvent(event, eventChannel(event), eventMessageId(event));
     writeEffects(event, envelope.seq, store);
     for (const listener of recorded) listener(envelope);
     return envelope;

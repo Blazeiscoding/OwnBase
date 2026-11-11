@@ -163,10 +163,11 @@ describe("complete message content cleanup (N06/N07)", () => {
       nonce: null,
       actions,
     });
-    const before = server.store.appendEvent({ type: "message.created", message }, channel).seq - 1;
+    const before =
+      server.store.appendEvent({ type: "message.created", message }, channel, message.id).seq - 1;
     server.store.transaction(() => {
       const edited = server.store.messages.edit(message.id, "Updated agenda");
-      server.store.appendEvent({ type: "message.updated", message: edited }, channel);
+      server.store.appendEvent({ type: "message.updated", message: edited }, channel, edited.id);
     });
     const versions = (await replay(before)).filter((m) => m.id === message.id);
     expect(versions).toHaveLength(2);
@@ -301,13 +302,14 @@ describe("complete message content cleanup (N06/N07)", () => {
       const live = make("Original");
       const purged = make("Expired");
       for (const message of [deleted, live, purged])
-        store.appendEvent({ type: "message.created", message }, room.id);
+        store.appendEvent({ type: "message.created", message }, room.id, message.id);
       db.prepare("UPDATE messages SET text = '', deleted_at = 1 WHERE id = ?").run(deleted.id);
       db.prepare("DELETE FROM messages WHERE id = ?").run(purged.id);
       db.prepare("UPDATE messages SET text = 'Current', edited_at = 1 WHERE id = ?").run(live.id);
       const latest = store.appendEvent(
         { type: "message.updated", message: asWritten(live.id) },
         room.id,
+        live.id,
       );
       // v36 already scrubbed old text/files, but retained their actions.
       db.prepare(

@@ -17,6 +17,7 @@ import { fileMetaRow, toFileMeta } from "../files/store.js";
 import { orderedUlid, ulid } from "../ids.js";
 import { previewLinks, type FetchedPreview } from "../linkPreview.js";
 import type { Store } from "../store.js";
+import { redactMessages, reforward, requote } from "./eventLog.js";
 
 /** A `messages` row, as `SELECT *` (or `m.*`) reads it. */
 export const messageRow = shape({
@@ -336,10 +337,10 @@ export class MessageStore {
     // first draft on disk would make the correction cosmetic. The caller emits
     // the new version after this returns, so nothing appended yet is the one
     // being kept. Replies quoting it hold a copy of their own.
-    this.store.redactMessageEvents(id);
+    redactMessages(this.db, "(?)", id);
     const message = this.get(id)!;
-    this.store.requoteEvents([id], { text: replyExcerpt(text), fileCount: message.files.length });
-    this.store.reforwardEvents([id], { text });
+    requote(this.db, [id], { text: replyExcerpt(text), fileCount: message.files.length });
+    reforward(this.db, [id], { text });
     return message;
   }
 
@@ -354,9 +355,9 @@ export class MessageStore {
     this.db.prepare("DELETE FROM message_mentions WHERE message_id = ?").run(id);
     this.db.prepare("DELETE FROM link_previews WHERE message_id = ?").run(id);
     this.db.prepare("DELETE FROM polls WHERE message_id = ?").run(id);
-    this.store.redactMessageEvents(id);
-    this.store.requoteEvents([id], null);
-    this.store.reforwardEvents([id], null);
+    redactMessages(this.db, "(?)", id);
+    requote(this.db, [id], null);
+    reforward(this.db, [id], null);
   }
 
   /** The links a message has previews for or had one removed, with which. */
@@ -532,16 +533,6 @@ export class MessageStore {
       const fileIds = idRow
         .all(this.db.prepare(`SELECT id FROM files WHERE message_id IN ${doomed}`))
         .map((r) => r.id);
-      // The log's copies, read before the rows go; redacted once they have.
-      const logged = shape({ seq: "number", payload: "text" }).all(
-        this.db.prepare(
-          `SELECT seq, payload FROM events
-           WHERE message_id IN ${doomed} AND type IN ('message.created', 'message.updated')`,
-        ),
-      );
-      const queued = shape({ id: "text", body: "text" }).all(
-        this.db.prepare(`SELECT id, body FROM event_deliveries WHERE message_id IN ${doomed}`),
-      );
       // Later replies quoting what goes stay, and say it is gone.
       const quoted = idRow
         .all(
@@ -592,10 +583,9 @@ export class MessageStore {
 
       // The rows are gone; the log, and any app event still waiting to leave,
       // still hold what they said.
-      this.store.redactEventRows(logged);
-      this.store.deliveries.redact(queued);
-      this.store.requoteEvents(quoted, null);
-      this.store.reforwardEvents(forwarded, null);
+      redactMessages(this.db, doomed);
+      requote(this.db, quoted, null);
+      reforward(this.db, forwarded, null);
       return { messages, fileIds, roots: removed };
     } finally {
       this.db.exec("DELETE FROM temp.purge_messages");
