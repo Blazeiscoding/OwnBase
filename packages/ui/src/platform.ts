@@ -19,7 +19,7 @@ import type {
   SystemMicrophones,
 } from "@ownbase/protocol/desktop";
 import { deviceStore } from "./lib/deviceStore.js";
-import type { SignInChange } from "./lib/savedServers.js";
+import type { SavedServer, SignInChange } from "@ownbase/client-core/savedSignIns";
 import { parseDeepLink } from "./lib/deeplink.js";
 import { workerNotifications, type WorkerNotifications } from "./lib/workerNotifications.js";
 
@@ -53,13 +53,7 @@ export function failureMessage(reason: unknown, fallback: string): string {
   return reason instanceof Error && reason.message ? reason.message : fallback;
 }
 
-export interface SavedServer {
-  url: string;
-  token: string;
-  workspaceName: string;
-  handle: string;
-  lastUsedAt: number;
-}
+export type { SavedServer } from "@ownbase/client-core/savedSignIns";
 
 /** One the app opened itself; see `Platform.systemMicrophone`. */
 export interface OpenedSystemMicrophone {

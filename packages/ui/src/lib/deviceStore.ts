@@ -18,7 +18,7 @@ import {
   isSignInChange,
   readSavedServers,
   type SignInChange,
-} from "./savedServers.js";
+} from "@ownbase/client-core/savedSignIns";
 
 /**
  * Where the web client keeps unsent work and choices on this device (F01).

@@ -1,7 +1,7 @@
 import { callRelaySchema, type CallRelay } from "@ownbase/server";
 import type { CallRelaySetting } from "@ownbase/protocol/desktop";
 import { DesktopError } from "../shared/desktopError.js";
-import type { CredentialProtector } from "./credentials.js";
+import { requireProtection, type CredentialProtector } from "./credentials.js";
 
 /** The settings key for the TURN relay that calls hosted on this computer are given. */
 export const CALL_RELAY_KEY = "callRelay";
@@ -76,21 +76,11 @@ export function resolveDraft(draft: unknown, saved: CallRelay | null): CallRelay
   throw new Error("Choose a kind of relay.");
 }
 
-function requireProtection(protector: CredentialProtector): void {
-  let available = false;
-  try {
-    available = protector.isAvailable();
-  } catch {
-    // A locked or missing key store must not mean keeping the secret in plain text.
-  }
-  if (!available)
-    throw new Error(
-      "OwnBase cannot keep the relay's secret safe because this computer's password store is locked or unavailable. Unlock it and try again.",
-    );
-}
+const STORE_LOCKED =
+  "OwnBase cannot keep the relay's secret safe because this computer's password store is locked or unavailable. Unlock it and try again.";
 
 export function encodeRelay(relay: CallRelay, protector: CredentialProtector): StoredCallRelay {
-  requireProtection(protector);
+  requireProtection(protector, STORE_LOCKED);
   const secret = relay.kind === "cloudflare" ? relay.apiToken : relay.credential;
   let ciphertext: Buffer;
   try {
@@ -129,7 +119,7 @@ export function decodeRelay(value: unknown, protector: CredentialProtector): Cal
     !stored.secret
   )
     throw new Error("The saved call relay is unreadable. Set it again in Manage hosting.");
-  requireProtection(protector);
+  requireProtection(protector, STORE_LOCKED);
   let secret: string;
   try {
     secret = protector.decryptString(Buffer.from(stored.secret, "base64"));

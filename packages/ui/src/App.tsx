@@ -28,7 +28,12 @@ const HostDialog = lazy(() =>
 import { ErrorBoundary } from "./components/ErrorBoundary.js";
 import { ConfirmProvider } from "./components/Confirm.js";
 import { ToastProvider } from "./components/Toast.js";
-import { changeSavedServers, parseSavedServers, type SignInChange } from "./lib/savedServers.js";
+import {
+  changeSavedServers,
+  parseSavedServers,
+  SAVED_SIGN_INS_KEY,
+  type SignInChange,
+} from "@ownbase/client-core/savedSignIns";
 import { hostedButStopped } from "./lib/resume.js";
 import { forgetCachedIcon, useCachedWorkspaceIcons } from "./lib/workspaceIcon.js";
 import type { SignedOutFrom, SignedOutHow } from "./lib/signOut.js";
@@ -177,16 +182,16 @@ export function App({ platform }: { platform: Platform }) {
       try {
         const next = await serversTurn(async () => {
           if (platform.storage.changeSignIns) {
-            const stored = await platform.storage.changeSignIns("servers", change);
+            const stored = await platform.storage.changeSignIns(SAVED_SIGN_INS_KEY, change);
             if (!stored) throw new Error("Could not read saved sign-ins.");
             return stored;
           }
           // Strict: a list that cannot be read is never written over.
           const stored = parseSavedServers(
-            await platform.storage.get<unknown>("servers", { strict: true }),
+            await platform.storage.get<unknown>(SAVED_SIGN_INS_KEY, { strict: true }),
           );
           const changed = changeSavedServers(stored, change);
-          await platform.storage.set("servers", changed);
+          await platform.storage.set(SAVED_SIGN_INS_KEY, changed);
           return changed;
         });
         if (version !== saveVersion.current) return;
@@ -236,7 +241,7 @@ export function App({ platform }: { platform: Platform }) {
     setSession({ view: "loading" });
     try {
       const list = parseSavedServers(
-        await platform.storage.get<unknown>("servers", { strict: true }),
+        await platform.storage.get<unknown>(SAVED_SIGN_INS_KEY, { strict: true }),
       );
       if (ticket !== navigation.current) return;
       restoredServers.current = true;
@@ -289,7 +294,9 @@ export function App({ platform }: { platform: Platform }) {
       try {
         const list = restoredServers.current
           ? savedServersRef.current
-          : parseSavedServers(await platform.storage.get<unknown>("servers", { strict: true }));
+          : parseSavedServers(
+              await platform.storage.get<unknown>(SAVED_SIGN_INS_KEY, { strict: true }),
+            );
         if (ticket !== navigation.current) return;
         restoredServers.current = true;
         savedServersRef.current = list;
@@ -393,7 +400,7 @@ export function App({ platform }: { platform: Platform }) {
       // Deliberate reset of credentials only; drafts and other settings remain.
       // In its turn, so no change still on its way writes a sign-in back after it.
       const forgotten = savedServersRef.current.map((s) => s.url);
-      await serversTurn(() => platform.storage.set("servers", []));
+      await serversTurn(() => platform.storage.set(SAVED_SIGN_INS_KEY, []));
       for (const url of forgotten) void forgetCachedIcon(platform, url);
       if (ticket !== navigation.current) return;
       savedServersRef.current = [];
