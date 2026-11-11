@@ -1645,6 +1645,19 @@ describe("testing a microphone before a call (CALL-01)", () => {
     );
     await expect(testMicrophone(() => {})).rejects.toMatchObject({ name: "NotAllowedError" });
   });
+
+  it("tries the system's default, as a call does, when the saved microphone is not connected", async () => {
+    const asked = vi
+      .spyOn(navigator.mediaDevices, "getUserMedia")
+      .mockRejectedValueOnce(new DOMException("Requested device not found", "NotFoundError"))
+      .mockResolvedValueOnce(new FakeMediaStream([mic()]) as unknown as MediaStream);
+    const test = await testMicrophone(() => {}, { deviceId: "left-at-home", noiseFilter: false });
+    expect(test.label).toBe("USB Headset");
+    const audio = (call: number) => asked.mock.calls[call]![0]!.audio as MediaTrackConstraints;
+    expect(audio(0).deviceId).toEqual({ exact: "left-at-home" });
+    expect(audio(1).deviceId).toBeUndefined();
+    test.stop();
+  });
 });
 
 describe("choosing the microphone and camera (Voice & video)", () => {

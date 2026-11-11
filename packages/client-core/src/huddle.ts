@@ -15,11 +15,15 @@ import {
   cameraConstraints,
   microphoneConstraints,
   openSaved,
-  peakLevel,
+  describeError,
+  levelMeter,
+  openMicrophone,
   unsupported,
   wantsNoiseFilter,
   wantsSystemMicrophone,
   type FilteredMicrophone,
+  type LevelMeter,
+  type MicrophoneFeed,
   type MicrophoneSettings,
   type NoiseFilter,
   type OpenSystemMicrophone,
@@ -300,18 +304,6 @@ export interface HuddleSessionOptions {
   systemMicrophone?: OpenSystemMicrophone;
 }
 
-/** A microphone as the call sends it: the device's own sound, or that sound cleaned. */
-interface MicrophoneFeed {
-  /** What everyone hears. */
-  stream: MediaStream;
-  /** The device itself, whose ending means it went: unplugged, or its permission. */
-  device: MediaStreamTrack | undefined;
-  /** In place of `device`, a microphone the system opened, which says itself when it goes. */
-  system?: SystemMicrophone;
-  /** Closes the device and anything made from it. */
-  stop(): void;
-}
-
 export interface HuddleState {
   channelId: ID;
   micMuted: boolean;
@@ -414,14 +406,8 @@ export class HuddleSession {
   private speaking = new Set<ID>();
   private spokeAt = new Map<ID, number>();
   private levelTimer: ReturnType<typeof setInterval> | null = null;
-  private audioContext: AudioContext | null = null;
-  private analyser: AnalyserNode | null = null;
-  private levelSamples: Uint8Array<ArrayBuffer> | null = null;
-  /**
-   * A copy of the microphone for the level alone. Muting turns the sent track
-   * off, and this one stays on, so talking while muted can be noticed.
-   */
-  private levelTrack: MediaStreamTrack | null = null;
+  /** This side's own level, so its tile lights up like everyone else's. */
+  private meter: LevelMeter | null = null;
   /** Loud polls while muted, newest last, within `MUTED_TALK_WINDOW_MS`. */
   private mutedLoud: number[] = [];
   private mutedTalkAt = 0;
@@ -463,7 +449,10 @@ export class HuddleSession {
     this.muted = muted;
     let feed: MicrophoneFeed;
     try {
-      feed = await this.openMicrophone(this.microphone, false);
+      feed = await openMicrophone(this.microphone, this.options, {
+        chosenNow: false,
+        note: (line) => this.note(line),
+      });
     } catch (err) {
       this.note(`The microphone did not start: ${describeError(err)}.`);
       throw err;
@@ -475,105 +464,6 @@ export class HuddleSession {
     }
     this.adoptMicrophone(feed);
     this.startLevelPolling();
-  }
-
-  /**
-   * Opens the microphone with these settings, through the strong noise
-   * filter when it is chosen and the app has one. A filter that will not
-   * start costs the call nothing: the microphone opens again with the
-   * browser's own suppression, and the call log says so. A saved microphone
-   * that is not connected opens the default; one `chosenNow` does not.
-   * With none of the browser's processing chosen, the system opens it where
-   * the app can (see `openSystemMicrophone`).
-   */
-  private async openMicrophone(
-    settings: MicrophoneSettings,
-    chosenNow: boolean,
-  ): Promise<MicrophoneFeed> {
-    const filter = wantsNoiseFilter(settings) ? this.options.noiseFilter : undefined;
-    const plain = (stream: MediaStream): MicrophoneFeed => ({
-      stream,
-      device: stream.getAudioTracks()[0],
-      stop: () => stream.getTracks().forEach((track) => track.stop()),
-    });
-    let missing = false;
-    const onMissing = () => {
-      missing = true;
-      this.note("The chosen microphone is not connected; using the system's default.");
-    };
-    const open = (filtered: boolean) => {
-      const ask = (deviceId: string | undefined) =>
-        navigator.mediaDevices.getUserMedia(
-          microphoneConstraints({ ...settings, deviceId }, filtered),
-        );
-      if (chosenNow) return ask(settings.deviceId);
-      return openSaved(missing ? undefined : settings.deviceId, ask, onMissing);
-    };
-    const source =
-      (await this.openSystemMicrophone(settings, chosenNow, !!filter, onMissing)) ??
-      plain(await open(!!filter));
-    if (!filter) {
-      this.note(
-        settings.noiseSuppression === false
-          ? "Noise suppression: off."
-          : "Noise suppression: the browser's own.",
-      );
-      return source;
-    }
-    try {
-      const filtered = await filter(source.stream);
-      this.note("Noise suppression: strong.");
-      return {
-        stream: filtered.stream,
-        device: source.device,
-        system: source.system,
-        stop: () => {
-          filtered.stop();
-          source.stop();
-        },
-      };
-    } catch (err) {
-      source.stop();
-      this.note(
-        `Strong noise suppression did not start (${describeError(err)}); using the browser's own.`,
-      );
-      return plain(await open(false));
-    }
-  }
-
-  /**
-   * Opens the microphone the way other apps on this computer do, so the
-   * sound effects set up in the system reach the call, when the app can and
-   * none of the browser's processing is chosen (`filtered`: the strong
-   * filter stands in for its noise suppression). Null otherwise, or when it
-   * does not open, for the browser to open it as before.
-   */
-  private async openSystemMicrophone(
-    settings: MicrophoneSettings,
-    chosenNow: boolean,
-    filtered: boolean,
-    onMissing: () => void,
-  ): Promise<MicrophoneFeed | null> {
-    const openSystem = this.options.systemMicrophone;
-    if (!openSystem || !wantsSystemMicrophone(settings, filtered)) return null;
-    let system: SystemMicrophone | null;
-    try {
-      system = chosenNow
-        ? await openSystem(settings.deviceId)
-        : await openSaved(settings.deviceId, openSystem, onMissing);
-    } catch (err) {
-      this.note(
-        `The system did not open the microphone (${describeError(err)}); the browser does.`,
-      );
-      return null;
-    }
-    if (!system) {
-      this.note("The system could not tell which microphone this is; the browser opens it.");
-      return null;
-    }
-    this.note("The microphone opened as other apps hear it, with the system's sound effects.");
-    const opened = system;
-    return { stream: opened.stream, device: undefined, system: opened, stop: () => opened.stop() };
   }
 
   /** What everyone hears from this side. */
@@ -601,14 +491,14 @@ export class HuddleSession {
     if (feed.system) feed.system.onEnded = () => void this.recoverMicrophone();
     this.mic = feed;
     this.micLost = false;
-    void this.audioContext?.close().catch(() => {});
-    this.audioContext = null;
-    this.watchLocalLevel(feed.stream);
+    this.meter?.stop();
+    this.meter = levelMeter(feed.stream);
   }
 
   /** Closes the microphone in use, without taking that for the device going. */
   private releaseMicrophone(): void {
-    this.stopLevelTrack();
+    this.meter?.stop();
+    this.meter = null;
     if (this.mic?.device) this.mic.device.onended = null;
     if (this.mic?.system) this.mic.system.onEnded = null;
     this.mic?.stop();
@@ -636,7 +526,10 @@ export class HuddleSession {
 
   private async replaceMicrophone(): Promise<boolean> {
     try {
-      const feed = await this.openMicrophone(this.microphone, false);
+      const feed = await openMicrophone(this.microphone, this.options, {
+        chosenNow: false,
+        note: (line) => this.note(line),
+      });
       if (this.destroyed) {
         feed.stop();
         return false;
@@ -673,7 +566,10 @@ export class HuddleSession {
     }
     let feed: MicrophoneFeed;
     try {
-      feed = await this.openMicrophone(settings, true);
+      feed = await openMicrophone(settings, this.options, {
+        chosenNow: true,
+        note: (line) => this.note(line),
+      });
     } catch (err) {
       this.note(`The chosen microphone did not start: ${describeError(err)}.`);
       throw err;
@@ -712,41 +608,8 @@ export class HuddleSession {
     navigator.mediaDevices?.removeEventListener?.("devicechange", this.onDeviceChange);
   }
 
-  /**
-   * Your own microphone level, so your tile lights up like everyone else's.
-   * Measured on a copy of the track that muting leaves on, so that talking
-   * while muted can be pointed out; nothing of the copy is sent anywhere.
-   */
-  private watchLocalLevel(stream: MediaStream): void {
-    this.stopLevelTrack();
-    const Ctx = (globalThis as { AudioContext?: typeof AudioContext }).AudioContext;
-    if (!Ctx) return;
-    try {
-      const context = new Ctx();
-      void context.resume().catch(() => {});
-      const analyser = context.createAnalyser();
-      analyser.fftSize = 256;
-      const track = stream.getAudioTracks()[0];
-      const copy = typeof track?.clone === "function" ? track.clone() : null;
-      if (copy) copy.enabled = true;
-      this.levelTrack = copy;
-      context.createMediaStreamSource(copy ? new MediaStream([copy]) : stream).connect(analyser);
-      this.audioContext = context;
-      this.analyser = analyser;
-      this.levelSamples = new Uint8Array(new ArrayBuffer(analyser.fftSize));
-    } catch {
-      // Showing a level is a nicety. Never let it cost someone the call.
-    }
-  }
-
-  private stopLevelTrack(): void {
-    this.levelTrack?.stop();
-    this.levelTrack = null;
-  }
-
   private localLevel(): number {
-    if (!this.analyser || !this.levelSamples) return 0;
-    return peakLevel(this.analyser, this.levelSamples);
+    return this.meter?.level() ?? 0;
   }
 
   private startLevelPolling(): void {
@@ -1658,11 +1521,8 @@ export class HuddleSession {
     this.stopWaitingForMicrophone();
     if (this.levelTimer) clearInterval(this.levelTimer);
     this.levelTimer = null;
-    this.analyser = null;
-    this.levelSamples = null;
-    void this.audioContext?.close().catch(() => {});
-    this.audioContext = null;
-    this.stopLevelTrack();
+    this.meter?.stop();
+    this.meter = null;
     for (const userId of [...this.peers.keys()]) this.closePeer(userId);
     this.cameraTrack?.stop();
     this.cameraTrack = null;
@@ -1817,13 +1677,6 @@ async function selectedRoute(
         ? Math.round(pair.currentRoundTripTime * 1000)
         : null,
   };
-}
-
-/** An error in a few words, for the log. */
-function describeError(err: unknown): string {
-  if (err instanceof Error)
-    return err.name && err.name !== "Error" ? `${err.name}: ${err.message}` : err.message;
-  return String(err);
 }
 
 /** A device another app, or another device built on it, is holding. */
