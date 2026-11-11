@@ -302,7 +302,7 @@ async function startWorkspaceServer(
   const files = registerFiles(ctx);
   const backups = registerBackups(ctx, { files, scheduled });
 
-  const messages = registerMessages(ctx, { files });
+  const messages = registerMessages(ctx);
   const polls = registerPolls(ctx);
   const { posting } = messages;
 
@@ -318,7 +318,7 @@ async function startWorkspaceServer(
   registerAdmin(ctx, { instanceId, workspace, accounts, messages, files, backups });
   const people = registerPeople(ctx);
   const threads = registerThreads(ctx);
-  const apps = registerApps(ctx, { accounts, messages, files });
+  const apps = registerApps(ctx, { accounts, messages });
   const scheduledMessages = registerScheduled(ctx, { posting });
   const saved = registerSaved(ctx);
   registerSearch(ctx);

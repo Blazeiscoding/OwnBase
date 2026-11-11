@@ -10,7 +10,6 @@ import {
   requireVisibleMessage,
   type ServerContext,
 } from "../core/context.js";
-import { type Files } from "../files/feature.js";
 import { HttpError } from "../httpError.js";
 import { fetchLinkPreview, previewLinks, type FetchedPreview } from "../linkPreview.js";
 import { createPosting } from "../messages/posting.js";
@@ -39,10 +38,9 @@ export interface RetentionStatus {
 const PURGED_SEND_KEYS_MS = SEND_RETRY_WINDOW_MS + 7 * 24 * 3600_000;
 
 /** Messages: reading, sending, editing, removing and reacting; link previews; and retention. */
-export function registerMessages(ctx: ServerContext, { files }: { files: Files }) {
+export function registerMessages(ctx: ServerContext) {
   const { opts, app, store, settings, route, ration, recordEvent, mutate, background, lifecycle } =
     ctx;
-  const { flushFileDeletions } = files;
   const scheduledLimits = { ...SCHEDULED_LIMITS, ...opts.scheduledLimits };
 
   const updateMessage = (existing: Message, text: string, clearActions = false): Message => {
@@ -180,7 +178,6 @@ export function registerMessages(ctx: ServerContext, { files }: { files: Files }
       { messages, files: fileIds.length, retentionDays: opts.retentionDays },
       "discarded conversation past the retention window",
     );
-    if (fileIds.length > 0) void flushFileDeletions();
     return messages;
   };
 
@@ -360,7 +357,6 @@ export function registerMessages(ctx: ServerContext, { files }: { files: Files }
     if (existing.userId !== me.id && !isPrivileged) throw new HttpError(403, "not_your_message");
 
     removeMessage(existing);
-    await flushFileDeletions();
     return { ok: true };
   });
 

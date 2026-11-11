@@ -2,7 +2,6 @@ import { endpoints, type ID, type ReportedMessage, type User } from "@ownbase/pr
 import type { registerAccounts } from "../accounts/feature.js";
 import { hashPassword } from "../auth.js";
 import type { ServerContext } from "../core/context.js";
-import type { Files } from "../files/feature.js";
 import { HttpError } from "../httpError.js";
 import { secretToken } from "../ids.js";
 import type { registerMessages } from "../messages/feature.js";
@@ -28,11 +27,10 @@ export function registerMemberAdmin(
   deps: {
     accounts: ReturnType<typeof registerAccounts>;
     messages: ReturnType<typeof registerMessages>;
-    files: Files;
   },
 ) {
   const { store, gateway, route, mutate, requireUser } = ctx;
-  const { accounts, messages, files } = deps;
+  const { accounts, messages } = deps;
 
   route(endpoints.listAudit, async ({ query }) => {
     const entries = store.audit.list({ before: query.before, limit: query.limit + 1 });
@@ -227,7 +225,6 @@ export function registerMemberAdmin(
         details: { resolution: action, reports },
       });
     });
-    await files.flushFileDeletions();
     return { ok: true };
   });
 }

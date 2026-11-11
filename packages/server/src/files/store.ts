@@ -49,6 +49,8 @@ const ticketRow = shape({
 
 /** Attachments: their rows, their download tickets, and the queue that removes their blobs. */
 export class FileStore {
+  private removalsQueued = false;
+
   constructor(
     private readonly db: DatabaseSync,
     private readonly store: Store,
@@ -355,12 +357,21 @@ export class FileStore {
     for (const id of fileIds) stmt.run(id);
   }
 
+  /** Queues these files' blobs for removal, in the transaction that removed their rows. */
   queueDeletions(fileIds: ID[]): void {
     const stmt = this.db.prepare(
       "INSERT OR IGNORE INTO pending_file_deletions (file_id, queued_at) VALUES (?, ?)",
     );
     const now = Date.now();
     for (const id of fileIds) stmt.run(id, now);
+    if (fileIds.length > 0) this.removalsQueued = true;
+  }
+
+  /** Whether removals were queued since this was last asked. */
+  takeRemovalsQueued(): boolean {
+    const queued = this.removalsQueued;
+    this.removalsQueued = false;
+    return queued;
   }
 
   /** Every removal still to do, set-aside ones included, oldest first. */

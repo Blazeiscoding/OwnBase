@@ -1,6 +1,5 @@
 import type { registerAccounts } from "../accounts/feature.js";
 import type { ServerContext } from "../core/context.js";
-import type { registerFiles } from "../files/feature.js";
 import type { registerMessages } from "../messages/feature.js";
 import { createAppCalls } from "./calls.js";
 import { registerCommands } from "./commands.js";
@@ -24,7 +23,6 @@ export function registerApps(
       ReturnType<typeof registerMessages>,
       "posting" | "updateMessage" | "removeMessage"
     >;
-    files: Pick<ReturnType<typeof registerFiles>, "flushFileDeletions">;
   },
 ) {
   const { posting } = deps.messages;
@@ -49,7 +47,6 @@ export function registerApps(
     calls,
     newTrigger,
     messages: deps.messages,
-    files: deps.files,
   });
   registerCommands(ctx, { calls, replies, newTrigger, posting });
 

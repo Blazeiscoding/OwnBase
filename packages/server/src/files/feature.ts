@@ -325,6 +325,10 @@ export function registerFiles(ctx: ServerContext) {
     if (fileCleanupNext) clearImmediate(fileCleanupNext);
   });
   lifecycle.onDrain(() => flushFileDeletions());
+  // A change that removed files, such as a message with attachments, has its blobs removed once it commits.
+  ctx.onPublished(() => {
+    if (store.files.takeRemovalsQueued()) background.run("attachment cleanup", flushFileDeletions);
+  });
 
   // Each queue on its own, so one failing neither stops the server starting nor skips the others.
   lifecycle.onStart(() => {

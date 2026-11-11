@@ -139,7 +139,7 @@ export function registerAdmin(
     };
   });
 
-  registerMemberAdmin(ctx, { accounts, messages, files });
+  registerMemberAdmin(ctx, { accounts, messages });
 
   route(endpoints.transferOwnership, async ({ user: me, params }) => {
     const target = store.people.get(params.id);
