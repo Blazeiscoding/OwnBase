@@ -375,3 +375,130 @@ describe("an import refuses", () => {
     expect(await refusal({ owner: "zed" })).toMatch(/Nobody in users\.json has the username "zed"/);
   });
 });
+
+/**
+ * Exports from 2015 and 2016, such as the one a meetup published on GitHub
+ * (houstondatavis/slack-export), differ from today's: seconds as text, a
+ * shared file as `file` rather than `files`, words that already link the
+ * file, and comments on a file whose author is in `comment.user`.
+ */
+describe("an older Slack export", () => {
+  const permalink = "https://old.slack.com/files/alice/F1/chart.png";
+  const older = () => ({
+    "users.json": [
+      {
+        id: "U1",
+        name: "alice",
+        deleted: false,
+        real_name: "Alice",
+        tz: null,
+        is_bot: false,
+        profile: {},
+      },
+      { id: "U2", name: "bob", deleted: false, real_name: "Bob", profile: {} },
+    ],
+    "channels.json": [
+      {
+        id: "C1",
+        name: "general",
+        created: "1433562000",
+        creator: "U1",
+        is_archived: false,
+        members: ["U1", "U2"],
+        topic: { value: "", creator: "", last_set: "0" },
+        purpose: { value: "", creator: "", last_set: "0" },
+        pins: [{ id: "1433562832.000005", type: "C", created: "1433562900", user: "U2" }],
+      },
+    ],
+    "general/2015-06-06.json": [
+      {
+        type: "message",
+        subtype: "file_share",
+        text: `<@U1|alice> uploaded a file: <${permalink}|Chart.png>`,
+        file: {
+          id: "F1",
+          created: 1433562823,
+          name: "chart.png",
+          title: "Chart.png",
+          mimetype: "image/png",
+          size: 4,
+          mode: "hosted",
+          is_external: false,
+          url_private_download:
+            "https://files.slack.com/files-pri/T1-F1/download/chart.png?t=xoxe-old",
+          permalink,
+        },
+        user: "U1",
+        upload: true,
+        username: "<@U1|alice>",
+        bot_id: null,
+        ts: "1433562832.000005",
+      },
+      {
+        type: "message",
+        subtype: "file_comment",
+        text: `<@U2|bob> commented on alice's file <${permalink}|Chart.png>: Looks good`,
+        file: { id: "F1", name: "chart.png", permalink },
+        comment: { id: "Fc1", created: 1433563000, user: "U2", comment: "Looks good" },
+        ts: "1433563000.000002",
+      },
+      {
+        type: "message",
+        user: "U2",
+        text: "Excited :smiley: :clap::skin-tone-3: :simple_smile: :partyparrot: `:smiley:` <https://x.example/:smiley:|:smiley:>",
+        ts: "1433563100.000003",
+      },
+    ],
+  });
+
+  it("imports with its words, files and comments as they were", async () => {
+    await writeZip(zip, older());
+    const fetched: string[] = [];
+    const result = await run({
+      fetchFiles: true,
+      fetchFile: async (url) => {
+        fetched.push(url);
+        return Buffer.from("png!");
+      },
+    });
+    // The file once, for the share; the comment carries it again and shares nothing.
+    expect(fetched).toHaveLength(1);
+    expect(result.counts).toMatchObject({ messages: 3, files: 1, pins: 1 });
+    const { db, store } = open();
+    try {
+      const people = Object.fromEntries(store.people.list().map((u) => [u.handle, u.id]));
+      const general = store.channels.byName("general")!;
+      expect(general.createdAt).toBe(1433562000 * 1000);
+      const [share, comment, cheer] = store.messages
+        .list({ channelId: general.id, limit: 10 })
+        .reverse();
+      // Slack shows a shortcode as its emoji; code, links and custom ones stay as written.
+      expect(cheer!.text).toBe(
+        "Excited 😃 👏🏼 🙂 :partyparrot: `:smiley:` <https://x.example/:smiley:|:smiley:>",
+      );
+      expect(share).toMatchObject({ userId: people.alice, pinned: true });
+      expect(share!.files.map((f) => f.name)).toEqual(["chart.png"]);
+      expect(comment).toMatchObject({ userId: people.bob, files: [] });
+      expect(comment!.text).toMatch(/: Looks good$/);
+    } finally {
+      db.close();
+    }
+  });
+
+  it("keeps a file's name only where the words do not already link it", async () => {
+    await writeZip(zip, older());
+    const result = await run();
+    const { db, store } = open();
+    try {
+      const general = store.channels.byName("general")!;
+      const texts = store.messages.list({ channelId: general.id, limit: 10 }).map((m) => m.text);
+      expect(texts.some((t) => t.includes("File: chart.png"))).toBe(false);
+      expect(texts.some((t) => t.includes(`<${permalink}|Chart.png>`))).toBe(true);
+      expect(
+        result.skipped.find((s) => s.reason.startsWith("messages with nobody")),
+      ).toBeUndefined();
+    } finally {
+      db.close();
+    }
+  });
+});

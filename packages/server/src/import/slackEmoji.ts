@@ -6,7 +6,11 @@ import table from "./slackEmoji.json";
  * written by scripts/generate-emoji.mjs from the data the picker uses, whose
  * shortcodes are Slack's.
  */
-const names: Record<string, string> = table.names;
+const names: Record<string, string> = {
+  ...table.names,
+  // Slack's own name for 🙂 before Unicode had one, still in exports from then.
+  simple_smile: "🙂",
+};
 const tones: Record<string, string[]> = table.tones;
 
 const TONED = /^(.+)::skin-tone-([2-6])$/;

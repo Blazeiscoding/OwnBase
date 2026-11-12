@@ -575,7 +575,7 @@
       "summary": "fromSlackText maps <@U…> and <#C…> to ids here, or to words when unknown; toSlackText escapes &, < and > around this app's markup.",
       "details": [
         "Both apps write Slack's markup, so only the ids change. Unknown people and channels stay as @name or #name from Slack's label.",
-        "User groups, dates and mailto links become the words Slack shows for them.",
+        "User groups, dates and mailto links become the words Slack shows for them, and :shortcode: names become their emoji outside code and links.",
         "Slack escapes &, < and > outside its markup; this app stores them as typed, so the two functions undo each other."
       ],
       "concepts": ["mrkdwn", "mentions", "G08"]

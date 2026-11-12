@@ -1578,7 +1578,9 @@ ownbase-server --data ./data
 What comes over: people, with their names and time zones; public and private
 channels with their topics, descriptions, members and archived state; direct and
 group messages; and every message with its time, author, edits, thread, reactions
-and pins. Mentions of people and channels point at them here. A message's id is made
+and pins. Mentions of people and channels point at them here, and emoji names such
+as `:smiley:` become the emoji, as Slack showed them. Exports from 2015 and 2016,
+which write a few fields differently, import the same way. A message's id is made
 from the time Slack gave it, so history pages back in the order it happened, and
 search finds imported words. History comes in read: nobody opens the workspace to
 thousands of unread messages.

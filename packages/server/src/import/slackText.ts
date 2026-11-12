@@ -1,3 +1,5 @@
+import { emojiForSlackName } from "./slackEmoji.js";
+
 /**
  * Message text between Slack's export and this app. Both write Slack's
  * markup: `<@U123>` for a person, `<#C123>` for a channel, `<!here>`, and
@@ -80,7 +82,28 @@ function convert(text: string, ids: SlackIds, names: SlackNames | null): string 
       out += label ?? target.replace(/^(mailto|tel):/i, "");
     }
   }
-  return out + unescape(text.slice(last));
+  return emojiFromShortcodes(out + unescape(text.slice(last)));
+}
+
+/** Code, and markup such as a link, where a `:name:` is not an emoji. */
+const LEFT_AS_IS = /(```[\s\S]*?```|`[^`\n]*`|<[^<>\n]*>)/;
+const SHORTCODE = /:([a-z0-9_+'-]+(?:::skin-tone-[2-6])?):/g;
+
+/**
+ * Slack shows `:smiley:` in a message as the emoji, and its export keeps the
+ * name; this app shows text as typed, so the emoji is written in its place.
+ * A name that is not an emoji, a custom one, stays as it was.
+ */
+function emojiFromShortcodes(text: string): string {
+  if (!text.includes(":")) return text;
+  return text
+    .split(LEFT_AS_IS)
+    .map((part, i) =>
+      i % 2 === 1
+        ? part
+        : part.replace(SHORTCODE, (all, name: string) => emojiForSlackName(name) ?? all),
+    )
+    .join("");
 }
 
 /** This app's markup, which a Slack reader understands as it is. */
