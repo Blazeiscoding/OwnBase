@@ -529,9 +529,86 @@
         "zipArchive lays out local headers, data and the central directory for entries whose size and CRC-32 are known first, so the length is exact (Content-Length, a progress bar) and no data descriptors are needed.",
         "ZIP64 extra fields and end records are added only when a size, an offset or the entry count passes what classic ZIP holds (4 GiB, 65,535); a test streams a 4.3 GB entry through a virtual file to check them.",
         "An entry that grows or shrinks while it streams stops the zip with an error. Names with .., a leading slash or backslashes are refused.",
-        "readZipDirectory finds the end record (and its ZIP64 locator) through a read function; extractZipEntry inflates deflated entries and checks size and CRC before keeping a file."
+        "readZipDirectory finds the end record (and its ZIP64 locator) through a read function; extractZipEntry inflates deflated entries and checks size and CRC before keeping a file, and readZipEntry does the same into memory for a Slack export's JSON."
       ],
       "concepts": ["ZIP64", "streaming", "CRC-32", "no dependency", "P4"]
+    },
+    {
+      "path": "packages/server/src/import/slackImport.ts",
+      "plain": "Makes a new workspace from a Slack export: its people, channels, direct messages and every message with its thread, edits, reactions, pins and files.",
+      "summary": "import-slack: a Slack export zip into a new, empty folder, written through the stores and the event log with the original times.",
+      "details": [
+        "Refuses a folder that holds anything, or that another process holds (holdWorkspace). On any failure everything it made is removed and the error names the file and field.",
+        "People come in deactivated with one password hash of a secret thrown away at once; --owner becomes the owner with a temporary password that must be changed. Bots post under a bot account per name; authors users.json does not list come in deactivated.",
+        "Conversations are made first so mentions resolve, then each folder's days are read oldest first and sorted by ts. Each message is written with MessageStore.create's imported time (its id comes from that time), its reactions, pin and files, then recorded as message.created through appendEvent and writeEffects, so seq, thread follows and the mention index come out as for a posted message.",
+        "Members are added after the history, which starts them with it read, and threads.readAll reads the threads, so nobody opens the workspace to thousands of unread messages.",
+        "Files: by default a line with the name; --fetch-files fetches each through the outbound guard; an export of this app holds the bytes (export_path). Batches of 2,000 messages per transaction, yielding between them, with synchronous off until the end."
+      ],
+      "concepts": ["data portability", "Slack import", "event log", "G08"]
+    },
+    {
+      "path": "packages/server/src/import/slackExport.ts",
+      "plain": "Writes a workspace out as Slack writes its export, so Slack tools read it and an import here reads it back.",
+      "summary": "export: users.json, channels.json (groups, dms, mpims with --everything) and day files, plus the attachments, in one zip.",
+      "details": [
+        "Reads the database read-only in one transaction, so a running server can stay up. Refuses a database at another schema version and an existing target file.",
+        "users.json has what a profile shows and never a password, salt, session or app secret. Deleted messages and messages with neither words nor files are left out.",
+        "Each message's ts comes from its time, never earlier than the one before, and counts up within a millisecond so an import keeps the order. Replies name their root's ts, pins go in pinned_to and channels.json, reactions by Slack name.",
+        "Day files are written to a folder beside the zip, then streamed into it with the files under files/<id>/, so a large workspace does not sit in memory."
+      ],
+      "concepts": ["data portability", "Slack format", "streaming", "G08"]
+    },
+    {
+      "path": "packages/server/src/import/slackFormat.ts",
+      "plain": "Describes the parts of Slack's export that an import reads, and refuses anything in another shape by file and field.",
+      "summary": "zod shapes for users, channels, direct messages, messages and files in a Slack export, and Slack time helpers.",
+      "details": [
+        "Only fields the import uses are checked; anything else Slack writes is ignored.",
+        "parseSlack names the failing file, entry and field, such as 'random/2024-01-01.json, entry 1, ts: \"noon\" is not a Slack time'.",
+        "slackTimeMs, slackTimeKey and slackTimeOf convert between Slack's seconds.microseconds and milliseconds, keeping the order of messages within one millisecond."
+      ],
+      "concepts": ["validation", "Slack format", "G08"]
+    },
+    {
+      "path": "packages/server/src/import/slackText.ts",
+      "plain": "Turns Slack's message text into this app's and back: mentions point at the right people and channels, and escaped characters come back.",
+      "summary": "fromSlackText maps <@U…> and <#C…> to ids here, or to words when unknown; toSlackText escapes &, < and > around this app's markup.",
+      "details": [
+        "Both apps write Slack's markup, so only the ids change. Unknown people and channels stay as @name or #name from Slack's label.",
+        "User groups, dates and mailto links become the words Slack shows for them.",
+        "Slack escapes &, < and > outside its markup; this app stores them as typed, so the two functions undo each other."
+      ],
+      "concepts": ["mrkdwn", "mentions", "G08"]
+    },
+    {
+      "path": "packages/server/src/import/slackZip.ts",
+      "plain": "Opens a Slack export zip one file at a time, with limits on its size, its number of files and the size of each.",
+      "summary": "SlackExportZip: the export's JSON files and day folders, held to IMPORT_LIMITS before anything is unpacked.",
+      "details": [
+        "Limits: a 64 GB zip, 2 million files, 256 MB for one JSON file, 100 MB for one attachment, all checked from the zip's directory.",
+        "A zip made by hand with one folder around the export is read through that folder; __MACOSX is ignored.",
+        "dayFolders lists each folder's YYYY-MM-DD.json files in order."
+      ],
+      "concepts": ["zip", "limits", "G08"]
+    },
+    {
+      "path": "packages/server/src/import/slackEmoji.ts",
+      "plain": "Converts between Slack's reaction names, like +1 or wave::skin-tone-3, and the emoji this app stores.",
+      "summary": "emojiForSlackName and slackNameForEmoji over slackEmoji.json, with skin tones; a custom emoji has no match and is dropped.",
+      "details": [
+        "A name that is already an emoji is kept, so an export that could not name one still imports it.",
+        "The reverse table prefers each emoji's first shortcode over its other names."
+      ],
+      "concepts": ["emoji", "reactions", "G08"]
+    },
+    {
+      "path": "packages/server/src/import/slackEmoji.json",
+      "plain": "Every Slack reaction name and the emoji it stands for, with skin tones, generated from the same data as the emoji picker.",
+      "summary": "Written by scripts/generate-emoji.mjs: names (shortcodes, then other names such as thumbsup) and tones (skin-tone-2 to 6).",
+      "details": [
+        "One entry to a line so a new version of the emoji data reads as a diff; the UI's emoji test checks it is what the script writes."
+      ],
+      "concepts": ["generated", "emoji", "G08"]
     },
     {
       "path": "packages/server/src/index.ts",
