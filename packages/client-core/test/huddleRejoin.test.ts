@@ -88,7 +88,7 @@ describe("a call through a dropped connection to the server", () => {
     const { client, general, joins, leaves } = await open(base, account.token);
     await client.joinHuddle(general);
     const self = client.state.self!.id;
-    expect(server.gateway.huddleParticipants(general)).toEqual([self]);
+    expect(server.huddles.participants(general)).toEqual([self]);
 
     dropConnection(self);
     await expect.poll(() => client.state.status).toBe("reconnecting");
@@ -104,7 +104,7 @@ describe("a call through a dropped connection to the server", () => {
     await expect
       .poll(() => vi.mocked(HuddleSession.prototype.syncParticipants).mock.calls.length)
       .toBe(2);
-    expect(server.gateway.huddleParticipants(general)).toEqual([self]);
+    expect(server.huddles.participants(general)).toEqual([self]);
     expect(client.state.huddle?.channelId).toBe(general);
     expect(client.callLog().map((line) => line.text)).toContain(
       "Back in the huddle, in the place the server kept.",
@@ -119,11 +119,11 @@ describe("a call through a dropped connection to the server", () => {
 
     dropConnection(self);
     await expect.poll(() => client.state.status).toBe("reconnecting");
-    await expect.poll(() => server.gateway.huddleParticipants(general)).toEqual([]);
+    await expect.poll(() => server.huddles.participants(general)).toEqual([]);
     await expect.poll(() => client.state.status, { timeout: 5000 }).toBe("online");
     await expect.poll(() => joins()).toHaveLength(2);
     expect(HuddleSession.prototype.closePeers).toHaveBeenCalledOnce();
-    await expect.poll(() => server.gateway.huddleParticipants(general)).toEqual([self]);
+    await expect.poll(() => server.huddles.participants(general)).toEqual([self]);
     // Written when the join's answer arrives, which can be after the server seats it.
     await expect
       .poll(() => client.callLog().map((line) => line.text))
@@ -161,7 +161,7 @@ describe("a call through a dropped connection to the server", () => {
     // The refusal arrives before the socket closes; the call ends with the close.
     await expect.poll(() => client.state.huddle).toBeNull();
     expect(tracks[0]!.stop).toHaveBeenCalledOnce();
-    expect(server.gateway.huddleParticipants(general)).toEqual([]);
+    expect(server.huddles.participants(general)).toEqual([]);
   });
 });
 
@@ -187,6 +187,6 @@ describe("a call joined on another device", () => {
     expect(laptop.leaves()).toEqual([]);
     expect(tracks[0]!.stop).toHaveBeenCalledOnce();
     expect(phone.client.state.huddle?.channelId).toBe(phone.general);
-    expect(server.gateway.huddleParticipants(phone.general)).toEqual([self]);
+    expect(server.huddles.participants(phone.general)).toEqual([self]);
   });
 });

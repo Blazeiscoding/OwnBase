@@ -133,7 +133,7 @@ describe("live session access", () => {
     async (delivery) => {
       const expired = await connect();
       expired.ws.send(JSON.stringify({ type: "huddle.join", channelId, requestId: "join-11" }));
-      await expect.poll(() => server.gateway.huddleParticipants(channelId)).toEqual([userId]);
+      await expect.poll(() => server.huddles.participants(channelId)).toEqual([userId]);
       await expect
         .poll(() =>
           expired.frames.some(
@@ -161,7 +161,7 @@ describe("live session access", () => {
       expect(expired.frames).toEqual([
         expect.objectContaining({ type: "error", code: "auth_failed" }),
       ]);
-      expect(server.gateway.huddleParticipants(channelId)).toEqual([]);
+      expect(server.huddles.participants(channelId)).toEqual([]);
       expect((await request("/api/me", undefined, "GET")).status).toBe(401);
     },
   );
@@ -172,7 +172,7 @@ describe("live session access", () => {
     server.store.accounts.createSession(hashToken(token), userId, "expired device", -1);
     expired.ws.send(JSON.stringify({ type: "huddle.join", channelId, requestId: "join-12" }));
     await expect.poll(() => expired.ws.readyState).toBe(WebSocket.CLOSED);
-    expect(server.gateway.huddleParticipants(channelId)).toEqual([]);
+    expect(server.huddles.participants(channelId)).toEqual([]);
   });
 
   it("signs out all sockets for one token while retaining other sessions", async () => {
@@ -223,11 +223,11 @@ describe("channel access revocation", () => {
       socket.ws.send(
         JSON.stringify({ type: "huddle.join", channelId: channel.id, requestId: "join-13" }),
       );
-    await expect.poll(() => server.gateway.huddleParticipants(channel.id).length).toBe(2);
+    await expect.poll(() => server.huddles.participants(channel.id).length).toBe(2);
 
     await request(`/api/channels/${channel.id}/leave`, undefined, "POST", guest.body.token);
     // Losing chat access loses call access in the same moment (F04).
-    expect(server.gateway.huddleParticipants(channel.id)).toEqual([userId]);
+    expect(server.huddles.participants(channel.id)).toEqual([userId]);
     expect(
       (await request(`/api/channels/${channel.id}/messages`, undefined, "GET", guest.body.token))
         .status,

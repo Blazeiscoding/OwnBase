@@ -7,7 +7,7 @@ import {
   type ServerToClient,
 } from "@ownbase/protocol";
 import { createWorkspaceServer, type WorkspaceServer } from "../src/server.js";
-import { CALL_LOG_LIMIT, CallLog } from "../src/callLog.js";
+import { CALL_LOG_LIMIT, CallLog } from "../src/huddles/callLog.js";
 
 /**
  * The host's call log: who joined and left a huddle, which call setups the

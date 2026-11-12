@@ -971,7 +971,7 @@ describe("workspace server", () => {
         m.event.type === "huddle.participants" &&
         m.event.userIds.length === 2,
     );
-    expect(server.gateway.huddleParticipants(general.id).sort()).toEqual([alice.id, bob.id].sort());
+    expect(server.huddles.participants(general.id).sort()).toEqual([alice.id, bob.id].sort());
 
     // An offer from Alice reaches Bob untouched.
     const offer = { kind: "offer", sdp: "v=0 fake-offer" };
@@ -1000,7 +1000,7 @@ describe("workspace server", () => {
     // And dropping the socket removes the last one, rather than leaving a ghost.
     b.ws.close();
     await new Promise((r) => setTimeout(r, 200));
-    expect(server.gateway.huddleParticipants(general.id)).toEqual([]);
+    expect(server.huddles.participants(general.id)).toEqual([]);
     a.ws.close();
   });
 
@@ -1053,7 +1053,7 @@ describe("workspace server", () => {
     // Bob cannot start one there either.
     b.ws.send(JSON.stringify({ type: "huddle.join", channelId: secret.id, requestId: "join-18" }));
     await new Promise((r) => setTimeout(r, 250));
-    expect(server.gateway.huddleParticipants(secret.id)).toEqual([alice.id]);
+    expect(server.huddles.participants(secret.id)).toEqual([alice.id]);
 
     a.ws.close();
     b.ws.close();

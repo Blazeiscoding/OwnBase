@@ -5,7 +5,7 @@ import { mkdtempSync, readdirSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { createWorkspaceServer, type WorkspaceServer } from "../src/server.js";
-import { parseIceServers } from "../src/rtc.js";
+import { parseIceServers } from "../src/huddles/rtc.js";
 import { openDbAtVersion } from "../src/db.js";
 import { APP_SCOPES } from "@ownbase/protocol";
 
