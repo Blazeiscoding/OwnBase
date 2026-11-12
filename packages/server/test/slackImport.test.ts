@@ -42,6 +42,10 @@ function open() {
   return { db, store: new Store(db) };
 }
 
+/** The time a ULID was made from: its first ten characters, in Crockford's base 32. */
+const idTime = (id: string) =>
+  [...id.slice(0, 10)].reduce((t, c) => t * 32 + "0123456789ABCDEFGHJKMNPQRSTVWXYZ".indexOf(c), 0);
+
 const ms = (ts: string) => {
   const [s, f] = ts.split(".");
   return Number(s) * 1000 + Math.floor(Number(f) / 1000);
@@ -173,6 +177,7 @@ describe("importing a Slack export", () => {
       });
       // Ids are made from the time, so history pages in the order it happened.
       expect(timeline.map((m) => m.id)).toEqual(timeline.map((m) => m.id).sort());
+      expect(timeline.map((m) => idTime(m.id))).toEqual(timeline.map((m) => m.createdAt));
       expect(first!.createdAt).toBe(second!.createdAt);
       expect(first!.id < second!.id).toBe(true);
       expect(root!.reactions).toEqual([
