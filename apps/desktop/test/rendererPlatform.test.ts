@@ -14,6 +14,7 @@ const NONE: DesktopCapabilities = {
   screenSound: false,
   systemMicrophone: false,
   openAtLogin: false,
+  updates: "none",
 };
 
 /**

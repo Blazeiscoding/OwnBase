@@ -1,4 +1,4 @@
-import type { DesktopErrorCode, DesktopHosting } from "@ownbase/protocol/desktop";
+import type { DesktopErrorCode, DesktopHosting, DesktopUpdates } from "@ownbase/protocol/desktop";
 import type { OpenedSystemMicrophone, Platform } from "@ownbase/ui";
 import {
   CHANNELS,
@@ -60,20 +60,30 @@ function callers<M extends Record<string, Channel>>(call: Call, channels: M): Ca
 }
 
 /**
- * Every hosting call, on the channel `hosting:` followed by its path in
- * `DesktopHosting`, as the bridge names them all.
+ * Every call on a channel `<prefix>:` followed by its path in the object
+ * returned, as the bridge names them all.
  */
-export function hostingCalls(call: Call): DesktopHosting {
-  const hosting: Record<string, unknown> = {};
+function callTree(call: Call, wanted: string): Record<string, unknown> {
+  const tree: Record<string, unknown> = {};
   for (const channel of CHANNELS) {
     const [prefix, ...path] = channel.split(":");
-    if (prefix !== "hosting") continue;
-    let at = hosting;
+    if (prefix !== wanted) continue;
+    let at = tree;
     for (const step of path.slice(0, -1)) at = (at[step] ??= {}) as Record<string, unknown>;
     at[path.at(-1)!] = (...args: unknown[]) =>
       (call as (c: Channel, ...a: unknown[]) => unknown)(channel, ...args);
   }
-  return hosting as unknown as DesktopHosting;
+  return tree;
+}
+
+/** Every hosting call, as `DesktopHosting` declares them. */
+export function hostingCalls(call: Call): DesktopHosting {
+  return callTree(call, "hosting") as unknown as DesktopHosting;
+}
+
+/** Every update call, as `DesktopUpdates` declares them. */
+export function updateCalls(call: Call): DesktopUpdates {
+  return callTree(call, "updates") as unknown as DesktopUpdates;
 }
 
 /**
@@ -234,6 +244,15 @@ export function electronPlatform(bridge: OwnBaseBridge): Platform {
       subscribe: (cb) => bridge.on("hosting:changed", cb),
       openAtLogin: capabilities.openAtLogin ? openAtLogin : null,
     },
+    ...(capabilities.updates !== "none"
+      ? {
+          updates: {
+            ...updateCalls(call),
+            mode: capabilities.updates,
+            subscribe: (cb) => bridge.on("updates:changed", cb),
+          },
+        }
+      : {}),
   };
 }
 

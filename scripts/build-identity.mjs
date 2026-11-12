@@ -160,7 +160,11 @@ export function buildIdentity(inputs, root = ROOT) {
           .filter((line) => line && !SKIPPED_FILE.test(line.slice(3).split("/").at(-1) ?? ""))
           .join("\n");
   return {
-    version: JSON.parse(readFileSync(join(root, "package.json"), "utf8")).version,
+    // The Release workflow names the version it releases, the tag without its
+    // "v" (0.1.0-beta.33); every other build is package.json's version.
+    version:
+      process.env.OWNBASE_VERSION ||
+      JSON.parse(readFileSync(join(root, "package.json"), "utf8")).version,
     revision: revision ?? "unknown",
     // Null when there is no git to ask, as in a container build.
     dirty: changed === null ? null : changed.length > 0,

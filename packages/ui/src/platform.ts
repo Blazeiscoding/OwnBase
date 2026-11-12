@@ -2,10 +2,12 @@ import type { DeviceStorage, StoredOutbox } from "@ownbase/client-core";
 import type {
   DesktopErrorCode,
   DesktopHosting,
+  DesktopUpdates,
   DiscoveredServer,
   HostingStatus,
   ShareableSource,
   SystemMicrophones,
+  UpdateStatus,
 } from "@ownbase/protocol/desktop";
 import { deviceStore } from "./lib/deviceStore.js";
 import type { SavedServer, SignInChange } from "@ownbase/client-core/savedSignIns";
@@ -27,6 +29,8 @@ export type {
   ShareableSource,
   StartedWorkspace,
   SystemMicrophoneDevice,
+  UpdateRestart,
+  UpdateStatus,
 } from "@ownbase/protocol/desktop";
 
 /**
@@ -141,6 +145,15 @@ export interface Platform {
   hosting?: Omit<DesktopHosting, "openAtLogin"> & {
     subscribe: (cb: (status: HostingStatus) => void) => () => void;
     openAtLogin: DesktopHosting["openAtLogin"] | null;
+  };
+  /**
+   * The app's own new versions. Desktop only, and only in a copy the Release
+   * workflow built: `install` on Windows, `notify` on the Mac, which says a
+   * version is out and where to get it.
+   */
+  updates?: DesktopUpdates & {
+    mode: "install" | "notify";
+    subscribe: (cb: (status: UpdateStatus) => void) => () => void;
   };
 }
 

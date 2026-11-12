@@ -7,6 +7,7 @@
   "tasks": {
     "build": {
       "dependsOn": ["^build"],
+      "env": ["OWNBASE_VERSION"],
       "inputs": ["$TURBO_DEFAULT$", "!test/**", "$TURBO_ROOT$/scripts/build-identity.mjs"],
       "outputs": ["dist/**", "out/**"]
     },

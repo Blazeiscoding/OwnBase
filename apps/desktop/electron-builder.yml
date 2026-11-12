@@ -37,6 +37,17 @@ win:
 nsis:
   oneClick: true
   deleteAppDataOnUninstall: false
+  # No spaces: GitHub turns a space in an uploaded file's name into a dot, and
+  # the feed file (latest.yml) must name the installer as it is published.
+  artifactName: ${productName}-Setup-${version}.${ext}
+# Where the installed app looks for new versions (src/main/updateFeed.ts).
+# electron-builder writes the feed file, latest.yml, and the installer's
+# blockmap beside the installer, but publishes nothing (`--publish never` in
+# the Release workflow): the workflow's own `gh release create` does.
+publish:
+  provider: github
+  owner: Blazeiscoding
+  repo: OwnBase
 mac:
   icon: build/icon-mac.png
   # One disk image for Apple silicon and Intel: a browser cannot tell a

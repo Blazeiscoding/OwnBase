@@ -11,6 +11,7 @@ describe("what the main process decided, handed to the window", () => {
       screenSound: true,
       systemMicrophone: false,
       openAtLogin: true,
+      updates: "install" as const,
     };
     expect(readCapabilities(["--type=renderer", capabilitiesArgument(sent), "--x"])).toEqual(sent);
   });
@@ -21,12 +22,14 @@ describe("what the main process decided, handed to the window", () => {
       screenSound: false,
       systemMicrophone: false,
       openAtLogin: false,
+      updates: "none",
     };
     expect(readCapabilities([])).toEqual(none);
     expect(readCapabilities(["--ownbase-capabilities={damaged"])).toEqual(none);
     expect(
       readCapabilities(['--ownbase-capabilities={"screenSound":"yes","readerLocale":7}']),
     ).toEqual(none);
+    expect(readCapabilities(['--ownbase-capabilities={"updates":"always"}'])).toEqual(none);
   });
 });
 

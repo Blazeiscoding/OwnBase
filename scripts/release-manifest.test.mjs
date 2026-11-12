@@ -12,6 +12,7 @@ import {
   prepareRelease,
   readTarGzFile,
   sha256,
+  sha512,
   tagVersion,
 } from "./release-manifest.mjs";
 
@@ -43,7 +44,23 @@ function tarGz(entries) {
   return gzipSync(Buffer.concat([...blocks, Buffer.alloc(1024)]));
 }
 
-const INSTALLER = "OwnBase Setup 0.2.0.exe";
+const INSTALLER = "OwnBase-Setup-0.2.0.exe";
+const BLOCKMAP = `${INSTALLER}.blockmap`;
+const FEED = "latest.yml";
+
+/** The update feed electron-builder writes for `installer` at `version`. */
+const feedFor = (installer, hash, version = "0.2.0") =>
+  [
+    `version: ${version}`,
+    "files:",
+    `  - url: ${installer}`,
+    `    sha512: ${hash}`,
+    "    size: 15",
+    `path: ${installer}`,
+    `sha512: ${hash}`,
+    "releaseDate: '2026-11-12T00:00:00.000Z'",
+    "",
+  ].join("\n");
 const DISK_IMAGE = "OwnBase-0.2.0-universal.dmg";
 const ARCHIVE = "ownbase-server-0.2.0.tar.gz";
 
@@ -58,20 +75,23 @@ function release(identities = { server: identity(), desktop: identity(), mac: id
   for (const [name, value] of Object.entries(identities))
     writeFileSync(join(dir, `${name}.build.json`), JSON.stringify(value));
   writeFileSync(join(dir, INSTALLER), "installer bytes");
+  writeFileSync(join(dir, BLOCKMAP), "block map bytes");
+  writeFileSync(join(dir, FEED), feedFor(INSTALLER, sha512(join(dir, INSTALLER))));
   writeFileSync(join(dir, DISK_IMAGE), "disk image bytes");
   writeFileSync(
     join(dir, ARCHIVE),
     tarGz({ "build.json": JSON.stringify(identities.server ?? identity()), "x.js": "server" }),
   );
   bindAssets(dir, "server", [join(dir, ARCHIVE)]);
-  bindAssets(dir, "desktop", [join(dir, INSTALLER)]);
+  bindAssets(dir, "desktop", [join(dir, INSTALLER), join(dir, FEED), join(dir, BLOCKMAP)]);
   bindAssets(dir, "mac", [join(dir, DISK_IMAGE)]);
   return dir;
 }
 
 test("a tag names a version, with or without a pre-release", () => {
   assert.equal(tagVersion("v0.2.0"), "0.2.0");
-  assert.equal(tagVersion("v0.2.0-rc.1"), "0.2.0");
+  assert.equal(tagVersion("v0.2.0-rc.1"), "0.2.0-rc.1");
+  assert.equal(tagVersion("v0.1.0-beta.33"), "0.1.0-beta.33");
   assert.equal(tagVersion("0.2.0"), null);
   assert.equal(tagVersion("v0.2"), null);
   assert.equal(tagVersion("release"), null);
@@ -81,7 +101,7 @@ test("every published file is hashed, and the notes name the tested revision", (
   const dir = release();
   try {
     const { sums, notes, files } = prepareRelease({ dir, revision: REVISION, tag: "v0.2.0" });
-    assert.deepEqual(files, [INSTALLER, DISK_IMAGE, ARCHIVE]);
+    assert.deepEqual(files, [DISK_IMAGE, INSTALLER, BLOCKMAP, FEED, ARCHIVE]);
     assert.equal(sums, files.map((file) => `${sha256(join(dir, file))}  ${file}\n`).join(""));
     assert.match(notes, new RegExp(`Built and tested from ${REVISION}`));
     assert.match(notes, /\| desktop \| 0\.2\.0 \| `0123456789ab` \|/);
@@ -227,8 +247,13 @@ test("refuses a file no tested build staged, a changed or swapped one, or a seco
   }
   dir = release();
   try {
-    writeFileSync(join(dir, "OwnBase Setup 0.1.0.exe"), "older");
-    bindAssets(dir, "desktop", [join(dir, INSTALLER), join(dir, "OwnBase Setup 0.1.0.exe")]);
+    writeFileSync(join(dir, "OwnBase-Setup-0.1.0.exe"), "older");
+    bindAssets(dir, "desktop", [
+      join(dir, INSTALLER),
+      join(dir, FEED),
+      join(dir, BLOCKMAP),
+      join(dir, "OwnBase-Setup-0.1.0.exe"),
+    ]);
     assert.throws(prepare(dir), /exactly one Windows installer/);
   } finally {
     rmSync(dir, { recursive: true, force: true });
@@ -271,6 +296,38 @@ test("refuses a file no tested build staged, a changed or swapped one, or a seco
     writeFileSync(join(dir, "OwnBase-0.2.0-arm64.dmg"), "one kind of Mac");
     bindAssets(dir, "mac", [join(dir, "OwnBase-0.2.0-arm64.dmg")]);
     assert.throws(prepare(dir), /mac must stage exactly one Mac disk image/);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("refuses an update feed that does not name the installer beside it", () => {
+  const prepare = (dir) => () => prepareRelease({ dir, revision: REVISION, tag: "v0.2.0" });
+  const rebind = (dir) =>
+    bindAssets(dir, "desktop", [join(dir, INSTALLER), join(dir, FEED), join(dir, BLOCKMAP)]);
+  let dir = release();
+  try {
+    writeFileSync(join(dir, FEED), feedFor(INSTALLER, sha512(join(dir, DISK_IMAGE))));
+    rebind(dir);
+    assert.throws(prepare(dir), /latest\.yml does not have the installer's SHA-512/);
+    writeFileSync(
+      join(dir, FEED),
+      feedFor("OwnBase Setup 0.2.0.exe", sha512(join(dir, INSTALLER))),
+    );
+    rebind(dir);
+    assert.throws(prepare(dir), /latest\.yml names OwnBase Setup 0\.2\.0\.exe, not the installer/);
+    writeFileSync(join(dir, FEED), feedFor(INSTALLER, sha512(join(dir, INSTALLER)), "0.1.9"));
+    rebind(dir);
+    assert.throws(prepare(dir), /latest\.yml is for version 0\.1\.9, but the tag names 0\.2\.0/);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+  // Without the feed or the block map, an installed app could not update.
+  dir = release();
+  try {
+    rmSync(join(dir, FEED));
+    bindAssets(dir, "desktop", [join(dir, INSTALLER), join(dir, BLOCKMAP)]);
+    assert.throws(prepare(dir), /desktop must stage exactly one Windows update feed, not none/);
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }

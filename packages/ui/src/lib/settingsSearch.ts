@@ -10,6 +10,7 @@ export const SECTION_LABELS: Record<AccountSection, string> = {
   security: "Security",
   devices: "Devices",
   storage: "Storage",
+  updates: "Updates",
 };
 
 export type SettingId =
@@ -32,7 +33,8 @@ export type SettingId =
   | "blocked-people"
   | "sign-out"
   | "devices"
-  | "storage";
+  | "storage"
+  | "updates";
 
 /** A setting someone may look for. */
 export interface Setting {
@@ -145,6 +147,12 @@ export const SETTINGS: readonly Setting[] = [
     section: "storage",
     label: "Workspace attachment storage",
     words: "files uploads space limit disk",
+  },
+  {
+    id: "updates",
+    section: "updates",
+    label: "Update automatically",
+    words: "new version upgrade download install restart",
   },
 ];
 

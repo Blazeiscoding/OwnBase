@@ -52,11 +52,36 @@ jobs:
   # Publishing a draft by hand creates its tag, and a version tag starts this
   # workflow, which would build the same release again and leave a second
   # draft of it. A tag whose release is already out builds nothing.
+  # The tag is chosen here, before anything is built, because every build
+  # carries it as its version: the installed app compares versions to know
+  # whether a release is newer than itself.
   plan:
     runs-on: ubuntu-latest
     outputs:
       build: ${{ steps.check.outputs.build }}
+      tag: ${{ steps.tag.outputs.tag }}
+      version: ${{ steps.tag.outputs.version }}
     steps:
+      - uses: actions/checkout@v7
+      - name: Choose the tag
+        id: tag
+        env:
+          INPUT_TAG: ${{ inputs.tag }}
+        run: |
+          version=$(node -p "require('./package.json').version")
+          if [ -n "$INPUT_TAG" ]; then tag="$INPUT_TAG"
+          elif [ "$GITHUB_REF_TYPE" = "tag" ]; then tag="$GITHUB_REF_NAME"
+          elif [ "$GITHUB_EVENT_NAME" = "push" ]; then
+            # The next beta after every one tagged so far. A draft has no tag
+            # until it is published, so a draft left waiting may share its name.
+            # Runs from main queue one at a time, so two cannot pick one number.
+            last=$(git ls-remote --tags origin "refs/tags/v$version-beta.*" \
+              | grep -oE -- '-beta\.[0-9]+$' | grep -oE '[0-9]+$' | sort -n | tail -1) || true
+            tag="v$version-beta.$(( ${last:-0} + 1 ))"
+          else tag="v$version-check"; fi
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
+          echo "version=${tag#v}" >> "$GITHUB_OUTPUT"
+          echo "Building $tag"
       - id: check
         env:
           GH_TOKEN: ${{ github.token }}
@@ -88,11 +113,14 @@ jobs:
         env:
           ELECTRON_SKIP_BINARY_DOWNLOAD: 1
       - run: pnpm build --concurrency=2
+        env:
+          OWNBASE_VERSION: ${{ needs.plan.outputs.version }}
       - run: node scripts/check-web-bundle.mjs
       - run: node scripts/check-web-precompressed.mjs apps/server-cli/dist/web
       - name: Collect the server
+        env:
+          version: ${{ needs.plan.outputs.version }}
         run: |
-          version=$(node -p "require('./package.json').version")
           mkdir -p release
           tar -czf "release/ownbase-server-$version.tar.gz" -C apps/server-cli/dist .
           cp apps/server-cli/dist/build.json release/server.build.json
@@ -193,7 +221,13 @@ jobs:
             electron-${{ runner.os }}-${{ runner.arch }}-
       - run: pnpm install --frozen-lockfile
       - run: pnpm typecheck:automation
-      - run: pnpm --filter @ownbase/desktop package --win
+      # The release's version is the installed app's own (extraMetadata), set
+      # here rather than in package.json, which would make the build "dirty".
+      # electron-builder writes the update feed but publishes nothing; the
+      # publish job does.
+      - run: pnpm --filter @ownbase/desktop package --win --publish never "-c.extraMetadata.version=$env:OWNBASE_VERSION"
+        env:
+          OWNBASE_VERSION: ${{ needs.plan.outputs.version }}
       - run: node scripts/check-web-bundle.mjs apps/desktop/out/renderer
       - run: node scripts/check-desktop-archive.mjs apps/desktop/release/win-unpacked/resources/app.asar
       - run: node scripts/check-web-precompressed.mjs apps/desktop/release/win-unpacked/resources/web
@@ -215,8 +249,9 @@ jobs:
         shell: pwsh
         env:
           PREVIOUS: ${{ steps.previous.outputs.installer }}
+          OWNBASE_VERSION: ${{ needs.plan.outputs.version }}
         run: |
-          $version = node -p "require('./package.json').version"
+          $version = $env:OWNBASE_VERSION
           $installer = (Get-ChildItem "apps/desktop/release/*Setup*.exe" | Select-Object -First 1).FullName
           $previous = $env:PREVIOUS
           if ($previous) {
@@ -229,9 +264,12 @@ jobs:
         run: |
           New-Item -ItemType Directory -Force release | Out-Null
           Copy-Item (Get-ChildItem "apps/desktop/release/*Setup*.exe" | Select-Object -First 1).FullName release/
+          # The feed the installed app updates from, and the installer's block map.
+          Copy-Item apps/desktop/release/latest.yml release/
+          Copy-Item (Get-ChildItem "apps/desktop/release/*Setup*.exe.blockmap" | Select-Object -First 1).FullName release/
           node --input-type=module -e "import { readAsarFile } from './scripts/build-identity.mjs'; import { writeFileSync } from 'node:fs'; writeFileSync('release/desktop.build.json', readAsarFile('apps/desktop/release/win-unpacked/resources/app.asar', 'out/build.json'));"
           # Every installer here is bound, so a second one is refused, not chosen between.
-          node scripts/release-manifest.mjs bind release desktop @((Get-ChildItem "release/*Setup*.exe").FullName)
+          node scripts/release-manifest.mjs bind release desktop @((Get-ChildItem "release/*Setup*.exe").FullName) release/latest.yml @((Get-ChildItem "release/*Setup*.exe.blockmap").FullName)
       - uses: actions/upload-artifact@v7
         with:
           name: release-desktop
@@ -267,9 +305,10 @@ jobs:
       # certificate out of untrusted code; then the app tested here would not
       # be the app released. An ad hoc signature uses no certificate or secret.
       # Revisit this once a Developer ID certificate signs the app.
-      - run: pnpm --filter @ownbase/desktop package --mac
+      - run: pnpm --filter @ownbase/desktop package --mac --publish never "-c.extraMetadata.version=$OWNBASE_VERSION"
         env:
           CSC_FOR_PULL_REQUEST: "true"
+          OWNBASE_VERSION: ${{ needs.plan.outputs.version }}
       - run: node scripts/check-desktop-archive.mjs apps/desktop/release/mac-universal/OwnBase.app/Contents/Resources/app.asar
       - run: node scripts/check-web-precompressed.mjs apps/desktop/release/mac-universal/OwnBase.app/Contents/Resources/web
       - name: Check the app runs on both kinds of Mac and says why it asks
@@ -301,10 +340,10 @@ jobs:
   # Checks every file was built from this commit and writes the hashes and
   # notes; on a pull request it stops here.
   manifest:
-    needs: [server, unit, browser, windows, mac]
+    needs: [plan, server, unit, browser, windows, mac]
     runs-on: ubuntu-latest
     outputs:
-      tag: ${{ steps.tag.outputs.tag }}
+      tag: ${{ needs.plan.outputs.tag }}
     steps:
       - uses: actions/checkout@v7
       - uses: actions/download-artifact@v8
@@ -312,26 +351,10 @@ jobs:
           pattern: release-*
           path: release
           merge-multiple: true
-      - name: Choose the tag
-        id: tag
-        env:
-          INPUT_TAG: ${{ inputs.tag }}
-        run: |
-          version=$(node -p "require('./package.json').version")
-          if [ -n "$INPUT_TAG" ]; then tag="$INPUT_TAG"
-          elif [ "$GITHUB_REF_TYPE" = "tag" ]; then tag="$GITHUB_REF_NAME"
-          elif [ "$GITHUB_EVENT_NAME" = "push" ]; then
-            # The next beta after every one tagged so far. A draft has no tag
-            # until it is published, so a draft left waiting may share its name.
-            last=$(git ls-remote --tags origin "refs/tags/v$version-beta.*" \
-              | grep -oE -- '-beta\.[0-9]+$' | grep -oE '[0-9]+$' | sort -n | tail -1) || true
-            tag="v$version-beta.$(( ${last:-0} + 1 ))"
-          else tag="v$version-check"; fi
-          echo "tag=$tag" >> "$GITHUB_OUTPUT"
       - run: node --test scripts/release-manifest.test.mjs
       - run: node scripts/release-manifest.mjs release --revision "$GITHUB_SHA" --tag "$TAG" --notes release/notes.md
         env:
-          TAG: ${{ steps.tag.outputs.tag }}
+          TAG: ${{ needs.plan.outputs.tag }}
       - uses: actions/upload-artifact@v7
         with:
           name: release-manifest

@@ -194,9 +194,12 @@ describe("searching settings", () => {
   });
 
   it("goes to every setting it can find, in the section that has it", async () => {
-    // Speaker shows only where the browser can choose one, which jsdom cannot.
+    // Speaker shows only where the browser can choose one, which jsdom cannot,
+    // and Updates only in the desktop app (updates.dom.test.tsx).
     const { settings, search, user } = page();
-    for (const setting of SETTINGS.filter((s) => s.label !== "Speaker")) {
+    for (const setting of SETTINGS.filter(
+      (s) => s.label !== "Speaker" && s.section !== "updates",
+    )) {
       await user.clear(search);
       await user.click(search);
       await user.paste(setting.label);

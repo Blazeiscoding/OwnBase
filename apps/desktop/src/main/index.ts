@@ -10,6 +10,7 @@ import {
   MessageChannelMain,
   nativeImage,
   nativeTheme,
+  net,
   powerMonitor,
   safeStorage,
   screen,
@@ -33,6 +34,7 @@ import {
   TITLE_BAR_HEIGHT,
   type DesktopCapabilities,
   type DiscoveredServer,
+  type UpdateMode,
 } from "@ownbase/protocol/desktop";
 import type { OutboxChanges } from "@ownbase/client-core/outbox";
 import type { DraftChanges } from "@ownbase/client-core/drafts";
@@ -85,6 +87,11 @@ import { ZOOM_KEY, nextZoomLevel, savedZoomLevel, zoomStep } from "./zoomKeys.js
 import { contextMenuItems } from "./contextMenu.js";
 import { appMenuTemplate } from "./appMenu.js";
 import { readerLocale, systemHourCycle } from "./regionalFormat.js";
+import { DOWNLOAD_PAGE, HOUR_MS, Updates } from "./updates.js";
+import { latestRelease, updateLog, windowsFeed } from "./updateFeed.js";
+
+/** Set when the Release workflow built this copy (electron.vite.config.ts). */
+declare const __OWNBASE_RELEASE__: boolean | undefined;
 
 const isDev = !!process.env.ELECTRON_RENDERER_URL;
 const appEnv = (name: string): string | undefined => process.env[`OWNBASE_${name}`];
@@ -449,11 +456,80 @@ const hosting = createHostingService({
   },
 });
 
+// ---------- updates ----------
+
+/**
+ * Only a copy the Release workflow built looks for new versions: one built
+ * anywhere else is not the version it would replace. Tests and the installer
+ * gates never do, unless a test names a feed of its own with
+ * OWNBASE_UPDATE_FEED. Windows installs new versions; the Mac app, signed ad
+ * hoc, cannot be replaced by Squirrel, so it says one is out (updates.ts).
+ */
+const updateFeedUrl = appEnv("UPDATE_FEED");
+const updateMode: UpdateMode = (() => {
+  const release = typeof __OWNBASE_RELEASE__ !== "undefined" && __OWNBASE_RELEASE__;
+  if (!app.isPackaged || !release || appEnv("RELEASE_GATE_REPORT")) return "none";
+  if (isTest && !updateFeedUrl) return "none";
+  if (process.platform === "win32") return "install";
+  if (process.platform === "darwin") return "notify";
+  return "none";
+})();
+const logUpdates = updateLog(join(app.getPath("userData"), "updates.log"));
+const installer = updateMode === "install" ? windowsFeed(logUpdates, updateFeedUrl) : null;
+const updates = new Updates({
+  mode: updateMode,
+  version: app.getVersion(),
+  now: Date.now,
+  settings: ownSettings,
+  ...(installer ? { feed: installer } : {}),
+  latest: () => latestRelease((url, init) => net.fetch(url, init), app.getVersion(), updateFeedUrl),
+  hosting: () => {
+    const status = hosting.status();
+    return {
+      running: status.running,
+      ...(status.workspaceName ? { workspaceName: status.workspaceName } : {}),
+      ...(status.startsOnLaunch ? { startsOnLaunch: true } : {}),
+    };
+  },
+  ask: async (question) => {
+    const owner = mainWindow && !mainWindow.isDestroyed() ? mainWindow : null;
+    const options = {
+      type: "question" as const,
+      title: "Restart to update",
+      message: question.message,
+      detail: question.detail,
+      buttons: ["Cancel", question.button],
+      defaultId: 0,
+      cancelId: 0,
+    };
+    const choice = owner
+      ? await dialog.showMessageBox(owner, options)
+      : await dialog.showMessageBox(options);
+    return choice.response === 1;
+  },
+  // Through the same quit as any other, so drafts and messages waiting to
+  // send are saved and hosting stops; then the installer runs and opens it.
+  install: () => quitOwnBase(true, () => installer?.quitAndInstall()),
+  onChange: (status) => {
+    push("updates:changed", status);
+    updateTray();
+  },
+  log: logUpdates,
+});
+
+/** "Restart to update" from the tray, which says why when it cannot. */
+async function restartFromTray(): Promise<void> {
+  const answer = await updates.restart();
+  if (answer.restarting || !answer.reason) return;
+  await dialog.showMessageBox({ type: "info", title: "Restart to update", message: answer.reason });
+}
+
 /** What this copy of the app can do, handed to the window as it is made. */
 const capabilities: Omit<DesktopCapabilities, "readerLocale"> = {
   screenSound,
   systemMicrophone: microphoneHelper !== null,
   openAtLogin: loginItem !== null,
+  updates: updateMode,
 };
 
 // ---------- every call the window makes ----------
@@ -568,6 +644,20 @@ const handlers: Handlers<IpcMainInvokeEvent> = {
     if (typeof session === "number") microphones.close(event.sender.id, session);
   },
   ...hosting.handlers,
+  "updates:status": () => updates.status(),
+  "updates:setAutomatic": (_event, on) => {
+    if (typeof on !== "boolean") throw new Error("Not a choice.");
+    return updates.setAutomatic(on);
+  },
+  "updates:check": () => updates.check(),
+  "updates:restart": () => updates.restart(),
+  "updates:later": () => updates.later(),
+  "updates:reportCall": (_event, on) => {
+    updates.reportCall(on === true);
+  },
+  "updates:openDownloadPage": async () => {
+    await shell.openExternal(DOWNLOAD_PAGE);
+  },
 };
 
 // Every request comes from the app's own window, its top frame, showing the
@@ -638,6 +728,7 @@ function updateTray(): void {
   // a scheduled backup keep failing; the tray is often all there is to see at
   // sign-in, so it says so too.
   const backups = backupTrayItems(hosting.backupAttention());
+  const update = updates.status();
   const attention = status.launchError || backups.length ? " · needs attention" : "";
   tray.setToolTip(`OwnBase · ${label}${attention}`.slice(0, 127));
   tray.setContextMenu(
@@ -648,6 +739,26 @@ function updateTray(): void {
           showMainWindow();
         },
       },
+      ...(update.phase === "ready"
+        ? [
+            {
+              label: "A new version is ready. Restart to update",
+              enabled: !hosting.quitting(),
+              click: () => {
+                void restartFromTray().catch(() => {});
+              },
+            },
+          ]
+        : update.phase === "available"
+          ? [
+              {
+                label: "A new version is available. Get it…",
+                click: () => {
+                  void shell.openExternal(DOWNLOAD_PAGE);
+                },
+              },
+            ]
+          : []),
       { label: label.replaceAll("&", "&&"), enabled: false },
       ...(status.launchError
         ? [
@@ -990,6 +1101,7 @@ void app.whenReady().then(async () => {
       },
     ).catch(() => {});
   await hosting.load();
+  await updates.load();
   // Unreadable, the window follows the system until the page says its theme.
   const saved = await ownSettings.get(WINDOW_THEME_KEY).catch(() => null);
   windowTheme = isWindowTheme(saved)
@@ -1032,6 +1144,12 @@ void app.whenReady().then(async () => {
     createWindow();
   }
   startDiscovery();
+  // A first look once the app has settled, then a check every hour of whether
+  // it is time to look again (updates.ts decides; it looks every four hours).
+  if (updateMode !== "none") {
+    setTimeout(() => void updates.tick(), 10_000).unref();
+    setInterval(() => void updates.tick(), HOUR_MS).unref();
+  }
   app.on("activate", () => {
     showMainWindow();
   });
@@ -1058,9 +1176,10 @@ app.on("before-quit", (event) => {
 
 /**
  * Stops hosting, saves local work and quits. `stopConfirmed` skips asking
- * first, for a choice that already said it stops hosting.
+ * first, for a choice that already said it stops hosting. `finish` quits once
+ * all that is done: installing an update quits through its installer.
  */
-function quitOwnBase(stopConfirmed: boolean): void {
+function quitOwnBase(stopConfirmed: boolean, finish: () => void = () => app.quit()): void {
   if (quitTask) return;
   hosting.setQuitting(true);
   updateTray();
@@ -1082,7 +1201,7 @@ function quitOwnBase(stopConfirmed: boolean): void {
     tray?.destroy();
     tray = null;
     bonjour.destroy();
-    app.quit();
+    finish();
   })()
     .catch(async () => {
       const choice = await dialog.showMessageBox({
