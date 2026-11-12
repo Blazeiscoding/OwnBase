@@ -404,8 +404,8 @@ export OWNBASE_TUNNEL_TOKEN_FILE=/home/sam/.cloudflared/chat-token
 The same inheritance rule applies on macOS: a GUI app opened from Finder or the
 Dock does not inherit variables exported in an unrelated terminal. Start its
 executable from the configured shell or provide the values through the service
-or launcher that owns the app process. macOS and Linux packages have not yet
-been validated for this project.
+or launcher that owns the app process. Releases include no Linux package, and
+CI neither builds nor tests one.
 
 `OWNBASE_TUNNEL_URL` has to be a public HTTPS origin: a hostname with a dot,
 and no path, query, credentials, or fragment. Loopback and private-network
@@ -1554,6 +1554,18 @@ restart. Cleanup handles at most 100 queued files per pass; shutdown awaits the
 active pass before closing the database. A locked file can remain on disk until
 cleanup succeeds, but the download API no longer serves it after deletion commits.
 
+### Updating the desktop app
+
+The Windows app from a release updates itself from GitHub Releases. It looks
+when it starts and every four hours after, downloads in the background, and
+installs when you restart or quit, never during a call. It checks the download
+against the SHA-512 in the release's `latest.yml`. The Mac app, signed ad hoc,
+only says a new release is out and links to the download. With **Update
+automatically** off, under Account settings → Updates, the app looks only when
+you ask it to. Builds made anywhere but the Release workflow never look.
+`updates.log` in the app's data folder (`%APPDATA%\OwnBase` on Windows) says
+which version updated to which, and why one could not.
+
 ## Moving in from Slack
 
 `import-slack` makes a new workspace from the export Slack makes. In Slack, a
@@ -2278,16 +2290,28 @@ whole path answers without DNS.
 
 ## Current boundaries
 
-Friends and accounts do not federate across servers. Account settings offers password
-changes and signed-in device management. Administrators can reset member passwords
-from People; the owner can transfer ownership there after confirming the target handle.
-Share temporary passwords privately and ask recipients to change them after sign-in.
-There is no SSO, email-based account
-recovery, large-call SFU, or signed public release pipeline yet. The Windows app
-from a release updates itself from GitHub Releases: it looks every few hours,
-downloads in the background and installs on restart or quit, never during a
-call, and checks the download against the SHA-512 in the release's
-`latest.yml`. The Mac app, signed ad hoc, only says a new release is out and
-links to the download. Account settings → Updates turns either off, and then
-the app makes no update requests. Test with your environment before an
-office-wide rollout.
+What OwnBase does not do today:
+
+- **One server, one set of accounts.** Accounts and friends do not federate
+  between workspace servers.
+- **No email.** The server sends none, so a forgotten password cannot be reset
+  by email. An admin resets it from People and passes the temporary password on
+  privately, and the person changes it after signing in.
+- **No push notifications in the browser.** The browser client notifies only
+  while a tab has the workspace open. The desktop app notifies while it is
+  running.
+- **No SFU.** Calls are a mesh, which suits small groups. See
+  [How many people a call holds](#how-many-people-a-call-holds).
+- **OpenID Connect only.** [Single sign-on](#single-sign-on) speaks OIDC,
+  through an Enterprise license. There is no SAML, and no SCIM provisioning.
+- **SQLite and a local folder.** A workspace is one SQLite database and its
+  files on the server's disk. It cannot run on Postgres or keep files in S3.
+  Backups can go to an S3-compatible bucket, see
+  [Backups somewhere else](#backups-somewhere-else).
+- **No signed builds.** The Windows installer is not code-signed, so
+  SmartScreen may warn. The Mac app is signed ad hoc and not notarized, so it
+  cannot replace itself and only says when a new release is out.
+- **No Linux desktop app.** Releases build the desktop app for Windows and
+  macOS. The server runs on Linux.
+
+Test with your environment before an office-wide rollout.
