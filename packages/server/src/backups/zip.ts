@@ -1,6 +1,6 @@
 import { createReadStream, createWriteStream } from "node:fs";
 import { open, stat } from "node:fs/promises";
-import { Readable, Transform } from "node:stream";
+import { Readable, Transform, Writable } from "node:stream";
 import { pipeline } from "node:stream/promises";
 import { crc32, createInflateRaw } from "node:zlib";
 
@@ -319,6 +319,36 @@ export async function readZipDirectory(
  * zip tools make when someone zips a backup folder by hand.
  */
 export async function extractZipEntry(path: string, entry: ZipEntry, to: string): Promise<void> {
+  const { stages, finish } = await entryStages(path, entry);
+  await pipeline([...stages, createWriteStream(to, { flags: "wx" })]);
+  finish();
+}
+
+/** One entry's bytes in memory, checked as `extractZipEntry` checks them. */
+export async function readZipEntry(path: string, entry: ZipEntry): Promise<Buffer> {
+  const { stages, finish } = await entryStages(path, entry);
+  const chunks: Buffer[] = [];
+  const collect = new Writable({
+    write(chunk: Buffer, _encoding, done) {
+      chunks.push(chunk);
+      done();
+    },
+  });
+  await pipeline([...stages, collect]);
+  finish();
+  return Buffer.concat(chunks);
+}
+
+/**
+ * The streams one entry's bytes come through, inflated and counted, and a
+ * check of its size and CRC to run once they have all gone through. Bytes
+ * past the size the zip states stop the stream, so a small entry claiming to
+ * be smaller still cannot fill the disk or memory.
+ */
+async function entryStages(
+  path: string,
+  entry: ZipEntry,
+): Promise<{ stages: (Readable | Transform)[]; finish: () => void }> {
   if (entry.method !== 0 && entry.method !== 8)
     throw new Error(`${entry.name} is compressed in a way this cannot read.`);
   const handle = await open(path, "r");
@@ -344,9 +374,11 @@ export async function extractZipEntry(path: string, entry: ZipEntry, to: string)
     entry.compressedSize === 0
       ? Readable.from([])
       : createReadStream(path, { start, end: start + entry.compressedSize - 1 });
-  if (entry.method === 8)
-    await pipeline(source, createInflateRaw(), check, createWriteStream(to, { flags: "wx" }));
-  else await pipeline(source, check, createWriteStream(to, { flags: "wx" }));
-  if (written !== entry.size || value >>> 0 !== entry.crc32 >>> 0)
-    throw new Error(`${entry.name} does not match its checksum in the zip.`);
+  return {
+    stages: entry.method === 8 ? [source, createInflateRaw(), check] : [source, check],
+    finish: () => {
+      if (written !== entry.size || value >>> 0 !== entry.crc32 >>> 0)
+        throw new Error(`${entry.name} does not match its checksum in the zip.`);
+    },
+  };
 }
