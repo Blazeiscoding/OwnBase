@@ -42,7 +42,7 @@ node apps/server-cli/dist/ownbase-server.js --data ./demo-data --name "Demo Team
 ```
 
 **In the desktop app.** On Windows, run `pnpm build:win`, install
-`apps/desktop/release/OwnBase-Setup-0.1.0.exe`, and choose
+`apps/desktop/release/OwnBase-Setup-0.2.0.exe`, and choose
 **Host a workspace on this computer**. On a Mac, `pnpm build:mac` builds one
 DMG for Apple silicon and Intel. Releases include it, after a macOS runner has
 booted it, hosted a workspace and joined a huddle. It is signed ad hoc, not with

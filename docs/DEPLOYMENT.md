@@ -3,7 +3,7 @@
 ## Windows and LAN
 
 Build an installer with `pnpm build:win`.
-The output is `apps/desktop/release/OwnBase Setup 0.1.0.exe`. Local builds are
+The output is `apps/desktop/release/OwnBase-Setup-0.2.0.exe`. Local builds are
 unsigned unless you supply a signing certificate; Windows may show SmartScreen.
 A published release carries the installer, the server bundle and `SHA256SUMS`;
 check a download with `Get-FileHash -Algorithm SHA256 <file>` against that list.
@@ -12,11 +12,16 @@ app and `/api/server-info` on a server also report. Release installers are not
 code-signed yet.
 
 Every change to the app merged to `main` is built, tested and published as the
-next beta (`v0.1.0-beta.4` after `v0.1.0-beta.3`) by the Release workflow, and
+next alpha (`v0.2.0-alpha.4` after `v0.2.0-alpha.3`) by the Release workflow, and
 the download buttons on the website offer the newest published release. A run by
 hand, or from a pushed version tag, still leaves a draft to look over first.
 Publishing that draft creates its tag, and a tag whose release is already out
 builds nothing, so no second draft appears.
+
+Releases were betas (`v0.1.0-beta.1` to `v0.1.0-beta.39`) until November 2026,
+when they became alphas of 0.2.0 so the versions keep rising. A Windows copy of a
+beta does not update to an alpha by itself, because electron-updater never moves
+a beta down to an alpha; install the newest alpha from the website once.
 
 Install, choose **Host a workspace on this computer**, name it, and create the
 owner account. Allow incoming TCP on the displayed port through the host firewall.
@@ -393,7 +398,7 @@ On Linux, export the values and run the AppImage from that same shell:
 ```sh
 export OWNBASE_TUNNEL_URL=https://chat.example.org
 export OWNBASE_TUNNEL_TOKEN_FILE=/home/sam/.cloudflared/chat-token
-./OwnBase-0.1.0.AppImage
+./OwnBase-0.2.0.AppImage
 ```
 
 The same inheritance rule applies on macOS: a GUI app opened from Finder or the
@@ -1911,7 +1916,7 @@ OwnBase encrypts the desktop app's saved sign-ins using Electron's
 Windows uses the current OS account's protection; macOS uses Keychain and Linux
 needs a supported secret store. Linux's `basic_text` fallback is refused. On
 macOS, consistent application signing is needed for reliable Keychain behavior
-across updates. The beta's Mac app is signed ad hoc, and each build's signature
+across updates. The alpha's Mac app is signed ad hoc, and each build's signature
 differs, so after an update macOS may ask for your password before OwnBase can
 read its saved sign-ins; choose Always Allow. Declining only means signing in
 again, as described below.

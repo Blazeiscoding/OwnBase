@@ -141,6 +141,14 @@ describe("versions", () => {
     expect(newerRelease(list, "0.1.0")).toBe("0.1.1");
     expect(newerRelease(list, "0.1.0-beta.5")).toBe("0.2.0-beta.1");
   });
+
+  it("offers the 0.2.0 alphas to a 0.1.0 beta", () => {
+    const list = [
+      { tag_name: "v0.2.0-alpha.1", draft: false, prerelease: true },
+      { tag_name: "v0.1.0-beta.39", draft: false, prerelease: true },
+    ];
+    expect(newerRelease(list, "0.1.0-beta.39")).toBe("0.2.0-alpha.1");
+  });
 });
 
 /** A controller over fakes: settings in memory, a clock that only moves when told. */
