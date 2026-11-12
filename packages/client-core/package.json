@@ -19,7 +19,7 @@
   },
   "dependencies": {
     "@ownbase/protocol": "workspace:*",
-    "zustand": "^5.0.7"
+    "zustand": "^5.1.0"
   },
   "devDependencies": {
     "@ownbase/server": "workspace:*",
