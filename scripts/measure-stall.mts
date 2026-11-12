@@ -120,7 +120,7 @@ try {
         const channelId = channels[i % channels.length]!;
         const here = roots.get(channelId)!;
         const reply = i % 10 === 9 && here.length > 0;
-        const message = store.messages.create({
+        const messageId = store.messages.create({
           channelId,
           userId: owner.user.id,
           text: sentence(i),
@@ -129,9 +129,9 @@ try {
         });
         // Posting stamps each message with its place in the event log, and a
         // reply moves its channel's newest seq only when shown there.
-        store.messages.stampSeq(message.id, channelId, 1_000_000 + i, !reply);
+        store.messages.stampSeq(messageId, channelId, 1_000_000 + i, !reply);
         if (!reply) {
-          here.push(message.id);
+          here.push(messageId);
           if (here.length > 50) here.shift();
         }
       }

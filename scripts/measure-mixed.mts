@@ -206,13 +206,15 @@ try {
   const seedMessage = (at: number, channelId: string, text: string) => {
     Date.now = () => Math.floor(at);
     try {
-      const message = store.messages.create({
-        channelId,
-        userId: pick(people).id,
-        text,
-        threadRootId: null,
-        nonce: null,
-      });
+      const message = store.messages.get(
+        store.messages.create({
+          channelId,
+          userId: pick(people).id,
+          text,
+          threadRootId: null,
+          nonce: null,
+        }),
+      )!;
       const envelope = store.appendEvent(
         { type: "message.created", message },
         channelId,
