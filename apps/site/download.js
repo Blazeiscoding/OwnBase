@@ -52,7 +52,7 @@
   /**
    * The newest published release's files, `{ none: true }` when there is no
    * release, or null when GitHub did not answer. A stable release wins; while
-   * OwnBase is in beta there may only be pre-releases (v0.1.0-beta.1), which
+   * OwnBase is in alpha there may only be pre-releases (v0.2.0-alpha.1), which
    * GitHub's "latest release" leaves out, so the list is read instead.
    */
   async function latestRelease() {

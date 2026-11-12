@@ -3,7 +3,7 @@
  * needs to name it (a backup's manifest, a discovery announcement) does not
  * load the HTTP server, sockets and discovery to do so (REV-07).
  */
-export const SERVER_VERSION = "0.1.0";
+export const SERVER_VERSION = "0.2.0";
 
 /** Stamped in by the build (IMP-08); not defined when the server runs from source. */
 declare const __OWNBASE_BUILD__:

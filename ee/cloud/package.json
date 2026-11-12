@@ -1,6 +1,6 @@
 {
   "name": "@ownbase/cloud",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "private": true,
   "description": "OwnBase's hosting control plane: a server process per workspace behind Caddy",
   "license": "SEE LICENSE IN ../LICENSE",

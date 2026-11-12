@@ -267,8 +267,8 @@ pre {
   text-decoration: none;
 }
 
-/* Beta, beside the name: a quiet tag on the glass the buttons use. */
-.beta {
+/* Alpha, beside the name: a quiet tag on the glass the buttons use. */
+.alpha {
   padding: 2px 7px;
   border-radius: 4px;
   background: rgb(255 255 255 / 0.12);
