@@ -2148,5 +2148,11 @@ changes and signed-in device management. Administrators can reset member passwor
 from People; the owner can transfer ownership there after confirming the target handle.
 Share temporary passwords privately and ask recipients to change them after sign-in.
 There is no SSO, email-based account
-recovery, large-call SFU, automated update service, or signed public release
-pipeline yet. Test with your environment before an office-wide rollout.
+recovery, large-call SFU, or signed public release pipeline yet. The Windows app
+from a release updates itself from GitHub Releases: it looks every few hours,
+downloads in the background and installs on restart or quit, never during a
+call, and checks the download against the SHA-512 in the release's
+`latest.yml`. The Mac app, signed ad hoc, only says a new release is out and
+links to the download. Account settings → Updates turns either off, and then
+the app makes no update requests. Test with your environment before an
+office-wide rollout.

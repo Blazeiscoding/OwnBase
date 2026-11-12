@@ -42,12 +42,19 @@ node apps/server-cli/dist/ownbase-server.js --data ./demo-data --name "Demo Team
 ```
 
 **In the desktop app.** On Windows, run `pnpm build:win`, install
-`apps/desktop/release/OwnBase Setup 0.1.0.exe`, and choose
+`apps/desktop/release/OwnBase-Setup-0.1.0.exe`, and choose
 **Host a workspace on this computer**. On a Mac, `pnpm build:mac` builds one
 DMG for Apple silicon and Intel. Releases include it, after a macOS runner has
 booted it, hosted a workspace and joined a huddle. It is signed ad hoc, not with
 an Apple Developer ID, so the first time it opens, allow it under System
 Settings → Privacy & Security → Open Anyway.
+
+The Windows app from a release updates itself: it downloads each new release in
+the background and installs it when you restart or quit OwnBase, never during a
+call. The Mac app says when a new release is out and links to the download,
+since macOS lets only an app with a Developer ID signature replace itself. Turn
+either off under Account settings → Updates. Builds made on your own computer
+never look for updates.
 
 **With Docker.** `docker compose -f docker/docker-compose.yml up -d --build`.
 

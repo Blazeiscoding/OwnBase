@@ -263,6 +263,29 @@
       "concepts": ["release gates", "artifact identity", "profile migration"]
     },
     {
+      "path": "apps/desktop/src/main/updates.ts",
+      "plain": "Decides when the desktop app looks for a new version, when it says one is ready, and when restarting into it is allowed.",
+      "summary": "Update rules as pure functions, and the Updates controller that follows them (G06).",
+      "details": [
+        "Only a build the Release workflow made looks at all: at start, then every four hours, and a day after a version is downloaded. With Update automatically off it makes no request unless the person presses Check now.",
+        "At most one version is offered a day; Later puts it off until the next day.",
+        "Restart to update is refused during a call, and asks first while a workspace is hosted here. Nothing ever restarts on its own: a downloaded version installs when OwnBase next quits.",
+        "Windows downloads and installs through an injected feed; the Mac, signed ad hoc, only compares GitHub's list of releases with its own version."
+      ],
+      "concepts": ["updates", "release gates", "calls"]
+    },
+    {
+      "path": "apps/desktop/src/main/updateFeed.ts",
+      "plain": "Connects the update rules to electron-updater on Windows and to GitHub's list of releases on the Mac, and keeps a short update log.",
+      "summary": "windowsFeed (electron-updater's NsisUpdater, loaded on first use), latestRelease, and updates.log.",
+      "details": [
+        "The installer is not code signed, so a download is checked against the SHA-512 in the release's latest.yml, fetched over HTTPS from GitHub.",
+        "OWNBASE_UPDATE_FEED points the updater at another feed, for a test; with OWNBASE_TEST set it is the only way updates run at all.",
+        "updates.log in the profile says which version replaced which, and why a look failed."
+      ],
+      "concepts": ["updates", "release assets"]
+    },
+    {
       "path": "apps/desktop/src/main/env.d.ts",
       "plain": "A note for the code checker about the desktop app's build tools, with no effect on the running app.",
       "summary": "Supplies electron-vite Node build types to the desktop main TypeScript project.",

@@ -2460,6 +2460,17 @@
       "concepts": ["banner place", "notices", "P6"]
     },
     {
+      "path": "packages/ui/src/components/Updates.tsx",
+      "plain": "Tells people a new version of the desktop app is ready, and lets them restart into it or turn automatic updates off.",
+      "summary": "UpdateBanner, UpdateSettings and useReportCall: the window's side of the desktop app's own updates (G06).",
+      "details": [
+        "The banner shows when the main process offers a version, at most once a day: Restart to update on Windows, Get it on the Mac, which opens the download page. A refused restart says why in the banner.",
+        "Account settings gets an Updates section in the desktop app only: this version, where updates have got, Check now, and Update automatically.",
+        "The workspace screen reports whether a call is on, so a restart is never started in the middle of one."
+      ],
+      "concepts": ["banner place", "updates", "desktop bridge"]
+    },
+    {
       "path": "packages/ui/src/components/MessageAnnouncer.tsx",
       "plain": "Reads out new messages to screen reader users without moving focus, grouping bursts so they are not flooded.",
       "summary": "Politely announces new visible messages without flooding a screen reader.",
