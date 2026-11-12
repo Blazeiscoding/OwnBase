@@ -1,5 +1,6 @@
 import type { DeviceStorage, StoredOutbox } from "@ownbase/client-core";
 import type {
+  AskedQuestion,
   DesktopErrorCode,
   DesktopHosting,
   DesktopUpdates,
@@ -154,6 +155,20 @@ export interface Platform {
   updates?: DesktopUpdates & {
     mode: "install" | "notify";
     subscribe: (cb: (status: UpdateStatus) => void) => () => void;
+    /** The tray's "Restart to update", which the window asks about or explains. */
+    onRestartAsked: (cb: () => void) => () => void;
+  };
+  /**
+   * What the desktop app's main process asks or says in the window's own
+   * dialogs and notices, rather than native boxes. Desktop only.
+   */
+  windowDialogs?: {
+    onAsk: (cb: (question: AskedQuestion) => void) => () => void;
+    onWithdraw: (cb: (id: number) => void) => () => void;
+    onNotice: (cb: (message: string) => void) => () => void;
+    /** The question is on screen; from now the main process waits for the person. */
+    shown: (id: number) => Promise<void>;
+    answer: (id: number, index: number) => Promise<void>;
   };
 }
 

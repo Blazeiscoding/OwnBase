@@ -244,12 +244,20 @@ export function electronPlatform(bridge: OwnBaseBridge): Platform {
       subscribe: (cb) => bridge.on("hosting:changed", cb),
       openAtLogin: capabilities.openAtLogin ? openAtLogin : null,
     },
+    windowDialogs: {
+      onAsk: (cb) => bridge.on("window:ask", cb),
+      onWithdraw: (cb) => bridge.on("window:withdrawQuestion", cb),
+      onNotice: (cb) => bridge.on("window:notice", cb),
+      shown: (id) => call("window:questionShown", id),
+      answer: (id, index) => call("window:answerQuestion", id, index),
+    },
     ...(capabilities.updates !== "none"
       ? {
           updates: {
             ...updateCalls(call),
             mode: capabilities.updates,
             subscribe: (cb) => bridge.on("updates:changed", cb),
+            onRestartAsked: (cb) => bridge.on("updates:restartAsked", () => cb()),
           },
         }
       : {}),

@@ -3,10 +3,12 @@ import { act, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { WorkspaceClient } from "@ownbase/client-core";
 import type { User } from "@ownbase/protocol";
-import type { UpdateStatus } from "@ownbase/protocol/desktop";
+import type { UpdateRestart, UpdateStatus } from "@ownbase/protocol/desktop";
 import { PlatformContext } from "../src/context.js";
 import { AccountDialog } from "../src/components/AccountDialog.js";
-import { UpdateBanner } from "../src/components/Updates.js";
+import { TrayRestart, UpdateBanner } from "../src/components/Updates.js";
+import { ConfirmProvider } from "../src/components/Confirm.js";
+import { ToastProvider } from "../src/components/Toast.js";
 import type { Platform } from "../src/platform.js";
 import { workspaceParts } from "./workspaceParts.js";
 
@@ -39,12 +41,14 @@ const READY: UpdateStatus = {
 /** The desktop app's updates, answering as the main process would, with `status`. */
 function desktopUpdates(status: UpdateStatus) {
   const listeners = new Set<(status: UpdateStatus) => void>();
+  const trayAsks = new Set<() => void>();
   const updates = {
     mode: status.mode as "install" | "notify",
     status: vi.fn(async () => status),
     setAutomatic: vi.fn(async (on: boolean) => ({ ...status, automatic: on })),
     check: vi.fn(async () => status),
-    restart: vi.fn(async () => ({ restarting: true }) as const),
+    restart: vi.fn(async (_confirmed?: boolean): Promise<UpdateRestart> => ({ restarting: true })),
+    takeRestartAsk: vi.fn(async () => false),
     later: vi.fn(async () => {}),
     reportCall: vi.fn(async () => {}),
     openDownloadPage: vi.fn(async () => {}),
@@ -52,9 +56,14 @@ function desktopUpdates(status: UpdateStatus) {
       listeners.add(cb);
       return () => listeners.delete(cb);
     },
+    onRestartAsked: (cb: () => void) => {
+      trayAsks.add(cb);
+      return () => trayAsks.delete(cb);
+    },
   };
   const push = (next: UpdateStatus) => act(() => listeners.forEach((cb) => cb(next)));
-  return { updates, push };
+  const askFromTray = () => act(() => trayAsks.forEach((cb) => cb()));
+  return { updates, push, askFromTray };
 }
 
 function platformWith(updates?: Platform["updates"]): Platform {
@@ -123,13 +132,75 @@ describe("the Updates section of Account settings", () => {
     expect(updates.restart).toHaveBeenCalledTimes(1);
     expect(within(dialog).getByRole("alert")).toHaveTextContent("You are in a call.");
   });
+
+  it("asks in its own dialog before disconnecting a hosted workspace", async () => {
+    const { updates } = desktopUpdates(READY);
+    updates.restart.mockImplementation(async (confirmed) =>
+      confirmed ? { restarting: true } : { restarting: false, question: HOSTING_QUESTION },
+    );
+    const { dialog, user } = settings(platformWith(updates));
+    await user.click(await within(dialog).findByRole("button", { name: "Restart to update" }));
+    const ask = await screen.findByRole("dialog", { name: HOSTING_QUESTION.title });
+    expect(ask).toHaveTextContent(HOSTING_QUESTION.detail);
+    await user.click(within(ask).getByRole("button", { name: "Cancel" }));
+    expect(updates.restart).toHaveBeenCalledTimes(1);
+    expect(screen.queryByRole("dialog", { name: HOSTING_QUESTION.title })).toBeNull();
+
+    await user.click(within(dialog).getByRole("button", { name: "Restart to update" }));
+    const again = await screen.findByRole("dialog", { name: HOSTING_QUESTION.title });
+    await user.click(within(again).getByRole("button", { name: "Restart to update" }));
+    expect(updates.restart).toHaveBeenLastCalledWith(true);
+  });
+});
+
+const HOSTING_QUESTION = {
+  title: "Restart OwnBase and disconnect the people in Acme?",
+  detail: "Everyone in Acme is disconnected until you start hosting it again after the restart.",
+  button: "Restart to update",
+};
+
+describe("the tray's Restart to update", () => {
+  function tray(updates: Platform["updates"]) {
+    render(
+      <PlatformContext.Provider value={platformWith(updates)}>
+        <ToastProvider>
+          <ConfirmProvider>
+            <TrayRestart />
+          </ConfirmProvider>
+        </ToastProvider>
+      </PlatformContext.Provider>,
+    );
+    return userEvent.setup();
+  }
+
+  it("asks in the window, and restarts when told yes", async () => {
+    const { updates, askFromTray } = desktopUpdates(READY);
+    updates.restart.mockImplementation(async (confirmed) =>
+      confirmed ? { restarting: true } : { restarting: false, question: HOSTING_QUESTION },
+    );
+    const user = tray(updates);
+    askFromTray();
+    const ask = await screen.findByRole("dialog", { name: HOSTING_QUESTION.title });
+    await user.click(within(ask).getByRole("button", { name: "Restart to update" }));
+    expect(updates.restart).toHaveBeenLastCalledWith(true);
+  });
+
+  it("picks up an ask made before the window was listening, and says why it cannot", async () => {
+    const { updates } = desktopUpdates(READY);
+    updates.takeRestartAsk.mockResolvedValue(true);
+    updates.restart.mockResolvedValue({ restarting: false, reason: "Leave the call first." });
+    tray(updates);
+    expect(await screen.findByText("Leave the call first.")).toBeVisible();
+  });
 });
 
 describe("the notice that a new version is ready", () => {
   function banner(updates: Platform["updates"]) {
     render(
       <PlatformContext.Provider value={platformWith(updates)}>
-        <UpdateBanner />
+        <ConfirmProvider>
+          <UpdateBanner />
+        </ConfirmProvider>
       </PlatformContext.Provider>,
     );
     return userEvent.setup();
@@ -175,7 +246,9 @@ describe("the notice that a new version is ready", () => {
   it("is not shown in the browser", () => {
     const { container } = render(
       <PlatformContext.Provider value={platformWith()}>
-        <UpdateBanner />
+        <ConfirmProvider>
+          <UpdateBanner />
+        </ConfirmProvider>
       </PlatformContext.Provider>,
     );
     expect(container).toBeEmptyDOMElement();

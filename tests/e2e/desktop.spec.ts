@@ -503,8 +503,12 @@ test("a workspace chosen to start with OwnBase starts when it opens, and at sign
   };
   const named = async (port: number) =>
     (await (await fetch(`http://127.0.0.1:${port}/api/server-info`)).json()).workspaceName;
-  /** Quits while hosting, answering the stop-hosting question as a person would. */
-  const quitHosting = async () => {
+  /**
+   * Quits while hosting, answering the stop-hosting question as a person
+   * would: in the window's own dialog, or, with no window to ask in, the
+   * native box that stands in for it.
+   */
+  const quitHosting = async (window?: Page) => {
     const closed = app.waitForEvent("close");
     await app.evaluate(({ app: electronApp, dialog }) => {
       dialog.showMessageBox = (async () => ({
@@ -513,6 +517,11 @@ test("a workspace chosen to start with OwnBase starts when it opens, and at sign
       })) as unknown as typeof dialog.showMessageBox;
       setTimeout(() => electronApp.quit(), 0);
     });
+    if (window)
+      await window
+        .getByRole("dialog", { name: "Quit OwnBase and stop the hosted workspace?" })
+        .getByRole("button", { name: "Stop hosting and quit" })
+        .click();
     await closed;
   };
   try {
@@ -603,7 +612,7 @@ test("a workspace chosen to start with OwnBase starts when it opens, and at sign
       )
       .toBe(true);
     await page.keyboard.press("Escape");
-    await quitHosting();
+    await quitHosting(page);
 
     // Opened by the OS at sign-in: hosting starts, and no window opens.
     app = await electron.launch({ executablePath, env, args: ["--hidden"] });
@@ -619,7 +628,7 @@ test("a workspace chosen to start with OwnBase starts when it opens, and at sign
     await call(page, "hosting:setStartOnLaunch", null);
     const list = await call(page, "hosting:list");
     expect(list.workspaces[0]).toMatchObject({ name: "Launch Test", startsOnLaunch: false });
-    await quitHosting();
+    await quitHosting(page);
   } finally {
     try {
       killTree();
@@ -749,10 +758,11 @@ for (const closing of ["app quit", "tray quit", "stopped-hosting window close"] 
     await page.getByRole("button", { name: /^(Join|Create) workspace$/ }).click();
     await expect(page.locator("textarea")).toBeVisible();
     await dismissWelcome(page);
-    // Only the hosting confirmation is accepted automatically. A saving failure
-    // must keep the window open and make this ordinary-close regression fail.
-    // The tray's quit already says it stops hosting: asking again is answered
-    // Cancel, which keeps the app open and fails the test too.
+    // Only the hosting question is answered, in the window's own dialog below.
+    // A saving failure asks there too and, unanswered, keeps the window open
+    // and makes this ordinary-close regression fail. The tray's quit already
+    // says it stops hosting, so it does not ask. The native boxes, used only
+    // when the page cannot ask, answer the same way.
     await app.evaluate(({ dialog }, closing) => {
       dialog.showMessageBox = (async (...args: unknown[]) => {
         const options = args.at(-1) as { title?: string };
@@ -783,6 +793,11 @@ for (const closing of ["app quit", "tray quit", "stopped-hosting window close"] 
         else BrowserWindow.getAllWindows()[0]!.close();
       }, 0);
     }, closing);
+    if (closing === "app quit")
+      await page
+        .getByRole("dialog", { name: "Quit OwnBase and stop the hosted workspace?" })
+        .getByRole("button", { name: "Stop hosting and quit" })
+        .click();
     await exited;
     expect(
       JSON.stringify(JSON.parse(readFileSync(join(first.data, "settings.json"), "utf8"))),
