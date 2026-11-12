@@ -1,4 +1,4 @@
-import type { StorageHost } from "./deviceStorage.js";
+import { serialized, workspaceKey, type StorageHost } from "./deviceStorage.js";
 import {
   normalizeWorkspaceAddress,
   readTrustedAddresses,
@@ -12,34 +12,13 @@ export interface WorkspaceAddressAccess {
 }
 
 export function workspaceAddressTrustKey(workspaceId: string, userId: string): string {
-  return `local:v1:${encodeURIComponent(workspaceId)}:${encodeURIComponent(userId)}:trusted-addresses`;
+  return workspaceKey(workspaceId, userId, "trusted-addresses");
 }
 
 function parseAddresses(stored: unknown): string[] {
   const addresses = readTrustedAddresses(stored);
   if (!addresses) throw new Error("Could not read trusted workspace addresses.");
   return addresses;
-}
-
-const queues = new WeakMap<StorageHost, Map<string, Promise<void>>>();
-
-function serialized<T>(
-  platform: StorageHost,
-  key: string,
-  operation: () => Promise<T>,
-): Promise<T> {
-  const queue = queues.get(platform) ?? new Map<string, Promise<void>>();
-  queues.set(platform, queue);
-  const result = (queue.get(key) ?? Promise.resolve()).then(operation);
-  const settled = result.then(
-    () => {},
-    () => {},
-  );
-  queue.set(key, settled);
-  void settled.then(() => {
-    if (queue.get(key) === settled) queue.delete(key);
-  });
-  return result;
 }
 
 async function readAddresses(platform: StorageHost, key: string): Promise<string[] | null> {

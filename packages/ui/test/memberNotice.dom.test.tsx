@@ -113,7 +113,6 @@ function workspace(
   const client = workspaceClient(self, others, notice);
   writeRoute(client.baseUrl, { channelId: general.id, threadRootId: null }, "replace");
   vi.spyOn(client, "loadTimeline").mockResolvedValue();
-  vi.spyOn(client, "loadCommands").mockResolvedValue();
   vi.spyOn(client.api, "channelMembers").mockResolvedValue({ memberIds: [self.id] });
   vi.spyOn(client.api, "listPins").mockResolvedValue({ messages: [], nextCursor: null, total: 0 });
   const device = deviceStorage(opts.saved);

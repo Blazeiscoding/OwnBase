@@ -8,6 +8,7 @@ import { Composer } from "../src/components/Composer.js";
 import { MessageEditor } from "../src/components/MessageEditor.js";
 import { ClientContext, PlatformContext } from "../src/context.js";
 import type { Platform } from "../src/platform.js";
+import { QUEUED } from "./sendAnswers.js";
 
 /**
  * A message box shows mentions as names, while what it sends, saves and
@@ -60,7 +61,7 @@ function workspace(drafts: Record<string, string> = {}) {
     drafts,
     status: "online",
   });
-  const send = vi.spyOn(client, "send").mockReturnValue(true);
+  const send = vi.spyOn(client, "send").mockReturnValue(QUEUED);
   return { client, send };
 }
 

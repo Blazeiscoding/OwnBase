@@ -97,7 +97,6 @@ async function workspace(roomForChat: boolean) {
   });
   writeRoute(client.baseUrl, { channelId: general.id, threadRootId: null }, "replace");
   vi.spyOn(client, "loadTimeline").mockResolvedValue();
-  vi.spyOn(client, "loadCommands").mockResolvedValue();
   vi.spyOn(client.api, "channelMembers").mockResolvedValue({ memberIds: [owner.id, maya.id] });
   vi.spyOn(client.api, "listPins").mockResolvedValue({ messages: [], nextCursor: null, total: 0 });
   const platform: Platform = {

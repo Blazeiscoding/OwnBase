@@ -174,7 +174,7 @@ describe("the account menu", () => {
 
   it("signs out from the menu, after asking", async () => {
     const { calls, client, user } = sidebar({ admin: false });
-    const signOut = vi.spyOn(client, "signOut").mockResolvedValue();
+    const signOut = vi.spyOn(client, "signOut").mockResolvedValue(null);
     await accountMenu(user);
     await user.click(screen.getByRole("menuitem", { name: "Sign out" }));
     const ask = await screen.findByRole("dialog", { name: "Sign out of this workspace?" });

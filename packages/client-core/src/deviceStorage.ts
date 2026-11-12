@@ -91,17 +91,28 @@ export function workspaceStorageKey(
   if (!selfId) return null;
   const legacyKey = `${kind}:${baseUrl}:${selfId}${suffix === undefined ? "" : `:${suffix}`}`;
   if (!workspaceId) return { key: legacyKey };
-  const parts = [workspaceId, selfId, kind, ...(suffix === undefined ? [] : [suffix])];
   return {
-    key: `local:v1:${parts.map(encodeURIComponent).join(":")}`,
+    key: workspaceKey(workspaceId, selfId, kind, suffix),
     legacyKey,
     legacyScope: { baseUrl, workspaceId, selfId, kind, suffix },
   };
 }
 
+/** Where one account keeps one kind of thing for one workspace on this device. */
+export function workspaceKey(
+  workspaceId: string,
+  selfId: string,
+  kind: string,
+  suffix?: string,
+): string {
+  const parts = [workspaceId, selfId, kind, ...(suffix === undefined ? [] : [suffix])];
+  return `local:v1:${parts.map(encodeURIComponent).join(":")}`;
+}
+
 const queues = new WeakMap<StorageHost, Map<string, Promise<void>>>();
 
-function serialized<T>(
+/** Runs `operation` once every earlier one on the same key has settled. */
+export function serialized<T>(
   platform: StorageHost,
   key: string,
   operation: () => Promise<T>,

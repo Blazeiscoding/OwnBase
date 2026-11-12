@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { render, screen, within } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { ApiError, WorkspaceClient, type AppDetail } from "@ownbase/client-core";
 import type { Channel, User } from "@ownbase/protocol";
@@ -70,7 +70,7 @@ function appsDialog(apps: AppDetail[] = []) {
     status: "online",
   });
   const listApps = vi.spyOn(client.api, "listApps").mockResolvedValue({ apps });
-  vi.spyOn(client, "loadCommands").mockResolvedValue();
+  vi.spyOn(client.api, "listCommands").mockResolvedValue({ commands: [] });
   const user = userEvent.setup();
   render(
     <ToastProvider>
@@ -288,7 +288,8 @@ describe("Apps and integrations' templates", () => {
       command: "deploy",
       url: "https://bot.example.com/deploy",
     });
-    expect(client.loadCommands).toHaveBeenCalled();
+    // The composer's hints know the new command.
+    await waitFor(() => expect(client.api.listCommands).toHaveBeenCalled());
     expect(listApps).toHaveBeenCalledTimes(2);
 
     const runCommand = vi

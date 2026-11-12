@@ -24,11 +24,6 @@ function targets(client: WorkspaceClient) {
   return store;
 }
 
-/** The conversation a composer writes to: a channel, or one thread in it. */
-export function conversationKey(channelId: ID, threadRootId?: ID | null): string {
-  return threadRootId ? `${channelId}:${threadRootId}` : channelId;
-}
-
 /** What the next send in this conversation answers, if anything. */
 export function useReplyTarget(client: WorkspaceClient, key: string): ReplyTarget | undefined {
   return useStore(targets(client), (s) => s[key]);

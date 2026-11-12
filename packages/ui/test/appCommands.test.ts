@@ -1,7 +1,7 @@
 import { ApiError, WorkspaceClient } from "@ownbase/client-core";
 import type { Channel, User } from "@ownbase/protocol";
 import { describe, expect, it, vi } from "vitest";
-import { appCommand, offeredCommands, runAppCommand } from "../src/lib/appCommands.js";
+import { offeredCommands, runAppCommand } from "../src/lib/appCommands.js";
 
 const person = (id: string, displayName: string) => ({ id, displayName }) as unknown as User;
 const channel = (id: string, type: Channel["type"], name: string) =>
@@ -18,18 +18,6 @@ function workspace() {
 
 describe("the commands the app runs", () => {
   const appTopic = { command: "topic", description: "", usageHint: "", builtin: false };
-
-  it("are told apart from what goes to the server", () => {
-    expect(appCommand("/away", [])).toEqual({ name: "away", args: "" });
-    expect(appCommand("  /STATUS 🌴 On holiday ", [])).toEqual({
-      name: "status",
-      args: "🌴 On holiday",
-    });
-    expect(appCommand("/shrug hm", [])).toBeNull();
-    expect(appCommand("away", [])).toBeNull();
-    // An app's command of that name, kept from before they were reserved, still wins.
-    expect(appCommand("/topic hi", [appTopic])).toBeNull();
-  });
 
   it("are offered as the server lists them, without the built-in channel ones in a DM", () => {
     const builtin = (command: string) => ({

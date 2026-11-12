@@ -8,6 +8,7 @@ import { AccountDialog } from "../src/components/AccountDialog.js";
 import { Composer } from "../src/components/Composer.js";
 import { ClientContext, PlatformContext } from "../src/context.js";
 import type { Platform } from "../src/platform.js";
+import { QUEUED } from "./sendAnswers.js";
 
 /**
  * What Enter does is a saved choice. One that is saved but cannot be read is
@@ -84,7 +85,7 @@ function workspace() {
 
 async function renderComposer(platform: Platform) {
   const client = workspace();
-  const send = vi.spyOn(client, "send").mockImplementation(() => true);
+  const send = vi.spyOn(client, "send").mockReturnValue(QUEUED);
   render(
     <PlatformContext.Provider value={platform}>
       <ClientContext.Provider value={client}>

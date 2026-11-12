@@ -107,7 +107,7 @@ export function PollDialog({
       ...(threadRootId ? { threadRootId } : {}),
       poll: { options: given, multiple, anonymous },
     });
-    if (!sent)
+    if (sent.kind === "refused")
       return say("send", "Too many messages are waiting to send. Try again after they go out.");
     onSent?.();
     onClose();

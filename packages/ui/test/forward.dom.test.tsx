@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import { fireEvent, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { WorkspaceClient } from "@ownbase/client-core";
+import { ApiError, WorkspaceClient } from "@ownbase/client-core";
 import type { Channel, ForwardReference, Message, User } from "@ownbase/protocol";
 import { ClientContext, OpenMessageContext } from "../src/context.js";
 import { MessageItem } from "../src/components/MessageItem.js";
@@ -9,6 +9,7 @@ import { ForwardCard } from "../src/components/ForwardCard.js";
 import { ConfirmProvider } from "../src/components/Confirm.js";
 import { ToastProvider } from "../src/components/Toast.js";
 import { accessibilityProblems } from "./accessibility.js";
+import { QUEUED } from "./sendAnswers.js";
 
 /** Forwarding a message (E1): the menu's Forward, its dialog, and the card it sends. */
 const person = (id: string, displayName: string): User => ({
@@ -68,7 +69,7 @@ function shown(item: Message) {
     memberships: { C_GENERAL: 0, C_DESIGN: 0, C_SECRET: 0 },
     status: "online",
   });
-  const send = vi.spyOn(client, "send").mockReturnValue(true);
+  const send = vi.spyOn(client, "send").mockReturnValue(QUEUED);
   render(
     <ToastProvider>
       <ConfirmProvider>
@@ -179,7 +180,7 @@ describe("forwarding a message", () => {
 
   it("says so when the conversation with someone cannot be started", async () => {
     const { client, send, user } = shown(message());
-    vi.spyOn(client, "openDm").mockRejectedValue(new Error("offline"));
+    vi.spyOn(client, "openDm").mockResolvedValue(new ApiError(0, "network_error"));
     const dialog = await openForward(user);
     await user.type(within(dialog).getByRole("combobox", { name: "Forward to" }), "Priya");
     await user.keyboard("{Enter}");

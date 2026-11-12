@@ -1,3 +1,38 @@
+import type { ID } from "@ownbase/protocol";
+
+/** The draft of a conversation's composer: a channel's, or one thread's in it. */
+export function draftKey(channelId: ID, threadRootId?: ID | null): string {
+  return threadRootId ? `${channelId}:${threadRootId}` : channelId;
+}
+
+/**
+ * What one draft this device keeps is, as its key says: a conversation's
+ * composer, a thread's, or an edit not yet saved to a message or to a
+ * message queued to send later.
+ */
+export type DraftPlace =
+  | { kind: "conversation"; channelId: ID }
+  | { kind: "thread"; channelId: ID; rootId: ID }
+  | { kind: "edit"; channelId: ID; messageId: ID }
+  | { kind: "scheduled-edit"; channelId: ID; scheduledId: ID };
+
+export const editDraftKey = (channelId: ID, messageId: ID) => `${channelId}:edit:${messageId}`;
+
+export const scheduledEditDraftKey = (channelId: ID, scheduledId: ID) =>
+  `${channelId}:scheduled-edit:${scheduledId}`;
+
+/** What a draft key names, or null for one this version does not know. Ids hold no colons. */
+export function draftPlace(key: string): DraftPlace | null {
+  const parts = key.split(":");
+  if (parts.length > 3 || parts.some((part) => !part)) return null;
+  const [channelId = "", second, third] = parts;
+  if (second === undefined) return { kind: "conversation", channelId };
+  if (third === undefined) return { kind: "thread", channelId, rootId: second };
+  if (second === "edit") return { kind: "edit", channelId, messageId: third };
+  if (second === "scheduled-edit") return { kind: "scheduled-edit", channelId, scheduledId: third };
+  return null;
+}
+
 /**
  * Drafts as every window open on one account keeps them on the device: one
  * text per conversation, by the key `Composer` gives it.

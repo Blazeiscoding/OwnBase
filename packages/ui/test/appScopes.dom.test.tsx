@@ -62,7 +62,6 @@ function appsDialog(apps: AppDetail[]) {
   const client = new WorkspaceClient("http://127.0.0.1:9", "test-token-not-a-credential");
   client.store.setState({ self: owner, users: { [owner.id]: owner }, status: "online" });
   const listApps = vi.spyOn(client.api, "listApps").mockResolvedValue({ apps });
-  vi.spyOn(client, "loadCommands").mockResolvedValue();
   render(
     <ToastProvider>
       <ConfirmProvider>

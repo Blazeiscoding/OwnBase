@@ -1,3 +1,4 @@
+import { ApiError } from "@ownbase/client-core";
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
   MANY_ANSWER_FIELDS,
@@ -226,22 +227,17 @@ function AppForm(props: {
     for (const field of view.fields) {
       payload[field.blockId] = { ...payload[field.blockId], [field.actionId]: answerOf(field) };
     }
-    try {
-      const result = await client.submitModal(payload, view.id);
-      if (!alive.current) return;
-      // Accepted and still open: the app changed it or stacked another on it.
-      if (result.ok) {
-        setErrors({});
-      } else {
-        showError.current = true;
-        setErrors(result.errors);
-        setMessage(result.message ?? null);
-      }
-    } catch {
-      if (alive.current) setMessage("That did not go through. Try again.");
-    } finally {
-      submitting.current = false;
-      if (alive.current) setBusy(false);
+    const result = await client.submitModal(payload, view.id);
+    submitting.current = false;
+    if (!alive.current) return;
+    setBusy(false);
+    if (result instanceof ApiError) setMessage("That did not go through. Try again.");
+    // Accepted and still open: the app changed it or stacked another on it.
+    else if (result.ok) setErrors({});
+    else {
+      showError.current = true;
+      setErrors(result.errors);
+      setMessage(result.message ?? null);
     }
   }
 

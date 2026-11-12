@@ -1,32 +1,5 @@
 import type { Channel, ID } from "@ownbase/protocol";
-
-/**
- * What one draft this device keeps is, as its key says: a conversation's
- * composer, a thread's, or an edit not yet saved to a message or to a
- * message queued to send later.
- */
-export type DraftPlace =
-  | { kind: "conversation"; channelId: ID }
-  | { kind: "thread"; channelId: ID; rootId: ID }
-  | { kind: "edit"; channelId: ID; messageId: ID }
-  | { kind: "scheduled-edit"; channelId: ID; scheduledId: ID };
-
-export const editDraftKey = (channelId: ID, messageId: ID) => `${channelId}:edit:${messageId}`;
-
-export const scheduledEditDraftKey = (channelId: ID, scheduledId: ID) =>
-  `${channelId}:scheduled-edit:${scheduledId}`;
-
-/** What a draft key names, or null for one this version does not know. Ids hold no colons. */
-export function draftPlace(key: string): DraftPlace | null {
-  const parts = key.split(":");
-  if (parts.length > 3 || parts.some((part) => !part)) return null;
-  const [channelId = "", second, third] = parts;
-  if (second === undefined) return { kind: "conversation", channelId };
-  if (third === undefined) return { kind: "thread", channelId, rootId: second };
-  if (second === "edit") return { kind: "edit", channelId, messageId: third };
-  if (second === "scheduled-edit") return { kind: "scheduled-edit", channelId, scheduledId: third };
-  return null;
-}
+import { draftPlace, type DraftPlace } from "@ownbase/client-core";
 
 /**
  * An unsaved edit, kept with the words it started from so that one picked up

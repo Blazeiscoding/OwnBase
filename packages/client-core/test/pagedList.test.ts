@@ -32,7 +32,6 @@ function harness() {
           fail: () => reject(new TypeError("Failed to fetch")),
         });
       }),
-    { delayMs: 250 },
   );
   list.subscribe((state) => states.push(state));
   const ids = () => list.current.items?.map((row) => row.id) ?? null;

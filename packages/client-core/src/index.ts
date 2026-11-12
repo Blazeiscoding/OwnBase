@@ -1,5 +1,5 @@
 export { Api, ApiError, normalizeServerUrl } from "./api.js";
-export { failureOf } from "./optimisticWrites.js";
+export { failureOf, refusalReason } from "./answers.js";
 export type { AppDetail, CommandHint, SignedIn } from "./api.js";
 export { previewImageKey } from "./fileCache.js";
 export { forwardOf, forwardSource, quoteOf } from "./replies.js";
@@ -31,6 +31,8 @@ export {
 } from "./addressTrust.js";
 export type { WorkspaceAddressAccess } from "./addressTrust.js";
 export { LocalWork } from "./localWork.js";
+export { ScheduledSends } from "./scheduling.js";
+export type { SavedSchedule, ScheduleAnswer, SchedulePlace } from "./scheduling.js";
 export type { Page, PagedListState } from "./pagedList.js";
 export {
   SCREEN_SHARE_QUALITY,
@@ -53,8 +55,16 @@ export { captureFailure } from "./capture.js";
 export type { CaptureKind } from "./capture.js";
 export { applyOutboxChanges, readStoredOutbox, unwrapStoredOutbox } from "./outbox.js";
 export type { OutboxChanges, StoredOutbox } from "./outbox.js";
-export { applyDraftChanges, isDraftChanges, unwrapStoredDrafts } from "./drafts.js";
-export type { DraftChanges } from "./drafts.js";
+export {
+  applyDraftChanges,
+  draftKey,
+  draftPlace,
+  editDraftKey,
+  isDraftChanges,
+  scheduledEditDraftKey,
+  unwrapStoredDrafts,
+} from "./drafts.js";
+export type { DraftChanges, DraftPlace } from "./drafts.js";
 export { applyRecordChanges, isRecordChanges } from "./records.js";
 export type { RecordChanges } from "./records.js";
 export { addTrustedAddress, readTrustedAddresses } from "./trustedAddresses.js";
@@ -69,6 +79,7 @@ export type {
 export { shownPoll } from "./polls.js";
 export type { PollDraft } from "./polls.js";
 export { OUTBOX_LIMIT, WorkspaceClient, isMessageRead, unreadThreadCount } from "./workspace.js";
+export type { SendAnswer } from "./workspace.js";
 export {
   blockedPartner,
   deactivatedPartner,

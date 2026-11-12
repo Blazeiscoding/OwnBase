@@ -83,9 +83,11 @@ describe("the workspace's icon", () => {
   });
 
   it("shows the new version as soon as the server answers, for the admin who changed it", async () => {
-    const version = await ownerElsewhere.setWorkspaceIcon(new Blob([png()], { type: "image/png" }));
-    expect(ownerElsewhere.state.iconVersion).toBe(version);
-    await ownerElsewhere.removeWorkspaceIcon();
+    expect(
+      await ownerElsewhere.setWorkspaceIcon(new Blob([png()], { type: "image/png" })),
+    ).toBeNull();
+    expect(ownerElsewhere.state.iconVersion).toBe((await owner.serverInfo()).iconVersion);
+    expect(await ownerElsewhere.removeWorkspaceIcon()).toBeNull();
     expect(ownerElsewhere.state.iconVersion).toBeNull();
   });
 

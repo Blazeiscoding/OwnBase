@@ -9,6 +9,7 @@ import { ReactionPicker } from "../src/components/ReactionPicker.js";
 import { ClientContext, PlatformContext } from "../src/context.js";
 import type { Platform } from "../src/platform.js";
 import { accessibilityProblems } from "./accessibility.js";
+import { QUEUED } from "./sendAnswers.js";
 
 const person = (id: string, handle: string, displayName: string): User => ({
   id,
@@ -88,7 +89,7 @@ function pointedAt(box: HTMLElement) {
 describe("the composer's suggestions", () => {
   it("are options the text box points at, with nothing focusable inside them", async () => {
     const { box, client, user } = await renderComposer();
-    const send = vi.spyOn(client, "send").mockReturnValue(true);
+    const send = vi.spyOn(client, "send").mockReturnValue(QUEUED);
     await user.type(box, "Hi @sa");
     const mentions = screen.getByRole("listbox", { name: "Mentions" });
     const options = within(mentions).getAllByRole("option");
@@ -180,7 +181,7 @@ describe("the composer's suggestions", () => {
 
   it("run the app's own commands here, keeping the words when one fails", async () => {
     const { box, client, user } = await renderComposer();
-    const send = vi.spyOn(client, "send");
+    const run = vi.spyOn(client.api, "runCommand");
     const update = vi.spyOn(client.api, "updateChannel").mockRejectedValueOnce(new Error("down"));
     await user.type(box, "/topic Ship it{Enter}");
     expect(await screen.findByRole("alert")).toHaveTextContent(/The topic was not changed/);
@@ -189,7 +190,8 @@ describe("the composer's suggestions", () => {
     await user.keyboard("{Enter}");
     await waitFor(() => expect(box).toHaveValue(""));
     expect(update).toHaveBeenLastCalledWith(design.id, { topic: "Ship it" });
-    expect(send).not.toHaveBeenCalled();
+    expect(run).not.toHaveBeenCalled();
+    expect(client.state.pending).toEqual([]);
   });
 
   it("offer commands the same way, and Tab completes the one chosen", async () => {
@@ -208,7 +210,7 @@ describe("the composer's suggestions", () => {
 
   it("finish a word after a colon as an emoji, the closest first, and leave a time alone", async () => {
     const { box, client, user } = await renderComposer();
-    const send = vi.spyOn(client, "send").mockReturnValue(true);
+    const send = vi.spyOn(client, "send").mockReturnValue(QUEUED);
     await user.type(box, "Shipped :rock");
     // Every emoji arrives on first use, so the list waits for them.
     const emoji = await screen.findByRole("listbox", { name: "Emoji" });

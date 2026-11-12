@@ -16,7 +16,8 @@ import { insideCodeBlock, isImeKey, linkOverSelection } from "../lib/textInput.j
 import { pasteRich } from "../lib/richPaste.js";
 import { useMentionField } from "../lib/useMentionField.js";
 import { SuggestionList, useSuggestions } from "./Suggestions.js";
-import { editDraftKey, readEditDraft, type EditDraft } from "../lib/drafts.js";
+import { editDraftKey } from "@ownbase/client-core";
+import { readEditDraft, type EditDraft } from "../lib/drafts.js";
 
 export function MessageEditor({ message, onClose }: { message: Message; onClose: () => void }) {
   const client = useClient();
@@ -110,32 +111,30 @@ export function MessageEditor({ message, onClose }: { message: Message; onClose:
     setBusy(true);
     setError(null);
     keep(draft, base);
-    try {
-      // What this window has of the message: the words the edit started from,
-      // or, once the author has seen they changed and chosen to save anyway,
-      // the words they chose to replace. Anything newer is refused.
-      await client.editMessage(message.id, draft.trim(), message.text);
-      if (!alive.current) return;
+    // What this window has of the message: the words the edit started from,
+    // or, once the author has seen they changed and chosen to save anyway,
+    // the words they chose to replace. Anything newer is refused.
+    const failure = await client.editMessage(message.id, draft.trim(), message.text);
+    saving.current = false;
+    if (!alive.current) return;
+    setBusy(false);
+    if (!failure) {
       client.setDraft(draftKey, "");
       onClose();
-    } catch (failure) {
-      if (alive.current)
-        setError(
-          failure instanceof ApiError && failure.status === 404
-            ? "This message is no longer available. Your edit is still here."
-            : failure instanceof ApiError && failure.code === "message_changed"
-              ? "This message changed before your edit was saved. Nothing was overwritten, and your text is still here."
-              : // It answered, so the connection is not what to wait for.
-                failure instanceof ApiError && failure.status >= 500
-                ? "The workspace could not save this edit. Your text is still here. Try again in a moment."
-                : failure instanceof ApiError
-                  ? "The workspace did not accept this edit. Your text is still here."
-                  : "Could not save this edit. Your text is still here. Try again when you're back online.",
-        );
-    } finally {
-      saving.current = false;
-      if (alive.current) setBusy(false);
+      return;
     }
+    setError(
+      failure.status === 404
+        ? "This message is no longer available. Your edit is still here."
+        : failure.code === "message_changed"
+          ? "This message changed before your edit was saved. Nothing was overwritten, and your text is still here."
+          : // It answered, so the connection is not what to wait for.
+            failure.status >= 500
+            ? "The workspace could not save this edit. Your text is still here. Try again in a moment."
+            : failure.status !== 0
+              ? "The workspace did not accept this edit. Your text is still here."
+              : "Could not save this edit. Your text is still here. Try again when you're back online.",
+    );
   }
 
   return (

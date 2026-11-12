@@ -375,7 +375,6 @@ export function AppsDialog({ onClose }: { onClose: () => void }) {
                       "Could not confirm whether the app was deleted. OwnBase is loading the list again. Check it before you try again.",
                     );
                   load();
-                  void client.loadCommands();
                   setBusy(false);
                 }}
                 className="rounded px-2 py-1 text-[11px] text-ink-faint transition-colors hover:text-alert disabled:opacity-40"
@@ -826,8 +825,6 @@ function CommandTemplate({
     }
     setMade(added);
     onChanged();
-    // The composer's hint list is loaded once, so refresh it now.
-    void client.loadCommands();
   }
 
   async function run() {
@@ -1095,8 +1092,6 @@ function CommandList({ app, onChanged }: { app: AppDetail; onChanged: () => void
     setUrl("");
     setDescription("");
     onChanged();
-    // The composer's hint list is loaded once, so refresh it now.
-    void client.loadCommands();
   }
 
   return (
@@ -1117,7 +1112,6 @@ function CommandList({ app, onChanged }: { app: AppDetail; onChanged: () => void
                   return;
                 }
                 onChanged();
-                void client.loadCommands();
               }}
               className="text-ink-faint hover:text-alert"
             >

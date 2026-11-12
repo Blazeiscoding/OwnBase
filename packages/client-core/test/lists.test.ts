@@ -202,7 +202,7 @@ describe("the scheduled queue", () => {
     const list = client.lists.scheduled();
     list.open();
     await settle();
-    await expect(list.edit("S1", { text: "hello", expectedText: "hi" })).rejects.toMatchObject({
+    expect(await list.edit("S1", { text: "hello", expectedText: "hi" })).toMatchObject({
       code: "scheduled_changed",
     });
     expect(list.current.items?.map((s) => s.text)).toEqual(["hi"]);

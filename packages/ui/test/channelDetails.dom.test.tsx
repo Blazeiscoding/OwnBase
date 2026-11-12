@@ -365,13 +365,6 @@ describe("the account's default, in a channel's notifications (v53)", () => {
       expect(dialog.getByRole("radio", { name: /Use my default/ })).toBeChecked(),
     );
   });
-
-  it("is not offered by a server without one", async () => {
-    const { dialog, user } = details();
-    await user.click(dialog.getByRole("tab", { name: "Notifications" }));
-    expect(dialog.queryByRole("radio", { name: /Use my default/ })).toBeNull();
-    expect(dialog.getByRole("radio", { name: /Direct messages and mentions/ })).toBeChecked();
-  });
 });
 
 describe("adding someone to a channel", () => {

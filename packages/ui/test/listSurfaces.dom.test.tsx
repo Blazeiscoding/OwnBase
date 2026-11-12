@@ -180,4 +180,37 @@ describe("a conversation's timeline", () => {
     expect(await within(history).findByText("Standup notes are in the doc.")).toBeVisible();
     expect(status).toBeEmptyDOMElement();
   });
+
+  it("offers Retry when history read again after a resync fails, rather than loading forever", async () => {
+    const client = offlineClient();
+    const listMessages = vi
+      .spyOn(client.api, "listMessages")
+      .mockResolvedValueOnce({ messages: [message], readThroughSeq: 7, seq: 7 } as never);
+    render(
+      <ToastProvider>
+        <ConfirmProvider>
+          <ClientContext.Provider value={client}>
+            <MessageTimeline
+              channelId="C_GENERAL"
+              onOpenThread={vi.fn()}
+              onChannelClick={vi.fn()}
+              onOpenProfile={vi.fn()}
+            />
+          </ClientContext.Provider>
+        </ConfirmProvider>
+      </ToastProvider>,
+    );
+    const history = screen.getByLabelText("Message history");
+    expect(await within(history).findByText("Standup notes are in the doc.")).toBeVisible();
+
+    // What a snapshot after replay expiry does: let go of history, then read it again.
+    listMessages.mockRejectedValueOnce(new Error("offline"));
+    await act(async () => {
+      (client as unknown as { resetHistory(): void }).resetHistory();
+      await client.loadTimeline("C_GENERAL");
+    });
+    expect(within(history).getByRole("alert")).toHaveTextContent(
+      "Could not load this conversation. Retry",
+    );
+  });
 });

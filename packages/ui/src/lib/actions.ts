@@ -79,9 +79,7 @@ async function signOut(ctx: ActionContext) {
     destructive: guestNow,
   });
   if (!ok) return;
-  try {
-    await ctx.client.signOut();
-  } catch {
+  if (await ctx.client.signOut()) {
     ctx.toast({
       message: "You are still signed in. Check your connection and try again.",
       kind: "error",

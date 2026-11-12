@@ -127,7 +127,7 @@ describe("why a workspace stopped", () => {
   it("is news again after a sign-out that failed", async () => {
     const staying = client();
     vi.spyOn(staying.api, "logout").mockRejectedValue(new Error("offline"));
-    await expect(staying.signOut()).rejects.toThrow("offline");
+    expect(await staying.signOut()).toMatchObject({ code: "network_error" });
     expect(signedOutHow(staying, "auth_failed")).toBe("ended");
   });
 

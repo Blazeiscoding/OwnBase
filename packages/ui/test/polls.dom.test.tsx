@@ -17,6 +17,7 @@ import type { Platform } from "../src/platform.js";
 import { accessibilityProblems } from "./accessibility.js";
 import { held } from "./heldMessages.js";
 import { timelineMessages } from "@ownbase/client-core";
+import { QUEUED } from "./sendAnswers.js";
 
 /**
  * Polls (E6): a poll's card votes and shows the count at once, takes a vote
@@ -244,7 +245,13 @@ function composer(opts: { polls?: boolean; self?: User; threadRootId?: string } 
     status: "online",
     pollChoices: {},
   });
-  const send = vi.spyOn(client, "send").mockReturnValue(true);
+  const realSend = client.send.bind(client);
+  // A poll is taken as sent; anything else, such as /poll, is the client's own answer.
+  const send = vi
+    .spyOn(client, "send")
+    .mockImplementation((channelId, text, sendOpts) =>
+      sendOpts?.poll ? QUEUED : realSend(channelId, text, sendOpts),
+    );
   const platform: Platform = {
     kind: "web",
     storage: { get: async () => null, set: async () => {} },
@@ -314,11 +321,11 @@ describe("making a poll", () => {
   });
 
   it("opens from /poll with its words as the question, and clears it once made", async () => {
-    const { send, user } = composer();
+    const { client, send, user } = composer();
     const box = await typeInto(user, "/poll Lunch at noon?{Enter}");
     const dialog = await screen.findByRole("dialog", { name: "Create a poll" });
     expect(within(dialog).getByRole("textbox", { name: "Question" })).toHaveValue("Lunch at noon?");
-    expect(send).not.toHaveBeenCalled();
+    expect(client.state.pending).toEqual([]);
     await user.type(within(dialog).getByRole("textbox", { name: "Choice 1" }), "Yes");
     await user.type(within(dialog).getByRole("textbox", { name: "Choice 2" }), "No");
     await user.click(within(dialog).getByRole("button", { name: "Create poll" }));
@@ -329,10 +336,16 @@ describe("making a poll", () => {
   });
 
   it("is not offered to a guest, and /poll says why", async () => {
-    const { send, user } = composer({ self: person("U_GUEST", "Visitor", "guest") });
+    const { client, user } = composer({ self: person("U_GUEST", "Visitor", "guest") });
     expect(screen.queryByRole("button", { name: "Add to message" })).toBeNull();
     await typeInto(user, "/poll Lunch?{Enter}");
     expect(await screen.findByText(/Guests cannot make polls/)).toBeVisible();
-    expect(send).not.toHaveBeenCalled();
+    expect(client.state.pending).toEqual([]);
+    // Nor do the app's other commands reach the server for a guest.
+    const run = vi.spyOn(client.api, "runCommand");
+    await user.clear(screen.getByRole("textbox", { name: /message/i }));
+    await typeInto(user, "/away{Enter}");
+    expect(await screen.findByText(/Guests cannot use \/away/)).toBeVisible();
+    expect(run).not.toHaveBeenCalled();
   });
 });

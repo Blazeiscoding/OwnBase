@@ -173,6 +173,10 @@ export function useFileDownload(file: FileMeta) {
       if (native) {
         const url = await client.downloadUrl(file.id);
         if (!current || lifetime.current !== current) return;
+        if (url instanceof ApiError) {
+          setError(fileError(url));
+          return;
+        }
         if (!platform.downloadFile) throw new Error("This app cannot save downloads.");
         await platform.downloadFile(url);
         if (lifetime.current === current) setHandedOff(true);

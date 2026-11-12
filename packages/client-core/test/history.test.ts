@@ -391,7 +391,7 @@ describe("timeline snapshot reconciliation", () => {
     connection.reconnectDelay = 60_000;
     connection.ws.close();
     await expect.poll(() => client.state.status).toBe("reconnecting");
-    expect(client.send(channelId, "HTTP reply", { threadRootId: root.id })).toBe(true);
+    expect(client.send(channelId, "HTTP reply", { threadRootId: root.id }).kind).toBe("queued");
     await expect.poll(() => client.state.pending.length).toBe(0);
     hold.release();
     await loading;
@@ -462,7 +462,8 @@ describe("timeline snapshot reconciliation", () => {
         },
       });
     hold.release();
-    await expect(loading).rejects.toMatchObject({ code: "history_changed" });
+    await loading;
+    expect(client.state.timelineStatus[channelId]).toEqual({ loading: null, error: "latest" });
     expect(timelineMessages(client.state, channelId)[0]?.text).toBe("edit 2001");
     const holds = (client as unknown as { timelineHolds: Map<string, unknown> }).timelineHolds;
     expect(holds.size).toBe(0);
@@ -529,10 +530,10 @@ describe("opening where reading stopped (X3)", () => {
     expect(since).not.toHaveBeenCalled();
   });
 
-  it("keeps the newest page from a server without it", async () => {
+  it("keeps the newest page when the window around the first unread does not come", async () => {
     const messages = await said(70);
     vi.spyOn(client.api, "listMessagesSince").mockRejectedValue(
-      new ApiError(404, "not_found", "Not found"),
+      new ApiError(0, "network_error", "Could not reach the workspace"),
     );
     await client.loadTimeline(channelId, { unreadAfter: messages[5]!.seq });
     const timeline = client.state.timelines[channelId]!;

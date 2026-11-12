@@ -100,10 +100,14 @@ export const MessageTimeline = memo(function MessageTimeline({
   /** The conversation whose first load has finished, and whose opening place is settled. */
   const initialLoaded = useRef<ID | null>(null);
   const placedUnread = useRef<ID | null>(null);
-  const historyRequest = useRef<object | null>(null);
-  const historyAnchor = useRef<{ ticket: object; anchor: Anchor } | null>(null);
-  const [loadingHistory, setLoadingHistory] = useState<"initial" | "older" | "newer" | null>(null);
-  const [historyError, setHistoryError] = useState<"initial" | "older" | "newer" | null>(null);
+  /** The opening load this view is waiting for, until another conversation opens. */
+  const opening = useRef<object | null>(null);
+  /** The top message as older ones load above it, put back after each render. */
+  const historyAnchor = useRef<Anchor | null>(null);
+  // Going to the newest is shown by its own pill, not by the list.
+  const status = useWorkspace((s) => s.timelineStatus[channelId]);
+  const loadingHistory = status?.loading === "latest" ? null : (status?.loading ?? null);
+  const historyError = status?.error === "latest" ? null : (status?.error ?? null);
   const [lightbox, setLightbox] = useState<{ file: FileMeta; gallery?: FileMeta[] } | null>(null);
   const openImage = useCallback(
     (file: FileMeta, gallery?: FileMeta[]) => setLightbox({ file, gallery }),
@@ -141,10 +145,7 @@ export const MessageTimeline = memo(function MessageTimeline({
   };
 
   useEffect(() => {
-    historyRequest.current = null;
     historyAnchor.current = null;
-    setHistoryError(null);
-    setLoadingHistory(null);
     setAway(null);
     setUnreadAbove(false);
     // A jump anchors the view. Arriving by Back, Forward or a reload returns
@@ -154,12 +155,12 @@ export const MessageTimeline = memo(function MessageTimeline({
       pendingPosition.current = position;
       pinnedToBottom.current = position === null;
       if (position) lookForPosition();
-      void requestHistory("initial");
+      requestHistory("initial");
     } else {
       pendingPosition.current = null;
     }
     return () => {
-      historyRequest.current = null;
+      opening.current = null;
     };
   }, [client, channelId, highlightMessageId]);
 
@@ -175,31 +176,30 @@ export const MessageTimeline = memo(function MessageTimeline({
     : -1;
   const channelPending = pending.filter((p) => p.channelId === channelId && !p.threadRootId);
 
-  async function requestHistory(kind: "initial" | "older" | "newer") {
-    if (historyRequest.current) return;
-    const ticket = {};
-    historyRequest.current = ticket;
-    setLoadingHistory(kind);
-    setHistoryError(null);
+  function requestHistory(kind: "initial" | "older" | "newer") {
+    const loading = client.state.timelineStatus[channelId]?.loading;
+    if (kind !== "initial" && loading && loading !== "latest") return;
     const container = scroller.current;
     const anchor = kind === "older" && container ? topAnchor(container) : null;
-    historyAnchor.current = anchor ? { ticket, anchor } : null;
-    try {
-      if (kind === "newer") await client.loadNewer(channelId);
-      else
-        await client.loadTimeline(channelId, {
-          older: kind === "older",
-          // More missed than one page holds opens at the first of them, not the newest.
-          unreadAfter:
-            kind === "initial" && !pendingPosition.current ? readBoundary.current.seq : undefined,
-        });
-      if (kind === "initial" && historyRequest.current === ticket)
-        initialLoaded.current = channelId;
-    } catch {
-      if (historyRequest.current === ticket) setHistoryError(kind);
-    } finally {
-      if (historyRequest.current === ticket) setLoadingHistory(null);
+    if (kind === "newer") {
+      void client.loadNewer(channelId);
+      return;
     }
+    const ticket = {};
+    if (kind === "initial") opening.current = ticket;
+    const load = client.loadTimeline(channelId, {
+      older: kind === "older",
+      // More missed than one page holds opens at the first of them, not the newest.
+      unreadAfter:
+        kind === "initial" && !pendingPosition.current ? readBoundary.current.seq : undefined,
+    });
+    if (anchor && client.state.timelineStatus[channelId]?.loading === "older")
+      historyAnchor.current = anchor;
+    if (kind === "initial")
+      void load.then(() => {
+        if (opening.current === ticket && client.state.timelines[channelId]?.loaded)
+          initialLoaded.current = channelId;
+      });
   }
   const typers = Object.keys(typing ?? {})
     .filter((id) => id !== selfId)
@@ -379,12 +379,8 @@ export const MessageTimeline = memo(function MessageTimeline({
   // this before removing the indicator shifts the reader by its height.
   useLayoutEffect(() => {
     const saved = historyAnchor.current;
-    if (saved && saved.ticket === historyRequest.current && scroller.current)
-      restoreAnchor(scroller.current, saved.anchor);
-    if (loadingHistory === null) {
-      historyAnchor.current = null;
-      historyRequest.current = null;
-    }
+    if (saved && scroller.current) restoreAnchor(scroller.current, saved);
+    if (loadingHistory === null) historyAnchor.current = null;
   });
 
   // Bring the jumped-to message into view once it has rendered. After the
@@ -441,14 +437,12 @@ export const MessageTimeline = memo(function MessageTimeline({
   function readVisibleTail() {
     if (
       !readActive ||
-      !timeline?.loaded ||
-      timeline.hasMoreNewer ||
       !pinnedToBottom.current ||
       !document.hasFocus() ||
       document.visibilityState !== "visible"
     )
       return;
-    client.markRead(channelId, timeline.readThroughSeq ?? items.at(-1)?.seq ?? 0);
+    client.readLoadedTail(channelId);
   }
 
   // Do not acknowledge a newer socket watermark until its history is on screen.
@@ -502,14 +496,13 @@ export const MessageTimeline = memo(function MessageTimeline({
       atBottom &&
       !settlingJump.current &&
       timeline?.hasMoreNewer &&
-      !historyRequest.current &&
       !historyError
     ) {
-      void requestHistory("newer");
+      requestHistory("newer");
     }
 
-    if (el.scrollTop < 400 && timeline?.hasMore && !historyRequest.current && !historyError) {
-      void requestHistory("older");
+    if (el.scrollTop < 400 && timeline?.hasMore && !historyError) {
+      requestHistory("older");
     }
   }
 
@@ -564,14 +557,14 @@ export const MessageTimeline = memo(function MessageTimeline({
               : null
           }
           onRetry={() => {
-            if (historyError) void requestHistory(historyError);
+            if (historyError) requestHistory(historyError);
           }}
         />
         {timeline?.hasMore && (
           <button
             className="mx-auto my-2 block rounded-full border border-edge px-3 py-1 text-[12px] font-medium text-ink-dim transition-colors hover:bg-ink/[0.04] hover:text-ink disabled:opacity-40"
             disabled={loadingHistory !== null}
-            onClick={() => void requestHistory("older")}
+            onClick={() => requestHistory("older")}
           >
             Load older messages
           </button>
@@ -639,7 +632,7 @@ export const MessageTimeline = memo(function MessageTimeline({
           <button
             className="mx-auto my-2 block rounded-full border border-edge px-3 py-1 text-[12px] font-medium text-ink-dim transition-colors hover:bg-ink/[0.04] hover:text-ink disabled:opacity-40"
             disabled={loadingHistory !== null}
-            onClick={() => void requestHistory("newer")}
+            onClick={() => requestHistory("newer")}
           >
             Load newer messages
           </button>
@@ -770,34 +763,12 @@ export function JumpToLatestBar({ channelId, onJump }: { channelId: ID; onJump?:
     const read = s.memberships[channelId] ?? 0;
     return read > 0 && timelineMessages(s, channelId).some((m) => m.seq > read);
   });
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState(false);
-  const request = useRef<object | null>(null);
-  useEffect(() => {
-    request.current = null;
-    setBusy(false);
-    setError(false);
-    return () => {
-      request.current = null;
-    };
-  }, [channelId]);
-  async function jump() {
-    if (request.current) return;
-    const ticket = {};
-    request.current = ticket;
-    setBusy(true);
-    setError(false);
+  const busy = useWorkspace((s) => s.timelineStatus[channelId]?.loading === "latest");
+  const error = useWorkspace((s) => s.timelineStatus[channelId]?.error === "latest");
+  function jump() {
+    if (busy) return;
     onJump?.();
-    try {
-      await client.jumpToLatest(channelId);
-    } catch {
-      if (request.current === ticket) setError(true);
-    } finally {
-      if (request.current === ticket) {
-        request.current = null;
-        setBusy(false);
-      }
-    }
+    void client.jumpToLatest(channelId);
   }
   if (!anchored) return null;
   return (
@@ -809,7 +780,7 @@ export function JumpToLatestBar({ channelId, onJump }: { channelId: ID; onJump?:
       )}
       <button
         disabled={busy}
-        onClick={() => void jump()}
+        onClick={jump}
         className="rounded-full border border-copper/50 bg-copper/15 px-3 py-1 text-[12px] font-medium text-copper transition-colors hover:bg-copper/25"
       >
         {busy ? (

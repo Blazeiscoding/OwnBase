@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { applyRecordChanges, isRecordChanges, readStoredRecord } from "../src/records.js";
+import { applyRecordChanges, isRecordChanges } from "../src/records.js";
 
 /** One window's changed names merged into a record every window shares (F02). */
 describe("record merges", () => {
@@ -26,8 +26,6 @@ describe("record merges", () => {
         { "http://a U3": "sender" },
       ),
     ).toEqual({ "http://a U1": "none", "http://a U3": "sender" });
-    expect(readStoredRecord(["none"])).toBe(null);
-    expect(readStoredRecord(null)).toEqual({});
   });
 
   it("accepts only bounded text changes", () => {

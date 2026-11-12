@@ -56,7 +56,7 @@ describe("someone else's profile", () => {
     const client = workspace();
     const openDm = vi
       .spyOn(client, "openDm")
-      .mockRejectedValueOnce(new Error("offline"))
+      .mockResolvedValueOnce(new ApiError(0, "network_error"))
       .mockResolvedValueOnce(dm);
     const onOpenDm = vi.fn();
     render(
