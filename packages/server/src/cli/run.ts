@@ -2,7 +2,7 @@ import { parseArgs } from "node:util";
 import { envName, envSetting, flagOrEnv, flagsHelp, parseArgsOptions } from "./flags.js";
 import { networkInterfaces } from "node:os";
 import { dirname, join, resolve } from "node:path";
-import { existsSync } from "node:fs";
+import { existsSync, readdirSync } from "node:fs";
 import { ACCESS_POLICIES, isAccessPolicy, type MemberNotice } from "@ownbase/protocol";
 import { createWorkspaceServer, SERVER_VERSION } from "../server.js";
 import {
@@ -15,6 +15,8 @@ import { backupInChildProcess, type ScheduledBackups } from "../backups/backupSc
 import { OffsiteBackups, parseOffsiteUrl } from "../backups/offsite.js";
 import { withBackupFolder } from "../backups/workspaceCopy.js";
 import type { CommandLineExtension, ServerExtension } from "../extensions.js";
+import { exportWorkspace } from "../import/slackExport.js";
+import { importSlack } from "../import/slackImport.js";
 import { listAccounts, recoverAccount } from "../recover.js";
 import { relayFromEnvironment, type IceServer, type ServerRelay } from "../huddles/relay.js";
 import { parseIceServers } from "../huddles/rtc.js";
@@ -84,6 +86,9 @@ Usage: ownbase-server [options]
        ownbase-server restore --from <dir or .zip> --data <dir>
        ownbase-server verify-backup --from <dir or .zip>
        ownbase-server recover --data <dir> [--handle <handle>] [--make-owner]
+       ownbase-server import-slack --from <export.zip> --data <new dir> --owner <username>
+                                   [--name <name>] [--fetch-files]
+       ownbase-server export --data <dir> --to <file.zip> [--everything]
 
 ${flagsHelp()}
 
@@ -124,6 +129,25 @@ Recovery
                   workspace to that account, which is the way back from an
                   owner who has left. This needs the workspace file, so it
                   gives away nothing that reading the file did not already.
+
+Moving in from Slack, and taking your data out
+
+  import-slack    Make a new workspace from a Slack export (Workspace settings,
+                  Import and export data, in Slack). --data must be a new or
+                  empty folder. People come in deactivated, with no password;
+                  --owner names the Slack username that becomes the owner and
+                  gets a temporary password, printed once. The owner brings the
+                  others back from People. Slack's export holds links to files,
+                  not the files: each message keeps a file's name, and
+                  --fetch-files fetches the files through those links instead.
+                  Join and leave notices are left out. Reads a zip of up to
+                  64 GB and 2 million files, up to 256 MB in one JSON file and
+                  100 MB in one attachment.
+  export          Write a workspace out in Slack's export format, which tools
+                  that read Slack's exports read, and import-slack reads back.
+                  Public channels only; --everything adds private channels and
+                  direct messages. The zip holds the files too. No passwords,
+                  sessions or keys are in it. It can run while the server does.
 
 Calls between networks
 
@@ -279,6 +303,83 @@ ${extensions.map((extension) => `\n${extension.help.replace(/\n+$/, "")}\n`).joi
   ${err instanceof Error ? err.message : String(err)}
 `);
       process.exit(1);
+    }
+    process.exit(0);
+  }
+
+  if (command === "import-slack") {
+    if (!values.from) refuse("import-slack needs --from <export.zip>, the export Slack made");
+    if (!values.owner)
+      refuse("import-slack needs --owner <username>, the Slack username that becomes the owner");
+    const started = Date.now();
+    // Only a folder that was new or empty is the import's, to say nothing was kept in.
+    const freshFolder =
+      !existsSync(resolve(values.data)) || readdirSync(resolve(values.data)).length === 0;
+    console.log(`
+  Importing ${resolve(values.from)} into ${resolve(values.data)}
+`);
+    try {
+      const result = await importSlack({
+        from: resolve(values.from),
+        dataDir: resolve(values.data),
+        owner: values.owner,
+        workspaceName: values.name,
+        fetchFiles: values["fetch-files"],
+        log: (line) => console.log(line),
+      });
+      const n = (count: number) => count.toLocaleString("en-US");
+      const { counts } = result;
+      console.log(`
+  Made "${result.workspaceName}" in ${resolve(values.data)} in ${Math.round((Date.now() - started) / 1000)} s
+  ${n(counts.people)} people, ${n(counts.bots)} bots, ${n(counts.channels)} channels, ${n(counts.directMessages)} direct and group messages
+  ${n(counts.messages)} messages (${n(counts.replies)} in threads), ${n(counts.reactions)} reactions, ${n(counts.pins)} pins, ${n(counts.files)} files`);
+      if (result.skipped.length) {
+        console.log("\n  Left out:");
+        for (const { reason, count } of result.skipped) console.log(`    ${n(count)} ${reason}`);
+      }
+      console.log(`
+  The owner, ${result.owner.displayName} (${result.owner.handle}), signs in with this
+  temporary password and then chooses their own:
+
+      ${result.owner.temporaryPassword}
+
+  It is not stored anywhere, so copy it now. Everyone else is deactivated:
+  bring them back from People, which gives each a temporary password.
+  Start the server with --data ${resolve(values.data)} to open it.
+`);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      refuse(
+        freshFolder
+          ? `${message}
+  Nothing from this import was kept.`
+          : message,
+      );
+    }
+    process.exit(0);
+  }
+
+  if (command === "export") {
+    if (!values.to) refuse("export needs --to <file.zip>, a new file to write the export to");
+    try {
+      const result = await exportWorkspace({
+        dataDir: resolve(values.data),
+        to: resolve(values.to),
+        everything: values.everything,
+        log: (line) => console.log(line),
+      });
+      const n = (count: number) => count.toLocaleString("en-US");
+      console.log(`
+  Exported to ${resolve(values.to)} (${n(Math.ceil(result.bytes / 1024))} kB)
+  ${n(result.people)} people, ${n(result.channels)} channels, ${n(result.directMessages)} direct and group messages
+  ${n(result.messages)} messages, ${n(result.files)} files`);
+      if (result.skipped.length) {
+        console.log("\n  Left out:");
+        for (const { reason, count } of result.skipped) console.log(`    ${n(count)} ${reason}`);
+      }
+      console.log("");
+    } catch (err) {
+      refuse(err instanceof Error ? err.message : String(err));
     }
     process.exit(0);
   }

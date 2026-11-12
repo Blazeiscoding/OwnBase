@@ -3,6 +3,7 @@ import { open, writeFile } from "node:fs/promises";
 import { join, resolve } from "node:path";
 import type { DatabaseSync } from "node:sqlite";
 import {
+  DEFAULT_WORKSPACE_NAME,
   MESSAGE_TEXT_MAX,
   type ChannelType,
   type ID,
@@ -260,7 +261,7 @@ class SlackImport {
     const temporaryPassword = secretToken().slice(0, 16);
     const ownerCredentials = await hashPassword(temporaryPassword);
 
-    const workspaceName = this.opts.workspaceName?.trim() || "Slack";
+    const workspaceName = this.opts.workspaceName?.trim() || DEFAULT_WORKSPACE_NAME;
     const ownerId = this.store.transaction(() => {
       this.store.settings.set("workspaceName", workspaceName);
       for (const user of users) this.addPerson(user, user === owner);
@@ -296,7 +297,9 @@ class SlackImport {
         for (const userId of conversation.members)
           this.store.channels.addMember(conversation.id, userId);
       });
-      this.log(`  ${conversation.label}: ${written.toLocaleString("en-US")} messages`);
+      this.log(
+        `  ${conversation.label}: ${written.toLocaleString("en-US")} ${written === 1 ? "message" : "messages"}`,
+      );
     }
 
     this.store.transaction(() => {

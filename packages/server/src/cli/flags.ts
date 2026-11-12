@@ -349,6 +349,20 @@ export const FLAGS = {
     type: "boolean",
     default: false,
   },
+  to: {
+    type: "string",
+  },
+  owner: {
+    type: "string",
+  },
+  "fetch-files": {
+    type: "boolean",
+    default: false,
+  },
+  everything: {
+    type: "boolean",
+    default: false,
+  },
   help: {
     type: "boolean",
     default: false,
