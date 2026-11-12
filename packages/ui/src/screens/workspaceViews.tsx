@@ -199,7 +199,7 @@ interface ViewContext {
   schedules: boolean;
 }
 
-const go = (nav: Navigation) => ({
+const places = (nav: Navigation) => ({
   close: () => nav.closePanel(),
   conversation: (channelId: ID) => nav.navigate({ to: "conversation", channelId }),
   message: (channelId: ID, messageId: ID) => nav.navigate({ to: "message", channelId, messageId }),
@@ -207,6 +207,16 @@ const go = (nav: Navigation) => ({
   dialog: (dialog: Dialog) => nav.navigate({ to: "dialog", dialog }),
   profile: (userId: ID) => nav.navigate({ to: "dialog", dialog: { kind: "profile", userId } }),
 });
+const placesOf = new WeakMap<Navigation, ReturnType<typeof places>>();
+/**
+ * The same handlers each time for one screen, so a panel handed them does not
+ * render every row again whenever the screen around it does.
+ */
+const go = (nav: Navigation) => {
+  let made = placesOf.get(nav);
+  if (!made) placesOf.set(nav, (made = places(nav)));
+  return made;
+};
 
 interface PanelView<K extends PanelKind> {
   /** Drawn only beside an open conversation. */

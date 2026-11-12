@@ -7,6 +7,7 @@ import { ClientContext } from "../src/context.js";
 import { MessageItem } from "../src/components/MessageItem.js";
 import { ConfirmProvider } from "../src/components/Confirm.js";
 import { ToastProvider } from "../src/components/Toast.js";
+import { pointAtMessage } from "./pointAt.js";
 
 /**
  * Which message rows render again when the replica changes (OPT-05). Each row
@@ -180,9 +181,9 @@ describe("message rows and changes they do show", () => {
     // Delete sits in each row's More actions menu; what a row offers there is
     // decided when the row renders.
     const offersDelete = async () => {
-      const triggers = screen.getAllByRole("button", { name: "More actions" });
-      expect(triggers).toHaveLength(ROWS);
-      fireEvent.click(triggers.at(-1)!);
+      // A row makes its toolbar once the pointer is on it.
+      const row = pointAtMessage(screen.getAllByRole("article").at(-1)!);
+      fireEvent.click(within(row).getByRole("button", { name: "More actions" }));
       const menu = await screen.findByRole("menu", { name: "More actions" });
       const offered = within(menu)
         .getAllByRole("menuitem")

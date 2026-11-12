@@ -752,6 +752,17 @@
       "concepts": ["tooling", "client benchmark"]
     },
     {
+      "path": "scripts/measure-memory.mts",
+      "plain": "Measures how much memory the desktop app holds: at the welcome screen, in a workspace, in a huddle of four with and without cameras, and after leaving.",
+      "summary": "Runs the built desktop app on a throwaway profile against a seeded workspace and reads every process's memory from Windows at each stage, with the page's heap and, on request, Chromium's own account by allocator.",
+      "details": [
+        "The app is driven over CDP by hand, with real clicks and typed text, and not by Playwright: Playwright turns on the debugger's network recording, which keeps a copy of every file the page loads, so each picture scrolled past stayed in the page for good and the figures read far too high. The three other people in the huddle are pages of one headless Chromium on the web client, with the fake microphone and a camera clip.",
+        "Each stage waits, collects garbage in the page, and reads each process's private working set (Task Manager's Memory) and private bytes from Windows, by kind of process, plus the page's JavaScript heap and DOM nodes. --infra adds Chromium's memory-infra dump, which says which allocator holds what; --heap writes the heap by kind of object, for comparing two stages; --soak leaves the call alone and reads it every 30 s; --camera-rounds turns every camera on and off again in the same call, where memory kept per switch would show; --hold stops in the workspace for looking into the app by hand.",
+        "Windows that cover the app's window must not change what it holds, so native occlusion and background throttling are off for the run. Before a camera stage is read, every picture must be moving on every screen."
+      ],
+      "concepts": ["tooling", "memory benchmark"]
+    },
+    {
       "path": "scripts/measure-calls.mts",
       "plain": "Measures what a huddle costs each person in it: computer time, upload and download, delay and how smooth the call stays.",
       "summary": "Starts one headless Chromium per person in one huddle and records CPU by process, bandwidth, round trip, jitter and video quality from getStats (E13, E13b).",

@@ -1011,12 +1011,13 @@ describe("the camera and the share, sized to how big each other person draws the
     // One other drawing it large gets it as it comes.
     expect(cameraEncodingFor(1, 1080, 540)).toEqual({ active: true, scaleResolutionDownBy: 1 });
     expect(cameraEncodingFor(1, 180, 720).scaleResolutionDownBy).toBe(4);
-    expect(cameraEncodingFor(3, 0, 540)).toEqual({ active: false, ...cameraEncoding(3) });
+    // Not drawn: nothing, and the encoder for it left an eighth of the picture to hold.
+    expect(cameraEncodingFor(3, 0, 540)).toEqual({ active: false, scaleResolutionDownBy: 8 });
     // Before they first say how they draw it, the call's size.
     expect(cameraEncodingFor(3, undefined, 540)).toEqual({ active: true, ...cameraEncoding(3) });
 
     expect(screenEncodingFor(undefined, 1080)).toEqual({ active: true, scaleResolutionDownBy: 1 });
-    expect(screenEncodingFor(0, 1080)).toEqual({ active: false, scaleResolutionDownBy: 1 });
+    expect(screenEncodingFor(0, 1080)).toEqual({ active: false, scaleResolutionDownBy: 8 });
     expect(screenEncodingFor(720, 1080)).toEqual({ active: true, scaleResolutionDownBy: 1.5 });
     expect(screenEncodingFor(1440, 1080)).toEqual({ active: true, scaleResolutionDownBy: 1 });
   });
@@ -1066,7 +1067,7 @@ describe("the camera and the share, sized to how big each other person draws the
     await session.handleSignal("B", media({ camera: 180, screen: 0 }));
     await flush();
     expect(sent(1).B.parameters.encodings[0]).toEqual(cameraEncodingFor(2, 180, 540));
-    expect(sent(2).B.parameters.encodings[0]).toEqual({ active: false, scaleResolutionDownBy: 1 });
+    expect(sent(2).B.parameters.encodings[0]).toEqual({ active: false, scaleResolutionDownBy: 8 });
     const lines = () => session.log.filter((l) => l.peerId === "B").map((l) => l.text);
     expect(lines()).toContain(
       "Sending them the camera at 33% of its size, at most 15 frames a second and 200 kbit/s, as they show it 180 high, in a call of 3.",
@@ -1126,6 +1127,56 @@ describe("the camera and the share, sized to how big each other person draws the
     await session.setCamera("upright");
     await flush();
     expect(sent(1).B.parameters.encodings[0]).toMatchObject({ scaleResolutionDownBy: 1.6875 });
+    session.destroy();
+  });
+
+  it("leaves a camera turned off, and a share that stopped, little for their encoders to hold", async () => {
+    const open = vi.fn();
+    (navigator.mediaDevices as { getUserMedia: unknown }).getUserMedia = open;
+    const picture = () =>
+      new FakeMediaStream([
+        { kind: "video", stop() {}, getSettings: () => ({ width: 960, height: 540 }) },
+      ]);
+    const { session } = makeSession("A");
+    session.syncParticipants(["A", "B"]);
+    await flush();
+    await session.handleSignal("B", media({ camera: 360, screen: 1080 }));
+    await flush();
+    // Neither has been on: each is sized ahead for when it starts, as before.
+    const drawn = {
+      active: true,
+      scaleResolutionDownBy: 1.5,
+      maxFramerate: 20,
+      maxBitrate: 600_000,
+    };
+    expect(sent(1).B.parameters.encodings[0]).toEqual(drawn);
+    expect(sent(2).B.parameters.encodings[0]).toEqual({ active: true, scaleResolutionDownBy: 1 });
+
+    open.mockResolvedValueOnce(picture());
+    await session.toggleCamera();
+    await flush();
+    expect(sent(1).B.parameters.encodings[0]).toEqual(drawn);
+    // Off again: the browser keeps the encoder, at whatever size it is set to.
+    await session.toggleCamera();
+    await flush();
+    expect(sent(1).B.parameters.encodings[0]).toEqual({ active: false, scaleResolutionDownBy: 8 });
+    const lines = () => session.log.filter((l) => l.peerId === "B").map((l) => l.text);
+    expect(lines()).not.toContain("Sending them no camera, since they are not showing it.");
+    // And on once more, it goes as they draw it.
+    open.mockResolvedValueOnce(picture());
+    await session.toggleCamera();
+    await flush();
+    expect(sent(1).B.parameters.encodings[0]).toEqual(drawn);
+
+    vi.spyOn(navigator.mediaDevices, "getDisplayMedia").mockResolvedValue(
+      picture() as unknown as MediaStream,
+    );
+    await session.toggleScreenShare();
+    await flush();
+    expect(sent(2).B.parameters.encodings[0]).toMatchObject({ active: true });
+    await session.toggleScreenShare();
+    await flush();
+    expect(sent(2).B.parameters.encodings[0]).toEqual({ active: false, scaleResolutionDownBy: 8 });
     session.destroy();
   });
 });
