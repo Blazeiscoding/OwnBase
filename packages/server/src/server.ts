@@ -6,7 +6,6 @@ import {
   type ID,
 } from "@ownbase/protocol";
 import { randomUUID } from "node:crypto";
-import { join } from "node:path";
 import { registerAccounts } from "./accounts/feature.js";
 import { registerApps } from "./apps/feature.js";
 import { registerAdmin } from "./admin/feature.js";
@@ -31,6 +30,7 @@ import { DEFAULT_LIMITS, RateLimiter } from "./limits.js";
 import { advertise, type MdnsHandle } from "./mdns.js";
 import { registerMessages } from "./messages/feature.js";
 import { holdWorkspace, type WorkspaceHold } from "./core/ownership.js";
+import { workspaceDatabase } from "./core/workspaceFile.js";
 import { registerPeople } from "./people/feature.js";
 import { registerPolls } from "./polls/feature.js";
 import { serverRelaySchema, type ServerRelay } from "./huddles/relay.js";
@@ -144,6 +144,8 @@ export interface WorkspaceServer {
   connectedPeople: () => number;
   /** Calls `listener` whenever that count may have changed. Returns how to stop. */
   onConnectedChange: (listener: () => void) => () => void;
+  /** How many accounts there are; none until the owner's is made. */
+  accountCount: () => number;
   stop: () => Promise<void>;
 }
 
@@ -195,7 +197,7 @@ async function startWorkspaceServer(
   // Before the database opens, so a refused relay leaves nothing open in the folder.
   if (opts.relay) serverRelaySchema.parse(opts.relay);
   const scheduled = await scheduledBackupsOf(opts);
-  const dbPath = opts.dataDir === ":memory:" ? ":memory:" : join(opts.dataDir, "workspace.db");
+  const dbPath = opts.dataDir === ":memory:" ? ":memory:" : workspaceDatabase(opts.dataDir);
   // Before anything reads or changes the folder: a second server would keep
   // its own count of the attachments and run its own queue and clean-up.
   if (opts.dataDir !== ":memory:") ownership.hold = holdWorkspace(opts.dataDir, "a server");
@@ -422,6 +424,7 @@ async function startWorkspaceServer(
     reannounce: () => announce(),
     connectedPeople: () => gateway.onlineUserIds().length,
     onConnectedChange: (listener) => gateway.onPresenceChange(listener),
+    accountCount: () => store.people.count(),
     stop: () => {
       if (stopping) return stopping;
       if (!stopped.started) {

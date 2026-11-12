@@ -1,5 +1,6 @@
 import { mkdir, open, readFile, rename } from "node:fs/promises";
 import { dirname } from "node:path";
+import { SAVED_SIGN_INS_KEY } from "@ownbase/client-core/savedSignIns";
 import {
   decodeSavedServers,
   encodeSavedServers,
@@ -119,11 +120,14 @@ export function createSettingsStorage(
 
   /** Never copy legacy plaintext tokens to a newly written settings file. */
   function protectExisting(settings: Record<string, unknown>): Record<string, unknown> {
-    if (!Object.hasOwn(settings, "servers")) return settings;
-    if (Array.isArray(settings.servers)) {
-      return { ...settings, servers: encodeSavedServers(settings.servers, protector) };
+    if (!Object.hasOwn(settings, SAVED_SIGN_INS_KEY)) return settings;
+    if (Array.isArray(settings[SAVED_SIGN_INS_KEY])) {
+      return {
+        ...settings,
+        [SAVED_SIGN_INS_KEY]: encodeSavedServers(settings[SAVED_SIGN_INS_KEY], protector),
+      };
     }
-    validateProtectedServers(settings.servers);
+    validateProtectedServers(settings[SAVED_SIGN_INS_KEY]);
     return settings;
   }
 
@@ -141,16 +145,19 @@ export function createSettingsStorage(
           if (typeof key !== "string") throw new Error("Invalid settings key.");
           const settings = await read();
           if (!Object.hasOwn(settings, key)) return options?.distinguishMissing ? undefined : null;
-          if (key !== "servers")
+          if (key !== SAVED_SIGN_INS_KEY)
             return options?.distinguishMissing ? settings[key] : (settings[key] ?? null);
-          const servers = decodeSavedServers(settings.servers, protector);
-          if (Array.isArray(settings.servers) && settings.servers.length > 0) {
+          const servers = decodeSavedServers(settings[SAVED_SIGN_INS_KEY], protector);
+          if (
+            Array.isArray(settings[SAVED_SIGN_INS_KEY]) &&
+            settings[SAVED_SIGN_INS_KEY].length > 0
+          ) {
             // Only release the decrypted credentials after migration has succeeded.
             await write(protectExisting(settings));
           }
           return servers;
         } catch (error) {
-          if (key === "servers" || options?.strict) throw error;
+          if (key === SAVED_SIGN_INS_KEY || options?.strict) throw error;
           return null;
         }
       });
@@ -159,13 +166,13 @@ export function createSettingsStorage(
       return serialized(async () => {
         if (typeof key !== "string") throw new Error("Invalid settings key.");
         const settings = await read();
-        if (key === "servers") {
+        if (key === SAVED_SIGN_INS_KEY) {
           // An explicit, confirmed forget action must work even with a lost OS key.
           // The renderer must never turn a failed restore into an automatic empty save.
           const forgetting = Array.isArray(value) && value.length === 0;
-          if (!forgetting && Object.hasOwn(settings, "servers"))
-            decodeSavedServers(settings.servers, protector);
-          await write({ ...settings, servers: encodeSavedServers(value, protector) });
+          if (!forgetting && Object.hasOwn(settings, SAVED_SIGN_INS_KEY))
+            decodeSavedServers(settings[SAVED_SIGN_INS_KEY], protector);
+          await write({ ...settings, [SAVED_SIGN_INS_KEY]: encodeSavedServers(value, protector) });
         } else {
           await write({ ...protectExisting(settings), [key]: value });
         }
@@ -173,7 +180,8 @@ export function createSettingsStorage(
     },
     update(key, change) {
       return serialized(async () => {
-        if (typeof key !== "string" || key === "servers") throw new Error("Invalid settings key.");
+        if (typeof key !== "string" || key === SAVED_SIGN_INS_KEY)
+          throw new Error("Invalid settings key.");
         const settings = await read();
         const value = change(Object.hasOwn(settings, key) ? settings[key] : null);
         await write({ ...protectExisting(settings), [key]: value });

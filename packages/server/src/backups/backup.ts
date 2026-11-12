@@ -25,6 +25,7 @@ import {
   WorkspaceInUseError,
   type WorkspaceHold,
 } from "../core/ownership.js";
+import { metaRows, WORKSPACE_DATABASE, WORKSPACE_NAME_ROW } from "../core/workspaceFile.js";
 import { SERVER_VERSION } from "../version.js";
 
 /** What a backup directory contains, and what it must still look like on restore. */
@@ -46,7 +47,7 @@ interface BackupEntry {
 }
 
 const MANIFEST = "manifest.json";
-const DATABASE = "workspace.db";
+const DATABASE = WORKSPACE_DATABASE;
 const FILES = "files";
 const COUNTED = [
   "users",
@@ -118,13 +119,12 @@ function snapshotDetails(db: DatabaseSync) {
     throw new Error(
       "A newer version of OwnBase made this backup. Update OwnBase before restoring it.",
     );
-  const row = db.prepare("SELECT value FROM meta WHERE key = 'workspace_name'").get() as
-    { value: string } | undefined;
   const files = db.prepare("SELECT id, size FROM files ORDER BY id").all() as {
     id: string;
     size: number;
   }[];
-  return { schemaVersion, workspaceName: row?.value ?? "", counts: countRows(db), files };
+  const workspaceName = metaRows(db).getMeta(WORKSPACE_NAME_ROW) ?? "";
+  return { schemaVersion, workspaceName, counts: countRows(db), files };
 }
 
 async function checksum(path: string): Promise<BackupEntry> {

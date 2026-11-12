@@ -12,6 +12,7 @@ import {
   storedIconRows,
   type WorkspaceIcon,
 } from "./workspaceIcon.js";
+import { WORKSPACE_NAME_ROW } from "./workspaceFile.js";
 
 /** The rows of the database's `meta` table, which hold every workspace setting. */
 export interface MetaRows {
@@ -56,8 +57,8 @@ export const SETTINGS: { [K in keyof SettingValues]: Setting<SettingValues[K]> }
     kept: true,
   },
   workspaceName: {
-    read: (row) => row("workspace_name") || null,
-    write: (name) => [["workspace_name", name]],
+    read: (row) => row(WORKSPACE_NAME_ROW) || null,
+    write: (name) => [[WORKSPACE_NAME_ROW, name]],
     fallback: DEFAULT_WORKSPACE_NAME,
   },
   /**

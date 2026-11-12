@@ -31,13 +31,18 @@ describe("what the main process decided, handed to the window", () => {
 });
 
 describe("a failure crossing the bridge", () => {
-  it("names a list it cannot use by a code the window acts on", () => {
-    expect(toFailure(new RegistryFormatError("newer"))).toMatchObject({ code: "registry-newer" });
-    expect(toFailure(new RegistryFormatError("unsupported"))).toMatchObject({
-      code: "registry-unsupported",
+  it("names a list it cannot use by a code the window acts on, and says why in words", () => {
+    expect(toFailure(new RegistryFormatError("newer"))).toEqual({
+      code: "registry-unreadable",
+      message: expect.stringMatching(/newer version of OwnBase .* Update OwnBase/),
     });
-    expect(toFailure(new RegistryFormatError("invalid"))).toMatchObject({
-      code: "registry-damaged",
+    expect(toFailure(new RegistryFormatError("unsupported"))).toEqual({
+      code: "registry-unreadable",
+      message: expect.stringMatching(/cannot read the list .* Use the version that saved it/),
+    });
+    expect(toFailure(new RegistryFormatError("invalid"))).toEqual({
+      code: "registry-unreadable",
+      message: expect.stringMatching(/is damaged\. Restore the settings file/),
     });
   });
 

@@ -17,24 +17,35 @@ import { crc32, deflateSync } from "node:zlib";
 import {
   createHostingController,
   parseLastHosted,
-  type HostedWorkspaceChange,
+  type HostedServer,
   type HostingSnapshot,
 } from "../src/main/hosting.js";
+import { parseAutoBackup, parseRegistry, type HostedWorkspace } from "../src/main/registry.js";
 import {
-  parseAutoBackup,
-  parseRegistry,
-  readWorkspace,
-  writeWorkspaceName,
-  type HostedWorkspace,
-} from "../src/main/registry.js";
-import { TunnelCleanupError, type Tunnel } from "../src/main/tunnel.js";
-import { createWorkspaceServer, type WorkspaceServer } from "@ownbase/server";
+  readStoppedIcon,
+  readStoppedIconVersion,
+  readStoppedWorkspace as readWorkspace,
+  renameStoppedWorkspace as writeWorkspaceName,
+} from "@ownbase/server/stoppedWorkspace";
+import { TunnelCleanupError, type PublicAddressConfig, type Tunnel } from "../src/main/tunnel.js";
+import { createWorkspaceServer, type WorkspaceChange, type WorkspaceServer } from "@ownbase/server";
 import {
   backupWorkspace,
   inventoryBackup,
   restoreWorkspace,
   verifyBackup,
 } from "@ownbase/server/backup";
+
+/** A stable address OwnBase carries itself, with Cloudflare's connector. */
+const managedAt = (publicUrl: string) => () => ({
+  saved: null,
+  config: { carrier: "ownbase" as const, publicUrl, tokenFile: "tunnel-token" },
+});
+
+/** A stable address the host saved, which something else carries here. */
+const carriedAt =
+  (publicUrl: string, saved: string | null = publicUrl) =>
+  () => ({ saved, config: { carrier: "elsewhere" as const, publicUrl } });
 
 interface StartRequest {
   workspaceName?: string;
@@ -119,13 +130,10 @@ const inUse = () =>
 /** A controller over fake servers, with hooks to hold or fail each step. */
 function harness(
   options: {
-    publicAccess?: boolean;
-    publicAddress?: () => { setting?: string; url?: string; managed?: boolean; error?: string };
+    publicAddress?: () => { saved: string | null; config: PublicAddressConfig };
     savePublicAddress?: (address: string | null) => Promise<void> | void;
     verifyLoopback?: (port: number, instanceId?: string) => Promise<boolean>;
     cleanupTimeoutMs?: number;
-    /** A server that says who may join as a policy, guests included, as current ones do. */
-    policies?: boolean;
     /** Share a profile and settings with an earlier harness, as a second launch would. */
     root?: string;
     settings?: Map<string, unknown>;
@@ -136,7 +144,7 @@ function harness(
   type FakeTunnel = Tunnel & { close: Mock<() => Promise<void>>; drop(reason: string): void };
   const h = {
     starts: [] as StartRequest[],
-    servers: [] as { port: number; stop: Mock<() => Promise<void>> }[],
+    servers: [] as (HostedServer & { stop: Mock<() => Promise<void>> })[],
     dataRoot,
     /** The settings file, as keys and values. */
     settings: options.settings ?? new Map<string, unknown>(),
@@ -161,7 +169,7 @@ function harness(
     connected: 0,
     connectionListeners: new Set<() => void>(),
     /** Whoever follows the running workspace's name and who may join it. */
-    workspaceListeners: new Set<(change: HostedWorkspaceChange) => void>(),
+    workspaceListeners: new Set<(change: WorkspaceChange) => void>(),
     /** The icon a running fake server holds. */
     icon: null as { type: string; bytes: Uint8Array; version: string } | null,
     /** Each name written into a stopped workspace's database; set `writeFails` to refuse. */
@@ -216,14 +224,18 @@ function harness(
     defaultPort: 8543,
     lanUrls: (port) => [`192.168.1.20:${port}`],
     now: () => h.clock++,
-    readWorkspace: inside,
-    writeWorkspaceName: (dataDir, name) => {
-      if (h.writeFails)
-        throw new Error(`database is locked: ${join(dataDir, "workspace.db")} (C:\\Users\\sam)`);
-      h.written.push({ dataDir, name });
-      const fake = h.databases.get(dataDir);
-      if (fake) fake.name = name;
-      else writeWorkspaceName(dataDir, name);
+    stopped: {
+      read: inside,
+      icon: readStoppedIcon,
+      iconVersion: readStoppedIconVersion,
+      rename: (dataDir, name) => {
+        if (h.writeFails)
+          throw new Error(`database is locked: ${join(dataDir, "workspace.db")} (C:\\Users\\sam)`);
+        h.written.push({ dataDir, name });
+        const fake = h.databases.get(dataDir);
+        if (fake) fake.name = name;
+        else writeWorkspaceName(dataDir, name);
+      },
     },
     openFolder: async (path) => {
       h.opened.push(path);
@@ -283,13 +295,7 @@ function harness(
           logger: false,
         });
         h.real.push(real);
-        const server = {
-          port: real.port,
-          instanceId: real.instanceId,
-          workspaceId: () => real.store.getMeta("workspace_id") ?? null,
-          workspaceName: () => real.store.getMeta("workspace_name") ?? "",
-          stop: vi.fn(() => real.stop()),
-        };
+        const server = { ...real, stop: vi.fn(() => real.stop()) };
         h.servers.push(server);
         return server;
       }
@@ -300,7 +306,7 @@ function harness(
         name: request.workspaceName ?? kept?.name ?? null,
       };
       h.databases.set(request.dataDir, db);
-      const server = {
+      const server: HostedServer & { stop: Mock<() => Promise<void>> } = {
         port: request.port === 0 ? (h.freePorts.shift() ?? 50123) : request.port,
         instanceId: "workspace-run-1",
         workspaceId: () => db.id,
@@ -317,30 +323,23 @@ function harness(
           h.connectionListeners.add(listener);
           return () => void h.connectionListeners.delete(listener);
         },
-        onWorkspaceChange: (listener: (change: HostedWorkspaceChange) => void) => {
+        onWorkspaceChange: (listener: (change: WorkspaceChange) => void) => {
           h.workspaceListeners.add(listener);
           return () => void h.workspaceListeners.delete(listener);
         },
-        workspaceIcon: () => h.icon,
+        workspaceIcon: () =>
+          h.icon && { ...h.icon, type: "image/webp", bytes: Buffer.from(h.icon.bytes) },
         stop: vi.fn(async () => {}),
-        ...(options.publicAccess
-          ? {
-              setTrustLoopbackProxy: (enabled: boolean) => h.proxyTrust.push(enabled),
-              setPublicUrl: (url: string | null) => h.publicUrls.push(url),
-              setIceServers: (servers: { urls: string }[]) => h.iceServers.push(servers),
-              accountCount: () => h.accountCount,
-            }
-          : {}),
-        ...(options.publicAccess || options.policies
-          ? {
-              accessPolicy: () => h.accessPolicy,
-              setAccessPolicy: (policy: AccessPolicy) => {
-                h.events.push(`access:${policy}`);
-                h.policyCalls.push(policy);
-                h.accessPolicy = policy;
-              },
-            }
-          : {}),
+        setTrustLoopbackProxy: (enabled: boolean) => void h.proxyTrust.push(enabled),
+        setPublicUrl: (url: string | null) => void h.publicUrls.push(url),
+        setIceServers: (servers) => void h.iceServers.push(servers as { urls: string }[]),
+        accountCount: () => h.accountCount,
+        accessPolicy: () => h.accessPolicy,
+        setAccessPolicy: (policy: AccessPolicy) => {
+          h.events.push(`access:${policy}`);
+          h.policyCalls.push(policy);
+          h.accessPolicy = policy;
+        },
       };
       if (h.failNextStop) {
         h.failNextStop = false;
@@ -353,33 +352,29 @@ function harness(
       if (h.notifyFails) throw new Error("window already destroyed");
       h.changes.push(h.controller.status());
     },
-    ...(options.publicAccess
-      ? {
-          tunnelAvailable: () => true,
-          openTunnel: async (port: number, signal: AbortSignal, instanceId?: string) => {
-            h.events.push("tunnel:open");
-            h.tunnelStarts.push({ port, signal, instanceId });
-            await h.beforeTunnel(port, signal);
-            let listener: ((reason: string) => void) | undefined;
-            const tunnel: FakeTunnel = {
-              url: "https://rocket-team.trycloudflare.com",
-              close: vi.fn(async () => {}),
-              onUnexpectedExit: (next) => {
-                listener = next;
-              },
-              drop: (reason) => listener?.(reason),
-            };
-            while (h.failNextTunnelClose > 0) {
-              h.failNextTunnelClose--;
-              tunnel.close.mockRejectedValueOnce(new Error("process still running"));
-            }
-            h.tunnels.push(tunnel);
-            return tunnel;
-          },
-        }
-      : {}),
-    ...(options.publicAddress ? { publicAddress: options.publicAddress } : {}),
-    ...(options.verifyLoopback ? { verifyLoopback: options.verifyLoopback } : {}),
+    tunnelAvailable: () => true,
+    openTunnel: async (port: number, signal: AbortSignal, instanceId: string) => {
+      h.events.push("tunnel:open");
+      h.tunnelStarts.push({ port, signal, instanceId });
+      await h.beforeTunnel(port, signal);
+      let listener: ((reason: string) => void) | undefined;
+      const tunnel: FakeTunnel = {
+        url: "https://rocket-team.trycloudflare.com",
+        close: vi.fn(async () => {}),
+        onUnexpectedExit: (next) => {
+          listener = next;
+        },
+        drop: (reason) => listener?.(reason),
+      };
+      while (h.failNextTunnelClose > 0) {
+        h.failNextTunnelClose--;
+        tunnel.close.mockRejectedValueOnce(new Error("process still running"));
+      }
+      h.tunnels.push(tunnel);
+      return tunnel;
+    },
+    publicAddress: options.publicAddress ?? (() => ({ saved: null, config: null })),
+    verifyLoopback: options.verifyLoopback ?? (async () => true),
     ...(options.cleanupTimeoutMs ? { cleanupTimeoutMs: options.cleanupTimeoutMs } : {}),
     savePublicAddress: async (address: string | null) => {
       await options.savePublicAddress?.(address);
@@ -420,6 +415,8 @@ describe("hosting a workspace from the desktop app", () => {
       // What its network announcement carries, so the Join screen can tell it
       // from another workspace on the same port.
       instanceId: "workspace-run-1",
+      accessPolicy: "account_required",
+      tunnelAvailable: true,
       lanUrls: ["192.168.1.20:8543"],
       connected: 0,
       // It has no icon yet.
@@ -489,7 +486,11 @@ describe("hosting a workspace from the desktop app", () => {
     }
     expect(h.starts).toEqual([]);
     expect(h.changes).toEqual([]);
-    expect(h.controller.status()).toEqual({ running: false, phase: "stopped" });
+    expect(h.controller.status()).toEqual({
+      running: false,
+      phase: "stopped",
+      tunnelAvailable: true,
+    });
     // The longest name allowed is still allowed.
     await h.controller.start({ workspaceName: "x".repeat(80) });
     expect(h.controller.status().running).toBe(true);
@@ -517,7 +518,11 @@ describe("hosting a workspace from the desktop app", () => {
       "Port 9000 is already in use on this computer. Choose another, or leave the port empty to use one that is free.",
     );
     expect(chosen.starts.map((s) => s.port)).toEqual([9000]);
-    expect(chosen.controller.status()).toEqual({ running: false, phase: "stopped" });
+    expect(chosen.controller.status()).toEqual({
+      running: false,
+      phase: "stopped",
+      tunnelAvailable: true,
+    });
   });
 
   it("keeps a port chosen at creation when it is busy on reopening, and does not start", async () => {
@@ -602,7 +607,11 @@ describe("hosting a workspace from the desktop app", () => {
     // what the caller has already been told.
     expect(h.starts).toHaveLength(1);
     expect(h.saved).toEqual([]);
-    expect(h.controller.status()).toEqual({ running: false, phase: "stopped" });
+    expect(h.controller.status()).toEqual({
+      running: false,
+      phase: "stopped",
+      tunnelAvailable: true,
+    });
     // A new workspace that never started is taken back out, folder and all.
     expect(registryOf(h)).toEqual([]);
     expect(readdirSync(h.dataRoot)).toEqual([]);
@@ -752,7 +761,11 @@ describe("hosting a workspace from the desktop app", () => {
     await stopped;
     expect(h.starts).toHaveLength(1);
     expect(h.servers[0]!.stop).toHaveBeenCalledOnce();
-    expect(h.controller.status()).toEqual({ running: false, phase: "stopped" });
+    expect(h.controller.status()).toEqual({
+      running: false,
+      phase: "stopped",
+      tunnelAvailable: true,
+    });
   });
 
   it("keeps the server, and says so, when stopping it fails", async () => {
@@ -770,7 +783,11 @@ describe("hosting a workspace from the desktop app", () => {
     );
 
     await h.controller.stop();
-    expect(h.controller.status()).toEqual({ running: false, phase: "stopped" });
+    expect(h.controller.status()).toEqual({
+      running: false,
+      phase: "stopped",
+      tunnelAvailable: true,
+    });
     await h.controller.start({ workspaceName: "Rocket Team" });
     expect(h.starts).toHaveLength(2);
   });
@@ -797,7 +814,11 @@ describe("hosting a workspace from the desktop app", () => {
 
     // Asking again carries on from where the first try stopped.
     await h.controller.stop();
-    expect(h.controller.status()).toEqual({ running: false, phase: "stopped" });
+    expect(h.controller.status()).toEqual({
+      running: false,
+      phase: "stopped",
+      tunnelAvailable: true,
+    });
     expect(closeSockets).toHaveBeenCalledTimes(2);
     // And the same workspace starts again in the same folder.
     const [entry] = (await h.controller.list()).workspaces;
@@ -816,12 +837,16 @@ describe("hosting a workspace from the desktop app", () => {
     });
     await h.controller.stop();
     expect(h.servers[0]!.stop).toHaveBeenCalledOnce();
-    expect(h.controller.status()).toEqual({ running: false, phase: "stopped" });
+    expect(h.controller.status()).toEqual({
+      running: false,
+      phase: "stopped",
+      tunnelAvailable: true,
+    });
   });
 
   describe("who may join a hosted workspace", () => {
     it("changes who may join while it runs, and refuses what is not a policy", async () => {
-      const h = harness({ publicAccess: true, policies: true });
+      const h = harness();
       await expect(h.controller.setAccessPolicy("guest_allowed")).rejects.toThrow(/Start hosting/);
       await h.controller.start({ workspaceName: "Rocket Team" });
       expect(h.controller.status().accessPolicy).toBe("account_required");
@@ -833,7 +858,7 @@ describe("hosting a workspace from the desktop app", () => {
     });
 
     it("lets guests in only while the public link is open, when asked to on opening", async () => {
-      const h = harness({ publicAccess: true, policies: true });
+      const h = harness();
       await h.controller.start({ workspaceName: "Rocket Team" });
       await h.controller.openToAll({ accessPolicy: "guest_allowed" });
       expect(h.events.slice(0, 2)).toEqual(["access:guest_allowed", "tunnel:open"]);
@@ -844,7 +869,7 @@ describe("hosting a workspace from the desktop app", () => {
     });
 
     it("keeps guests a host allowed before opening, through opening and closing", async () => {
-      const h = harness({ publicAccess: true, policies: true });
+      const h = harness();
       await h.controller.start({ workspaceName: "Rocket Team" });
       await h.controller.setAccessPolicy("guest_allowed");
       await h.controller.openToAll({ accessPolicy: "guest_allowed" });
@@ -854,7 +879,7 @@ describe("hosting a workspace from the desktop app", () => {
     });
 
     it("puts back the policy it had when the public link cannot open", async () => {
-      const h = harness({ publicAccess: true, policies: true });
+      const h = harness();
       h.beforeTunnel = () => {
         throw new Error("cloudflared is not installed");
       };
@@ -869,7 +894,7 @@ describe("hosting a workspace from the desktop app", () => {
 
   describe("opening the hosted workspace to all", () => {
     it("secures registration before opening, publishes the address, and closes cleanly", async () => {
-      const h = harness({ publicAccess: true });
+      const h = harness();
       await h.controller.start({ workspaceName: "Rocket Team" });
 
       await h.controller.openToAll({});
@@ -905,7 +930,7 @@ describe("hosting a workspace from the desktop app", () => {
     });
 
     it("restores the previous joining rule when Cloudflare cannot open", async () => {
-      const h = harness({ publicAccess: true });
+      const h = harness();
       h.beforeTunnel = () => {
         throw new Error("Cloudflare is offline");
       };
@@ -923,7 +948,7 @@ describe("hosting a workspace from the desktop app", () => {
     });
 
     it("waits for the owner account before exposing an ownerless workspace", async () => {
-      const h = harness({ publicAccess: true });
+      const h = harness();
       h.accountCount = 0;
       await h.controller.start({ workspaceName: "Rocket Team" });
 
@@ -935,7 +960,7 @@ describe("hosting a workspace from the desktop app", () => {
     });
 
     it("cancels an open queued before stop instead of creating a late public link", async () => {
-      const h = harness({ publicAccess: true });
+      const h = harness();
       const bound = deferred();
       h.beforeBind = () => bound.promise;
       const starting = h.controller.start({ workspaceName: "Rocket Team" });
@@ -956,7 +981,7 @@ describe("hosting a workspace from the desktop app", () => {
     });
 
     it("cancels every queued open when the app quits", async () => {
-      const h = harness({ publicAccess: true });
+      const h = harness();
       const bound = deferred();
       h.beforeBind = () => bound.promise;
       const starting = h.controller.start({ workspaceName: "Rocket Team" });
@@ -982,7 +1007,7 @@ describe("hosting a workspace from the desktop app", () => {
     });
 
     it("aborts an active opening and restores the policy when the public link is closed", async () => {
-      const h = harness({ publicAccess: true });
+      const h = harness();
       h.beforeTunnel = (_port, signal) =>
         new Promise<void>((_resolve, reject) => {
           signal.addEventListener("abort", () => reject(new Error("aborted")), { once: true });
@@ -1000,7 +1025,7 @@ describe("hosting a workspace from the desktop app", () => {
     });
 
     it("calls off an opening in progress when the app quits", async () => {
-      const h = harness({ publicAccess: true });
+      const h = harness();
       h.beforeTunnel = (_port, signal) =>
         new Promise<void>((_resolve, reject) => {
           signal.addEventListener("abort", () => reject(new Error("aborted")), { once: true });
@@ -1024,7 +1049,7 @@ describe("hosting a workspace from the desktop app", () => {
     });
 
     it("keeps a cancelled connector owned when closing fails, blocks reopening and retries shutdown", async () => {
-      const h = harness({ publicAccess: true });
+      const h = harness();
       const answer = deferred();
       h.beforeTunnel = () => answer.promise;
       h.failNextTunnelClose = 2;
@@ -1057,7 +1082,7 @@ describe("hosting a workspace from the desktop app", () => {
     });
 
     it("adopts cleanup ownership returned by a failed native connector opening", async () => {
-      const h = harness({ publicAccess: true });
+      const h = harness();
       const orphan: Tunnel = { url: "", close: vi.fn(async () => {}), onUnexpectedExit: () => {} };
       h.beforeTunnel = () => {
         throw new TunnelCleanupError("connector did not stop", orphan);
@@ -1076,7 +1101,7 @@ describe("hosting a workspace from the desktop app", () => {
     });
 
     it("retains a connector when failed publication also cannot clean it up", async () => {
-      const h = harness({ publicAccess: true });
+      const h = harness();
       await h.controller.start({ workspaceName: "Rocket Team" });
       const server = h.servers[0] as unknown as { setPublicUrl: (url: string | null) => void };
       server.setPublicUrl = (url) => {
@@ -1094,7 +1119,7 @@ describe("hosting a workspace from the desktop app", () => {
     });
 
     it("removes a dropped public address and reports why it ended", async () => {
-      const h = harness({ publicAccess: true });
+      const h = harness();
       await h.controller.start({ workspaceName: "Rocket Team" });
       await h.controller.openToAll({ accessPolicy: "invite_only" });
 
@@ -1109,7 +1134,7 @@ describe("hosting a workspace from the desktop app", () => {
     });
 
     it("does not re-expose a server after stopping it has failed", async () => {
-      const h = harness({ publicAccess: true });
+      const h = harness();
       await h.controller.start({ workspaceName: "Rocket Team" });
       h.servers[0]!.stop.mockRejectedValueOnce(new Error("drain failed"));
       await expect(h.controller.stop()).rejects.toThrow("drain failed");
@@ -1122,7 +1147,7 @@ describe("hosting a workspace from the desktop app", () => {
     });
 
     it("keeps a public link visible when its process cannot be confirmed closed", async () => {
-      const h = harness({ publicAccess: true });
+      const h = harness();
       await h.controller.start({ workspaceName: "Rocket Team" });
       await h.controller.openToAll({ accessPolicy: "invite_only" });
       h.tunnels[0]!.close.mockRejectedValueOnce(new Error("process still running"));
@@ -1138,7 +1163,7 @@ describe("hosting a workspace from the desktop app", () => {
     });
 
     it("keeps an established connector pending after a timed-out close until the same handle is retried", async () => {
-      const h = harness({ publicAccess: true, cleanupTimeoutMs: 20 });
+      const h = harness({ cleanupTimeoutMs: 20 });
       await h.controller.start({ workspaceName: "Rocket Team" });
       await h.controller.openToAll({ accessPolicy: "account_required" });
       let finish!: () => void;
@@ -1168,7 +1193,7 @@ describe("hosting a workspace from the desktop app", () => {
     });
 
     it("closes the public link before the workspace it points at stops", async () => {
-      const h = harness({ publicAccess: true });
+      const h = harness();
       await h.controller.start({ workspaceName: "Rocket Team" });
       await h.controller.openToAll({ accessPolicy: "invite_only" });
 
@@ -1187,7 +1212,7 @@ describe("hosting a workspace from the desktop app", () => {
     });
 
     it("ends the public link when the app quits", async () => {
-      const h = harness({ publicAccess: true });
+      const h = harness();
       await h.controller.start({ workspaceName: "Rocket Team" });
       await h.controller.openToAll({ accessPolicy: "invite_only" });
 
@@ -1198,7 +1223,7 @@ describe("hosting a workspace from the desktop app", () => {
     });
 
     it("keeps the workspace up when its public link will not close on the way to stopping", async () => {
-      const h = harness({ publicAccess: true });
+      const h = harness();
       await h.controller.start({ workspaceName: "Rocket Team" });
       await h.controller.openToAll({ accessPolicy: "invite_only" });
       h.tunnels[0]!.close.mockRejectedValueOnce(new Error("process still running"));
@@ -1216,11 +1241,27 @@ describe("hosting a workspace from the desktop app", () => {
       await h.controller.stop();
       expect(h.tunnels[0]!.close).toHaveBeenCalledTimes(2);
       expect(h.servers[0]!.stop).toHaveBeenCalledOnce();
-      expect(h.controller.status()).toMatchObject({ running: false, phase: "stopped" });
+      expect(h.controller.status()).toMatchObject({
+        running: false,
+        phase: "stopped",
+        tunnelAvailable: true,
+      });
     });
   });
 
   describe("when the app quits", () => {
+    it("starts nothing new while OwnBase quits, and starts again once that is called off", async () => {
+      const h = harness();
+      h.controller.setQuitting(true);
+      await expect(h.controller.start({ workspaceName: "Rocket Team" })).rejects.toThrow(
+        /OwnBase is quitting/,
+      );
+      h.controller.setQuitting(false);
+      await expect(h.controller.start({ workspaceName: "Rocket Team" })).resolves.toMatchObject({
+        workspaceName: "Rocket Team",
+      });
+    });
+
     it("finishes a start it already accepted, stops it, and accepts no more", async () => {
       const h = harness();
       const bind = deferred();
@@ -1237,7 +1278,11 @@ describe("hosting a workspace from the desktop app", () => {
       await quitting;
       expect(h.servers).toHaveLength(1);
       expect(h.servers[0]!.stop).toHaveBeenCalledOnce();
-      expect(h.controller.status()).toEqual({ running: false, phase: "stopped" });
+      expect(h.controller.status()).toEqual({
+        running: false,
+        phase: "stopped",
+        tunnelAvailable: true,
+      });
       await expect(h.controller.start({ workspaceName: "Rocket Team" })).rejects.toThrow(
         /quitting/,
       );
@@ -1257,7 +1302,11 @@ describe("hosting a workspace from the desktop app", () => {
       await h.controller.shutdown();
       expect(h.servers).toHaveLength(1);
       expect(h.servers[0]!.stop).toHaveBeenCalledTimes(2);
-      expect(h.controller.status()).toEqual({ running: false, phase: "stopped" });
+      expect(h.controller.status()).toEqual({
+        running: false,
+        phase: "stopped",
+        tunnelAvailable: true,
+      });
     });
 
     it("bounds an unanswered stop while retaining its server for recovery", async () => {
@@ -1295,7 +1344,11 @@ describe("hosting a workspace from the desktop app", () => {
       // No longer quitting, and the same server is there to stop on the next try.
       await h.controller.shutdown();
       expect(h.servers[0]!.stop).toHaveBeenCalledOnce();
-      expect(h.controller.status()).toEqual({ running: false, phase: "stopped" });
+      expect(h.controller.status()).toEqual({
+        running: false,
+        phase: "stopped",
+        tunnelAvailable: true,
+      });
     });
 
     it("waits its turn behind work that finishes within the wait", async () => {
@@ -1313,7 +1366,11 @@ describe("hosting a workspace from the desktop app", () => {
       await backing;
       await quitting;
       expect(h.servers[0]!.stop).toHaveBeenCalledOnce();
-      expect(h.controller.status()).toEqual({ running: false, phase: "stopped" });
+      expect(h.controller.status()).toEqual({
+        running: false,
+        phase: "stopped",
+        tunnelAvailable: true,
+      });
     });
   });
 
@@ -1346,7 +1403,11 @@ describe("hosting a workspace from the desktop app", () => {
 
       await h.controller.stop();
       expect(h.servers[0]!.stop).toHaveBeenCalledOnce();
-      expect(h.controller.status()).toEqual({ running: false, phase: "stopped" });
+      expect(h.controller.status()).toEqual({
+        running: false,
+        phase: "stopped",
+        tunnelAvailable: true,
+      });
     });
 
     it("waits its turn behind work that finishes within the wait", async () => {
@@ -1360,11 +1421,17 @@ describe("hosting a workspace from the desktop app", () => {
 
       const stopping = h.controller.stop();
       expect(h.servers[0]!.stop).not.toHaveBeenCalled();
+      // The window and the tray hear it is stopping at once, not when its turn comes.
+      expect(h.changes.at(-1)).toMatchObject({ running: true, phase: "stopping" });
       gate.resolve();
       await backing;
       await stopping;
       expect(h.servers[0]!.stop).toHaveBeenCalledOnce();
-      expect(h.controller.status()).toEqual({ running: false, phase: "stopped" });
+      expect(h.controller.status()).toEqual({
+        running: false,
+        phase: "stopped",
+        tunnelAvailable: true,
+      });
     });
 
     it("keeps a warning that was there before it gave up", async () => {
@@ -2018,7 +2085,7 @@ describe("restoring a backup in the desktop app", () => {
   });
 
   it("retains an isolated server whose accidental usual-port cleanup fails", async () => {
-    const h = harness({ publicAccess: true });
+    const h = harness();
     workspaceDb(join(h.dataRoot, "held-copy"), "held-id", "Restored Team");
     h.settings.set("hostedWorkspaces", {
       version: 1,
@@ -2322,12 +2389,54 @@ describe("remembering the last hosted workspace", () => {
 });
 
 describe("a stable public address configured for this computer", () => {
+  it("says what the setting holds, who carries the address, and whether this app may change it", () => {
+    const status = (publicAddress: NonNullable<Parameters<typeof harness>[0]>["publicAddress"]) =>
+      harness({ publicAddress }).controller.status();
+    const fields = (s: HostingSnapshot) => ({
+      publicAddress: s.publicAddress,
+      publicAddressSetting: s.publicAddressSetting,
+      publicAddressLocked: s.publicAddressLocked,
+      publicAddressManaged: s.publicAddressManaged,
+      publicAddressError: s.publicAddressError,
+    });
+    expect(fields(status(carriedAt("https://chat.example.org", "chat.example.org")))).toEqual({
+      publicAddress: "https://chat.example.org",
+      publicAddressSetting: "chat.example.org",
+      publicAddressLocked: undefined,
+      publicAddressManaged: undefined,
+      publicAddressError: undefined,
+    });
+    // Set in the environment, it is shown but cannot be changed here.
+    expect(fields(status(carriedAt("https://chat.example.org", null)))).toEqual({
+      publicAddress: "https://chat.example.org",
+      publicAddressSetting: "https://chat.example.org",
+      publicAddressLocked: true,
+      publicAddressManaged: undefined,
+      publicAddressError: undefined,
+    });
+    expect(fields(status(managedAt("https://chat.example.org")))).toEqual({
+      publicAddress: "https://chat.example.org",
+      publicAddressSetting: undefined,
+      publicAddressLocked: undefined,
+      publicAddressManaged: true,
+      publicAddressError: undefined,
+    });
+    expect(
+      fields(status(() => ({ saved: "not an address", config: { error: "Enter an address." } }))),
+    ).toEqual({
+      publicAddress: undefined,
+      publicAddressSetting: "not an address",
+      publicAddressLocked: undefined,
+      publicAddressManaged: undefined,
+      publicAddressError: "Enter an address.",
+    });
+  });
+
   const configured = "https://chat.example.org";
 
   it("says where to repoint the carrier when the usual port was taken", async () => {
     const h = harness({
-      publicAccess: true,
-      publicAddress: () => ({ url: configured, setting: configured }),
+      publicAddress: carriedAt(configured),
     });
     h.beforeBind = (port) => {
       if (port === 8543) throw inUse();
@@ -2347,8 +2456,7 @@ describe("a stable public address configured for this computer", () => {
 
   it("shows the configured address and opens it for the running workspace", async () => {
     const h = harness({
-      publicAccess: true,
-      publicAddress: () => ({ url: configured, setting: configured }),
+      publicAddress: carriedAt(configured),
     });
     await h.controller.start({ workspaceName: "Rocket Team" });
     expect(h.controller.status()).toMatchObject({ publicAddress: configured });
@@ -2373,8 +2481,7 @@ describe("a stable public address configured for this computer", () => {
   it("reopens a stable address when started with OwnBase, only when asked, and invite-only", async () => {
     let address = configured;
     const first = harness({
-      publicAccess: true,
-      publicAddress: () => ({ url: address, managed: true }),
+      publicAddress: managedAt(address),
     });
     await first.controller.start({ workspaceName: "Rocket Team" });
     const folder = registryOf(first)[0]!.folder;
@@ -2387,8 +2494,7 @@ describe("a stable public address configured for this computer", () => {
     const next = harness({
       root: join(first.dataRoot, ".."),
       settings: first.settings,
-      publicAccess: true,
-      publicAddress: () => ({ url: address, managed: true }),
+      publicAddress: managedAt(address),
     });
     for (const [path, found] of first.databases) next.databases.set(path, found);
     await next.controller.startForLaunch();
@@ -2403,8 +2509,7 @@ describe("a stable public address configured for this computer", () => {
     const moved = harness({
       root: join(first.dataRoot, ".."),
       settings: first.settings,
-      publicAccess: true,
-      publicAddress: () => ({ url: address, managed: true }),
+      publicAddress: managedAt(address),
     });
     for (const [path, found] of first.databases) moved.databases.set(path, found);
     await moved.controller.startForLaunch();
@@ -2416,8 +2521,7 @@ describe("a stable public address configured for this computer", () => {
 
   it("keeps hosting and says so when the stable address cannot be reopened", async () => {
     const first = harness({
-      publicAccess: true,
-      publicAddress: () => ({ url: configured, managed: true }),
+      publicAddress: managedAt(configured),
     });
     await first.controller.start({ workspaceName: "Rocket Team" });
     await first.controller.setStartOnLaunch(registryOf(first)[0]!.folder);
@@ -2426,8 +2530,7 @@ describe("a stable public address configured for this computer", () => {
     const next = harness({
       root: join(first.dataRoot, ".."),
       settings: first.settings,
-      publicAccess: true,
-      publicAddress: () => ({ url: configured, managed: true }),
+      publicAddress: managedAt(configured),
     });
     for (const [path, found] of first.databases) next.databases.set(path, found);
     next.beforeTunnel = () => {
@@ -2498,8 +2601,7 @@ describe("a stable public address configured for this computer", () => {
   /** A next launch of Rocket Team, chosen to start with OwnBase and reopen its address. */
   async function reopeningLaunch() {
     const first = harness({
-      publicAccess: true,
-      publicAddress: () => ({ url: configured, managed: true }),
+      publicAddress: managedAt(configured),
     });
     await first.controller.start({ workspaceName: "Rocket Team" });
     const folder = registryOf(first)[0]!.folder;
@@ -2509,8 +2611,7 @@ describe("a stable public address configured for this computer", () => {
     const next = harness({
       root: join(first.dataRoot, ".."),
       settings: first.settings,
-      publicAccess: true,
-      publicAddress: () => ({ url: configured, managed: true }),
+      publicAddress: managedAt(configured),
     });
     for (const [path, found] of first.databases) next.databases.set(path, found);
     return { next, folder };
@@ -2574,7 +2675,7 @@ describe("a stable public address configured for this computer", () => {
   });
 
   it("offers reopening only for a stable address", async () => {
-    const h = harness({ publicAccess: true });
+    const h = harness();
     await h.controller.start({ workspaceName: "Rocket Team" });
     await expect(h.controller.setReopenPublicOnLaunch(true)).rejects.toThrow(
       /only if it keeps the same address/,
@@ -2584,8 +2685,7 @@ describe("a stable public address configured for this computer", () => {
 
   it("trusts the loopback visitor header for a Cloudflare connector it owns", async () => {
     const h = harness({
-      publicAccess: true,
-      publicAddress: () => ({ url: configured, managed: true }),
+      publicAddress: managedAt(configured),
     });
     await h.controller.start({ workspaceName: "Rocket Team" });
     await h.controller.openToAll({ accessPolicy: "invite_only" });
@@ -2594,8 +2694,7 @@ describe("a stable public address configured for this computer", () => {
 
   it("secures registration when it stops publishing an externally carried address", async () => {
     const h = harness({
-      publicAccess: true,
-      publicAddress: () => ({ url: configured, setting: configured }),
+      publicAddress: carriedAt(configured),
     });
     await h.controller.start({ workspaceName: "Rocket Team" });
     await h.controller.openToAll({ accessPolicy: "account_required" });
@@ -2608,8 +2707,7 @@ describe("a stable public address configured for this computer", () => {
 
   it("keeps registration secured when an external address fails verification", async () => {
     const h = harness({
-      publicAccess: true,
-      publicAddress: () => ({ url: configured, setting: configured }),
+      publicAddress: carriedAt(configured),
     });
     h.beforeTunnel = () => {
       throw new Error("address did not reach this workspace");
@@ -2623,7 +2721,7 @@ describe("a stable public address configured for this computer", () => {
   });
 
   it("secures and saves a replacement address, clearing the previous carrier's error", async () => {
-    const h = harness({ publicAccess: true });
+    const h = harness();
     h.beforeTunnel = () => {
       throw new Error("old carrier failed");
     };
@@ -2641,7 +2739,6 @@ describe("a stable public address configured for this computer", () => {
 
   it("keeps registration secured if saving a replacement address fails", async () => {
     const h = harness({
-      publicAccess: true,
       savePublicAddress: () => {
         throw new Error("settings unavailable");
       },
@@ -2656,7 +2753,7 @@ describe("a stable public address configured for this computer", () => {
 
   it("refuses to open a link, and changes nothing, while its configuration is unusable", async () => {
     const error = "Set both OWNBASE_TUNNEL_URL and OWNBASE_TUNNEL_TOKEN_FILE.";
-    const h = harness({ publicAccess: true, publicAddress: () => ({ error }) });
+    const h = harness({ publicAddress: () => ({ saved: null, config: { error } }) });
     await h.controller.start({ workspaceName: "Rocket Team" });
     expect(h.controller.status()).toMatchObject({ publicAddressError: error });
     expect(h.controller.status()).not.toHaveProperty("publicAddress");
@@ -2670,7 +2767,7 @@ describe("a stable public address configured for this computer", () => {
   });
 
   it("leaves a temporary address alone when nothing is configured", async () => {
-    const h = harness({ publicAccess: true, publicAddress: () => ({}) });
+    const h = harness({ publicAddress: () => ({ saved: null, config: null }) });
     await h.controller.start({ workspaceName: "Rocket Team" });
     await h.controller.openToAll({ accessPolicy: "invite_only" });
     expect(h.controller.status()).not.toHaveProperty("publicAddress");
@@ -3612,7 +3709,7 @@ describe("following changes made inside a hosted workspace", () => {
   });
 
   it("shows who may join after an admin changes it, and closing the public link keeps their choice", async () => {
-    const h = harness({ publicAccess: true, policies: true });
+    const h = harness();
     await h.controller.start({ workspaceName: "Rocket Team" });
     await h.controller.openToAll({ accessPolicy: "guest_allowed" });
 
@@ -3628,7 +3725,7 @@ describe("following changes made inside a hosted workspace", () => {
   });
 
   it("still lets guests the host let in for the link leave with it", async () => {
-    const h = harness({ publicAccess: true, policies: true });
+    const h = harness();
     await h.controller.start({ workspaceName: "Rocket Team" });
     await h.controller.openToAll({ accessPolicy: "guest_allowed" });
     // A rename inside says nothing about who may join.
@@ -3638,7 +3735,7 @@ describe("following changes made inside a hosted workspace", () => {
   });
 
   it("does not put back the rule it read when the link fails to open, over one chosen meanwhile", async () => {
-    const h = harness({ publicAccess: true, policies: true });
+    const h = harness();
     await h.controller.start({ workspaceName: "Rocket Team" });
     h.beforeTunnel = () => {
       changedInside(h, { accessPolicy: "invite_only" });
@@ -3653,9 +3750,7 @@ describe("following changes made inside a hosted workspace", () => {
 
   it("closes joining whatever was chosen meanwhile, when another program may carry the address", async () => {
     const h = harness({
-      publicAccess: true,
-      policies: true,
-      publicAddress: () => ({ setting: "chat.example.org", url: "https://chat.example.org" }),
+      publicAddress: carriedAt("https://chat.example.org", "chat.example.org"),
     });
     await h.controller.start({ workspaceName: "Rocket Team" });
     h.beforeTunnel = () => {

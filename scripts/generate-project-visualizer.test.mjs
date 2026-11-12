@@ -184,8 +184,8 @@ test("workspace subpaths and literal dynamic imports connect to actual local imp
   );
   expectImport(
     "apps/desktop/src/main/registry.ts",
-    "@ownbase/server/ownership",
-    "packages/server/src/core/ownership.ts",
+    "@ownbase/server/stoppedWorkspace",
+    "packages/server/src/core/stoppedWorkspace.ts",
   );
   expectImport(
     "apps/desktop/src/main/draftsStorage.ts",

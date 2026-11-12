@@ -3,6 +3,7 @@ import {
   CHANNELS,
   EVENTS,
   MICROPHONE_PORT,
+  MICROPHONE_PORT_CHANNEL,
   readCapabilities,
   type OwnBaseBridge,
 } from "../shared/bridge.js";
@@ -26,7 +27,7 @@ const bridge: OwnBaseBridge = {
 
 // A port cannot cross the context bridge, so this passes each microphone's
 // port on to the page as a message to its own window, which nothing else hears.
-ipcRenderer.on("microphone:port", (event, data: { session?: unknown } | undefined) => {
+ipcRenderer.on(MICROPHONE_PORT_CHANNEL, (event, data: { session?: unknown } | undefined) => {
   const port = event.ports[0];
   if (!port || typeof data?.session !== "number") return;
   window.postMessage({ type: MICROPHONE_PORT, session: data.session }, "*", [port]);

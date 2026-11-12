@@ -9,6 +9,7 @@ import {
   type ReactNode,
 } from "react";
 import type { ID } from "@ownbase/protocol";
+import { TITLE_BAR_HEIGHT } from "@ownbase/protocol/desktop";
 import { BlockedComposer, DeactivatedComposer } from "../components/Blocking.js";
 import {
   WorkspaceClient,
@@ -813,7 +814,10 @@ function WorkspaceLayout(props: { restore: boolean; banner?: ReactNode }) {
 function TitleBar() {
   const name = useWorkspace((s) => s.workspaceName);
   return (
-    <div className="titlebar-drag flex h-10 shrink-0 items-center justify-center bg-deep">
+    <div
+      className="titlebar-drag flex shrink-0 items-center justify-center bg-deep"
+      style={{ height: TITLE_BAR_HEIGHT }}
+    >
       <span aria-hidden="true" className="truncate px-36 text-[13px] font-semibold text-ink-dim">
         {name}
       </span>

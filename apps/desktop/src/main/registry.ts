@@ -2,9 +2,8 @@ import { randomUUID } from "node:crypto";
 import { existsSync } from "node:fs";
 import { readdir, stat } from "node:fs/promises";
 import { isAbsolute, join } from "node:path";
-import { DatabaseSync } from "node:sqlite";
-import { holdWorkspace } from "@ownbase/server/ownership";
-import { ICON_META_KEYS, readStoredIcon } from "@ownbase/server/workspaceIcon";
+import { WORKSPACE_NAME_MAX } from "@ownbase/protocol";
+import { workspaceDatabase, type readStoppedWorkspace } from "@ownbase/server/stoppedWorkspace";
 import type { AutoBackup as AutoBackupView, BackupFailureKind } from "@ownbase/protocol/desktop";
 import { DesktopError } from "../shared/desktopError.js";
 
@@ -146,11 +145,7 @@ const FOLDER = /^[a-z0-9-]{1,64}$/;
 export class RegistryFormatError extends DesktopError {
   constructor(kind: "newer" | "unsupported" | "invalid") {
     super(
-      kind === "newer"
-        ? "registry-newer"
-        : kind === "unsupported"
-          ? "registry-unsupported"
-          : "registry-damaged",
+      "registry-unreadable",
       kind === "newer"
         ? "A newer version of OwnBase saved the list of hosted workspaces. Update OwnBase to open it. The list was not changed."
         : kind === "unsupported"
@@ -220,7 +215,8 @@ export function parseRegistry(value: unknown): HostedWorkspace[] {
       if (held) throw new RegistryFormatError("invalid");
       continue;
     }
-    const validName = typeof name === "string" && !!name.trim() && name.length <= 80;
+    const validName =
+      typeof name === "string" && !!name.trim() && name.length <= WORKSPACE_NAME_MAX;
     const validPort =
       typeof port === "number" && Number.isInteger(port) && port >= 0 && port <= 65535;
     const validTime = typeof lastHostedAt === "number" && Number.isFinite(lastHostedAt);
@@ -255,105 +251,6 @@ export function serializeRegistry(entries: HostedWorkspace[]) {
 }
 
 /**
- * The identity and name a workspace's database holds, read without the server
- * running. Null when there is no database there or it cannot be read.
- */
-export function readWorkspace(dataDir: string): { id: string | null; name: string | null } | null {
-  const file = join(dataDir, "workspace.db");
-  if (!existsSync(file)) return null;
-  let db: DatabaseSync | undefined;
-  try {
-    db = new DatabaseSync(file, { readOnly: true });
-    const meta = (key: string) =>
-      (
-        db!.prepare("SELECT value FROM meta WHERE key = ?").get(key) as
-          { value: string } | undefined
-      )?.value ?? null;
-    return { id: meta("workspace_id"), name: meta("workspace_name") };
-  } catch {
-    return null;
-  } finally {
-    db?.close();
-  }
-}
-
-/**
- * Reads `keys` from a workspace's `meta` without the server running, read
- * only, so a stopped workspace is never started or changed to show them.
- * Null when there is no database there or it cannot be read.
- */
-function readMeta<K extends string>(
-  dataDir: string,
-  keys: readonly K[],
-): Record<K, string | null> | null {
-  const file = join(dataDir, "workspace.db");
-  if (!existsSync(file)) return null;
-  let db: DatabaseSync | undefined;
-  try {
-    db = new DatabaseSync(file, { readOnly: true });
-    const query = db.prepare("SELECT value FROM meta WHERE key = ?");
-    const values = {} as Record<K, string | null>;
-    for (const key of keys)
-      values[key] = (query.get(key) as { value: string } | undefined)?.value ?? null;
-    return values;
-  } catch {
-    return null;
-  } finally {
-    db?.close();
-  }
-}
-
-/**
- * The version of the icon a workspace's database holds, read without the
- * server running, or null when it has none or it cannot be read.
- */
-export function readWorkspaceIconVersion(dataDir: string): string | null {
-  return readMeta(dataDir, [ICON_META_KEYS.version])?.[ICON_META_KEYS.version] ?? null;
-}
-
-/**
- * The icon a workspace's database holds, as a data URL with its version,
- * read without the server running. Null when it has none, it cannot be read,
- * or what it holds is not a whole icon of a type an icon may be.
- */
-export function readWorkspaceIcon(dataDir: string): { version: string; url: string } | null {
-  const rows = readMeta(dataDir, Object.values(ICON_META_KEYS));
-  const icon = rows && readStoredIcon((key) => rows[key as keyof typeof rows] ?? null);
-  return icon
-    ? { version: icon.version, url: `data:${icon.type};base64,${icon.bytes.toString("base64")}` }
-    : null;
-}
-
-/**
- * Writes a new name into a stopped workspace's database, the one place its
- * name is kept. Nothing else in the database changes, and no schema upgrade
- * runs. Throws when there is no database there or it cannot be written.
- */
-export function writeWorkspaceName(dataDir: string, name: string): void {
-  const file = join(dataDir, "workspace.db");
-  // Opening a file that is not there would create an empty database.
-  if (!existsSync(file)) throw new Error("There is no workspace database in that folder.");
-  // A server started by hand on the same folder would go on under the old name
-  // and could write it back, so the rename is refused while one has it.
-  const hold = holdWorkspace(dataDir, "a rename");
-  try {
-    const db = new DatabaseSync(file);
-    try {
-      // A backup reading the file gets a moment to finish rather than failing
-      // the rename at once.
-      db.exec("PRAGMA busy_timeout = 2000");
-      db.prepare(
-        "INSERT INTO meta (key, value) VALUES ('workspace_name', ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value",
-      ).run(name);
-    } finally {
-      db.close();
-    }
-  } finally {
-    hold.release();
-  }
-}
-
-/**
  * Adds an entry for every folder under `dataRoot` that holds a database and
  * that no entry names yet: the folders earlier versions made, or any the
  * registry lost. Folders stay where they are. `lastHosted` is what earlier
@@ -366,9 +263,8 @@ export async function adoptFolders(options: {
   lastHosted: { workspaceName: string; port: number } | null;
   defaultPort: number;
   now: number;
-  read?: typeof readWorkspace;
+  read: typeof readStoppedWorkspace;
 }): Promise<{ adopted: HostedWorkspace[]; unreadable: string[] }> {
-  const read = options.read ?? readWorkspace;
   let names: string[];
   try {
     names = (await readdir(options.dataRoot, { withFileTypes: true }))
@@ -385,8 +281,8 @@ export async function adoptFolders(options: {
   for (const folder of names.sort()) {
     if (!FOLDER.test(folder) || named.has(folder)) continue;
     const dataDir = join(options.dataRoot, folder);
-    if (!existsSync(join(dataDir, "workspace.db"))) continue;
-    const found = read(dataDir);
+    if (!existsSync(workspaceDatabase(dataDir))) continue;
+    const found = options.read(dataDir);
     if (!found) {
       unreadable.push(folder);
       continue;
@@ -399,11 +295,11 @@ export async function adoptFolders(options: {
     adopted.push({
       id: found.id,
       folder,
-      name: found.name?.trim().slice(0, 80) || folder,
+      name: found.name?.trim().slice(0, WORKSPACE_NAME_MAX) || folder,
       port: last ? options.lastHosted!.port : options.defaultPort,
       lastHostedAt: last
         ? options.now
-        : await stat(join(dataDir, "workspace.db")).then(
+        : await stat(workspaceDatabase(dataDir)).then(
             (info) => Math.min(info.mtimeMs, options.now - 1),
             () => 0,
           ),
