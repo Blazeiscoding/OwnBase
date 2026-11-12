@@ -437,11 +437,22 @@ export interface UpdateStatus {
   offer: boolean;
 }
 
+/** What the window asks, in its own dialog, before a restart disconnects people. */
+export interface RestartQuestion {
+  title: string;
+  detail: string;
+  button: string;
+}
+
 /** What pressing "Restart to update" did. */
 export type UpdateRestart =
   | { restarting: true }
-  /** Nothing happened, and why: a call is on, or the person chose to wait. */
-  | { restarting: false; reason?: string };
+  /**
+   * Nothing happened, and why: a call is on (`reason`), or the restart
+   * disconnects people and the window asks first (`question`), then calls
+   * `restart(true)` when the answer is yes.
+   */
+  | { restarting: false; reason?: string; question?: RestartQuestion };
 
 /** The app's own updates, desktop only. */
 export interface DesktopUpdates {
@@ -449,8 +460,14 @@ export interface DesktopUpdates {
   setAutomatic: (on: boolean) => Promise<UpdateStatus>;
   /** Looks now, whatever the setting, as the person asked. */
   check: () => Promise<UpdateStatus>;
-  /** Installs the downloaded version and opens it, after saving everything, as quitting does. */
-  restart: () => Promise<UpdateRestart>;
+  /**
+   * Installs the downloaded version and opens it, after saving everything, as
+   * quitting does. `confirmed` says the person already answered the question
+   * an earlier call returned.
+   */
+  restart: (confirmed?: boolean) => Promise<UpdateRestart>;
+  /** Whether the tray asked for a restart before this window was listening; asked once. */
+  takeRestartAsk: () => Promise<boolean>;
   /** Puts the notice off until tomorrow, or until a newer version is ready. */
   later: () => Promise<void>;
   /** Tells the app whether a call is on, which an update never interrupts. */

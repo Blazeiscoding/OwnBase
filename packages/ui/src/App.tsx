@@ -28,6 +28,7 @@ const HostDialog = lazy(() =>
 import { ErrorBoundary } from "./components/ErrorBoundary.js";
 import { ConfirmProvider } from "./components/Confirm.js";
 import { ToastProvider } from "./components/Toast.js";
+import { TrayRestart } from "./components/Updates.js";
 import {
   changeSavedServers,
   parseSavedServers,
@@ -497,6 +498,7 @@ export function App({ platform }: { platform: Platform }) {
     <PlatformContext.Provider value={platform}>
       <Appearance />
       <AppBoundary>
+        <TrayRestart />
         <div className="flex h-full flex-col">
           {platform.kind === "desktop" &&
             (saveErrorAbove || session.view === "loading" || session.view === "restore_failed") && (

@@ -154,6 +154,8 @@ export interface Platform {
   updates?: DesktopUpdates & {
     mode: "install" | "notify";
     subscribe: (cb: (status: UpdateStatus) => void) => () => void;
+    /** The tray's "Restart to update", which the window asks about or explains. */
+    onRestartAsked: (cb: () => void) => () => void;
   };
 }
 

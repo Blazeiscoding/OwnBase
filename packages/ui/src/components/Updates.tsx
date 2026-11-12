@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import type { UpdateStatus } from "../platform.js";
 import { usePlatform } from "../context.js";
 import { formatDay, formatTime, sameDay } from "../lib/format.js";
@@ -6,6 +6,10 @@ import { useSaved } from "../lib/savedNote.js";
 import { settingMark } from "../lib/settingsSearch.js";
 import { Banner, BannerAction } from "./Banner.js";
 import { buttonClass } from "./Button.js";
+import { useConfirm } from "./Confirm.js";
+import { useToast } from "./Toast.js";
+
+const RESTART_FAILED = "OwnBase could not restart. Quit and open it again to update.";
 
 /** Where the app's own updates have got, followed as they change; null until known. */
 export function useUpdateStatus(): UpdateStatus | null {
@@ -41,6 +45,60 @@ export function useReportCall(inCall: boolean): void {
 }
 
 /**
+ * "Restart to update", wherever it is pressed. When the restart disconnects
+ * the people in a workspace hosted here, it asks first in the app's own
+ * dialog. Resolves to why it did not restart, or null when it is restarting
+ * or the person chose to wait.
+ */
+export function useRestartToUpdate(): () => Promise<string | null> {
+  const updates = usePlatform().updates;
+  const confirm = useConfirm();
+  return useCallback(async () => {
+    if (!updates) return null;
+    try {
+      let answer = await updates.restart();
+      if (!answer.restarting && answer.question) {
+        const { title, detail, button } = answer.question;
+        if (!(await confirm({ title, body: detail, confirmLabel: button }))) return null;
+        answer = await updates.restart(true);
+      }
+      return answer.restarting ? null : (answer.reason ?? null);
+    } catch {
+      return RESTART_FAILED;
+    }
+  }, [updates, confirm]);
+}
+
+/**
+ * The tray's "Restart to update". The main process restarts at once when
+ * nothing stands in the way; otherwise it opens the window, which asks or
+ * says why here, as its own button does.
+ */
+export function TrayRestart() {
+  const updates = usePlatform().updates;
+  const restart = useRestartToUpdate();
+  const toast = useToast();
+  useEffect(() => {
+    if (!updates) return;
+    let live = true;
+    const run = () =>
+      void restart().then((reason) => {
+        if (live && reason) toast({ message: reason, kind: "info" });
+      });
+    const off = updates.onRestartAsked(run);
+    void updates.takeRestartAsk().then(
+      (asked) => live && asked && run(),
+      () => {},
+    );
+    return () => {
+      live = false;
+      off();
+    };
+  }, [updates, restart, toast]);
+  return null;
+}
+
+/**
  * "A new version is ready", in the place for banners, at most once a day
  * (the main process's updates.ts decides when). Windows restarts into it;
  * the Mac app opens the download page.
@@ -48,6 +106,7 @@ export function useReportCall(inCall: boolean): void {
 export function UpdateBanner({ onShowing }: { onShowing?: (showing: boolean) => void }) {
   const updates = usePlatform().updates;
   const status = useUpdateStatus();
+  const restart = useRestartToUpdate();
   const [refused, setRefused] = useState<string | null>(null);
   const showing = !!updates && !!status?.offer;
   useEffect(() => {
@@ -80,14 +139,7 @@ export function UpdateBanner({ onShowing }: { onShowing?: (showing: boolean) => 
       tone={refused ? "alert" : "status"}
       actions={
         <>
-          <BannerAction
-            onClick={() =>
-              void updates.restart().then(
-                (answer) => setRefused(answer.restarting ? null : (answer.reason ?? null)),
-                () => setRefused("OwnBase could not restart. Quit and open it again to update."),
-              )
-            }
-          >
+          <BannerAction onClick={() => void restart().then(setRefused)}>
             Restart to update
           </BannerAction>
           <BannerAction onClick={later}>Later</BannerAction>
@@ -128,6 +180,7 @@ export function UpdateSettings() {
   const updates = usePlatform().updates;
   const status = useUpdateStatus();
   const saved = useSaved();
+  const restart = useRestartToUpdate();
   const [busy, setBusy] = useState(false);
   const [problem, setProblem] = useState<string | null>(null);
   if (!updates) return null;
@@ -159,10 +212,7 @@ export function UpdateSettings() {
               className={buttonClass("primary")}
               onClick={() => {
                 setProblem(null);
-                void updates.restart().then(
-                  (answer) => !answer.restarting && setProblem(answer.reason ?? null),
-                  () => setProblem("OwnBase could not restart. Quit and open it again to update."),
-                );
+                void restart().then(setProblem);
               }}
             >
               Restart to update

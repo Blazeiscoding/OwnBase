@@ -1,4 +1,11 @@
-import type { UpdateMode, UpdateRestart, UpdateStatus } from "@ownbase/protocol/desktop";
+import type {
+  RestartQuestion,
+  UpdateMode,
+  UpdateRestart,
+  UpdateStatus,
+} from "@ownbase/protocol/desktop";
+
+export type { RestartQuestion };
 
 export const HOUR_MS = 60 * 60_000;
 export const DAY_MS = 24 * HOUR_MS;
@@ -68,13 +75,6 @@ export interface HostingNow {
 export const IN_CALL =
   "You are in a call. Leave the call first, then restart to update. Otherwise the update installs the next time you quit OwnBase.";
 
-/** A question to ask before restarting. */
-export interface RestartQuestion {
-  message: string;
-  detail: string;
-  button: string;
-}
-
 /**
  * What "Restart to update" does now. Never during a call: it is refused, with
  * the reason. While a workspace is hosted here, it first says that the people
@@ -94,7 +94,7 @@ export function restartAnswer(facts: {
     return {
       kind: "ask",
       question: {
-        message: `Restart OwnBase and disconnect the people in ${name}?`,
+        title: `Restart OwnBase and disconnect the people in ${name}?`,
         detail: hosting.startsOnLaunch
           ? `Everyone in ${name} is disconnected for a moment while OwnBase restarts. The workspace starts again with OwnBase.`
           : `Everyone in ${name} is disconnected until you start hosting it again after the restart.`,
@@ -214,8 +214,6 @@ export interface UpdateDeps {
   /** The Mac: the newest released version newer than this one, or null. */
   latest?: () => Promise<string | null>;
   hosting: () => HostingNow;
-  /** Asks the person, and resolves to whether they said go ahead. */
-  ask: (question: RestartQuestion) => Promise<boolean>;
   /** Saves everything, stops hosting, and installs and opens the new version. */
   install: () => void;
   onChange: (status: UpdateStatus) => void;
@@ -367,15 +365,19 @@ export class Updates {
     this.changed();
   }
 
-  async restart(): Promise<UpdateRestart> {
+  /**
+   * Restarts into the downloaded version, or says why not. Where the restart
+   * disconnects people, the first call returns the question for the window to
+   * ask in its own dialog, and the window calls again with `confirmed`. A
+   * call started while the question was open is refused then too.
+   */
+  async restart(confirmed = false): Promise<UpdateRestart> {
     if (this.deps.mode !== "install" || this.phase !== "ready")
       return { restarting: false, reason: "No new version is ready to install yet." };
     const answer = restartAnswer({ inCall: this.inCall, hosting: this.deps.hosting() });
     if (answer.kind === "refuse") return { restarting: false, reason: answer.reason };
-    if (answer.kind === "ask" && !(await this.deps.ask(answer.question)))
-      return { restarting: false };
-    // A call may have started while the question was open.
-    if (this.inCall) return { restarting: false, reason: IN_CALL };
+    if (answer.kind === "ask" && !confirmed)
+      return { restarting: false, question: answer.question };
     this.deps.log?.(`Restarting to install ${this.newVersion} over ${this.deps.version}.`);
     this.deps.install();
     return { restarting: true };

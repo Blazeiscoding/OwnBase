@@ -80,6 +80,8 @@ export interface Events {
   deeplink: string;
   "window:prepareClose": number;
   "updates:changed": UpdateStatus;
+  /** The tray's "Restart to update", for the window to ask or explain. */
+  "updates:restartAsked": null;
 }
 
 export type Channel = keyof Calls;
@@ -158,6 +160,7 @@ const CALL_LIST = {
   "updates:setAutomatic": true,
   "updates:check": false,
   "updates:restart": false,
+  "updates:takeRestartAsk": true,
   "updates:later": true,
   "updates:reportCall": true,
   "updates:openDownloadPage": true,
@@ -169,6 +172,7 @@ const EVENT_LIST = {
   deeplink: true,
   "window:prepareClose": true,
   "updates:changed": true,
+  "updates:restartAsked": true,
 } satisfies Record<EventName, true>;
 
 export const CHANNELS = Object.keys(CALL_LIST) as Channel[];

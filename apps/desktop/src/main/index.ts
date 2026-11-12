@@ -491,22 +491,6 @@ const updates = new Updates({
       ...(status.startsOnLaunch ? { startsOnLaunch: true } : {}),
     };
   },
-  ask: async (question) => {
-    const owner = mainWindow && !mainWindow.isDestroyed() ? mainWindow : null;
-    const options = {
-      type: "question" as const,
-      title: "Restart to update",
-      message: question.message,
-      detail: question.detail,
-      buttons: ["Cancel", question.button],
-      defaultId: 0,
-      cancelId: 0,
-    };
-    const choice = owner
-      ? await dialog.showMessageBox(owner, options)
-      : await dialog.showMessageBox(options);
-    return choice.response === 1;
-  },
   // Through the same quit as any other, so drafts and messages waiting to
   // send are saved and hosting stops; then the installer runs and opens it.
   install: () => quitOwnBase(true, () => installer?.quitAndInstall()),
@@ -517,11 +501,23 @@ const updates = new Updates({
   log: logUpdates,
 });
 
-/** "Restart to update" from the tray, which says why when it cannot. */
+/** The tray asked for a restart that the window has not picked up yet. */
+let pendingRestartAsk = false;
+
+/**
+ * "Restart to update" from the tray. When it needs a question answered, or
+ * cannot happen yet, the window opens and asks or says why in its own dialog
+ * and notices, as its own button does.
+ */
 async function restartFromTray(): Promise<void> {
   const answer = await updates.restart();
-  if (answer.restarting || !answer.reason) return;
-  await dialog.showMessageBox({ type: "info", title: "Restart to update", message: answer.reason });
+  if (answer.restarting) return;
+  pendingRestartAsk = true;
+  const win = showMainWindow();
+  if (win && rendererReady && appRecipients(win, trustedRenderer).length > 0) {
+    pendingRestartAsk = false;
+    push("updates:restartAsked", null);
+  }
 }
 
 /** What this copy of the app can do, handed to the window as it is made. */
@@ -650,7 +646,12 @@ const handlers: Handlers<IpcMainInvokeEvent> = {
     return updates.setAutomatic(on);
   },
   "updates:check": () => updates.check(),
-  "updates:restart": () => updates.restart(),
+  "updates:restart": (_event, confirmed) => updates.restart(confirmed === true),
+  "updates:takeRestartAsk": () => {
+    const asked = pendingRestartAsk;
+    pendingRestartAsk = false;
+    return asked;
+  },
   "updates:later": () => updates.later(),
   "updates:reportCall": (_event, on) => {
     updates.reportCall(on === true);

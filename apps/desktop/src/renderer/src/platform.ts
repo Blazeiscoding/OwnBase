@@ -250,6 +250,7 @@ export function electronPlatform(bridge: OwnBaseBridge): Platform {
             ...updateCalls(call),
             mode: capabilities.updates,
             subscribe: (cb) => bridge.on("updates:changed", cb),
+            onRestartAsked: (cb) => bridge.on("updates:restartAsked", () => cb()),
           },
         }
       : {}),

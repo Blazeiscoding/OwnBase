@@ -94,7 +94,7 @@ describe("restartAnswer", () => {
     });
     expect(answer.kind).toBe("ask");
     if (answer.kind !== "ask") return;
-    expect(answer.question.message).toContain("Acme");
+    expect(answer.question.title).toContain("Acme");
     expect(answer.question.detail).toContain("for a moment");
     const notAgain = restartAnswer({
       inCall: false,
@@ -165,7 +165,6 @@ function setUp(over: Partial<UpdateDeps> = {}, kept?: unknown) {
     },
     feed,
     hosting: () => ({ running: false }),
-    ask: vi.fn(async () => true),
     install: vi.fn(),
     onChange: (status) => statuses.push(status),
     ...over,
@@ -265,33 +264,29 @@ describe("Updates", () => {
     expect(deps.install).toHaveBeenCalledTimes(1);
   });
 
-  it("asks before disconnecting a hosted workspace, and stays when told no", async () => {
-    const ask = vi.fn(async () => false);
+  it("hands the window the question before disconnecting a hosted workspace", async () => {
     const { updates, deps } = setUp({
-      ask,
       hosting: () => ({ running: true, workspaceName: "Acme" }),
     });
     await updates.load();
     await updates.tick();
-    expect(await updates.restart()).toEqual({ restarting: false });
-    expect(ask).toHaveBeenCalledTimes(1);
+    const answer = await updates.restart();
+    expect(answer).toMatchObject({ restarting: false, question: { button: "Restart to update" } });
+    expect(!answer.restarting && answer.question?.title).toContain("Acme");
     expect(deps.install).not.toHaveBeenCalled();
+    // Answered yes in the window's dialog, it restarts.
+    expect(await updates.restart(true)).toEqual({ restarting: true });
+    expect(deps.install).toHaveBeenCalledTimes(1);
   });
 
   it("does not restart into a call that started while it asked", async () => {
-    let updates: Updates | null = null;
-    const set = setUp({
-      ask: async () => {
-        updates!.reportCall(true);
-        return true;
-      },
-      hosting: () => ({ running: true }),
-    });
-    updates = set.updates;
+    const { updates, deps } = setUp({ hosting: () => ({ running: true }) });
     await updates.load();
     await updates.tick();
-    expect(await updates.restart()).toEqual({ restarting: false, reason: IN_CALL });
-    expect(set.deps.install).not.toHaveBeenCalled();
+    expect((await updates.restart()).restarting).toBe(false);
+    updates.reportCall(true);
+    expect(await updates.restart(true)).toEqual({ restarting: false, reason: IN_CALL });
+    expect(deps.install).not.toHaveBeenCalled();
   });
 
   it("has nothing to restart for before a version is ready", async () => {
