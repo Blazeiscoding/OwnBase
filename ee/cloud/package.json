@@ -20,8 +20,8 @@
     "@ownbase/ee": "workspace:*",
     "@ownbase/protocol": "workspace:*",
     "@ownbase/server": "workspace:*",
-    "fastify": "^5.12.5",
-    "zod": "^4.1.5"
+    "fastify": "^5.12.8",
+    "zod": "^4.6.7"
   },
   "devDependencies": {
     "@types/node": "^24.3.0",
