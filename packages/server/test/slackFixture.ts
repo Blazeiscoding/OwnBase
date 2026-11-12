@@ -75,7 +75,11 @@ export function slackExport(): Record<string, unknown> {
         creator: "U1",
         is_general: true,
         members: ["U1", "U2", "U3"],
-        topic: { value: "Say hi to <@U2>", creator: "U1", last_set: 1704000000 },
+        topic: {
+          value: "Say hi to <@U2>, in <#C2> or at <https://example.com/docs|Docs>",
+          creator: "U1",
+          last_set: 1704000000,
+        },
         purpose: { value: "Everything &amp; anything", creator: "U1", last_set: 1704000000 },
         pins: [{ id: TS.root, type: "C", user: "U2", created: 1704100150 }],
       },

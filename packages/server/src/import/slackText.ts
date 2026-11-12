@@ -21,6 +21,12 @@ export interface SlackIds {
   channel(slackId: string): string | null;
 }
 
+/** What people and channels are called, for text this app shows as plain words. */
+export interface SlackNames {
+  user(slackId: string): string | null;
+  channel(slackId: string): string | null;
+}
+
 /**
  * Slack's text as this app keeps it: the people and channels it names, by
  * their ids here. One the export does not name stays as words, `@name` from
@@ -29,6 +35,19 @@ export interface SlackIds {
  * Slack shows for it.
  */
 export function fromSlackText(text: string, ids: SlackIds): string {
+  return convert(text, ids, null);
+}
+
+/**
+ * Slack's text as plain words, for what this app shows without markup, such
+ * as a channel's topic: `@Bob Brown`, `#random`, a link as its label and
+ * address.
+ */
+export function slackWords(text: string, names: SlackNames): string {
+  return convert(text, { user: () => null, channel: () => null }, names);
+}
+
+function convert(text: string, ids: SlackIds, names: SlackNames | null): string {
   let out = "";
   let last = 0;
   for (const match of text.matchAll(MARKUP)) {
@@ -39,15 +58,20 @@ export function fromSlackText(text: string, ids: SlackIds): string {
     const target = bar === -1 ? inner : inner.slice(0, bar);
     const label = bar === -1 ? null : unescape(inner.slice(bar + 1));
     if (target.startsWith("@")) {
-      const id = ids.user(target.slice(1));
-      out += id ? `<@${id}>` : `@${label?.replace(/^@/, "") || target.slice(1)}`;
+      const slackId = target.slice(1);
+      const id = ids.user(slackId);
+      const name = names?.user(slackId) || label?.replace(/^@/, "") || slackId;
+      out += id ? `<@${id}>` : `@${name}`;
     } else if (target.startsWith("#")) {
-      const id = ids.channel(target.slice(1));
-      out += id ? `<#${id}>` : `#${label?.replace(/^#/, "") || target.slice(1)}`;
+      const slackId = target.slice(1);
+      const id = ids.channel(slackId);
+      const name = names?.channel(slackId) || label?.replace(/^#/, "") || slackId;
+      out += id ? `<#${id}>` : `#${name}`;
     } else if (target === "!here" || target === "!channel" || target === "!everyone") {
-      out += `<${target}>`;
+      out += names ? `@${target.slice(1)}` : `<${target}>`;
     } else if (/^https?:\/\//i.test(target)) {
-      out += `<${target}${label === null ? "" : `|${label}`}>`;
+      if (!names) out += `<${target}${label === null ? "" : `|${label}`}>`;
+      else out += label && label !== target ? `${label} (${target})` : target;
     } else if (target.startsWith("!")) {
       // `<!subteam^S123|@team>`, `<!date^1392734382^{date}|Feb 18>`: what Slack shows instead.
       out += label ?? `@${target.slice(1).split("^")[0]}`;

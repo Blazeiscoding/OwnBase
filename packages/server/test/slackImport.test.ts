@@ -128,7 +128,8 @@ describe("importing a Slack export", () => {
       const byName = (name: string) => channels.find((c) => c.name === name)!;
       expect(byName("general")).toMatchObject({
         type: "public",
-        topic: `Say hi to <@${people.bob}>`,
+        // A topic shows as plain words, so a person in it is named.
+        topic: "Say hi to @Bob Brown, in #random or at Docs (https://example.com/docs)",
         description: "Everything & anything",
         archived: false,
       });

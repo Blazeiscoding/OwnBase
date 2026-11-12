@@ -33,7 +33,7 @@ import {
   type SlackMessage,
   type SlackUser,
 } from "./slackFormat.js";
-import { fromSlackText } from "./slackText.js";
+import { fromSlackText, slackWords } from "./slackText.js";
 import { IMPORT_LIMITS, SlackExportZip, type ImportLimits } from "./slackZip.js";
 
 export interface SlackImportOptions {
@@ -116,6 +116,8 @@ interface Conversation {
   id: ID;
   type: ChannelType;
   label: string;
+  /** Its name here; empty for a direct or group message. */
+  name: string;
   folders: string[];
   members: ID[];
   archived: boolean;
@@ -274,12 +276,19 @@ class SlackImport {
       const ownerId = this.people.get(owner.id)!;
       this.store.accounts.setPassword(ownerId, ownerCredentials.hash, ownerCredentials.salt, true);
       for (const conversation of conversations) this.addConversation(conversation, ownerId);
-      // Their words may name each other, so they are read once all are made.
+      // A topic is shown as plain words, which may name other channels, so
+      // they are written once all are made.
+      const names = {
+        user: (slackId: string) => {
+          const id = this.people.get(slackId);
+          return id ? (this.store.people.get(id)?.displayName ?? null) : null;
+        },
+        channel: (slackId: string) => this.channels.get(slackId)?.name || null,
+      };
       for (const conversation of this.channels.values()) {
-        const ids = this.ids();
         this.store.channels.update(conversation.id, {
-          topic: fromSlackText(conversation.topic, ids).slice(0, 250),
-          description: fromSlackText(conversation.purpose, ids).slice(0, 500),
+          topic: slackWords(conversation.topic, names).slice(0, 250),
+          description: slackWords(conversation.purpose, names).slice(0, 500),
         });
       }
       return ownerId;
@@ -498,6 +507,7 @@ class SlackImport {
       id: channel.id,
       type,
       label,
+      name,
       // Slack names a channel's folder after it, and a direct message's after its id.
       folders: isDirect && item.dm ? [slackId] : [item.entry!.name, slackId],
       members,
