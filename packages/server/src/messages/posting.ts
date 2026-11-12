@@ -271,7 +271,7 @@ export function createPosting({ store, mutate, ration, queuePreviews }: PostingD
           );
         forwardedFromId = source.id;
       }
-      const created = store.messages.create({
+      const createdId = store.messages.create({
         channelId: input.channelId,
         userId,
         text: input.text,
@@ -284,21 +284,21 @@ export function createPosting({ store, mutate, ration, queuePreviews }: PostingD
         forwardedFromId,
         call: input.call,
       });
-      if (input.poll) store.polls.create(created.id, input.poll);
+      if (input.poll) store.polls.create(createdId, input.poll);
       if (
         !store.files.attach(
           input.fileIds,
-          created.id,
+          createdId,
           input.channelId,
           userId,
           input.scheduledId ?? null,
         )
       )
         throw new HttpError(400, "invalid_attachments");
-      const hydrated = store.messages.get(created.id)!;
+      const hydrated = store.messages.get(createdId)!;
       if (input.nonce !== null)
-        store.messages.recordRequest(userId, input.nonce, created.id, requestHash);
-      if (input.scheduledId) store.scheduled.markSent(input.scheduledId, created.id);
+        store.messages.recordRequest(userId, input.nonce, createdId, requestHash);
+      if (input.scheduledId) store.scheduled.markSent(input.scheduledId, createdId);
       record({ type: "message.created", message: hydrated });
       return hydrated;
     });

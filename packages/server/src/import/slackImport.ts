@@ -178,7 +178,13 @@ export async function importSlack(opts: SlackImportOptions): Promise<SlackImport
   let db: DatabaseSync | null = null;
   try {
     db = openDb(workspaceDatabase(dataDir));
+    // A failed import is removed whole, so a commit need not wait for the
+    // disk: what a crash would lose is thrown away anyway. The finished
+    // workspace is written out to the disk before it is handed over.
+    db.exec("PRAGMA synchronous = OFF");
     const result = await new SlackImport(new Store(db), zip, dataDir, opts, limits, log).run();
+    db.exec("PRAGMA synchronous = FULL");
+    db.exec("PRAGMA wal_checkpoint(TRUNCATE)");
     db.close();
     db = null;
     return result;
@@ -661,7 +667,7 @@ class SlackImport {
     if (reply && !rootId)
       this.skip("replies whose thread's first message is missing, kept in the channel");
     const createdAt = slackTimeMs(message.ts);
-    const created = this.store.messages.create({
+    const createdId = this.store.messages.create({
       channelId: conversation.id,
       userId,
       text,
@@ -673,7 +679,7 @@ class SlackImport {
         editedAt: message.edited?.ts ? slackTimeMs(message.edited.ts) : null,
       },
     });
-    if (!rootId) roots.set(message.ts, created.id);
+    if (!rootId) roots.set(message.ts, createdId);
 
     // Reactions show in the order they were first added. Slack keeps that
     // order in its list and no times, so each is a millisecond after the last.
@@ -686,7 +692,7 @@ class SlackImport {
       }
       for (const slackId of reaction.users ?? []) {
         const reactor = this.people.get(slackId);
-        if (reactor && this.store.messages.addReaction(created.id, reactor, emoji, ++reacted))
+        if (reactor && this.store.messages.addReaction(createdId, reactor, emoji, ++reacted))
           this.counts.reactions++;
       }
     }
@@ -695,7 +701,7 @@ class SlackImport {
     if (listed || message.pinned_to?.includes(conversation.slackId)) {
       this.store.saved.pin(
         conversation.id,
-        created.id,
+        createdId,
         listed?.userId ?? userId,
         listed?.at ?? createdAt,
       );
@@ -710,7 +716,7 @@ class SlackImport {
       stored.length &&
       !this.store.files.attach(
         stored.map((f) => f.id),
-        created.id,
+        createdId,
         conversation.id,
         userId,
       )
@@ -719,7 +725,7 @@ class SlackImport {
 
     const event: WorkspaceEvent = {
       type: "message.created",
-      message: this.store.messages.get(created.id)!,
+      message: this.store.messages.get(createdId)!,
     };
     const envelope = this.store.appendEvent(event, eventChannel(event), eventMessageId(event));
     writeEffects(event, envelope.seq, this.store);

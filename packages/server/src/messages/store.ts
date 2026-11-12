@@ -154,7 +154,7 @@ export class MessageStore {
      * read back in the order of their ids.
      */
     imported?: { createdAt: number; editedAt: number | null };
-  }): Message {
+  }): ID {
     // Messages are read back in the order of their ids, so that order has to
     // be the order they were made in, within one millisecond too.
     const createdAt = input.imported?.createdAt ?? Date.now();
@@ -185,7 +185,7 @@ export class MessageStore {
         input.imported?.editedAt ?? null,
       );
     this.indexMentions(id, input.channelId, input.text, { pinged });
-    return this.get(id)!;
+    return id;
   }
 
   /**
