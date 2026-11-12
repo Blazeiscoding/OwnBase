@@ -10,6 +10,7 @@ import { ThreadPanel } from "../src/components/ThreadPanel.js";
 import { ConfirmProvider } from "../src/components/Confirm.js";
 import { ToastProvider } from "../src/components/Toast.js";
 import { held } from "./heldMessages.js";
+import { pointAtMessage } from "./pointAt.js";
 
 /** Muting a thread (E3): from its header, and from its first message in the channel. */
 const person = (id: string, displayName: string): User => ({
@@ -160,6 +161,7 @@ describe("muting a thread from its panel", () => {
     expect(toggle).toHaveAttribute("aria-pressed", "false");
 
     // The header has it, so the thread's first message there does not.
+    pointAtMessage();
     await user.click(screen.getByRole("button", { name: "More actions" }));
     const menu = await screen.findByRole("menu", { name: "More actions" });
     expect(within(menu).queryByRole("menuitem", { name: "Mute thread" })).toBeNull();
@@ -168,6 +170,7 @@ describe("muting a thread from its panel", () => {
 
 describe("muting a thread from its first message", () => {
   const actions = (user: ReturnType<typeof userEvent.setup>) => async () => {
+    pointAtMessage();
     await user.click(screen.getByRole("button", { name: "More actions" }));
     const menu = await screen.findByRole("menu", { name: "More actions" });
     const items = within(menu)

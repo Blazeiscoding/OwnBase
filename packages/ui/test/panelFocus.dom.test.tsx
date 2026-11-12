@@ -19,21 +19,23 @@ function Panel(props: { takeFocus: boolean; onClose: () => void }) {
 }
 
 /** A page with a control that opens the panel, and something else to go to. */
-function Page(props: { takeFocus?: boolean; openerGoesAway?: boolean }) {
+function Page(props: { takeFocus?: boolean; openerGoesAway?: boolean; openerRemoved?: boolean }) {
   const [open, setOpen] = useState(false);
   const [opened, setOpened] = useState(false);
   return (
     <>
       <div tabIndex={0} aria-label="Message from Sam">
-        <button
-          disabled={props.openerGoesAway && opened}
-          onClick={() => {
-            setOpen(true);
-            setOpened(true);
-          }}
-        >
-          Open saved
-        </button>
+        {!(props.openerRemoved && opened) && (
+          <button
+            disabled={props.openerGoesAway && opened}
+            onClick={() => {
+              setOpen(true);
+              setOpened(true);
+            }}
+          >
+            Open saved
+          </button>
+        )}
       </div>
       <textarea aria-label="Message #general" />
       {open && <Panel takeFocus={props.takeFocus ?? true} onClose={() => setOpen(false)} />}
@@ -169,6 +171,16 @@ describe("a side panel", () => {
     const user = userEvent.setup();
     render(<Page openerGoesAway />);
     await user.click(screen.getByRole("button", { name: "Open saved" }));
+    await user.click(screen.getByRole("button", { name: "Close saved" }));
+    expect(screen.getByLabelText("Message from Sam")).toHaveFocus();
+  });
+
+  it("hands focus to what held the opener when the opener has left the page", async () => {
+    // A message's toolbar is made only while the message has the pointer or focus.
+    const user = userEvent.setup();
+    render(<Page openerRemoved />);
+    await user.click(screen.getByRole("button", { name: "Open saved" }));
+    expect(screen.queryByRole("button", { name: "Open saved" })).toBeNull();
     await user.click(screen.getByRole("button", { name: "Close saved" }));
     expect(screen.getByLabelText("Message from Sam")).toHaveFocus();
   });

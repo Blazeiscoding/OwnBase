@@ -13,6 +13,8 @@ interface Layer {
   root: HTMLDivElement;
   panel: HTMLDivElement;
   opener: HTMLElement | null;
+  /** What takes focus around the opener, found when the dialog opened; see `reachable`. */
+  around: HTMLElement | null;
   owner: Layer | null;
   lastFocus: HTMLElement | null;
   close: () => void;
@@ -340,22 +342,30 @@ function returnTarget(layer: Layer, active: Layer | null): HTMLElement | null {
       !layers.has(record.owner) &&
       !!record.opener &&
       record.owner.panel.contains(record.opener);
-    const target = removedOwner ? null : reachable(record.opener);
+    const target = removedOwner ? null : reachable(record.opener, record.around);
     if (target && (!active || active.panel.contains(target))) return target;
   }
   return null;
 }
 
+/** The nearest thing around a control that takes focus, such as the message a toolbar button is in. */
+function surrounding(element: HTMLElement | null): HTMLElement | null {
+  return element?.parentElement?.closest<HTMLElement>("[tabindex]") ?? null;
+}
+
 /**
- * The opener, or, when it has gone out of sight since, the nearest thing
- * around it that takes focus: a message's toolbar shows only while the
- * pointer is over the message, so a picker opened from it gives focus back to
- * the message rather than to the page.
+ * The opener, or, when it has gone out of sight or gone altogether since,
+ * the nearest thing around it that takes focus: a message's toolbar is made
+ * and shown only while the pointer is on the message or focus is in it, so a
+ * dialog opened from it gives focus back to the message rather than to the
+ * page. `around` is what was around it when the dialog opened, for an opener
+ * that is no longer in the page to be asked.
  */
-function reachable(opener: HTMLElement | null): HTMLElement | null {
-  if (!opener?.isConnected) return null;
-  if (available(opener)) return opener;
-  const around = opener.parentElement?.closest<HTMLElement>("[tabindex]");
+function reachable(opener: HTMLElement | null, around: HTMLElement | null): HTMLElement | null {
+  if (opener?.isConnected) {
+    if (available(opener)) return opener;
+    around = surrounding(opener);
+  }
   return around && available(around) ? around : null;
 }
 
@@ -452,6 +462,7 @@ export function Modal({
   const layer = useRef<Layer | null>(null);
   const lastFocus = useRef<HTMLElement | null>(null);
   const opener = useRef(focusedElement());
+  const around = useRef(surrounding(opener.current));
   const owner = useRef(ownerOf(opener.current));
   const close = useRef(onClose);
   close.current = () => {
@@ -468,6 +479,7 @@ export function Modal({
       root: root.current,
       panel: panel.current,
       opener: opener.current,
+      around: around.current,
       owner: owner.current,
       lastFocus: lastFocus.current,
       close: () => close.current(),

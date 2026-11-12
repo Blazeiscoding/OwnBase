@@ -12,6 +12,7 @@ import { ClientContext, OpenMessageContext, PlatformContext } from "../src/conte
 import type { Platform } from "../src/platform.js";
 import { accessibilityProblems } from "./accessibility.js";
 import { QUEUED } from "./sendAnswers.js";
+import { pointAtMessage } from "./pointAt.js";
 
 /**
  * Discord's two ways to answer a message: Reply, which answers it in place
@@ -135,6 +136,7 @@ describe("answering a message in place", () => {
   it("says whom you reply to, can leave them unnotified, and sends what it answers", async () => {
     const original = message();
     const { box, send, user } = await renderConversation([{ message: original }]);
+    pointAtMessage();
     expect(screen.getByRole("button", { name: "Reply in thread" })).toBeInTheDocument();
 
     await user.click(screen.getByRole("button", { name: "Reply" }));
@@ -174,11 +176,13 @@ describe("answering a message in place", () => {
 
   it("is cancelled by Escape or its close button, and Shift leaves the author unnotified", async () => {
     const { box, user } = await renderConversation([{ message: message() }]);
+    pointAtMessage();
     await user.click(screen.getByRole("button", { name: "Reply" }));
     await user.keyboard("{Escape}");
     expect(screen.queryByText("Replying to")).not.toBeInTheDocument();
 
     await user.keyboard("{Shift>}");
+    pointAtMessage();
     await user.click(screen.getByRole("button", { name: "Reply" }));
     await user.keyboard("{/Shift}");
     expect(screen.getByRole("button", { name: "Notify Priya Shah" })).toHaveAttribute(
@@ -192,6 +196,7 @@ describe("answering a message in place", () => {
 
   it("offers no notification toggle when you answer yourself", async () => {
     const { user } = await renderConversation([{ message: message({ userId: sam.id }) }]);
+    pointAtMessage();
     await user.click(screen.getByRole("button", { name: "Reply" }));
     expect(screen.getByText("Replying to")).toHaveTextContent("Replying to Sam Rivera");
     expect(screen.queryByRole("button", { name: /^Notify/ })).not.toBeInTheDocument();
@@ -209,6 +214,8 @@ describe("answering a message in place", () => {
     );
     // The thread's first message is the thread: there is nothing to answer in place.
     const [rootRow, replyRow] = screen.getAllByRole("article");
+    pointAtMessage(rootRow!);
+    pointAtMessage(replyRow!);
     expect(within(rootRow!).queryByRole("button", { name: "Reply" })).not.toBeInTheDocument();
     await user.click(within(replyRow!).getByRole("button", { name: "Reply" }));
     const aside = screen.getByRole("complementary");

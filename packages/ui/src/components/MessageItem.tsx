@@ -156,6 +156,19 @@ const MessageRow = memo(function MessageRow({
   // The toolbar shows on hover; while its menu is open it stays, so the menu
   // has a trigger to hang from and focus has somewhere to return to.
   const [moreOpen, setMoreOpen] = useState(false);
+  /**
+   * The pointer is on this row, or focus is in it, or its menu was opened:
+   * only then is the toolbar made. It shows by the stylesheet, on hover and on
+   * focus, as before; this only spares the rows nobody is pointing at their
+   * nine buttons and six icons each, which was two thirds of every row and of
+   * what a long conversation held.
+   */
+  const [reached, setReached] = useState(false);
+  /**
+   * Its menu, or a dialog opened from it, has the pointer and focus for now.
+   * The toolbar stays meanwhile, so focus has its button to come back to.
+   */
+  const away = moreOpen || picking || reminding || reporting || deleting || forwarding !== null;
   /** The touch menu, opened by its button or by holding the message. */
   const [touchMenu, setTouchMenu] = useState(false);
   /** The reactions it had when drawn; any other one pops in as it comes. */
@@ -389,6 +402,20 @@ const MessageRow = memo(function MessageRow({
         run.run(actions, false);
       }}
       {...hold}
+      onPointerEnter={(event) => {
+        // A finger has no hover, and its actions are in the menu of their own.
+        if (event.pointerType !== "touch") setReached(true);
+      }}
+      onPointerLeave={(event) => {
+        if (away || event.currentTarget.contains(document.activeElement)) return;
+        setReached(false);
+      }}
+      onFocus={() => setReached(true)}
+      onBlur={(event) => {
+        // Focus going elsewhere in the row, or the pointer still here, keeps it.
+        if (away || event.currentTarget.contains(event.relatedTarget)) return;
+        if (!event.currentTarget.matches(":hover")) setReached(false);
+      }}
       className={`message-row group relative py-0.5 pl-4 pr-12 transition-colors duration-75 hover:bg-ink/[0.03] ${
         compact ? "" : "mt-4"
       } ${moreOpen ? "bg-ink/[0.03]" : ""} ${
@@ -625,7 +652,7 @@ const MessageRow = memo(function MessageRow({
         </div>
       </div>
 
-      {!editing && (
+      {!editing && (reached || away) && (
         <div
           className={`message-toolbar surface-float absolute -top-4 right-4 z-10 max-w-[calc(100%-32px)] items-center gap-px overflow-x-auto rounded-lg p-0.5 ${
             moreOpen ? "flex" : "hidden group-hover:flex group-focus-within:flex"
@@ -659,7 +686,12 @@ const MessageRow = memo(function MessageRow({
             items={moreItems(actions)}
             // Wide enough that "Mark unread from this message" stays on one line.
             width={272}
-            onOpenChange={setMoreOpen}
+            onOpenChange={(open) => {
+              setMoreOpen(open);
+              // Kept while the menu takes the pointer and focus away, and for
+              // focus to come back to when it closes.
+              if (open) setReached(true);
+            }}
             triggerClassName="icon-live flex size-7 items-center justify-center rounded-md text-ink-dim transition-colors hover:bg-ink/[0.08] hover:text-ink"
           />
         </div>

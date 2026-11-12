@@ -13,6 +13,7 @@ import { writeRoute } from "../src/lib/route.js";
 import type { Platform } from "../src/platform.js";
 import { emit } from "./clientEvents.js";
 import { AppNotices } from "./workspaceParts.js";
+import { pointAtMessage } from "./pointAt.js";
 
 /** Reminders (E4): set from a message, listed in Activity, counted and told. */
 const person = (id: string, displayName: string): User => ({
@@ -113,6 +114,7 @@ const tree = (client: WorkspaceClient, children: React.ReactNode) => (
 );
 
 async function moreActions(user: ReturnType<typeof userEvent.setup>) {
+  pointAtMessage();
   await user.click(screen.getByRole("button", { name: "More actions" }));
   const menu = await screen.findByRole("menu", { name: "More actions" });
   return {
