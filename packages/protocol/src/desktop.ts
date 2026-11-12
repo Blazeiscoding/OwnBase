@@ -72,6 +72,8 @@ export interface DesktopCapabilities {
   systemMicrophone: boolean;
   /** The OS can be asked to open OwnBase at sign-in. */
   openAtLogin: boolean;
+  /** How this copy gets new versions; see `UpdateMode`. */
+  updates: UpdateMode;
 }
 
 export type HostingPhase = "stopped" | "starting" | "running" | "stopping";
@@ -405,4 +407,54 @@ export interface DesktopHosting {
    * is put back in use. Null when no folder was chosen.
    */
   restoreOver: (folder: string, backup: string | null) => Promise<RestoredOver | null>;
+}
+
+/**
+ * How this copy of the app gets a new version: `install` downloads and
+ * installs it (Windows), `notify` says one is out and where to get it (the
+ * Mac app, until it has a real signature, which macOS needs to replace an
+ * app), and `none` never looks (a build not made by the Release workflow).
+ */
+export type UpdateMode = "install" | "notify" | "none";
+
+/** Where looking for, and getting, a new version has got. */
+export interface UpdateStatus {
+  mode: UpdateMode;
+  /** This copy's version. */
+  version: string;
+  /** "Update automatically": looks for new versions and, on Windows, downloads them. */
+  automatic: boolean;
+  phase: "idle" | "checking" | "downloading" | "ready" | "available" | "failed";
+  /** The new version found, being downloaded, or ready to install. */
+  newVersion?: string;
+  /** How much of the download is done, from 0 to 100. */
+  progress?: number;
+  /** When it last looked, in milliseconds since 1970. */
+  checkedAt?: number;
+  /** What went wrong the last time it looked, for the person reading it. */
+  error?: string;
+  /** The notice in the window is due: shown at most once a day, until put off. */
+  offer: boolean;
+}
+
+/** What pressing "Restart to update" did. */
+export type UpdateRestart =
+  | { restarting: true }
+  /** Nothing happened, and why: a call is on, or the person chose to wait. */
+  | { restarting: false; reason?: string };
+
+/** The app's own updates, desktop only. */
+export interface DesktopUpdates {
+  status: () => Promise<UpdateStatus>;
+  setAutomatic: (on: boolean) => Promise<UpdateStatus>;
+  /** Looks now, whatever the setting, as the person asked. */
+  check: () => Promise<UpdateStatus>;
+  /** Installs the downloaded version and opens it, after saving everything, as quitting does. */
+  restart: () => Promise<UpdateRestart>;
+  /** Puts the notice off until tomorrow, or until a newer version is ready. */
+  later: () => Promise<void>;
+  /** Tells the app whether a call is on, which an update never interrupts. */
+  reportCall: (on: boolean) => Promise<void>;
+  /** Opens the download page in the browser, where the Mac app gets a new version. */
+  openDownloadPage: () => Promise<void>;
 }
