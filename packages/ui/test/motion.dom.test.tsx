@@ -136,13 +136,11 @@ describe("a dialog on its way out", () => {
     expect(document.querySelector("[data-leaving]")).toBeNull();
 
     playing = () => [];
-    const matchMedia = vi
-      .spyOn(window, "matchMedia")
-      .mockReturnValue({ matches: true } as MediaQueryList);
+    vi.stubGlobal("matchMedia", () => ({ matches: true }) as MediaQueryList);
     const still = render(<Closable open>text</Closable>);
     still.rerender(<Closable open={false}>{null}</Closable>);
     expect(document.querySelector("[data-leaving]")).toBeNull();
-    matchMedia.mockRestore();
+    vi.unstubAllGlobals();
   });
 });
 

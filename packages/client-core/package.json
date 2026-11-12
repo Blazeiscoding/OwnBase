@@ -24,6 +24,6 @@
   "devDependencies": {
     "@ownbase/server": "workspace:*",
     "typescript": "^5.9.2",
-    "vitest": "^3.2.0"
+    "vitest": "^4.1.12"
   }
 }

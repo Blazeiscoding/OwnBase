@@ -16,16 +16,16 @@
     },
     "test": {
       "dependsOn": ["^build"],
-      "env": ["VITEST_MAX_THREADS", "VITEST_MAX_FORKS"]
+      "env": ["VITEST_MAX_WORKERS"]
     },
     "@ownbase/desktop#test": {
       "dependsOn": ["^build"],
-      "env": ["VITEST_MAX_THREADS", "VITEST_MAX_FORKS"],
+      "env": ["VITEST_MAX_WORKERS"],
       "inputs": ["$TURBO_DEFAULT$", "$TURBO_ROOT$/tests/fixtures/**"]
     },
     "@ownbase/server#test": {
       "dependsOn": ["^build"],
-      "env": ["VITEST_MAX_THREADS", "VITEST_MAX_FORKS"],
+      "env": ["VITEST_MAX_WORKERS"],
       "inputs": [
         "$TURBO_DEFAULT$",
         "$TURBO_ROOT$/docs/INTEGRATIONS.md",
@@ -34,7 +34,7 @@
     },
     "@ownbase/ui#test": {
       "dependsOn": ["^build"],
-      "env": ["VITEST_MAX_THREADS", "VITEST_MAX_FORKS"],
+      "env": ["VITEST_MAX_WORKERS"],
       "inputs": [
         "$TURBO_DEFAULT$",
         "$TURBO_ROOT$/apps/desktop/src/main/index.ts",
