@@ -38,6 +38,7 @@ import { failureText } from "../lib/failure.js";
 import { isImeKey } from "../lib/textInput.js";
 import { When } from "./When.js";
 import { runAction, useActionContext } from "../lib/actions.js";
+import { UpdateSettings } from "./Updates.js";
 
 type Confirmation = { kind: "device"; session: SessionInfo } | { kind: "others" };
 
@@ -68,8 +69,14 @@ export function AccountDialog({
   onSectionChange?: (section: AccountSection) => void;
 }) {
   const client = useClient();
+  const platform = usePlatform();
+  // Updates are the desktop app's own; the browser has none.
+  const shown = (id: AccountSection) => id !== "updates" || !!platform.updates;
+  const sections = SECTIONS.filter((s) => shown(s.id));
   const tabsId = useId();
-  const [section, setSection] = useState<AccountSection>(initialSection);
+  const [section, setSection] = useState<AccountSection>(
+    shown(initialSection) ? initialSection : "profile",
+  );
   const [query, setQuery] = useState("");
   /** A setting a search went to, to bring into view once its section shows. */
   const [goingTo, setGoingTo] = useState<Setting | null>(null);
@@ -189,7 +196,8 @@ export function AccountDialog({
     }
   }
 
-  function choose(next: AccountSection) {
+  function choose(wanted: AccountSection) {
+    const next = shown(wanted) ? wanted : "profile";
     if (next === section) return;
     setSection(next);
     onSectionChange?.(next);
@@ -245,13 +253,13 @@ export function AccountDialog({
     setConfirmation(value);
     setError(null);
   };
-  const results = query.trim() ? findSettings(query) : null;
+  const results = query.trim() ? findSettings(query).filter((s) => shown(s.section)) : null;
   return (
     <SavedContext.Provider value={markSaved}>
       <SettingsWindow
         title="Account settings"
         about={`${self?.displayName} · @${self?.handle}`}
-        sections={SECTIONS}
+        sections={sections}
         section={section}
         onChoose={choose}
         tabsId={tabsId}
@@ -545,6 +553,7 @@ export function AccountDialog({
           </section>
         )}
         {section === "storage" && <WorkspaceStorage />}
+        {section === "updates" && <UpdateSettings />}
         {confirmation && (
           <section
             ref={confirmationPanel}

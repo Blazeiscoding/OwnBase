@@ -8,6 +8,8 @@ export const ACCOUNT_SECTIONS = [
   "security",
   "devices",
   "storage",
+  /** The desktop app's own updates; not in the browser. */
+  "updates",
 ] as const;
 export type AccountSection = (typeof ACCOUNT_SECTIONS)[number];
 

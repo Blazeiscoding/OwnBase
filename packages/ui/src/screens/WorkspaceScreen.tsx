@@ -42,6 +42,7 @@ import { HuddleButton } from "../components/HuddleButton.js";
 import { Banner, BannerAction } from "../components/Banner.js";
 import { MemberNoticeBanner } from "../components/MemberNotice.js";
 import { ServerNoticeBanner } from "../components/ServerNotice.js";
+import { UpdateBanner, useReportCall } from "../components/Updates.js";
 import {
   ConversationMenu,
   ConversationSearch,
@@ -403,6 +404,8 @@ function WorkspaceLayout(props: { restore: boolean; banner?: ReactNode }) {
   const panelCovers = narrow && panel.kind !== "none";
   const [huddleView, setHuddleView] = useHuddleView();
   const inHuddle = useWorkspace((s) => !!s.huddle);
+  // An update never restarts the app during a call.
+  useReportCall(inHuddle);
   useHuddleEndedNotice();
   const rungHere = useWorkspace((s) =>
     Object.values(s.rings).some((ring) => !!s.self && ring.ringing.includes(s.self.id)),
@@ -429,6 +432,8 @@ function WorkspaceLayout(props: { restore: boolean; banner?: ReactNode }) {
   const [asking, setAsking] = useState(false);
   /** A server notice is on show, so the member notice after it waits (P6). */
   const [noticeShowing, setNoticeShowing] = useState(false);
+  /** A new version's notice is on show, so the member notice waits. */
+  const [updateShowing, setUpdateShowing] = useState(false);
 
   useEffect(() => {
     // Failing here is not final: opening the palette, search, a thread, a hint or an emoji picker fetches it again.
@@ -631,8 +636,9 @@ function WorkspaceLayout(props: { restore: boolean; banner?: ReactNode }) {
           {/* One banner at a time, the most pressing (UX-25): a message that could
               not be opened, then what the app could not save, then the ask to
               turn on notifications, then a message on its way, then what
-              the server's extensions say (P6), then a workspace with more
-              members than its plan includes (P5). */}
+              the server's extensions say (P6), then a new version of the
+              desktop app, then a workspace with more members than its plan
+              includes (P5). */}
           {error ? (
             <Banner
               tone="alert"
@@ -668,7 +674,10 @@ function WorkspaceLayout(props: { restore: boolean; banner?: ReactNode }) {
               )}
               {navigating && !asking && <Banner tone="status">Opening message…</Banner>}
               {!navigating && !asking && <ServerNoticeBanner onShowing={setNoticeShowing} />}
-              {!navigating && !asking && !noticeShowing && <MemberNoticeBanner />}
+              {!navigating && !asking && !noticeShowing && (
+                <UpdateBanner onShowing={setUpdateShowing} />
+              )}
+              {!navigating && !asking && !noticeShowing && !updateShowing && <MemberNoticeBanner />}
             </>
           )}
 
