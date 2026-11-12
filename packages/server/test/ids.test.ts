@@ -71,7 +71,7 @@ describe("messages made faster than the clock ticks", () => {
       }),
     );
 
-    const ids = made.map((message) => message.id);
+    const ids = made;
     expect([...ids].sort()).toEqual(ids);
   });
 });

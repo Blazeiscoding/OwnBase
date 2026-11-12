@@ -16,12 +16,12 @@ export class SavedStore {
     private readonly store: Store,
   ) {}
 
-  pin(channelId: ID, messageId: ID, userId: ID): boolean {
+  pin(channelId: ID, messageId: ID, userId: ID, at = Date.now()): boolean {
     const res = this.db
       .prepare(
         "INSERT OR IGNORE INTO pins (channel_id, message_id, user_id, created_at) VALUES (?, ?, ?, ?)",
       )
-      .run(channelId, messageId, userId, Date.now());
+      .run(channelId, messageId, userId, at);
     return res.changes > 0;
   }
 

@@ -148,18 +148,25 @@ export class MessageStore {
     forwardedFromId?: ID | null;
     /** Makes it the server's note about a call (E10). */
     call?: CallNotice | null;
-  }): Message {
+    /**
+     * When it was written and last edited somewhere else, for history brought
+     * in from another app. Its id is made from that time, since messages are
+     * read back in the order of their ids.
+     */
+    imported?: { createdAt: number; editedAt: number | null };
+  }): ID {
     // Messages are read back in the order of their ids, so that order has to
     // be the order they were made in, within one millisecond too.
-    const id = orderedUlid();
+    const createdAt = input.imported?.createdAt ?? Date.now();
+    const id = orderedUlid(createdAt);
     const original = input.replyToId && input.replyPing ? this.pingable(input.replyToId) : null;
     const pinged = original !== input.userId ? original : null;
     this.db
       .prepare(
         `INSERT INTO messages
            (id, channel_id, user_id, text, thread_root_id, broadcast, nonce, created_at, actions,
-            reply_to_id, reply_ping, forwarded_from_id, call_kind)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+            reply_to_id, reply_ping, forwarded_from_id, call_kind, edited_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       )
       .run(
         id,
@@ -169,15 +176,16 @@ export class MessageStore {
         input.threadRootId,
         input.threadRootId && input.broadcast ? 1 : 0,
         input.nonce,
-        Date.now(),
+        createdAt,
         JSON.stringify(input.actions ?? []),
         input.replyToId ?? null,
         pinged ? 1 : 0,
         input.forwardedFromId ?? null,
         input.call?.kind ?? null,
+        input.imported?.editedAt ?? null,
       );
     this.indexMentions(id, input.channelId, input.text, { pinged });
-    return this.get(id)!;
+    return id;
   }
 
   /**
@@ -951,12 +959,12 @@ export class MessageStore {
     }));
   }
 
-  addReaction(messageId: ID, userId: ID, emoji: string): boolean {
+  addReaction(messageId: ID, userId: ID, emoji: string, at = Date.now()): boolean {
     const res = this.db
       .prepare(
         "INSERT OR IGNORE INTO reactions (message_id, user_id, emoji, created_at) VALUES (?, ?, ?, ?)",
       )
-      .run(messageId, userId, emoji, Date.now());
+      .run(messageId, userId, emoji, at);
     return res.changes > 0;
   }
 

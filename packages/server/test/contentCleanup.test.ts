@@ -155,7 +155,7 @@ describe("complete message content cleanup (N06/N07)", () => {
   );
 
   it("strips superseded buttons while preserving the current message's actions", async () => {
-    const message = server.store.messages.create({
+    const id = server.store.messages.create({
       channelId: channel,
       userId: owner,
       text: "Earlier agenda",
@@ -163,6 +163,7 @@ describe("complete message content cleanup (N06/N07)", () => {
       nonce: null,
       actions,
     });
+    const message = server.store.messages.get(id)!;
     const before =
       server.store.appendEvent({ type: "message.created", message }, channel, message.id).seq - 1;
     server.store.transaction(() => {

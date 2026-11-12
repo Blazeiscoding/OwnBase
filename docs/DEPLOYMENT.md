@@ -1549,6 +1549,85 @@ restart. Cleanup handles at most 100 queued files per pass; shutdown awaits the
 active pass before closing the database. A locked file can remain on disk until
 cleanup succeeds, but the download API no longer serves it after deletion commits.
 
+## Moving in from Slack
+
+`import-slack` makes a new workspace from the export Slack makes. In Slack, a
+workspace owner or admin opens **Workspace settings → Import and export data →
+Export**. Every plan exports public channels; private channels and direct messages
+come only in the exports Slack's Business+ and Enterprise plans can apply for. The
+import brings over whatever the export holds.
+
+```sh
+ownbase-server import-slack --from "./Acme Slack export Jan 1 2024 - Nov 13 2026.zip" \
+  --data ./data --owner alice --name "Acme"
+```
+
+`--data` must be a new or empty folder; a workspace is never imported into one that
+already has history. `--owner` is a Slack username, as the export's `users.json` has
+it. That person becomes the owner and is given a temporary password, printed once at
+the end, which leads straight to choosing their own. Everyone else comes in
+deactivated, with no password anyone knows; the owner brings each back from
+**People**, which gives them a temporary password to pass on. Admins in Slack are
+admins here. Slack's guests come in as members, since a guest here is someone
+without an account. Then start the server on the folder as usual:
+
+```sh
+ownbase-server --data ./data
+```
+
+What comes over: people, with their names and time zones; public and private
+channels with their topics, descriptions, members and archived state; direct and
+group messages; and every message with its time, author, edits, thread, reactions
+and pins. Mentions of people and channels point at them here. A message's id is made
+from the time Slack gave it, so history pages back in the order it happened, and
+search finds imported words. History comes in read: nobody opens the workspace to
+thousands of unread messages.
+
+What does not: join and leave notices and notices of topic or name changes, which
+this app does not post; reactions with a custom emoji; and text past 12,000
+characters, which is cut there. Posts by bots and integrations stay, each under a
+bot account named after the bot. Someone who wrote in a channel but is not in
+`users.json`, as happens with people from another organisation in a shared channel,
+comes in deactivated under the name their messages give. The summary at the end
+counts everything left out, with the reason.
+
+Files need a choice. Slack's export holds links to files, not the files. By default
+each message keeps a file's name as a line of text. With `--fetch-files` the import
+fetches each one through its link (Slack puts a token on it) and keeps it as an
+upload, up to 100 MB each. A link stops working once the file, its channel or the
+Slack workspace is deleted, so fetch before closing Slack down. A file Slack will
+not give keeps its name and is counted.
+
+The import reads a zip of up to 64 GB and 2 million files, up to 256 MB in one JSON
+file. About seven minutes per million messages on a recent desktop, more with
+`--fetch-files`. If anything fails, everything it made is removed and the error
+names the file and field it could not read.
+
+## Taking your data out
+
+`export` writes a workspace in Slack's export format: `users.json`,
+`channels.json`, and a folder of one JSON file per day for each channel. Tools that
+read Slack's exports read it, and `import-slack` reads it back, which is how to move
+a workspace's history into a new one without its accounts, apps and settings. For a
+full copy of a workspace to restore, use `backup` or **Download a copy**.
+
+```sh
+ownbase-server export --data ./data --to ./acme-export.zip
+ownbase-server export --data ./data --to ./acme-everything.zip --everything
+```
+
+Without `--everything` it holds public channels only. `--everything` adds private
+channels (`groups.json`), direct messages (`dms.json`) and group messages
+(`mpims.json`); it is only on the command line, since whoever can run commands on
+the server can read the database anyway. Unlike Slack's export, the zip holds the
+files themselves, under `files/`, and each message names its own in `export_path`.
+
+It holds what a profile shows, and never a password, sign-in, token or app secret.
+Deleted messages are left out. Polls keep their question, and a forward with no
+words of its own is left out. The export can run while the server is running: it
+reads one consistent moment of the workspace. It needs disk beside the zip for the
+day files while it writes, and room for the zip.
+
 ## Deletion and retention
 
 ### What deleting a message does

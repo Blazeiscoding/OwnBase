@@ -549,8 +549,9 @@ icons. Normal packaging uses the checked-in assets and does not need this step.
 
 ## Roadmap
 
-- **Next.** Exporting and importing a whole workspace, and push notifications
-  for the browser client.
+- **Done.** Moving in from Slack (`import-slack`) and taking a workspace out in
+  Slack's export format (`export`); see [DEPLOYMENT.md](docs/DEPLOYMENT.md#moving-in-from-slack).
+- **Next.** Push notifications for the browser client.
 - **Later.** An SFU for larger huddles, and optional Postgres and S3.
 
 [Current boundaries](docs/DEPLOYMENT.md#current-boundaries) lists what is missing

@@ -115,7 +115,7 @@ describe("mentions read from who each message names", () => {
         const roots = live.filter((m) => m.channel === channel);
         const threadRootId = roots.length && random(3) === 0 ? pickOne(roots).id : null;
         const author = pickOne(channel === "C1" ? ["U1", "U2", "U3"] : ["U1", "U2"]);
-        const message = store.messages.create({
+        const messageId = store.messages.create({
           channelId: channel,
           userId: author,
           text: pickOne(texts),
@@ -123,9 +123,9 @@ describe("mentions read from who each message names", () => {
           nonce: null,
           broadcast: random(4) === 0,
         });
-        store.messages.stampSeq(message.id, channel, ++seq);
-        db.prepare("UPDATE messages SET created_at = ? WHERE id = ?").run(clock++, message.id);
-        if (!threadRootId) live.push({ id: message.id, channel });
+        store.messages.stampSeq(messageId, channel, ++seq);
+        db.prepare("UPDATE messages SET created_at = ? WHERE id = ?").run(clock++, messageId);
+        if (!threadRootId) live.push({ id: messageId, channel });
         done.sent++;
       } else if (action < 7) {
         store.messages.edit(pickOne(live).id, pickOne(texts));
@@ -177,7 +177,7 @@ describe("mentions read from who each message names", () => {
   it("pages the Activity mentions list by its cursor, each message once", () => {
     const ids: string[] = [];
     for (let i = 0; i < 7; i++) {
-      const message = store.messages.create({
+      const messageId = store.messages.create({
         channelId: "C1",
         userId: "U2",
         // Named directly and as the whole room: still one entry.
@@ -185,8 +185,8 @@ describe("mentions read from who each message names", () => {
         threadRootId: null,
         nonce: null,
       });
-      store.messages.stampSeq(message.id, "C1", i + 1);
-      ids.push(message.id);
+      store.messages.stampSeq(messageId, "C1", i + 1);
+      ids.push(messageId);
     }
     const first = store.search.activity("U1", { mode: "mentions", limit: 4 }).map((m) => m.id);
     const second = store.search

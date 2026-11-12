@@ -133,9 +133,11 @@ export class ChannelStore {
     creatorId: ID;
     memberIds: ID[]; // including creator
     dmKey?: string;
+    /** When it was made somewhere else, for a conversation brought in from another app. */
+    createdAt?: number;
   }): Channel {
-    const id = ulid();
-    const now = Date.now();
+    const now = input.createdAt ?? Date.now();
+    const id = ulid(now);
     this.db
       .prepare(
         `INSERT INTO channels (id, type, name, topic, description, creator_id, dm_key, created_at)
