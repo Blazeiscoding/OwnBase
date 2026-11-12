@@ -105,6 +105,14 @@ describe("the Updates section of Account settings", () => {
     expect(updates.setAutomatic).toHaveBeenCalledWith(false);
     await user.click(within(dialog).getByRole("button", { name: "Check now" }));
     expect(updates.check).toHaveBeenCalledTimes(1);
+    // The search finds it in the desktop app.
+    await user.click(within(dialog).getByRole("tab", { name: "Profile" }));
+    await user.type(within(dialog).getByRole("searchbox"), "update automatically");
+    await user.click(within(dialog).getByRole("button", { name: /^Update automatically/ }));
+    expect(within(dialog).getByRole("tab", { name: "Updates" })).toHaveAttribute(
+      "aria-selected",
+      "true",
+    );
   });
 
   it("offers the restart once a version is downloaded, and says why it cannot", async () => {
