@@ -22,6 +22,12 @@ export function usePanelFocus({ takeFocus }: { takeFocus: boolean }) {
       : null,
   );
 
+  // What takes focus around it, found now: a message's toolbar is unmade once
+  // focus leaves the message, and the button that opened a thread goes with it.
+  const [around] = useState(
+    () => opener?.parentElement?.closest<HTMLElement>("[tabindex]") ?? null,
+  );
+
   useEffect(() => {
     // A menu's button says whether its menu is open, not the panel: a panel
     // chosen from a menu takes focus like one opened from anywhere else.
@@ -36,9 +42,11 @@ export function usePanelFocus({ takeFocus }: { takeFocus: boolean }) {
       // moved on to something else stays there.
       const now = document.activeElement;
       const lost = !now || now === document.body || (element?.contains(now) ?? false);
-      if (lost && opener?.isConnected) handBack(opener);
+      if (!lost) return;
+      if (opener?.isConnected) handBack(opener);
+      else if (around?.isConnected) around.focus({ preventScroll: true });
     };
-  }, [opener, takeFocus]);
+  }, [opener, around, takeFocus]);
 
   return { panel, heading };
 }
