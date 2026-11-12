@@ -14,6 +14,8 @@
  * writes it there and then). Exactly those files are published (F05): one
  * server archive and one installer, each bound to its tested identity; any
  * other file, a swapped or changed one, or a second installer is refused.
+ * The Windows app's update feed must name the installer beside it, by its
+ * SHA-512, at the version the tag names, since that is all an update checks.
  * `SHA256SUMS` is written into <dir>, the notes to <file>, which is never
  * itself counted as a file to publish, so preparing twice gives the same sums.
  */
@@ -28,12 +30,21 @@ const IDENTITY = /^(.+)\.build\.json$/;
 const BINDING = /^(.+)\.assets\.json$/;
 const SUMS = "SHA256SUMS";
 
-/** What each artifact publishes: one file of this kind, and nothing else. */
+/** What each artifact publishes: exactly one file of each kind, and nothing else. */
 export const PUBLISHED = {
-  server: { kind: "server archive", file: /^ownbase-server-[^/]+\.tar\.gz$/ },
-  desktop: { kind: "Windows installer", file: /Setup[^/]*\.exe$/ },
-  mac: { kind: "Mac disk image", file: /^OwnBase-[^/]+-universal\.dmg$/ },
+  server: [{ kind: "server archive", file: /^ownbase-server-[^/]+\.tar\.gz$/ }],
+  desktop: [
+    { kind: "Windows installer", file: /Setup[^/]*\.exe$/ },
+    // What the installed app reads to update itself (electron-updater), and
+    // the installer's block map, which lets a later update download only
+    // the parts that changed.
+    { kind: "Windows update feed", file: /^latest\.yml$/ },
+    { kind: "Windows installer block map", file: /Setup[^/]*\.exe\.blockmap$/ },
+  ],
+  mac: [{ kind: "Mac disk image", file: /^OwnBase-[^/]+-universal\.dmg$/ }],
 };
+/** The feed electron-builder writes for the Windows installer. */
+const FEED = "latest.yml";
 export function sha256(path) {
   return createHash("sha256").update(readFileSync(path)).digest("hex");
 }
@@ -51,9 +62,33 @@ export function identityProblem(name, identity, { revision, version }) {
   return null;
 }
 
-/** `v1.2.3` or `v1.2.3-rc.1` → `1.2.3`; null for a tag naming no version. */
+/**
+ * `v1.2.3` → `1.2.3`, `v1.2.3-rc.1` → `1.2.3-rc.1`: the version every build
+ * of the release carries; null for a tag naming no version.
+ */
 export function tagVersion(tag) {
-  return /^v(\d+\.\d+\.\d+)(?:-[0-9A-Za-z.-]+)?$/.exec(tag)?.[1] ?? null;
+  return /^v(\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?)$/.exec(tag)?.[1] ?? null;
+}
+
+export function sha512(path) {
+  return createHash("sha512").update(readFileSync(path)).digest("base64");
+}
+
+/**
+ * What is wrong with the Windows update feed, or null. An installed app
+ * trusts it for the version, the file to download and that file's SHA-512,
+ * so each must be the installer published beside it.
+ */
+export function feedProblem(feed, { installer, sha512: hash, version }) {
+  const field = (key) =>
+    new RegExp(String.raw`^${key}:[ \t]*['"]?([^'"\r\n]*?)['"]?[ \t]*$`, "m").exec(feed)?.[1] ??
+    null;
+  if (field("version") !== version)
+    return `${FEED} is for version ${field("version")}, but the tag names ${version}`;
+  if (field("path") !== installer)
+    return `${FEED} names ${field("path")}, not the installer ${installer}`;
+  if (field("sha512") !== hash) return `${FEED} does not have the installer's SHA-512`;
+  return null;
 }
 
 /** One file out of a `.tar.gz`, as `tar -czf … -C dir .` writes it, or null. */
@@ -133,18 +168,24 @@ export function prepareRelease({ dir, revision, tag, signed = false, notes: note
   // Each file published is one a tested build staged, unchanged since.
   const known = new Map(identities);
   const boundTo = new Map();
-  for (const [name, published] of Object.entries(PUBLISHED)) {
+  for (const [name, kinds] of Object.entries(PUBLISHED)) {
     const staged = bindings.get(name);
     if (!staged) {
-      problems.push(`no ${published.kind} was staged (${name}.assets.json)`);
+      problems.push(`no ${kinds[0].kind} was staged (${name}.assets.json)`);
       continue;
     }
     if (!known.has(name)) problems.push(`${name}.assets.json has no ${name}.build.json beside it`);
     const names = Object.keys(staged);
-    if (names.length !== 1 || !published.file.test(names[0]))
-      problems.push(
-        `${name} must stage exactly one ${published.kind}, not ${names.join(", ") || "none"}`,
-      );
+    for (const { kind, file } of kinds) {
+      const matching = names.filter((one) => file.test(one));
+      if (matching.length !== 1)
+        problems.push(
+          `${name} must stage exactly one ${kind}, not ${matching.join(", ") || "none"}`,
+        );
+    }
+    const other = names.filter((one) => !kinds.some(({ file }) => file.test(one)));
+    if (other.length > 0)
+      problems.push(`${name} staged ${other.join(", ")}, which no release publishes`);
     for (const file of names) boundTo.set(file, [name, staged[file]]);
   }
   for (const name of bindings.keys())
@@ -171,6 +212,15 @@ export function prepareRelease({ dir, revision, tag, signed = false, notes: note
     }
     if (carried?.revision !== server.revision || carried?.inputs !== server.inputs)
       problems.push(`${file} does not carry the server identity it was staged with`);
+  }
+  const installer = files.find((file) => PUBLISHED.desktop[0].file.test(file));
+  if (version && installer && files.includes(FEED)) {
+    const problem = feedProblem(readFileSync(join(dir, FEED), "utf8"), {
+      installer,
+      sha512: sha512(join(dir, installer)),
+      version,
+    });
+    if (problem) problems.push(problem);
   }
   if (problems.length > 0) throw new Error(problems.join("\n"));
 
