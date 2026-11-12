@@ -328,11 +328,13 @@ ${extensions.map((extension) => `\n${extension.help.replace(/\n+$/, "")}\n`).joi
         log: (line) => console.log(line),
       });
       const n = (count: number) => count.toLocaleString("en-US");
+      const of = (count: number, one: string, many = `${one}s`) =>
+        `${n(count)} ${count === 1 ? one : many}`;
       const { counts } = result;
       console.log(`
   Made "${result.workspaceName}" in ${resolve(values.data)} in ${Math.round((Date.now() - started) / 1000)} s
-  ${n(counts.people)} people, ${n(counts.bots)} bots, ${n(counts.channels)} channels, ${n(counts.directMessages)} direct and group messages
-  ${n(counts.messages)} messages (${n(counts.replies)} in threads), ${n(counts.reactions)} reactions, ${n(counts.pins)} pins, ${n(counts.files)} files`);
+  ${of(counts.people, "person", "people")}, ${of(counts.bots, "bot")}, ${of(counts.channels, "channel")}, ${of(counts.directMessages, "direct or group message")}
+  ${of(counts.messages, "message")} (${n(counts.replies)} in threads), ${of(counts.reactions, "reaction")}, ${of(counts.pins, "pin")}, ${of(counts.files, "file")}`);
       if (result.skipped.length) {
         console.log("\n  Left out:");
         for (const { reason, count } of result.skipped) console.log(`    ${n(count)} ${reason}`);
@@ -369,10 +371,12 @@ ${extensions.map((extension) => `\n${extension.help.replace(/\n+$/, "")}\n`).joi
         log: (line) => console.log(line),
       });
       const n = (count: number) => count.toLocaleString("en-US");
+      const of = (count: number, one: string, many = `${one}s`) =>
+        `${n(count)} ${count === 1 ? one : many}`;
       console.log(`
   Exported to ${resolve(values.to)} (${n(Math.ceil(result.bytes / 1024))} kB)
-  ${n(result.people)} people, ${n(result.channels)} channels, ${n(result.directMessages)} direct and group messages
-  ${n(result.messages)} messages, ${n(result.files)} files`);
+  ${of(result.people, "person", "people")}, ${of(result.channels, "channel")}, ${of(result.directMessages, "direct or group message")}
+  ${of(result.messages, "message")}, ${of(result.files, "file")}`);
       if (result.skipped.length) {
         console.log("\n  Left out:");
         for (const { reason, count } of result.skipped) console.log(`    ${n(count)} ${reason}`);

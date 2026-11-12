@@ -21,6 +21,7 @@ import { Store } from "../store.js";
 import { emojiForSlackName } from "./slackEmoji.js";
 import {
   parseSlackList,
+  sharedFiles,
   slackChannel,
   slackDm,
   SlackFormatError,
@@ -544,7 +545,8 @@ class SlackImport {
         // the disk, which a transaction must not.
         const files = new Map<SlackMessage, { stored: StoredFile[]; lines: string[] }>();
         for (const message of batch)
-          if (message.files?.length) files.set(message, await this.prepareFiles(message.files));
+          if (sharedFiles(message).length)
+            files.set(message, await this.prepareFiles(sharedFiles(message), message.text ?? ""));
         written += this.store.transaction(() => {
           let n = 0;
           for (const message of batch)
@@ -572,7 +574,7 @@ class SlackImport {
   }
 
   private author(message: SlackMessage): ID | null {
-    const userId = message.user ?? null;
+    const userId = message.user ?? message.comment?.user ?? null;
     if (userId && this.people.has(userId)) return this.people.get(userId)!;
     if (message.subtype === "bot_message" || message.bot_id || userId === SLACKBOT) {
       const name =
@@ -588,6 +590,7 @@ class SlackImport {
 
   private async prepareFiles(
     files: SlackFile[],
+    text: string,
   ): Promise<{ stored: StoredFile[]; lines: string[] }> {
     const stored: StoredFile[] = [];
     const lines: string[] = [];
@@ -622,6 +625,8 @@ class SlackImport {
       if (!this.opts.fetchFiles && !file.is_external && !file.export_path)
         this.skip("files left as their names (run again with --fetch-files to bring them)");
       else if (file.is_external) this.skip("files kept elsewhere, left as links");
+      // Older exports' words already say "uploaded a file: <link|name>".
+      if (file.permalink && text.includes(file.permalink)) continue;
       const link = file.is_external && file.url_private ? `<${file.url_private}|${name}>` : name;
       lines.push(`File: ${link}`);
     }

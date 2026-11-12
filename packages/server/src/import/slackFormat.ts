@@ -25,6 +25,10 @@ const slackTime = z.union([z.string(), z.number()]).transform((value, ctx) => {
 });
 
 const words = z.string().nullish();
+/** Seconds since 1970. Older exports (2015 and 2016) write them as text. */
+const seconds = z
+  .union([z.number(), z.string().regex(/^\d+$/, "is not a number of seconds")])
+  .transform(Number);
 const flag = z.boolean().nullish();
 const textField = z.object({ value: words }).nullish();
 
@@ -45,13 +49,13 @@ export const slackUser = z.object({
 });
 export type SlackUser = z.infer<typeof slackUser>;
 
-const slackPin = z.object({ id: slackTime, user: words, created: z.number().nullish() });
+const slackPin = z.object({ id: slackTime, user: words, created: seconds.nullish() });
 
 /** An entry of channels.json, groups.json or mpims.json. */
 export const slackChannel = z.object({
   id: z.string().min(1),
   name: z.string().min(1),
-  created: z.number().nullish(),
+  created: seconds.nullish(),
   creator: words,
   is_archived: flag,
   members: z.array(z.string()).nullish(),
@@ -64,7 +68,7 @@ export type SlackChannel = z.infer<typeof slackChannel>;
 /** An entry of dms.json, whose folder is named after its id. */
 export const slackDm = z.object({
   id: z.string().min(1),
-  created: z.number().nullish(),
+  created: seconds.nullish(),
   members: z.array(z.string()),
 });
 export type SlackDm = z.infer<typeof slackDm>;
@@ -75,12 +79,13 @@ export const slackFile = z.object({
   title: words,
   mimetype: words,
   size: z.number().nullish(),
-  created: z.number().nullish(),
+  created: seconds.nullish(),
   /** "tombstone" for a deleted file, "hidden_by_limit" for one past a free plan's limit. */
   mode: words,
   is_external: flag,
   url_private: words,
   url_private_download: words,
+  permalink: words,
   /**
    * Not Slack's: where an export written by this app keeps the file's bytes,
    * inside the same zip. Slack's own export holds links instead.
@@ -105,6 +110,10 @@ export const slackMessage = z.object({
     .array(z.object({ name: z.string(), users: z.array(z.string()).nullish() }))
     .nullish(),
   files: z.array(slackFile).nullish(),
+  /** How exports before 2017 or so give a shared file: one, not a list. */
+  file: slackFile.nullish(),
+  /** A comment on a file, in older exports; its author is here rather than in `user`. */
+  comment: z.object({ user: words }).nullish(),
   pinned_to: z.array(z.string()).nullish(),
   /** What older bots post instead of text: each attachment's own words. */
   attachments: z
@@ -112,6 +121,16 @@ export const slackMessage = z.object({
     .nullish(),
 });
 export type SlackMessage = z.infer<typeof slackMessage>;
+
+/**
+ * The files a message shares: its list, or the one file an older export
+ * gives. A comment on a file or a mention of one carries that file again,
+ * which was shared already, so it shares none.
+ */
+export function sharedFiles(message: SlackMessage): SlackFile[] {
+  if (message.subtype === "file_comment" || message.subtype === "file_mention") return [];
+  return message.files ?? (message.file ? [message.file] : []);
+}
 
 /** Something in the export that is not what Slack writes, named by file and field. */
 export class SlackFormatError extends Error {}
