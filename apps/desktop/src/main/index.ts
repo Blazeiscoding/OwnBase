@@ -35,6 +35,7 @@ import {
   type DesktopCapabilities,
   type DiscoveredServer,
   type UpdateMode,
+  type WindowQuestion,
 } from "@ownbase/protocol/desktop";
 import type { OutboxChanges } from "@ownbase/client-core/outbox";
 import type { DraftChanges } from "@ownbase/client-core/drafts";
@@ -88,6 +89,7 @@ import { contextMenuItems } from "./contextMenu.js";
 import { appMenuTemplate } from "./appMenu.js";
 import { readerLocale, systemHourCycle } from "./regionalFormat.js";
 import { DOWNLOAD_PAGE, HOUR_MS, Updates } from "./updates.js";
+import { WindowQuestions } from "./windowQuestions.js";
 import { latestRelease, updateLog, windowsFeed } from "./updateFeed.js";
 
 /** Set when the Release workflow built this copy (electron.vite.config.ts). */
@@ -252,22 +254,25 @@ async function prepareLocalWrites(win: BrowserWindow | null, forQuit: boolean): 
         win.setEnabled(true);
         if (!isTest) win.show();
       }
-      const choice = await dialog.showMessageBox({
-        type: "warning",
-        title: "Some of your writing is not saved",
-        message: "Keep OwnBase open so you can copy what you wrote?",
-        detail:
-          "OwnBase could not save some drafts or messages waiting to send. Retry saving, or keep the window open and copy your words. If you leave without saving, that writing may be lost.",
-        buttons: [
-          "Retry saving",
-          "Keep open to copy",
-          forQuit ? "Quit without saving" : "Close without saving",
-        ],
-        defaultId: 1,
-        cancelId: 1,
-      });
-      if (choice.response === 1) return false;
-      if (choice.response === 2) return true;
+      const KEEP = 0;
+      const LEAVE = 1;
+      const choice = await askInWindow(
+        {
+          title: "Keep OwnBase open so you can copy what you wrote?",
+          detail:
+            "OwnBase could not save some drafts or messages waiting to send. Retry saving, or keep the window open and copy your words. If you leave without saving, that writing may be lost.",
+          buttons: [
+            { label: "Keep open to copy", tone: "quiet" },
+            { label: forQuit ? "Quit without saving" : "Close without saving", tone: "danger" },
+            { label: "Retry saving", tone: "primary" },
+          ],
+          cancel: KEEP,
+          focus: KEEP,
+        },
+        { type: "warning", title: "Some of your writing is not saved" },
+      );
+      if (choice === KEEP) return false;
+      if (choice === LEAVE) return true;
     }
   }
 }
@@ -656,6 +661,8 @@ const handlers: Handlers<IpcMainInvokeEvent> = {
   "updates:reportCall": (_event, on) => {
     updates.reportCall(on === true);
   },
+  "window:questionShown": (_event, id) => windowQuestions.shown(id),
+  "window:answerQuestion": (_event, id, index) => windowQuestions.answer(id, index),
   "updates:openDownloadPage": async () => {
     await shell.openExternal(DOWNLOAD_PAGE);
   },
@@ -685,18 +692,78 @@ function showMainWindow(): BrowserWindow | null {
   return win;
 }
 
-async function confirmStopAndQuit(): Promise<boolean> {
-  const choice = await dialog.showMessageBox({
-    type: "question",
-    title: "Stop hosting and quit?",
-    message: "Quit OwnBase and stop the hosted workspace?",
-    detail:
-      "Teammates lose their connection until you start hosting again. Messages and files stay on this computer.",
-    buttons: ["Cancel", "Stop hosting and quit"],
-    defaultId: 0,
-    cancelId: 0,
+/**
+ * The window, shown and taking clicks, when its page can answer a question;
+ * null when there is no page that answers (none yet, or one that went).
+ */
+function windowForQuestion(): BrowserWindow | null {
+  const win = mainWindow;
+  if (!app.isReady() || !win || win.isDestroyed() || !rendererReady) return null;
+  if (appRecipients(win, trustedRenderer).length === 0) return null;
+  if (win.isMinimized()) win.restore();
+  win.setEnabled(true);
+  if (!isTest) win.show();
+  win.focus();
+  return win;
+}
+
+const windowQuestions = new WindowQuestions({
+  send: (asked) => {
+    if (!windowForQuestion()) return false;
+    push("window:ask", asked);
+    return true;
+  },
+  withdraw: (id) => push("window:withdrawQuestion", id),
+});
+
+/**
+ * Asks in the window's own dialog, and in a native box only when no page
+ * can: before it has loaded, or after it stopped working. Resolves to the
+ * index of the button chosen.
+ */
+async function askInWindow(
+  question: WindowQuestion,
+  native: { type: "question" | "warning" | "error"; title: string },
+): Promise<number> {
+  const answer = await windowQuestions.ask(question);
+  if (answer !== null) return answer;
+  const { response } = await dialog.showMessageBox({
+    type: native.type,
+    title: native.title,
+    message: question.title,
+    ...(question.detail ? { detail: question.detail } : {}),
+    buttons: question.buttons.map((button) => button.label),
+    defaultId: question.focus,
+    cancelId: question.cancel,
   });
-  return choice.response === 1;
+  return response;
+}
+
+/** Says something went wrong in the window's notices, or in a native box when no page can. */
+async function noticeInWindow(message: string): Promise<void> {
+  if (windowForQuestion()) {
+    push("window:notice", message);
+    return;
+  }
+  await dialog.showMessageBox({ type: "error", message });
+}
+
+async function confirmStopAndQuit(): Promise<boolean> {
+  const choice = await askInWindow(
+    {
+      title: "Quit OwnBase and stop the hosted workspace?",
+      detail:
+        "Teammates lose their connection until you start hosting again. Messages and files stay on this computer.",
+      buttons: [
+        { label: "Cancel", tone: "quiet" },
+        { label: "Stop hosting and quit", tone: "danger" },
+      ],
+      cancel: 0,
+      focus: 0,
+    },
+    { type: "question", title: "Stop hosting and quit?" },
+  );
+  return choice === 1;
 }
 
 // The tray's label already says hosting stops, so it does not ask first.
@@ -705,10 +772,9 @@ async function stopFromTray(): Promise<void> {
     await hosting.stop();
   } catch {
     showMainWindow();
-    await dialog.showMessageBox({
-      type: "error",
-      message: "OwnBase could not stop the workspace. Open Manage hosting and try again.",
-    });
+    await noticeInWindow(
+      "OwnBase could not stop the workspace. Open Manage hosting and try again.",
+    );
   }
 }
 
@@ -898,9 +964,13 @@ function createWindow(): void {
     if (isMainFrame && !isInPlace) {
       rendererReady = false;
       microphones.closeOwner(contentsId);
+      windowQuestions.windowGone();
     }
   });
-  win.webContents.on("render-process-gone", () => microphones.closeOwner(contentsId));
+  win.webContents.on("render-process-gone", () => {
+    microphones.closeOwner(contentsId);
+    windowQuestions.windowGone();
+  });
   win.on("close", (event) => {
     if (placeTimer) savePlace();
     if (quitReady || closeAllowed) return;
@@ -931,6 +1001,7 @@ function createWindow(): void {
     if (placeTimer) clearTimeout(placeTimer);
     if (saveWindowPlaceNow === savePlace) saveWindowPlaceNow = null;
     microphones.closeOwner(contentsId);
+    windowQuestions.windowGone();
     if (mainWindow === win) {
       mainWindow = null;
       rendererReady = false;
@@ -1205,17 +1276,21 @@ function quitOwnBase(stopConfirmed: boolean, finish: () => void = () => app.quit
     finish();
   })()
     .catch(async () => {
-      const choice = await dialog.showMessageBox({
-        type: "error",
-        title: "The workspace could not finish stopping",
-        message: "Keep OwnBase open, or quit without waiting for the remaining work?",
-        detail:
-          "If you quit anyway, OwnBase closes at once and may lose changes it has not saved yet. Nothing already saved in the workspace is deleted.",
-        buttons: ["Keep open", "Quit anyway"],
-        defaultId: 0,
-        cancelId: 0,
-      });
-      if (choice.response === 1) {
+      const choice = await askInWindow(
+        {
+          title: "Keep OwnBase open, or quit without waiting for the remaining work?",
+          detail:
+            "If you quit anyway, OwnBase closes at once and may lose changes it has not saved yet. Nothing already saved in the workspace is deleted.",
+          buttons: [
+            { label: "Keep open", tone: "quiet" },
+            { label: "Quit anyway", tone: "danger" },
+          ],
+          cancel: 0,
+          focus: 0,
+        },
+        { type: "error", title: "The workspace could not finish stopping" },
+      );
+      if (choice === 1) {
         tray?.destroy();
         // Only the user's explicit response to a failed shutdown may bypass draining.
         app.exit(1);

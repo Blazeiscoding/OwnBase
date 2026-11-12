@@ -437,6 +437,27 @@ export interface UpdateStatus {
   offer: boolean;
 }
 
+/**
+ * A question the main process asks in the window's own dialog rather than a
+ * native box: stopping hosting to quit, writing that could not be saved, a
+ * workspace that could not finish stopping.
+ */
+export interface WindowQuestion {
+  title: string;
+  detail?: string;
+  /** In the order they read; `tone` marks the one that goes ahead, and one that takes something away. */
+  buttons: { label: string; tone: "primary" | "quiet" | "danger" }[];
+  /** The button Escape and closing choose. */
+  cancel: number;
+  /** The button focus starts on. */
+  focus: number;
+}
+
+/** A `WindowQuestion` as the window is handed it, numbered for its answer. */
+export interface AskedQuestion extends WindowQuestion {
+  id: number;
+}
+
 /** What the window asks, in its own dialog, before a restart disconnects people. */
 export interface RestartQuestion {
   title: string;

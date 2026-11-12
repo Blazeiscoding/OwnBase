@@ -29,6 +29,7 @@ import { ErrorBoundary } from "./components/ErrorBoundary.js";
 import { ConfirmProvider } from "./components/Confirm.js";
 import { ToastProvider } from "./components/Toast.js";
 import { TrayRestart } from "./components/Updates.js";
+import { WindowDialogs } from "./components/WindowDialogs.js";
 import {
   changeSavedServers,
   parseSavedServers,
@@ -499,6 +500,7 @@ export function App({ platform }: { platform: Platform }) {
       <Appearance />
       <AppBoundary>
         <TrayRestart />
+        <WindowDialogs />
         <div className="flex h-full flex-col">
           {platform.kind === "desktop" &&
             (saveErrorAbove || session.view === "loading" || session.view === "restore_failed") && (

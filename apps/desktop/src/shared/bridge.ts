@@ -6,6 +6,7 @@
  * is typed from the same declarations.
  */
 import type {
+  AskedQuestion,
   DesktopCapabilities,
   DesktopFailure,
   DesktopHosting,
@@ -72,6 +73,8 @@ export interface Calls extends HostingCalls, UpdateCalls {
   "microphone:list": () => SystemMicrophones;
   "microphone:open": (id: string) => OpenedMicrophone;
   "microphone:close": (session: number) => void;
+  "window:questionShown": (id: number) => void;
+  "window:answerQuestion": (id: number, index: number) => void;
 }
 
 export interface Events {
@@ -80,6 +83,12 @@ export interface Events {
   deeplink: string;
   "window:prepareClose": number;
   "updates:changed": UpdateStatus;
+  /** A question for the window's own dialog, in place of a native box. */
+  "window:ask": AskedQuestion;
+  /** A question taken back: answered in a native box after all. */
+  "window:withdrawQuestion": number;
+  /** Something that went wrong away from the window, for it to say. */
+  "window:notice": string;
   /** The tray's "Restart to update", for the window to ask or explain. */
   "updates:restartAsked": null;
 }
@@ -164,6 +173,8 @@ const CALL_LIST = {
   "updates:later": true,
   "updates:reportCall": true,
   "updates:openDownloadPage": true,
+  "window:questionShown": true,
+  "window:answerQuestion": true,
 } satisfies Record<Channel, boolean>;
 
 const EVENT_LIST = {
@@ -173,6 +184,9 @@ const EVENT_LIST = {
   "window:prepareClose": true,
   "updates:changed": true,
   "updates:restartAsked": true,
+  "window:ask": true,
+  "window:withdrawQuestion": true,
+  "window:notice": true,
 } satisfies Record<EventName, true>;
 
 export const CHANNELS = Object.keys(CALL_LIST) as Channel[];
