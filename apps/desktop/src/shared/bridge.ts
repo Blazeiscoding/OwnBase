@@ -9,10 +9,12 @@ import type {
   DesktopCapabilities,
   DesktopFailure,
   DesktopHosting,
+  DesktopUpdates,
   DiscoveredServer,
   HostingStatus,
   ShareableSource,
   SystemMicrophones,
+  UpdateStatus,
 } from "@ownbase/protocol/desktop";
 import type { DraftChanges } from "@ownbase/client-core/drafts";
 import type { OutboxChanges, StoredOutbox } from "@ownbase/client-core/outbox";
@@ -42,7 +44,10 @@ type Merged<U> = (U extends unknown ? (each: U) => void : never) extends (all: i
 /** The hosting calls, declared once in protocol's `DesktopHosting`. */
 export type HostingCalls = Merged<ChannelsOf<DesktopHosting, "hosting">>;
 
-export interface Calls extends HostingCalls {
+/** The update calls, declared once in protocol's `DesktopUpdates`. */
+export type UpdateCalls = Merged<ChannelsOf<DesktopUpdates, "updates">>;
+
+export interface Calls extends HostingCalls, UpdateCalls {
   "file:download": (url: string) => void;
   "storage:get": (key: string, options?: { strict?: boolean }) => unknown;
   "storage:set": (key: string, value: unknown) => void;
@@ -74,6 +79,7 @@ export interface Events {
   "hosting:changed": HostingStatus;
   deeplink: string;
   "window:prepareClose": number;
+  "updates:changed": UpdateStatus;
 }
 
 export type Channel = keyof Calls;
@@ -148,6 +154,13 @@ const CALL_LIST = {
   "hosting:relay:test": false,
   "hosting:openAtLogin:get": true,
   "hosting:openAtLogin:set": false,
+  "updates:status": true,
+  "updates:setAutomatic": true,
+  "updates:check": false,
+  "updates:restart": false,
+  "updates:later": true,
+  "updates:reportCall": true,
+  "updates:openDownloadPage": true,
 } satisfies Record<Channel, boolean>;
 
 const EVENT_LIST = {
@@ -155,6 +168,7 @@ const EVENT_LIST = {
   "hosting:changed": true,
   deeplink: true,
   "window:prepareClose": true,
+  "updates:changed": true,
 } satisfies Record<EventName, true>;
 
 export const CHANNELS = Object.keys(CALL_LIST) as Channel[];
@@ -187,6 +201,7 @@ export function readCapabilities(argv: readonly string[]): DesktopCapabilities {
     screenSound: false,
     systemMicrophone: false,
     openAtLogin: false,
+    updates: "none",
   };
   const arg = argv.find((value) => value.startsWith(CAPABILITIES_ARG));
   if (!arg) return none;
@@ -197,6 +212,7 @@ export function readCapabilities(argv: readonly string[]): DesktopCapabilities {
       screenSound: read.screenSound === true,
       systemMicrophone: read.systemMicrophone === true,
       openAtLogin: read.openAtLogin === true,
+      updates: read.updates === "install" || read.updates === "notify" ? read.updates : "none",
     };
   } catch {
     return none;

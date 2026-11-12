@@ -8,7 +8,12 @@ import { ARTIFACTS, buildIdentity } from "../../scripts/build-identity.mjs";
 // Which source this build is (IMP-08): the hosted server and the window both
 // report it, and out/build.json goes into the package for tests to check.
 const identity = buildIdentity(ARTIFACTS.desktop.inputs);
-const define = { __OWNBASE_BUILD__: JSON.stringify(identity) };
+const define = {
+  __OWNBASE_BUILD__: JSON.stringify(identity),
+  // The Release workflow names the version it builds (scripts/build-identity.mjs);
+  // only such a build looks for new versions of itself.
+  __OWNBASE_RELEASE__: JSON.stringify(!!process.env.OWNBASE_VERSION),
+};
 
 export default defineConfig({
   main: {
