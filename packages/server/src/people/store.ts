@@ -195,9 +195,11 @@ export class PeopleStore {
     passwordHash: string;
     salt: string;
     role: Role;
+    /** When the account was made somewhere else, for people brought in from another app. */
+    createdAt?: number;
   }): User {
-    const id = ulid();
-    const now = Date.now();
+    const now = input.createdAt ?? Date.now();
+    const id = ulid(now);
     this.db
       .prepare(
         `INSERT INTO users (id, handle, display_name, password_hash, salt, role, created_at)

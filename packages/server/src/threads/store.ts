@@ -238,6 +238,18 @@ export class ThreadStore {
   }
 
   /**
+   * Reads every thread up to `seq` for everyone following one, for history
+   * brought in from another app: what was said there was read there.
+   */
+  readAll(seq: number): void {
+    this.db
+      .prepare(
+        "UPDATE thread_follows SET last_read_seq = MAX(last_read_seq, ?), unread_hold = NULL",
+      )
+      .run(seq);
+  }
+
+  /**
    * Leaves the root or a reply and everything after it unread. Marking a
    * thread unread is a statement of intent to come back, so it follows it too,
    * ending a mute.

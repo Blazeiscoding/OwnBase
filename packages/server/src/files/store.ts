@@ -59,6 +59,8 @@ export class FileStore {
     size: number;
     width: number | null;
     height: number | null;
+    /** When it was shared somewhere else, for a file brought in from another app. */
+    createdAt?: number;
   }): FileMeta {
     const id = input.id ?? ulid();
     this.db
@@ -75,7 +77,7 @@ export class FileStore {
         input.size,
         input.width,
         input.height,
-        Date.now(),
+        input.createdAt ?? Date.now(),
       );
     return {
       id,
