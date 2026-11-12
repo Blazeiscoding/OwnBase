@@ -84,6 +84,8 @@ describe("committed file cleanup", () => {
     expect(readFileSync(item.path, "utf8")).toBe("original attachment");
     expect(server.store.files.pendingDeletions()).toEqual([]);
     expect((await request(`/api/messages/${item.message.id}`, "DELETE")).status).toBe(200);
+    // The removal's cleanup runs once the change commits, beside the answer.
+    await server.flushFileDeletions();
     expect(existsSync(item.path)).toBe(false);
     expect(server.store.files.pendingDeletions()).toEqual([]);
   });
