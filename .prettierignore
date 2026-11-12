@@ -7,6 +7,7 @@ docs/PROJECT-VISUALIZER.html
 # Written by scripts/generate-emoji.mjs, which checks they are what it writes.
 packages/ui/src/lib/emojiData.json
 packages/ui/src/emoji.css
+packages/server/src/import/slackEmoji.json
 
 # Written by scripts/generate-palette.mjs; packages/ui/test/theme.test.ts checks
 # it is what that writes.

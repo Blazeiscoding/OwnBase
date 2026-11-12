@@ -10,6 +10,8 @@
 //     not need
 //   packages/ui/fonts/OFL.txt  the font's license, which travels with it
 //   packages/ui/src/emoji.css  the face that loads the font
+//   packages/server/src/import/slackEmoji.json  Slack's reaction names and
+//     the emoji each stands for, for bringing in a Slack export
 //
 // Run it again after changing the version of either package. With --check it
 // writes nothing and fails if a file is not what it would write.
@@ -98,6 +100,46 @@ export function emojiData() {
   });
   lines.push("  ],", `  "aliases": ${JSON.stringify(aliases)}`, "}", "");
   return lines.join("\n");
+}
+
+/**
+ * Each name Slack gives a reaction and the emoji it stands for: every
+ * shortcode, then every other name such as thumbsup for +1, and the skin
+ * tones of those that have them, skin-tone-2 to skin-tone-6 in that order.
+ * The server reads it to bring reactions in from a Slack export and to name
+ * them in one it writes, without the picker's table and its keywords.
+ */
+export function slackEmoji() {
+  const data = JSON.parse(emojiData());
+  const names = [];
+  const tones = [];
+  for (const [, , rows] of data.categories)
+    for (const [plain, id, , , skins] of rows) {
+      names.push([id, plain]);
+      if (skins) tones.push([id, skins]);
+    }
+  const byId = new Map(names);
+  const tonesById = new Map(tones);
+  for (const [alias, id] of Object.entries(data.aliases)) {
+    names.push([alias, byId.get(id)]);
+    if (tonesById.has(id)) tones.push([alias, tonesById.get(id)]);
+  }
+  const block = (entries) =>
+    entries.map(([key, value], i) => {
+      const comma = i === entries.length - 1 ? "" : ",";
+      return `    ${JSON.stringify(key)}: ${JSON.stringify(value)}${comma}`;
+    });
+  return [
+    "{",
+    '  "names": {',
+    ...block(names),
+    "  },",
+    '  "tones": {',
+    ...block(tones),
+    "  }",
+    "}",
+    "",
+  ].join("\n");
 }
 
 const fontPackage = () => dirname(installed.resolve("@fontsource/noto-color-emoji/package.json"));
@@ -275,6 +317,7 @@ const text = (write) => ({
 export const OUTPUTS = {
   "packages/ui/src/lib/emojiData.json": text(emojiData),
   "packages/ui/src/emoji.css": text(emojiCss),
+  "packages/server/src/import/slackEmoji.json": text(slackEmoji),
   "packages/ui/fonts/OFL.txt": text(() =>
     readFileSync(join(fontPackage(), "LICENSE"), "utf8").replace(/\r\n/g, "\n"),
   ),
