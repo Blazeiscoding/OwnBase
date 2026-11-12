@@ -1228,17 +1228,17 @@ Task Manager shows as Memory.
 
 | Stage                                        | Memory  |
 | -------------------------------------------- | ------- |
-| Welcome screen                               | 115 MiB |
+| Welcome screen                               | 118 MiB |
 | Workspace, just opened                       | 158 MiB |
-| Workspace, after reading back a long channel | 224 MiB |
-| Huddle of four, sound only                   | 256 MiB |
-| Huddle of four, every camera on              | 281 MiB |
-| Huddle of four, cameras off again            | 273 MiB |
-| After leaving                                | 246 MiB |
+| Workspace, after reading back a long channel | 203 MiB |
+| Huddle of four, sound only                   | 237 MiB |
+| Huddle of four, every camera on              | 268 MiB |
+| Huddle of four, cameras off again            | 254 MiB |
+| After leaving                                | 228 MiB |
 
-Before the three changes below, the same run read 281 MiB with sound only,
-337 MiB once the cameras were off again, and 286 MiB after leaving. Each was
-found with that script:
+Before the four changes below, the same run read 232 MiB after reading back
+the channel, 281 MiB with sound only, 337 MiB once the cameras were off again,
+and 286 MiB after leaving. Each was found with that script:
 
 - A camera or share that sends someone nothing is set to an eighth of its
   size as well as stopped. The browser keeps a video encoder for every other
@@ -1250,6 +1250,14 @@ found with that script:
   second copy of each that this leaves cost 14 MiB for a full history.
 - Pictures no longer on screen stay held up to 8 MiB, not 32. They are held
   in the app's main process, which is where the rest went.
+- A message's toolbar is made only while the pointer is on the message or
+  focus is in it. Its nine buttons and six icons were two thirds of every row,
+  for all 300 of a long conversation: 22 MiB.
+
+Most of what is left is not the conversation's. In a call with every camera
+on, the app's main process, the graphics process and the sound, camera and
+network services hold about 133 MiB between them before the page holds
+anything, and the page holds 52 MiB with a workspace just opened.
 
 To measure a build of your own, on Windows:
 

@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { act, render, screen, within } from "@testing-library/react";
+import { act, fireEvent, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { WorkspaceClient } from "@ownbase/client-core";
 import type { Channel, Message, User } from "@ownbase/protocol";
@@ -9,6 +9,7 @@ import { MessageItem } from "../src/components/MessageItem.js";
 import { ConfirmProvider } from "../src/components/Confirm.js";
 import { ToastProvider } from "../src/components/Toast.js";
 import { accessibilityProblems } from "./accessibility.js";
+import { pointAtMessage } from "./pointAt.js";
 
 const platform: Platform = {
   kind: "web",
@@ -168,8 +169,25 @@ describe("a message's menu", () => {
 });
 
 describe("a message's toolbar", () => {
+  it("is made only for the message the pointer is on or focus is in", () => {
+    messageFrom(sam, sam);
+    const reply = () => screen.queryByRole("button", { name: "Reply in thread" });
+    // Nine buttons and six icons a row, for rows nobody is pointing at, was
+    // two thirds of what a long conversation held.
+    expect(reply()).toBeNull();
+    const row = pointAtMessage();
+    expect(reply()).toBeInTheDocument();
+    fireEvent.pointerLeave(row);
+    expect(reply()).toBeNull();
+    act(() => row.focus());
+    expect(reply()).toBeInTheDocument();
+    act(() => row.blur());
+    expect(reply()).toBeNull();
+  });
+
   it("marks every button whose icon can move, so pointing at it plays the motion", () => {
     messageFrom(sam, sam);
+    pointAtMessage();
     const toolbar = screen.getByRole("button", { name: "Reply in thread" }).parentElement!;
     const icons = [...toolbar.querySelectorAll<SVGElement>("svg[data-icon]")];
     expect(icons.map((icon) => icon.dataset.icon)).toEqual([
@@ -185,6 +203,7 @@ describe("a message's toolbar", () => {
 
   it("gives a saved message's bookmark the accent colour and no other", () => {
     const { client } = messageFrom(sam, sam);
+    pointAtMessage();
     const colours = (name: string) =>
       screen
         .getByRole("button", { name })
@@ -213,6 +232,7 @@ describe("adding a reaction", () => {
 
   it("opens from the toolbar too, and says when nothing matches", async () => {
     const { react, user } = messageFrom(sam, sam);
+    pointAtMessage();
     await user.click(screen.getByRole("button", { name: "Add a reaction" }));
     const picker = await screen.findByRole("dialog", { name: "Add a reaction" });
     const search = within(picker).getByRole("combobox", { name: "Search emoji" });

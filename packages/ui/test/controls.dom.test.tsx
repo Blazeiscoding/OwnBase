@@ -14,6 +14,7 @@ import { ConfirmProvider } from "../src/components/Confirm.js";
 import { ToastProvider } from "../src/components/Toast.js";
 import { renderPart } from "./workspaceParts.js";
 import { accessibilityProblems } from "./accessibility.js";
+import { pointAtMessage } from "./pointAt.js";
 
 /** Where call preferences are kept, as in the app. */
 const platform = webPlatform();
@@ -261,6 +262,7 @@ describe("the huddle bar", () => {
 
 /** Chooses one of a message's less frequent actions, from its More actions menu. */
 async function choose(user: ReturnType<typeof userEvent.setup>, name: string) {
+  pointAtMessage();
   await user.click(screen.getAllByRole("button", { name: "More actions" })[0]!);
   await user.click(screen.getByRole("menuitem", { name }));
 }
@@ -308,6 +310,7 @@ describe("message actions", () => {
 
   it("names every action, since each one shows only an icon", async () => {
     messageItem();
+    pointAtMessage();
     const profile = screen.getByRole("button", { name: "View Sam Rivera's profile" });
     expect(profile).not.toHaveAttribute("title");
     act(() => profile.focus());
@@ -403,6 +406,7 @@ describe("message actions", () => {
     expect(await screen.findByRole("alert")).toHaveTextContent(
       /Could not tell if the message was deleted/,
     );
+    pointAtMessage();
     await user.click(screen.getByRole("button", { name: "More actions" }));
     expect(screen.getByRole("menuitem", { name: "Delete message" })).toBeEnabled();
   });
