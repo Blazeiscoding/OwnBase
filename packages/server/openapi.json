@@ -135,7 +135,8 @@
         "tags": [
           "health"
         ],
-        "description": "Anyone may call this, signed in or not.",
+        "summary": "Whether the server is up and its database answers.",
+        "description": "Whether the server is up and its database answers. `instanceId` is new each time the server starts, so a host can tell its own server from another one on the same port.\n\nAnyone may call this, signed in or not.",
         "x-access": "anyone",
         "security": [],
         "responses": {
@@ -154,7 +155,8 @@
         "tags": [
           "rtc-config"
         ],
-        "description": "Needs a signed-in account. Guests may call it too.",
+        "summary": "The STUN and TURN servers calls connect through.",
+        "description": "The STUN and TURN servers calls connect through. A TURN relay the server shares a secret with gets a password made for the caller, which runs out.\n\nNeeds a signed-in account. Guests may call it too.",
         "x-access": "member",
         "x-guests": true,
         "security": [
@@ -178,7 +180,8 @@
         "tags": [
           "server-info"
         ],
-        "description": "Anyone may call this, signed in or not.",
+        "summary": "What this server is, before anyone signs in: its name, versions, who may join, whether it still needs a claim code, and any other way to sign in.",
+        "description": "What this server is, before anyone signs in: its name, versions, who may join, whether it still needs a claim code, and any other way to sign in.\n\nAnyone may call this, signed in or not.",
         "x-access": "anyone",
         "security": [],
         "responses": {
@@ -228,7 +231,8 @@
         "tags": [
           "auth"
         ],
-        "description": "Anyone may call this, signed in or not.",
+        "summary": "Creates an account with a password and signs it in.",
+        "description": "Creates an account with a password and signs it in. The first account owns the workspace, and needs the claim code unless it is made on the host's own machine. After that, an invite-only workspace needs an invite code.\n\nAnyone may call this, signed in or not.",
         "x-access": "anyone",
         "security": [],
         "requestBody": {
@@ -322,7 +326,8 @@
         "tags": [
           "auth"
         ],
-        "description": "Anyone may call this, signed in or not.",
+        "summary": "Signs in with a handle and password.",
+        "description": "Signs in with a handle and password. An account with two-step sign-in gets a challenge instead of a session, which `two-step` answers.\n\nAnyone may call this, signed in or not.",
         "x-access": "anyone",
         "security": [],
         "requestBody": {
@@ -381,7 +386,8 @@
         "tags": [
           "auth"
         ],
-        "description": "Anyone may call this, signed in or not.",
+        "summary": "Signs out the session the request carries, and closes its live connection.",
+        "description": "Signs out the session the request carries, and closes its live connection.\n\nAnyone may call this, signed in or not.",
         "x-access": "anyone",
         "security": [],
         "responses": {
@@ -638,7 +644,8 @@
         "tags": [
           "auth"
         ],
-        "description": "Needs a signed-in account.",
+        "summary": "Signs out one of this account's devices, by the id `sessions` lists.",
+        "description": "Signs out one of this account's devices, by the id `sessions` lists.\n\nNeeds a signed-in account.",
         "x-access": "member",
         "security": [
           {
@@ -671,7 +678,8 @@
         "tags": [
           "me"
         ],
-        "description": "Needs a signed-in account. Guests may call it too.",
+        "summary": "The signed-in account.",
+        "description": "The signed-in account.\n\nNeeds a signed-in account. Guests may call it too.",
         "x-access": "member",
         "x-guests": true,
         "security": [
@@ -693,7 +701,8 @@
         "tags": [
           "me"
         ],
-        "description": "Needs a signed-in account. Guests may call it too.",
+        "summary": "Changes the signed-in account's display name, status, Do Not Disturb, away and time zone.",
+        "description": "Changes the signed-in account's display name, status, Do Not Disturb, away and time zone. Everyone's devices hear of the change.\n\nNeeds a signed-in account. Guests may call it too.",
         "x-access": "member",
         "x-guests": true,
         "security": [
@@ -829,7 +838,8 @@
         "tags": [
           "users"
         ],
-        "description": "Needs a signed-in account. Guests may call it too.",
+        "summary": "Everyone with an account here, people and bots, by handle.",
+        "description": "Everyone with an account here, people and bots, by handle.\n\nNeeds a signed-in account. Guests may call it too.",
         "x-access": "member",
         "x-guests": true,
         "security": [
@@ -853,7 +863,8 @@
         "tags": [
           "friends"
         ],
-        "description": "Needs a signed-in account. Guests may call it too.",
+        "summary": "This account's friends and friend requests, sent and received, newest first.",
+        "description": "This account's friends and friend requests, sent and received, newest first.\n\nNeeds a signed-in account. Guests may call it too.",
         "x-access": "member",
         "x-guests": true,
         "security": [
@@ -877,7 +888,8 @@
         "tags": [
           "friends"
         ],
-        "description": "Needs a signed-in account.",
+        "summary": "Sends someone a friend request.",
+        "description": "Sends someone a friend request. Bots and guests cannot be asked.\n\nNeeds a signed-in account.",
         "x-access": "member",
         "security": [
           {
@@ -908,7 +920,8 @@
         "tags": [
           "friends"
         ],
-        "description": "Needs a signed-in account.",
+        "summary": "Accepts the friend request this person sent.",
+        "description": "Accepts the friend request this person sent.\n\nNeeds a signed-in account.",
         "x-access": "member",
         "security": [
           {
@@ -939,7 +952,8 @@
         "tags": [
           "friends"
         ],
-        "description": "Needs a signed-in account.",
+        "summary": "Ends a friendship with this person, or a request either of you sent.",
+        "description": "Ends a friendship with this person, or a request either of you sent.\n\nNeeds a signed-in account.",
         "x-access": "member",
         "security": [
           {
@@ -1040,7 +1054,8 @@
         "tags": [
           "channels"
         ],
-        "description": "Needs a signed-in account. Guests may call it too.",
+        "summary": "Every public channel, and the private channels and direct conversations the caller is in, with how many members each room has.",
+        "description": "Every public channel, and the private channels and direct conversations the caller is in, with how many members each room has.\n\nNeeds a signed-in account. Guests may call it too.",
         "x-access": "member",
         "x-guests": true,
         "security": [
@@ -1062,7 +1077,8 @@
         "tags": [
           "channels"
         ],
-        "description": "Needs a signed-in account.",
+        "summary": "Makes a channel or a direct conversation.",
+        "description": "Makes a channel or a direct conversation. A public channel takes in everyone, a private one the people named. Asking for a direct conversation that already exists with the same people returns it.\n\nNeeds a signed-in account.",
         "x-access": "member",
         "security": [
           {
@@ -1095,7 +1111,8 @@
         "tags": [
           "channels"
         ],
-        "description": "Needs a signed-in account.",
+        "summary": "Renames a channel, or changes its topic, description or archived state, for those who manage it.",
+        "description": "Renames a channel, or changes its topic, description or archived state, for those who manage it.\n\nNeeds a signed-in account.",
         "x-access": "member",
         "security": [
           {
@@ -1138,7 +1155,8 @@
         "tags": [
           "channels"
         ],
-        "description": "Needs a signed-in account. Guests may call it too.",
+        "summary": "Joins a public channel that is not archived.",
+        "description": "Joins a public channel that is not archived.\n\nNeeds a signed-in account. Guests may call it too.",
         "x-access": "member",
         "x-guests": true,
         "security": [
@@ -1172,7 +1190,8 @@
         "tags": [
           "channels"
         ],
-        "description": "Needs a signed-in account. Guests may call it too.",
+        "summary": "Leaves a channel or a group conversation.",
+        "description": "Leaves a channel or a group conversation. A two-person conversation cannot be left.\n\nNeeds a signed-in account. Guests may call it too.",
         "x-access": "member",
         "x-guests": true,
         "security": [
@@ -1206,7 +1225,8 @@
         "tags": [
           "channels"
         ],
-        "description": "Needs a signed-in account.",
+        "summary": "Adds someone to a channel.",
+        "description": "Adds someone to a channel. Members may, and admins even from outside it.\n\nNeeds a signed-in account.",
         "x-access": "member",
         "security": [
           {
@@ -1249,7 +1269,8 @@
         "tags": [
           "channels"
         ],
-        "description": "Needs a signed-in account.",
+        "summary": "Takes someone out of a channel, for those who manage it.",
+        "description": "Takes someone out of a channel, for those who manage it. They get a note in Activity, and a public channel stays open for them to join again.\n\nNeeds a signed-in account.",
         "x-access": "member",
         "security": [
           {
@@ -1290,7 +1311,8 @@
         "tags": [
           "channels"
         ],
-        "description": "Needs a signed-in account.",
+        "summary": "Makes a member of a channel one of its managers, or stops them being one.",
+        "description": "Makes a member of a channel one of its managers, or stops them being one.\n\nNeeds a signed-in account.",
         "x-access": "member",
         "security": [
           {
@@ -1341,7 +1363,8 @@
         "tags": [
           "channels"
         ],
-        "description": "Needs a signed-in account. Guests may call it too.",
+        "summary": "The ids of everyone in a conversation the caller can read.",
+        "description": "The ids of everyone in a conversation the caller can read.\n\nNeeds a signed-in account. Guests may call it too.",
         "x-access": "member",
         "x-guests": true,
         "security": [
@@ -1375,7 +1398,8 @@
         "tags": [
           "channels"
         ],
-        "description": "Needs a signed-in account. Guests may call it too.",
+        "summary": "Marks a conversation read up to `seq`, on every device of this account.",
+        "description": "Marks a conversation read up to `seq`, on every device of this account.\n\nNeeds a signed-in account. Guests may call it too.",
         "x-access": "member",
         "x-guests": true,
         "security": [
@@ -1419,7 +1443,8 @@
         "tags": [
           "channels"
         ],
-        "description": "Needs a signed-in account. Guests may call it too.",
+        "summary": "Marks a conversation unread from the message at `seq` onwards.",
+        "description": "Marks a conversation unread from the message at `seq` onwards.\n\nNeeds a signed-in account. Guests may call it too.",
         "x-access": "member",
         "x-guests": true,
         "security": [
@@ -1463,7 +1488,8 @@
         "tags": [
           "channels"
         ],
-        "description": "Needs a signed-in account. Guests may call it too.",
+        "summary": "A page of a thread: its first message, and replies before, after or around one of them, or the newest when no cursor is given.",
+        "description": "A page of a thread: its first message, and replies before, after or around one of them, or the newest when no cursor is given.\n\nNeeds a signed-in account. Guests may call it too.",
         "x-access": "member",
         "x-guests": true,
         "security": [
@@ -1544,7 +1570,8 @@
         "tags": [
           "channels"
         ],
-        "description": "Needs a signed-in account. Guests may call it too.",
+        "summary": "A conversation's messages, newest first, older than `before` when given.",
+        "description": "A conversation's messages, newest first, older than `before` when given. With `threadRootId`, that thread's replies instead.\n\nNeeds a signed-in account. Guests may call it too.",
         "x-access": "member",
         "x-guests": true,
         "security": [
@@ -1604,7 +1631,8 @@
         "tags": [
           "channels"
         ],
-        "description": "Needs a signed-in account. Guests may call it too.",
+        "summary": "Posts a message, a thread reply, a forward or a poll, with any files already uploaded.",
+        "description": "Posts a message, a thread reply, a forward or a poll, with any files already uploaded. Sending the same `nonce` again returns the first message instead of a second one.\n\nNeeds a signed-in account. Guests may call it too.",
         "x-access": "member",
         "x-guests": true,
         "security": [
@@ -1648,7 +1676,8 @@
         "tags": [
           "channels"
         ],
-        "description": "Needs a signed-in account. Guests may call it too.",
+        "summary": "A window of history centred on one message, for a search hit, a pin or a link.",
+        "description": "A window of history centred on one message, for a search hit, a pin or a link. For a reply, the window is centred on its thread's first message.\n\nNeeds a signed-in account. Guests may call it too.",
         "x-access": "member",
         "x-guests": true,
         "security": [
@@ -1832,7 +1861,8 @@
         "tags": [
           "channels"
         ],
-        "description": "Needs a signed-in account. Guests may call it too.",
+        "summary": "The messages after one, newest first, for scrolling back down towards the latest.",
+        "description": "The messages after one, newest first, for scrolling back down towards the latest.\n\nNeeds a signed-in account. Guests may call it too.",
         "x-access": "member",
         "x-guests": true,
         "security": [
@@ -1902,7 +1932,8 @@
         "tags": [
           "messages"
         ],
-        "description": "Needs a signed-in account. Guests may call it too.",
+        "summary": "Changes the words of the caller's own message.",
+        "description": "Changes the words of the caller's own message. `expectedText` is what they started from, so an edit made meanwhile elsewhere is not overwritten. Polls and call notes cannot be changed.\n\nNeeds a signed-in account. Guests may call it too.",
         "x-access": "member",
         "x-guests": true,
         "security": [
@@ -1944,7 +1975,8 @@
         "tags": [
           "messages"
         ],
-        "description": "Needs a signed-in account. Guests may call it too.",
+        "summary": "Deletes a message and its files, the caller's own or, for an admin, anyone's.",
+        "description": "Deletes a message and its files, the caller's own or, for an admin, anyone's. Deleting a thread's first message deletes its replies too.\n\nNeeds a signed-in account. Guests may call it too.",
         "x-access": "member",
         "x-guests": true,
         "security": [
@@ -2091,7 +2123,8 @@
         "tags": [
           "storage"
         ],
-        "description": "Needs a signed-in account.",
+        "summary": "How much room uploads take and have left, and the largest file the server takes.",
+        "description": "How much room uploads take and have left, and the largest file the server takes.\n\nNeeds a signed-in account.",
         "x-access": "member",
         "security": [
           {
@@ -2114,7 +2147,8 @@
         "tags": [
           "channels"
         ],
-        "description": "Needs a signed-in account.",
+        "summary": "Uploads one file to a conversation, for a message sent there to attach by its id.",
+        "description": "Uploads one file to a conversation, for a message sent there to attach by its id. Refused when the workspace has no room left for it.\n\nNeeds a signed-in account.",
         "x-access": "member",
         "security": [
           {
@@ -2256,7 +2290,8 @@
         "tags": [
           "files"
         ],
-        "description": "Needs a signed-in account. Guests may call it too.",
+        "summary": "A one-time ticket for downloading a file by a plain link, which cannot carry the session header.",
+        "description": "A one-time ticket for downloading a file by a plain link, which cannot carry the session header. The link is `GET /api/files/:id?download=<ticket>`.\n\nNeeds a signed-in account. Guests may call it too.",
         "x-access": "member",
         "x-guests": true,
         "security": [
@@ -2290,7 +2325,8 @@
         "tags": [
           "files"
         ],
-        "description": "Needs a signed-in account. Guests may call it too.",
+        "summary": "A file's bytes, for whoever can read its conversation.",
+        "description": "A file's bytes, for whoever can read its conversation. With the session header it opens in place; with `?download=<ticket>` it saves under its name.\n\nNeeds a signed-in account. Guests may call it too.",
         "x-access": "member",
         "x-guests": true,
         "security": [
@@ -2333,7 +2369,8 @@
         "tags": [
           "messages"
         ],
-        "description": "Needs a signed-in account. Guests may call it too.",
+        "summary": "Adds the caller's reaction to a message.",
+        "description": "Adds the caller's reaction to a message. Adding one they already made changes nothing.\n\nNeeds a signed-in account. Guests may call it too.",
         "x-access": "member",
         "x-guests": true,
         "security": [
@@ -2373,7 +2410,8 @@
         "tags": [
           "messages"
         ],
-        "description": "Needs a signed-in account. Guests may call it too.",
+        "summary": "Takes the caller's reaction off a message.",
+        "description": "Takes the caller's reaction off a message.\n\nNeeds a signed-in account. Guests may call it too.",
         "x-access": "member",
         "x-guests": true,
         "security": [
@@ -2518,7 +2556,8 @@
         "tags": [
           "admin"
         ],
-        "description": "Needs the workspace owner.",
+        "summary": "The owner's downloadable copy of the workspace: being made, ready, failed, or none.",
+        "description": "The owner's downloadable copy of the workspace: being made, ready, failed, or none.\n\nNeeds the workspace owner.",
         "x-access": "owner",
         "security": [
           {
@@ -2539,7 +2578,8 @@
         "tags": [
           "admin"
         ],
-        "description": "Needs the workspace owner.",
+        "summary": "Starts making a copy of the whole workspace for the owner to download, after checking the server has the disk space for it.",
+        "description": "Starts making a copy of the whole workspace for the owner to download, after checking the server has the disk space for it. A copy already being made is returned instead of a second one.\n\nNeeds the workspace owner.",
         "x-access": "owner",
         "security": [
           {
@@ -2562,7 +2602,8 @@
         "tags": [
           "admin"
         ],
-        "description": "Needs the workspace owner.",
+        "summary": "A one-time ticket for downloading the ready copy by a plain link.",
+        "description": "A one-time ticket for downloading the ready copy by a plain link.\n\nNeeds the workspace owner.",
         "x-access": "owner",
         "security": [
           {
@@ -2652,7 +2693,8 @@
         "tags": [
           "apps"
         ],
-        "description": "Needs an administrator or the owner.",
+        "summary": "Makes an app with its own bot user.",
+        "description": "Makes an app with its own bot user. The answer holds its `xoxb-` bot token, which is shown this once, and the signing secret.\n\nNeeds an administrator or the owner.",
         "x-access": "admin",
         "security": [
           {
@@ -2683,7 +2725,8 @@
         "tags": [
           "apps"
         ],
-        "description": "Needs an administrator or the owner.",
+        "summary": "Every app, newest first, with its webhooks, commands, event subscriptions and signing secret.",
+        "description": "Every app, newest first, with its webhooks, commands, event subscriptions and signing secret.\n\nNeeds an administrator or the owner.",
         "x-access": "admin",
         "security": [
           {
@@ -2818,7 +2861,8 @@
         "tags": [
           "apps"
         ],
-        "description": "Needs an administrator or the owner.",
+        "summary": "Deletes an app with its tokens, webhooks, commands and event subscriptions.",
+        "description": "Deletes an app with its tokens, webhooks, commands and event subscriptions. What its bot posted stays.\n\nNeeds an administrator or the owner.",
         "x-access": "admin",
         "security": [
           {
@@ -2851,7 +2895,8 @@
         "tags": [
           "apps"
         ],
-        "description": "Needs an administrator or the owner.",
+        "summary": "Makes an incoming webhook that posts to one channel as the app's bot, and adds the bot to that channel.",
+        "description": "Makes an incoming webhook that posts to one channel as the app's bot, and adds the bot to that channel. The URL is shown this once.\n\nNeeds an administrator or the owner.",
         "x-access": "admin",
         "security": [
           {
@@ -2928,7 +2973,8 @@
         "tags": [
           "webhooks"
         ],
-        "description": "Needs an administrator or the owner.",
+        "summary": "Deletes an incoming webhook.",
+        "description": "Deletes an incoming webhook. Its URL stops working at once.\n\nNeeds an administrator or the owner.",
         "x-access": "admin",
         "security": [
           {
@@ -3059,7 +3105,8 @@
         "tags": [
           "apps"
         ],
-        "description": "Needs an administrator or the owner.",
+        "summary": "Gives an app a slash command, posted to its URL when someone types it.",
+        "description": "Gives an app a slash command, posted to its URL when someone types it. A name already taken, or built in, is refused.\n\nNeeds an administrator or the owner.",
         "x-access": "admin",
         "security": [
           {
@@ -3102,7 +3149,8 @@
         "tags": [
           "commands"
         ],
-        "description": "Needs an administrator or the owner.",
+        "summary": "Removes an app's slash command.",
+        "description": "Removes an app's slash command.\n\nNeeds an administrator or the owner.",
         "x-access": "admin",
         "security": [
           {
@@ -3299,7 +3347,8 @@
         "tags": [
           "admin"
         ],
-        "description": "Needs an administrator or the owner.",
+        "summary": "Everyone with an account, for an admin who has to run this workspace: what they can do, when they were last seen, and whether they use two-step sign-in.",
+        "description": "Everyone with an account, for an admin who has to run this workspace: what they can do, when they were last seen, and whether they use two-step sign-in. Bots are in the list because a forgotten bot is exactly the account worth noticing.\n\nNeeds an administrator or the owner.",
         "x-access": "admin",
         "security": [
           {
@@ -3638,7 +3687,8 @@
         "tags": [
           "admin"
         ],
-        "description": "Needs an administrator or the owner.",
+        "summary": "Sets the workspace's icon, for the owner and admins, sent whole as the image itself.",
+        "description": "Sets the workspace's icon, for the owner and admins, sent whole as the image itself. The answer is its new version.\n\nNeeds an administrator or the owner.",
         "x-access": "admin",
         "security": [
           {
@@ -4008,7 +4058,8 @@
         "tags": [
           "apps"
         ],
-        "description": "Needs an administrator or the owner.",
+        "summary": "Sends an app's events to a URL, once the URL has echoed Slack's `url_verification` challenge.",
+        "description": "Sends an app's events to a URL, once the URL has echoed Slack's `url_verification` challenge. Without event types it gets every kind.\n\nNeeds an administrator or the owner.",
         "x-access": "admin",
         "security": [
           {
@@ -4051,7 +4102,8 @@
         "tags": [
           "subscriptions"
         ],
-        "description": "Needs an administrator or the owner.",
+        "summary": "Removes an event subscription, so its URL is sent no more events.",
+        "description": "Removes an event subscription, so its URL is sent no more events.\n\nNeeds an administrator or the owner.",
         "x-access": "admin",
         "security": [
           {
@@ -4084,7 +4136,8 @@
         "tags": [
           "subscriptions"
         ],
-        "description": "Needs an administrator or the owner.",
+        "summary": "Sends again the events a subscription gave up on, oldest first, as far as its queue has room.",
+        "description": "Sends again the events a subscription gave up on, oldest first, as far as its queue has room. The rest wait their turn, and the answer counts both.\n\nNeeds an administrator or the owner.",
         "x-access": "admin",
         "security": [
           {
@@ -4117,7 +4170,8 @@
         "tags": [
           "channels"
         ],
-        "description": "Needs a signed-in account.",
+        "summary": "Queues a message to post at `sendAt`, on the server, so it goes out with the sender's app closed.",
+        "description": "Queues a message to post at `sendAt`, on the server, so it goes out with the sender's app closed. Sending the same `nonce` again returns the first.\n\nNeeds a signed-in account.",
         "x-access": "member",
         "security": [
           {
@@ -4160,7 +4214,8 @@
         "tags": [
           "scheduled"
         ],
-        "description": "Needs a signed-in account. Guests may call it too.",
+        "summary": "The caller's scheduled messages not yet sent, held and failed ones too, soonest first.",
+        "description": "The caller's scheduled messages not yet sent, held and failed ones too, soonest first.\n\nNeeds a signed-in account. Guests may call it too.",
         "x-access": "member",
         "x-guests": true,
         "security": [
@@ -4184,7 +4239,8 @@
         "tags": [
           "scheduled"
         ],
-        "description": "Needs a signed-in account.",
+        "summary": "Cancels one of the caller's scheduled messages.",
+        "description": "Cancels one of the caller's scheduled messages.\n\nNeeds a signed-in account.",
         "x-access": "member",
         "security": [
           {
@@ -4259,7 +4315,8 @@
         "tags": [
           "scheduled"
         ],
-        "description": "Needs a signed-in account.",
+        "summary": "Changes the words of a scheduled message not yet sent.",
+        "description": "Changes the words of a scheduled message not yet sent. `expectedText` is what the caller started from, so an edit made meanwhile is not overwritten.\n\nNeeds a signed-in account.",
         "x-access": "member",
         "security": [
           {
@@ -4302,7 +4359,8 @@
         "tags": [
           "messages"
         ],
-        "description": "Needs a signed-in account.",
+        "summary": "Pins a message to its conversation, for everyone in it to see.",
+        "description": "Pins a message to its conversation, for everyone in it to see.\n\nNeeds a signed-in account.",
         "x-access": "member",
         "security": [
           {
@@ -4333,7 +4391,8 @@
         "tags": [
           "messages"
         ],
-        "description": "Needs a signed-in account.",
+        "summary": "Unpins a message.",
+        "description": "Unpins a message.\n\nNeeds a signed-in account.",
         "x-access": "member",
         "security": [
           {
@@ -4366,7 +4425,8 @@
         "tags": [
           "channels"
         ],
-        "description": "Needs a signed-in account. Guests may call it too.",
+        "summary": "A page of a conversation's pinned messages, with how many there are in all.",
+        "description": "A page of a conversation's pinned messages, with how many there are in all.\n\nNeeds a signed-in account. Guests may call it too.",
         "x-access": "member",
         "x-guests": true,
         "security": [
@@ -4420,7 +4480,8 @@
         "tags": [
           "messages"
         ],
-        "description": "Needs a signed-in account. Guests may call it too.",
+        "summary": "Saves a message to the caller's own Saved list.",
+        "description": "Saves a message to the caller's own Saved list.\n\nNeeds a signed-in account. Guests may call it too.",
         "x-access": "member",
         "x-guests": true,
         "security": [
@@ -4452,7 +4513,8 @@
         "tags": [
           "messages"
         ],
-        "description": "Needs a signed-in account. Guests may call it too.",
+        "summary": "Takes a message off the caller's Saved list.",
+        "description": "Takes a message off the caller's Saved list.\n\nNeeds a signed-in account. Guests may call it too.",
         "x-access": "member",
         "x-guests": true,
         "security": [
@@ -4486,7 +4548,8 @@
         "tags": [
           "channels"
         ],
-        "description": "Needs a signed-in account. Guests may call it too.",
+        "summary": "The caller's own settings for one conversation: what it notifies about, muted, starred, its sidebar section, and closing a direct conversation.",
+        "description": "The caller's own settings for one conversation: what it notifies about, muted, starred, its sidebar section, and closing a direct conversation.\n\nNeeds a signed-in account. Guests may call it too.",
         "x-access": "member",
         "x-guests": true,
         "security": [
@@ -4590,7 +4653,8 @@
         "tags": [
           "sidebar-sections"
         ],
-        "description": "Needs a signed-in account. Guests may call it too.",
+        "summary": "Adds a named section to the caller's own sidebar, up to a fixed number of them.",
+        "description": "Adds a named section to the caller's own sidebar, up to a fixed number of them.\n\nNeeds a signed-in account. Guests may call it too.",
         "x-access": "member",
         "x-guests": true,
         "security": [
@@ -4624,7 +4688,8 @@
         "tags": [
           "sidebar-sections"
         ],
-        "description": "Needs a signed-in account. Guests may call it too.",
+        "summary": "Renames one of the caller's sidebar sections.",
+        "description": "Renames one of the caller's sidebar sections.\n\nNeeds a signed-in account. Guests may call it too.",
         "x-access": "member",
         "x-guests": true,
         "security": [
@@ -4701,7 +4766,8 @@
         "tags": [
           "sidebar-sections"
         ],
-        "description": "Needs a signed-in account. Guests may call it too.",
+        "summary": "Puts the caller's sidebar sections in the order given, which must name every one of them.",
+        "description": "Puts the caller's sidebar sections in the order given, which must name every one of them. Sections changed meanwhile refuse it.\n\nNeeds a signed-in account. Guests may call it too.",
         "x-access": "member",
         "x-guests": true,
         "security": [
@@ -4735,7 +4801,8 @@
         "tags": [
           "messages"
         ],
-        "description": "Needs a signed-in account. Guests may call it too.",
+        "summary": "Follows a thread or stops following it, for the caller, by its first message.",
+        "description": "Follows a thread or stops following it, for the caller, by its first message.\n\nNeeds a signed-in account. Guests may call it too.",
         "x-access": "member",
         "x-guests": true,
         "security": [
@@ -4779,7 +4846,8 @@
         "tags": [
           "messages"
         ],
-        "description": "Needs a signed-in account. Guests may call it too.",
+        "summary": "Mutes a thread for the caller, or unmutes it, by its first message.",
+        "description": "Mutes a thread for the caller, or unmutes it, by its first message.\n\nNeeds a signed-in account. Guests may call it too.",
         "x-access": "member",
         "x-guests": true,
         "security": [
@@ -4823,7 +4891,8 @@
         "tags": [
           "messages"
         ],
-        "description": "Needs a signed-in account. Guests may call it too.",
+        "summary": "Reminds the caller about a message at `at`, which must be in the future and within five years.",
+        "description": "Reminds the caller about a message at `at`, which must be in the future and within five years. Setting it again moves the time.\n\nNeeds a signed-in account. Guests may call it too.",
         "x-access": "member",
         "x-guests": true,
         "security": [
@@ -4865,7 +4934,8 @@
         "tags": [
           "messages"
         ],
-        "description": "Needs a signed-in account. Guests may call it too.",
+        "summary": "Cancels the caller's reminder about a message, or clears one that is done.",
+        "description": "Cancels the caller's reminder about a message, or clears one that is done.\n\nNeeds a signed-in account. Guests may call it too.",
         "x-access": "member",
         "x-guests": true,
         "security": [
@@ -4899,7 +4969,8 @@
         "tags": [
           "reminders"
         ],
-        "description": "Needs a signed-in account. Guests may call it too.",
+        "summary": "The caller's reminders, each with the message it is about.",
+        "description": "The caller's reminders, each with the message it is about.\n\nNeeds a signed-in account. Guests may call it too.",
         "x-access": "member",
         "x-guests": true,
         "security": [
@@ -4923,7 +4994,8 @@
         "tags": [
           "messages"
         ],
-        "description": "Needs a signed-in account. Guests may call it too.",
+        "summary": "Marks a thread read up to `seq` for the caller, by its first message.",
+        "description": "Marks a thread read up to `seq` for the caller, by its first message.\n\nNeeds a signed-in account. Guests may call it too.",
         "x-access": "member",
         "x-guests": true,
         "security": [
@@ -4967,7 +5039,8 @@
         "tags": [
           "messages"
         ],
-        "description": "Needs a signed-in account. Guests may call it too.",
+        "summary": "Marks a thread unread from the reply at `seq` onwards, by its first message.",
+        "description": "Marks a thread unread from the reply at `seq` onwards, by its first message.\n\nNeeds a signed-in account. Guests may call it too.",
         "x-access": "member",
         "x-guests": true,
         "security": [
@@ -5011,7 +5084,8 @@
         "tags": [
           "threads"
         ],
-        "description": "Needs a signed-in account. Guests may call it too.",
+        "summary": "The threads the caller follows, latest reply first, or only those with unread replies.",
+        "description": "The threads the caller follows, latest reply first, or only those with unread replies.\n\nNeeds a signed-in account. Guests may call it too.",
         "x-access": "member",
         "x-guests": true,
         "security": [
@@ -5094,7 +5168,8 @@
         "tags": [
           "saved"
         ],
-        "description": "Needs a signed-in account. Guests may call it too.",
+        "summary": "A page of the caller's saved messages, most recently saved first.",
+        "description": "A page of the caller's saved messages, most recently saved first.\n\nNeeds a signed-in account. Guests may call it too.",
         "x-access": "member",
         "x-guests": true,
         "security": [
@@ -5140,7 +5215,8 @@
         "tags": [
           "invites"
         ],
-        "description": "Needs a signed-in account.",
+        "summary": "Makes an invite code, which may run out after some hours or uses.",
+        "description": "Makes an invite code, which may run out after some hours or uses. The owner, admins and members an admin allowed may make one.\n\nNeeds a signed-in account.",
         "x-access": "member",
         "security": [
           {
@@ -5229,7 +5305,8 @@
         "tags": [
           "activity"
         ],
-        "description": "Needs a signed-in account. Guests may call it too.",
+        "summary": "The Activity list, newest first: unread messages, mentions of the caller, or unread replies in threads they follow, chosen by `mode`.",
+        "description": "The Activity list, newest first: unread messages, mentions of the caller, or unread replies in threads they follow, chosen by `mode`.\n\nNeeds a signed-in account. Guests may call it too.",
         "x-access": "member",
         "x-guests": true,
         "security": [
@@ -5326,7 +5403,8 @@
         "tags": [
           "search"
         ],
-        "description": "Needs a signed-in account. Guests may call it too.",
+        "summary": "Searches the messages the caller can read, newest first, by words and modifiers such as `from:`, `in:`, `has:` and `before:`.",
+        "description": "Searches the messages the caller can read, newest first, by words and modifiers such as `from:`, `in:`, `has:` and `before:`. `tz` says which calendar the dates are in.\n\nNeeds a signed-in account. Guests may call it too.",
         "x-access": "member",
         "x-guests": true,
         "security": [
