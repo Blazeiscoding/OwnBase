@@ -1,6 +1,7 @@
 import {
   lazy,
   Suspense,
+  useCallback,
   useEffect,
   useLayoutEffect,
   useMemo,
@@ -500,8 +501,29 @@ function WorkspaceLayout(props: { restore: boolean; banner?: ReactNode }) {
     nav.navigate({ to: "dialog", dialog: { kind: "diagnostics", callLog: true } });
   const callSettings = () =>
     nav.navigate({ to: "dialog", dialog: { kind: "account", section: "calls" } });
-  const details = () => nav.navigate({ to: "dialog", dialog: { kind: "channel-details" } });
+  const details = useCallback(
+    () => nav.navigate({ to: "dialog", dialog: { kind: "channel-details" } }),
+    [nav],
+  );
   const invite = action("invite");
+  // What the timeline is handed stays the same from one render to the next.
+  // This layout renders for many things that are not the conversation's (a
+  // call starting, a dialog, a channel or a person changing), and a handler
+  // made anew each time had every message on screen rendered again with it,
+  // and React keeping a second copy of each: about 14 MiB for a full history.
+  const openThread = useCallback((rootId: ID) => nav.navigate({ to: "thread", rootId }), [nav]);
+  const openConversation = useCallback(
+    (id: ID) => nav.navigate({ to: "conversation", channelId: id }),
+    [nav],
+  );
+  const openProfile = useCallback(
+    (userId: ID) => nav.navigate({ to: "dialog", dialog: { kind: "profile", userId } }),
+    [nav],
+  );
+  const canInvite = invite.available(actions);
+  const latestActions = useRef(actions);
+  latestActions.current = actions;
+  const runInvite = useCallback(() => invite.run(latestActions.current), [invite]);
 
   return (
     <div className={`workspace-shell relative flex h-full ${drawer ? "sidebar-open" : ""}`}>
@@ -725,12 +747,10 @@ function WorkspaceLayout(props: { restore: boolean; banner?: ReactNode }) {
                   readActive={channelRead}
                   channelId={channelId}
                   highlightMessageId={highlightId}
-                  onOpenThread={(rootId) => nav.navigate({ to: "thread", rootId })}
-                  onChannelClick={(id) => nav.navigate({ to: "conversation", channelId: id })}
-                  onOpenProfile={(userId) =>
-                    nav.navigate({ to: "dialog", dialog: { kind: "profile", userId } })
-                  }
-                  onInvite={invite.available(actions) ? () => invite.run(actions) : undefined}
+                  onOpenThread={openThread}
+                  onChannelClick={openConversation}
+                  onOpenProfile={openProfile}
+                  onInvite={canInvite ? runInvite : undefined}
                   onDetails={details}
                 />
                 {calls.checkingDevices && (

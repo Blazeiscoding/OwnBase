@@ -1218,6 +1218,47 @@ pnpm --filter @ownbase/web build
 pnpm --filter @ownbase/server exec tsx ../../scripts/measure-calls.mts --out=calls.json
 ```
 
+### What the desktop app holds in memory
+
+Measured on 12 November 2026 with `scripts/measure-memory.mts`, on the same
+machine: the built desktop app, joined to a workspace with 600 messages and
+eight large pictures in one channel, then in a huddle of four. The figure is
+the private working set of all the app's processes together, which is what
+Task Manager shows as Memory.
+
+| Stage                                        | Memory  |
+| -------------------------------------------- | ------- |
+| Welcome screen                               | 115 MiB |
+| Workspace, just opened                       | 158 MiB |
+| Workspace, after reading back a long channel | 224 MiB |
+| Huddle of four, sound only                   | 256 MiB |
+| Huddle of four, every camera on              | 281 MiB |
+| Huddle of four, cameras off again            | 273 MiB |
+| After leaving                                | 246 MiB |
+
+Before the three changes below, the same run read 281 MiB with sound only,
+337 MiB once the cameras were off again, and 286 MiB after leaving. Each was
+found with that script:
+
+- A camera or share that sends someone nothing is set to an eighth of its
+  size as well as stopped. The browser keeps a video encoder for every other
+  person for the rest of the call once a picture has gone to them, holding
+  working pictures at whatever size the sender is set to: 12 MiB each at 640 by
+  360 and 28 MiB each at 960 by 540, with the camera off.
+- The conversation's messages are drawn again only for a change to them. A
+  call starting or a dialog opening used to draw all of them again, and the
+  second copy of each that this leaves cost 14 MiB for a full history.
+- Pictures no longer on screen stay held up to 8 MiB, not 32. They are held
+  in the app's main process, which is where the rest went.
+
+To measure a build of your own, on Windows:
+
+```sh
+pnpm --filter @ownbase/web build
+pnpm --filter @ownbase/desktop build
+pnpm --filter @ownbase/server exec tsx ../../scripts/measure-memory.mts --out=memory.json
+```
+
 ## Attachment storage
 
 Attachments are unlimited unless you say otherwise, which on a small disk means

@@ -137,12 +137,25 @@ interface SentEncoding extends CameraEncoding {
 }
 
 /**
+ * What a camera or a share is set to send someone while it sends them
+ * nothing: they draw none of it, or it is off. Not sending is not enough.
+ * The browser keeps an encoder for every connection once a picture has gone
+ * over it, with its working pictures at whatever size the sender is set to,
+ * for the rest of the call: at 640 by 360 that is 12 MiB a connection and at
+ * 960 by 540 28 MiB, and a share's picture is larger than either. Set to an
+ * eighth of the picture's size it keeps about 1 MiB. Measured with
+ * `scripts/measure-memory.mts`.
+ */
+const IDLE_ENCODING: SentEncoding = { active: false, scaleResolutionDownBy: 8 };
+
+/**
  * What the camera sends someone who draws it `view` tall (`viewHeight`), in a
  * call with `others` besides you, from a camera whose picture is `height`
  * tall. A small tile gets a picture no bigger than it, at a rate that suits
- * it, and a tile not drawn gets nothing, so the encoder for it stops. Each
- * limit is the stricter of that and the call's size (`cameraEncoding`).
- * Until they first say how they draw it, they get the call's size.
+ * it, and a tile not drawn gets nothing, so the encoder for it stops and
+ * shrinks (`IDLE_ENCODING`). Each limit is the stricter of that and the
+ * call's size (`cameraEncoding`). Until they first say how they draw it, they
+ * get the call's size.
  */
 export function cameraEncodingFor(
   others: number,
@@ -151,7 +164,7 @@ export function cameraEncodingFor(
 ): SentEncoding {
   const bySize = cameraEncoding(others);
   if (view === undefined) return { active: true, ...bySize };
-  if (view === 0) return { active: false, ...bySize };
+  if (view === 0) return IDLE_ENCODING;
   // Smaller pictures move less and carry less.
   const byView =
     view <= 180
@@ -180,7 +193,7 @@ export function cameraEncodingFor(
  */
 export function screenEncodingFor(view: number | undefined, height: number): SentEncoding {
   if (view === undefined) return { active: true, scaleResolutionDownBy: 1 };
-  if (view === 0) return { active: false, scaleResolutionDownBy: 1 };
+  if (view === 0) return IDLE_ENCODING;
   return { active: true, scaleResolutionDownBy: Math.max(1, height / view) };
 }
 
@@ -394,6 +407,13 @@ export class HuddleSession {
   private cameraId: string | undefined;
   private cameraTrack: MediaStreamTrack | null = null;
   private screenTrack: MediaStreamTrack | null = null;
+  /**
+   * Whether the camera, and a share, have been on in this call: from then on
+   * every connection has an encoder for it, which `sizeCamera` and
+   * `sizeScreen` shrink while it is off.
+   */
+  private cameraUsed = false;
+  private screenUsed = false;
   /** What the share was last asked for, while it goes. */
   private screenQuality: ScreenShareQuality | null = null;
   /** The share's sound, sent apart from the microphone so each mutes alone. */
@@ -781,13 +801,20 @@ export class HuddleSession {
   private async sizeCamera(userId: ID, peer: Peer): Promise<void> {
     const others = this.peers.size;
     const view = peer.wants?.camera;
-    const wanted = cameraEncodingFor(others, view, pictureHeight(this.cameraTrack, true) ?? 540);
+    // Turned off after being on, its encoders are left with as little as one
+    // that is not shown. Before it is first on there are none, and it is
+    // sized ahead for when it starts.
+    const stopped = this.cameraTrack === null && this.cameraUsed;
+    const wanted = stopped
+      ? IDLE_ENCODING
+      : cameraEncodingFor(others, view, pictureHeight(this.cameraTrack, true) ?? 540);
     const key = JSON.stringify(wanted);
     if (this.destroyed || this.peers.get(userId) !== peer || peer.cameraSized === key) return;
     const before = peer.cameraSized;
     if (!(await this.setEncoding(userId, peer.cameraTx?.sender, wanted, "camera"))) return;
     peer.cameraSized = key;
     const call = `a call of ${others + 1}`;
+    if (stopped) return;
     if (!wanted.active) this.note("Sending them no camera, since they are not showing it.", userId);
     else if (wanted.maxBitrate !== undefined)
       this.note(
@@ -804,13 +831,16 @@ export class HuddleSession {
   private async sizeScreen(userId: ID, peer: Peer): Promise<void> {
     const view = peer.wants?.screen;
     const height = pictureHeight(this.screenTrack, false) ?? SCREEN_SHARE_QUALITY.height;
-    const wanted = screenEncodingFor(view, height);
+    // As the camera's: a share that has stopped leaves its encoders little.
+    const stopped = this.screenTrack === null && this.screenUsed;
+    const wanted = stopped ? IDLE_ENCODING : screenEncodingFor(view, height);
     const key = JSON.stringify(wanted);
     if (this.destroyed || this.peers.get(userId) !== peer || peer.screenSized === key) return;
     // Nobody has asked for anything yet, and the share goes as it comes.
-    if (view === undefined && peer.screenSized === null) return;
+    if (!stopped && view === undefined && peer.screenSized === null) return;
     if (!(await this.setEncoding(userId, peer.screenTx?.sender, wanted, "share"))) return;
     peer.screenSized = key;
+    if (stopped) return;
     if (!wanted.active) this.note("Sending them no share, since they are not showing it.", userId);
     else
       this.note(
@@ -1449,6 +1479,8 @@ export class HuddleSession {
    * flowing, and the far side sees its receiver unmute or mute.
    */
   private async publish(slot: "camera" | "screen", track: MediaStreamTrack | null): Promise<void> {
+    if (track && slot === "camera") this.cameraUsed = true;
+    if (track && slot === "screen") this.screenUsed = true;
     await Promise.all(
       [...this.peers.values()].map((peer) =>
         (slot === "camera" ? peer.cameraTx : peer.screenTx)?.sender

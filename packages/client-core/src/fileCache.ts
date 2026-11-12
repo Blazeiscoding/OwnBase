@@ -40,7 +40,15 @@ export class FileCache {
 
   constructor(
     private api: Api,
-    private maxIdleBytes = 32 * 1024 * 1024,
+    /**
+     * How much of what no view is showing stays held, for scrolling back to
+     * without a flash. The bytes live in the browser's own process (the
+     * desktop app's main process) for as long as their URL does, so this is
+     * memory the app holds while showing none of it: 8 MiB keeps a few dozen
+     * screenshots. It was 32 MiB, which a few large photos scrolled past
+     * filled; one scrolled back to after it has gone is fetched again.
+     */
+    private maxIdleBytes = 8 * 1024 * 1024,
     /** Which loaded message a file is attached to, if any. */
     private ownerOf: (fileId: ID) => FileOwner | null = () => null,
   ) {}
