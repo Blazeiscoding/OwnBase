@@ -54,16 +54,18 @@ describe("what changed in a conversation", () => {
     await expect.poll(() => client.state.channelLastSeq[general]).toBe(message.seq);
     expect(client.state.timelines[general]?.loaded ?? false).toBe(false);
 
+    // Vitest hands expect.poll's callback an options object, which `changed`
+    // would take for a channel id, so each poll calls it with none.
     await owner.pinMessage(message.id);
-    await expect.poll(changed).toBeGreaterThan(0);
+    await expect.poll(() => changed()).toBeGreaterThan(0);
     const pinned = changed();
 
     await owner.editMessage(message.id, "Edited", message.text);
-    await expect.poll(changed).toBeGreaterThan(pinned);
+    await expect.poll(() => changed()).toBeGreaterThan(pinned);
     const edited = changed();
 
     await owner.deleteMessage(message.id);
-    await expect.poll(changed).toBeGreaterThan(edited);
+    await expect.poll(() => changed()).toBeGreaterThan(edited);
   });
 
   it("moves when this account leaves the conversation", async () => {
