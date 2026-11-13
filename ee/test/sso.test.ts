@@ -657,7 +657,8 @@ describe("single sign-on through an OpenID provider", () => {
     await setUp(owner);
     const { panels } = (await call("/api/admin/extension-settings", owner.token, undefined, "GET"))
       .data as { panels: SettingsPanel[] };
-    expect(panels).toHaveLength(1);
+    // Beside SAML's, which the same license feature offers.
+    expect(panels.map((p) => p.id)).toEqual(["sso", "saml"]);
     const [panel] = panels;
     expect(panel!.description).toContain(`${PUBLIC}/api/sso/callback`);
     expect(panel!.problem).toBeUndefined();

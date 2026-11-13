@@ -172,6 +172,9 @@ export const ERROR_CODES = [
   "sso_incomplete",
   "sso_off",
   "sso_required",
+  "invalid_certificate",
+  "invalid_sign_in_url",
+  "saml_incomplete",
   "export_running",
   "no_export_choice",
 
