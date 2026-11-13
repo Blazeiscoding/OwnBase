@@ -1019,16 +1019,16 @@
       "plain": "Downloads outside code and test browsers ahead of time on GitHub, so later automatic checks start faster.",
       "summary": "Primes dependency/browser caches on main when the lock changes.",
       "details": [
-        "Fills pnpm stores on Linux/Windows, and on Linux Chromium and the .deb files of the system packages it needs that the runner image lacks (fonts so far), which .github/actions/chromium hands to apt; it does not certify task outputs."
+        "Fills pnpm stores on Linux/Windows, and on Linux, in a matrix job, Chromium and then WebKit with Firefox, each with the .deb files of the system packages they need that the runner image lacks, under separate keys (playwright-, playwright-other-), which .github/actions/browsers hands to apt; it does not certify task outputs."
       ],
       "concepts": ["configuration", "CI"]
     },
     {
-      "path": ".github/actions/chromium/action.yml",
-      "plain": "Sets up the browser the automatic browser tests use, from copies saved ahead of time rather than slow downloads.",
-      "summary": "Installs Chromium and its Linux packages from caches caches.yml fills.",
+      "path": ".github/actions/browsers/action.yml",
+      "plain": "Sets up the browsers the automatic browser tests use, from copies saved ahead of time rather than slow downloads.",
+      "summary": "Installs Chromium, or WebKit and Firefox, and their Linux packages from caches caches.yml fills.",
       "details": [
-        "Restores the Playwright browser and the saved .deb files into apt's download folder, then runs playwright install --with-deps chromium, so apt fetches only packages with a newer version. Ubuntu's mirror once served the nine missing font packages at 40 kB/s, a nine-minute install. Used by ci.yml, release.yml and visual-baselines.yml."
+        "Restores the Playwright browsers and the saved .deb files into apt's download folder, then runs playwright install --with-deps with the browsers input (chromium by default), so apt fetches only packages with a newer version. Ubuntu's mirror once served the nine missing font packages at 40 kB/s, a nine-minute install. The cache input picks the keys: playwright for Chromium, playwright-other for the browser (other) job's WebKit and Firefox. Used by ci.yml, release.yml and visual-baselines.yml."
       ],
       "concepts": ["configuration", "CI"]
     },
