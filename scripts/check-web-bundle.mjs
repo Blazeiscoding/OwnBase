@@ -32,16 +32,21 @@ for (const dir of dirs) {
     failed = true;
     continue;
   }
-  for (const src of entries) {
-    const file = join(dir, src.replace(/^\.?\//, ""));
-    const size = statSync(file).size;
-    const line = `${file}: ${(size / 1000).toFixed(1)} kB of ${ENTRY_LIMIT / 1000} kB`;
-    if (size > ENTRY_LIMIT) {
-      console.error(`Too large, ${line}. Load what is opened now and then on first use.`);
-      failed = true;
-    } else {
-      console.log(line);
-    }
+  // Chunks the entry imports statically download before it runs too. Vite
+  // lists each of them as a modulepreload link, so they count against the
+  // budget with it: a bundler that splits the entry up cannot hide its size.
+  const preloads = [
+    ...html.matchAll(/<link\b[^>]*\brel="modulepreload"[^>]*\bhref="([^"]+)"/g),
+  ].map((match) => match[1]);
+  const files = [...entries, ...preloads].map((src) => join(dir, src.replace(/^\.?\//, "")));
+  const size = files.reduce((total, file) => total + statSync(file).size, 0);
+  const named = preloads.length > 0 ? `${files[0]} and ${preloads.length} more` : files[0];
+  const line = `${named}: ${(size / 1000).toFixed(1)} kB of ${ENTRY_LIMIT / 1000} kB`;
+  if (size > ENTRY_LIMIT) {
+    console.error(`Too large, ${line}. Load what is opened now and then on first use.`);
+    failed = true;
+  } else {
+    console.log(line);
   }
 }
 if (failed) process.exit(1);
