@@ -1,7 +1,9 @@
 import { useStore } from "zustand";
 import {
+  markEverythingRead,
   selfIsAdministrator,
   selfMay,
+  unreadEverywhere,
   type WorkspaceClient,
   type WorkspaceState,
 } from "@ownbase/client-core";
@@ -14,7 +16,7 @@ import { useConfirm, type ConfirmRequest } from "../components/Confirm.js";
 import { useAppearance } from "./appearance.js";
 import { useMediaQuery } from "./useMediaQuery.js";
 import { failureText } from "./failure.js";
-import { markEverythingRead, unreadEverywhere, unreadSummary } from "./readAll.js";
+import { unreadSummary } from "./readAll.js";
 import { collapsedSections, neighbourConversation } from "./sidebarLayout.js";
 import { railTarget } from "./workspaceRail.js";
 import { isApple, modKey, shortcutLabel } from "./shortcuts.js";
@@ -96,13 +98,13 @@ async function signOut(ctx: ActionContext) {
 
 /** Everything read, after asking when it is more than a couple of places. */
 async function markAllRead(ctx: ActionContext) {
-  const { channels, threads } = unreadEverywhere(ctx.client.state);
-  const count = channels.length + threads.length;
+  const unread = unreadEverywhere(ctx.client.state);
+  const count = unread.channels.length + unread.threads.length + unread.removals.length;
   if (count === 0) {
     ctx.toast({ message: "Nothing unread.", kind: "info" });
     return;
   }
-  const summary = unreadSummary(channels.length, threads.length);
+  const summary = unreadSummary(unread);
   if (count > 2) {
     const go = await ctx.confirm({
       title: "Mark everything as read?",
@@ -111,8 +113,12 @@ async function markAllRead(ctx: ActionContext) {
     });
     if (!go) return;
   }
-  markEverythingRead(ctx.client);
-  ctx.toast({ message: `Marked ${summary} as read.`, kind: "success" });
+  const error = await markEverythingRead(ctx.client);
+  ctx.toast(
+    error
+      ? { message: failureText("Could not mark everything read.", error), kind: "error" }
+      : { message: `Marked ${summary} as read.`, kind: "success" },
+  );
 }
 
 /** Every workspace-wide action, each declared once. */

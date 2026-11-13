@@ -244,9 +244,19 @@
       "concepts": ["notification policy", "Do Not Disturb", "live versus replay", "visibility"]
     },
     {
+      "path": "packages/client-core/src/readAll.ts",
+      "plain": "Marks everything read at once, the same for Shift+Esc and Activity's Mark all read.",
+      "summary": "unreadEverywhere, anythingUnread and markEverythingRead.",
+      "details": [
+        "Reads every conversation and followed thread to its newest, and every note that someone removed you from a channel.",
+        "A reply naming you in a thread you do not follow is read only through its thread, and nothing on the device lists those: while the mention counts say any are unread, the mentions are read a page at a time (at most ten) to find them."
+      ],
+      "concepts": ["unread", "untangle"]
+    },
+    {
       "path": "packages/client-core/src/selectors.ts",
       "plain": "The rules for what counts as unread, what asks for attention, and whether notifications are paused, written once for every screen.",
-      "summary": "isUnread, isThreadUnread, waitsForAttention, mentionsElsewhere, blockedPartner, deactivatedPartner, snoozedUntil, isSnoozed and selfIsAdministrator.",
+      "summary": "isUnread, isThreadUnread, waitsForAttention, mentionsElsewhere, blockedPartner, deactivatedPartner, snoozedUntil, isSnoozed, isSignedOut, selfIsAdministrator and selfMay.",
       "details": [
         "isUnread compares a conversation's newest message with what this account has read; the sidebar shows muted ones as unread too, quietly.",
         "waitsForAttention is what badges and the phone's buttons count: unread, and not the conversation on screen, muted, archived, or a DM with someone blocked.",
@@ -3184,8 +3194,8 @@
     },
     {
       "path": "packages/ui/src/lib/readAll.ts",
-      "plain": "Marks every conversation and followed thread read, for Shift+Esc and Activity's Mark all read.",
-      "summary": "unreadEverywhere, markEverythingRead and unreadSummary.",
+      "plain": "Says in words what Mark all read reads: so many conversations, threads and removal notes.",
+      "summary": "unreadSummary, for Shift+Esc's question and its notice.",
       "details": [
         "There is no undo: the server's mark unread needs a real message, which may not be loaded. Shift+Esc asks first when more than two places would be marked."
       ],
