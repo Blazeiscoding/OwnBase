@@ -1,5 +1,5 @@
 import type { CreateInviteBody, ID, ReportResolution, User } from "@ownbase/protocol";
-import type { Api } from "./api.js";
+import { serverPath, type Api } from "./api.js";
 import { answerOf, doneOf } from "./answers.js";
 
 /**
@@ -112,8 +112,18 @@ export class AdminActions {
     return doneOf(() => this.api.saveExtensionSettings(path, values));
   }
 
-  /** A settings panel's button, and what it answers, such as a token to show once. */
+  /**
+   * A settings panel's button, and what it answers, such as a token to show
+   * once, or a download as the full address to save it from (P12).
+   */
   runSettingsAction(path: string) {
-    return answerOf(() => this.api.runSettingsAction(path));
+    return answerOf(async () => {
+      const answer = await this.api.runSettingsAction(path);
+      if (answer.download === undefined) return answer;
+      return {
+        ...answer,
+        download: `${this.api.baseUrl}${serverPath(answer.download, { query: true })}`,
+      };
+    });
   }
 }
