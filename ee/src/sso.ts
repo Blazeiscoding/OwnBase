@@ -1,12 +1,4 @@
-import {
-  DEEP_LINK_PROTOCOL,
-  handleSchema,
-  type SettingsField,
-  type SettingsPanel,
-  type SignInConnection,
-  type SignInMethod,
-  type User,
-} from "@ownbase/protocol";
+import type { SettingsPanel, SignInMethod } from "@ownbase/protocol";
 import type { ExtensionContext } from "@ownbase/server/extensions";
 import { HttpError } from "@ownbase/server/httpError";
 import { eeEndpoints, TEXT_MAX } from "./endpoints.js";
@@ -17,11 +9,20 @@ import {
   KeySet,
   OidcError,
   randomToken,
-  s256,
   verifyIdToken,
   type IdClaims,
   type Provider,
 } from "./oidc.js";
+import {
+  applyLinkSettings,
+  linkFields,
+  page,
+  redirect,
+  signInFlow,
+  type LinkSettings,
+} from "./signInFlow.js";
+
+export { CODE_MS, FLOW_MS, handleFor, handleFrom, parseDomains } from "./signInFlow.js";
 
 /**
  * Single sign-on with OpenID Connect (P9), part of the Enterprise edition.
@@ -44,18 +45,10 @@ import {
  */
 
 /** Who signs people in, as the owner set it up. */
-export interface SsoSettings {
-  /** As people know the provider, such as "Okta". */
-  name: string;
+export interface SsoSettings extends LinkSettings {
   issuer: string;
   clientId: string;
   clientSecret: string;
-  /** Someone the provider signs in who has no account here gets one. */
-  newAccounts: boolean;
-  /** When any, new accounts are for verified addresses at these domains only. */
-  domains: string[];
-  /** Passwords sign in the owner alone. */
-  required: boolean;
 }
 
 const UNSET: SsoSettings = {
@@ -68,37 +61,14 @@ const UNSET: SsoSettings = {
   required: false,
 };
 
-/** From pressing the button to coming back, at most. */
-export const FLOW_MS = 10 * 60 * 1000;
-/** The code a sign-in comes back with, and the link to start linking, wait this long for their use. */
-export const CODE_MS = 2 * 60 * 1000;
 /** The provider's description of itself is read again after this long. */
 const PROVIDER_MS = 60 * 60 * 1000;
-/** Sign-ins and codes waiting at once, at most: the oldest give way. */
-const WAITING_MAX = 500;
-const COOKIE = "ownbase_sso";
 
-interface Flow {
+/** What a sign-in to an OpenID provider keeps besides what every one does. */
+interface OidcFlow {
   nonce: string;
   verifier: string;
-  /** The SHA-256 of the cookie the browser that began holds. */
-  browser: string;
   issuer: string;
-  expiresAt: number;
-  /** Signing in: which client began, and the challenge its code is redeemed for. */
-  client?: "web" | "desktop";
-  challenge?: string;
-  /** Linking: whose account. */
-  linkUserId?: string;
-}
-
-/** A provider's account, linked to one here. */
-interface Identity {
-  userId: string;
-  issuer: string;
-  subject: string;
-  email?: string;
-  linkedAt: number;
 }
 
 export interface SingleSignOn {
@@ -106,90 +76,6 @@ export interface SingleSignOn {
   signInMethods(): SignInMethod[];
   requiresSingleSignOn(): boolean;
   settingsPanels(): SettingsPanel[];
-}
-
-type Request = Parameters<ExtensionContext["startSession"]>[1];
-interface Reply {
-  code(status: number): Reply;
-  header(name: string, value: string): Reply;
-  send(payload?: unknown): Reply;
-}
-const escape = (text: string) => text.replace(/[&<>"']/g, (c) => `&#${c.charCodeAt(0)};`);
-
-/**
- * The page a browser is left on when a sign-in ends somewhere other than the
- * app: something went wrong, an account was linked, or the desktop app is
- * being opened.
- */
-function page<R extends Reply>(
-  reply: R,
-  status: number,
-  title: string,
-  text: string,
-  link?: { href: string; label: string },
-  open?: string,
-): R {
-  const html = `<!doctype html>
-<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
-${open ? `<meta http-equiv="refresh" content="0;url=${escape(open)}">` : ""}<title>${escape(title)} · OwnBase</title>
-<style>body{margin:0;font:16px/1.5 system-ui,sans-serif;background:#f6f5f2;color:#22211f;display:grid;place-items:center;min-height:100vh}main{max-width:28rem;padding:2rem}h1{font-size:1.4rem;margin:0 0 .5rem}a{display:inline-block;margin-top:1rem;padding:.55rem 1rem;border-radius:.6rem;background:#22211f;color:#fff;text-decoration:none}@media (prefers-color-scheme:dark){body{background:#1b1a19;color:#ecebe8}a{background:#ecebe8;color:#1b1a19}}</style>
-</head><body><main><h1>${escape(title)}</h1><p>${escape(text)}</p>${link ? `<a href="${escape(link.href)}">${escape(link.label)}</a>` : ""}</main></body></html>`;
-  return reply
-    .code(status)
-    .header("content-type", "text/html; charset=utf-8")
-    .header("cache-control", "no-store")
-    .send(html) as R;
-}
-
-const redirect = <R extends Reply>(reply: R, location: string) =>
-  reply.code(302).header("location", location).header("cache-control", "no-store").send() as R;
-
-const readCookie = (req: Request): string | undefined =>
-  req.headers.cookie
-    ?.split(";")
-    .map((pair) => pair.trim())
-    .find((pair) => pair.startsWith(`${COOKIE}=`))
-    ?.slice(COOKIE.length + 1);
-
-const identityKey = (issuer: string, subject: string) => s256(`${issuer}\n${subject}`);
-
-/** A username for someone new, from what the provider calls them, not one taken. */
-export function handleFor(claims: IdClaims, taken: (handle: string) => boolean): string {
-  return handleFrom(
-    claims.preferred_username?.split("@")[0] || claims.email?.split("@")[0] || claims.name || "",
-    taken,
-  );
-}
-
-/** A username made from `from`, such as an address's first part, not one taken. */
-export function handleFrom(from: string, taken: (handle: string) => boolean): string {
-  let base = from
-    .toLowerCase()
-    .normalize("NFKD")
-    .replace(/[̀-ͯ]/g, "")
-    .replace(/[^a-z0-9._-]+/g, "")
-    .replace(/^[._-]+/, "")
-    .slice(0, 28);
-  if (!handleSchema.safeParse(base).success) base = `member${base}`.slice(0, 28);
-  for (let n = 1; n < 1000; n++) {
-    const handle = n === 1 ? base : `${base}-${n}`;
-    if (!taken(handle)) return handle;
-  }
-  return `member-${randomToken()
-    .slice(0, 12)
-    .toLowerCase()
-    .replace(/[^a-z0-9]/g, "0")}`;
-}
-
-/** "acme.com, @acme.co.uk" as domains, or null for one that is not a domain. */
-export function parseDomains(text: string): string[] | null {
-  const domains = text
-    .split(/[\s,]+/)
-    .map((domain) => domain.trim().toLowerCase().replace(/^@/, ""))
-    .filter(Boolean);
-  return domains.every((domain) => /^(?:[a-z0-9-]+\.)+[a-z]{2,}$/.test(domain))
-    ? [...new Set(domains)]
-    : null;
 }
 
 export function singleSignOn(opts: {
@@ -205,16 +91,9 @@ export function singleSignOn(opts: {
   const now = opts.now ?? Date.now;
   const fetchFn = opts.fetch ?? fetch;
   let context: ExtensionContext | null = null;
-  /** Sign-ins gone to the provider, by their state. In memory: a restart asks to start again. */
-  const flows = new Map<string, Flow>();
-  /** Codes the way back brought, by their SHA-256. */
-  const codes = new Map<string, { userId: string; challenge: string; expiresAt: number }>();
-  /** Links to start linking an account, by their SHA-256. */
-  const tickets = new Map<string, { userId: string; expiresAt: number }>();
   let provider: { issuer: string; at: number; value: Promise<Provider> } | null = null;
   const keySets = new Map<string, KeySet>();
 
-  const store = () => context!.storage;
   const settings = (): SsoSettings => {
     const raw = context?.storage.get("sso:settings");
     if (!raw) return UNSET;
@@ -225,13 +104,16 @@ export function singleSignOn(opts: {
     }
   };
   const configured = (s: SsoSettings) => !!(s.issuer && s.clientId && s.clientSecret);
-  const base = () => context?.publicUrl();
+  const flow = signInFlow<OidcFlow>({
+    id: "sso",
+    licensed: opts.licensed,
+    provisioned: opts.provisioned,
+    now,
+    settings,
+    configured: () => configured(settings()),
+  });
+  const base = flow.base;
   const callbackUrl = () => `${base()}/api/sso/callback`;
-  const providerName = (s: SsoSettings) => s.name || "single sign-on";
-  const required = () => {
-    const s = settings();
-    return configured(s) && s.required && opts.licensed();
-  };
 
   /** The provider's description, read again after an hour or for another issuer. */
   const providerFor = (issuer: string): Promise<Provider> => {
@@ -251,81 +133,15 @@ export function singleSignOn(opts: {
     return keys;
   };
 
-  const prune = <T extends { expiresAt: number }>(map: Map<string, T>) => {
-    const at = now();
-    for (const [key, value] of map) if (value.expiresAt <= at) map.delete(key);
-    while (map.size >= WAITING_MAX) map.delete(map.keys().next().value!);
-  };
-
-  const parse = <T>(raw: string | null): T | null => {
-    if (!raw) return null;
-    try {
-      return JSON.parse(raw) as T;
-    } catch {
-      return null;
-    }
-  };
-  const identityOf = (issuer: string, subject: string) =>
-    parse<Identity>(store().get(`sso:identity:${identityKey(issuer, subject)}`));
-  /** The provider's account linked to `userId`, for the issuer set up now. */
-  const linkedTo = (userId: string): Identity | null => {
-    const key = store().get(`sso:user:${userId}`);
-    const identity = key ? parse<Identity>(store().get(`sso:identity:${key}`)) : null;
-    return identity?.userId === userId && identity.issuer === settings().issuer ? identity : null;
-  };
-  const link = (userId: string, claims: IdClaims) => {
-    const key = identityKey(claims.iss, claims.sub);
-    const before = store().get(`sso:user:${userId}`);
-    if (before && before !== key) store().delete(`sso:identity:${before}`);
-    const identity: Identity = {
-      userId,
-      issuer: claims.iss,
-      subject: claims.sub,
-      ...(typeof claims.email === "string" ? { email: claims.email.slice(0, 320) } : {}),
-      linkedAt: now(),
-    };
-    store().set(`sso:identity:${key}`, JSON.stringify(identity));
-    store().set(`sso:user:${userId}`, key);
-  };
-  const unlink = (userId: string) => {
-    const key = store().get(`sso:user:${userId}`);
-    if (!key) return;
-    if (parse<Identity>(store().get(`sso:identity:${key}`))?.userId === userId)
-      store().delete(`sso:identity:${key}`);
-    store().delete(`sso:user:${userId}`);
-  };
-  /** People who can sign in now with the provider set up now. */
-  const linkedCount = () => {
-    const issuer = settings().issuer;
-    return store()
-      .list("sso:identity:")
-      .filter(({ value }) => {
-        const identity = parse<Identity>(value);
-        const user = identity?.issuer === issuer ? context!.users.get(identity.userId) : null;
-        return !!user && !user.deactivated;
-      }).length;
-  };
-
-  const newAccountRefusal = (s: SsoSettings, claims: IdClaims): string | null => {
-    const who = claims.email ?? claims.preferred_username ?? "you";
-    if (!opts.licensed() || !s.newAccounts)
-      return `No account in this workspace is linked to ${who} yet. Sign in with your password, then link ${providerName(s)} in Account settings, under Sign-in.`;
-    if (!s.domains.length) return null;
-    if (typeof claims.email !== "string" || claims.email_verified !== true)
-      return `${providerName(s)} has not verified ${who}, so no account is made for it here. Ask the workspace's owner.`;
-    const domain = claims.email.split("@").pop()!.toLowerCase();
-    return s.domains.includes(domain)
-      ? null
-      : `New accounts here are for ${s.domains.map((d) => `@${d}`).join(", ")} addresses, not ${claims.email}.`;
-  };
-
-  const cookie = (value: string, seconds: number) =>
-    `${COOKIE}=${value}; Path=/api/sso/; Max-Age=${seconds}; HttpOnly; SameSite=Lax${base()?.startsWith("https:") ? "; Secure" : ""}`;
-
   function register(given: ExtensionContext) {
     context = given;
     const { route } = given;
-    const back = () => ({ href: `${base()}/`, label: "Back to OwnBase" });
+    flow.register(given, {
+      redeem: eeEndpoints.ssoRedeem,
+      connection: eeEndpoints.ssoConnection,
+      connect: eeEndpoints.ssoConnect,
+      disconnect: eeEndpoints.ssoDisconnect,
+    });
 
     route(eeEndpoints.ssoStart, async ({ reply, query: q }) => {
       const s = settings();
@@ -336,32 +152,8 @@ export function singleSignOn(opts: {
           "Single sign-on is off",
           "This workspace does not use single sign-on. Sign in with your password.",
         );
-      let begun: Pick<Flow, "client" | "challenge" | "linkUserId">;
-      if (q.link !== undefined) {
-        const key = s256(q.link);
-        const ticket = tickets.get(key);
-        tickets.delete(key);
-        if (!ticket || ticket.expiresAt <= now())
-          return page(
-            reply,
-            400,
-            "Start again",
-            "This link has expired. Go back to Account settings and press Link again.",
-          );
-        begun = { linkUserId: ticket.userId };
-      } else {
-        if (
-          (q.client !== "web" && q.client !== "desktop") ||
-          !/^[A-Za-z0-9_-]{43}$/.test(q.challenge ?? "")
-        )
-          return page(
-            reply,
-            400,
-            "Start again",
-            "Start signing in from the OwnBase sign-in screen.",
-          );
-        begun = { client: q.client, challenge: q.challenge };
-      }
+      const begun = flow.begin(q);
+      if ("refused" in begun) return page(reply, 400, "Start again", begun.refused);
       let found: Provider;
       try {
         found = await providerFor(s.issuer);
@@ -374,44 +166,32 @@ export function singleSignOn(opts: {
           `${error.message} Tell the workspace's owner.`,
         );
       }
-      prune(flows);
-      const state = randomToken();
-      const flow: Flow = {
-        ...begun,
-        nonce: randomToken(),
-        verifier: randomToken(),
-        browser: "",
-        issuer: found.issuer,
-        expiresAt: now() + FLOW_MS,
-      };
-      const browser = randomToken();
-      flow.browser = s256(browser);
-      flows.set(state, flow);
-      reply.header("set-cookie", cookie(browser, FLOW_MS / 1000));
+      const nonce = randomToken();
+      const verifier = randomToken();
+      const state = flow.open(reply, begun, { nonce, verifier, issuer: found.issuer });
       return redirect(
         reply,
         authorizationUrl(found, {
           clientId: s.clientId,
           redirectUri: callbackUrl(),
           state,
-          nonce: flow.nonce,
-          codeVerifier: flow.verifier,
+          nonce,
+          codeVerifier: verifier,
         }),
       );
     });
 
     route(eeEndpoints.ssoCallback, async ({ req, reply, query: q }) => {
-      const flow = q.state ? flows.get(q.state) : undefined;
-      if (q.state) flows.delete(q.state);
-      reply.header("set-cookie", cookie("", 0));
-      if (!flow || flow.expiresAt <= now())
+      const begun = flow.take(q.state);
+      flow.endCookie(reply);
+      if (!begun)
         return page(
           reply,
           400,
           "Start again",
           "This sign-in has expired, or was used already. Go back to OwnBase and start again.",
         );
-      if (s256(readCookie(req) ?? "") !== flow.browser)
+      if (!flow.sameBrowser(begun, req))
         return page(
           reply,
           400,
@@ -424,15 +204,15 @@ export function singleSignOn(opts: {
           reply,
           400,
           "Not signed in",
-          `${providerName(s)} said: ${(q.error_description || q.error).slice(0, TEXT_MAX)}.`,
-          back(),
+          `${flow.providerName()} said: ${(q.error_description || q.error).slice(0, TEXT_MAX)}.`,
+          flow.back(),
         );
       if (!configured(s) || !base())
         return page(reply, 404, "Single sign-on is off", "This workspace stopped using it.");
       let claims: IdClaims;
       try {
         const found = await providerFor(s.issuer);
-        if (found.issuer !== flow.issuer)
+        if (found.issuer !== begun.issuer)
           throw new OidcError(
             "issuer_changed",
             "Single sign-on was set up again while you were signing in. Start again.",
@@ -445,205 +225,35 @@ export function singleSignOn(opts: {
             clientSecret: s.clientSecret,
             code: q.code,
             redirectUri: callbackUrl(),
-            codeVerifier: flow.verifier,
+            codeVerifier: begun.verifier,
           },
           fetchFn,
         );
         claims = await verifyIdToken(idToken, {
           issuer: found.issuer,
           clientId: s.clientId,
-          nonce: flow.nonce,
+          nonce: begun.nonce,
           now: now(),
           key: (kid, alg) => keysAt(found.jwksUri).key(kid, alg),
         });
       } catch (error) {
         if (!(error instanceof OidcError)) throw error;
         given.log.warn({ code: error.code }, `single sign-on: ${error.message}`);
-        return page(reply, 502, "Not signed in", error.message, back());
+        return page(reply, 502, "Not signed in", error.message, flow.back());
       }
-
-      const who = claims.email ?? claims.preferred_username ?? "that account";
-      const known = identityOf(claims.iss, claims.sub);
-      const holder = known ? given.users.get(known.userId) : null;
-
-      if (flow.linkUserId) {
-        const me = given.users.get(flow.linkUserId);
-        if (!opts.licensed())
-          return page(
-            reply,
-            403,
-            "Not linked",
-            "Linking needs an Enterprise license with single sign-on.",
-            back(),
-          );
-        if (!me || me.deactivated)
-          return page(reply, 403, "Not linked", "This account can no longer be linked.", back());
-        if (holder && holder.id !== me.id)
-          return page(
-            reply,
-            409,
-            "Not linked",
-            `${who} is linked to @${holder.handle} already. Unlink it there first.`,
-            back(),
-          );
-        link(me.id, claims);
-        return page(
-          reply,
-          200,
-          "Linked",
-          `@${me.handle} signs in with ${providerName(s)} as ${who} from now on. You can close this tab.`,
-          back(),
-        );
-      }
-
-      if (holder?.deactivated)
-        return page(
-          reply,
-          403,
-          "Not signed in",
-          "This account has been deactivated. Ask an admin of the workspace.",
-          back(),
-        );
-      let user: User | null = holder;
-      if (
-        !user &&
-        opts.licensed() &&
-        claims.email_verified === true &&
-        typeof claims.email === "string"
-      ) {
-        const id = opts.provisioned?.(claims.email);
-        const made = id ? given.users.get(id) : null;
-        // Linked once: another account of the provider's cannot take it over.
-        if (made && !store().get(`sso:user:${made.id}`)) {
-          if (made.deactivated)
-            return page(
-              reply,
-              403,
-              "Not signed in",
-              "This account has been deactivated. Ask an admin of the workspace.",
-              back(),
-            );
-          link(made.id, claims);
-          user = made;
-        }
-      }
-      if (!user) {
-        const refusal = newAccountRefusal(s, claims);
-        if (refusal) return page(reply, 403, "No account here yet", refusal, back());
-        try {
-          const handle = handleFor(claims, (h) => !!given.users.byHandle(h));
-          user = await given.users.create({
-            handle,
-            displayName: claims.name?.trim().slice(0, 80) || handle,
-          });
-        } catch (error) {
-          const code = (error as { code?: string }).code;
-          if (code !== "handle_taken" && code !== "workspace_unclaimed") throw error;
-          return page(
-            reply,
-            409,
-            "Not signed in",
-            "Your account could not be made. Start again.",
-            back(),
-          );
-        }
-        link(user.id, claims);
-      }
-
-      prune(codes);
-      const code = randomToken();
-      codes.set(s256(code), {
-        userId: user.id,
-        challenge: flow.challenge!,
-        expiresAt: now() + CODE_MS,
-      });
-      if (flow.client === "desktop") {
-        const host = encodeURIComponent(base()!).replaceAll("%3A", ":").replaceAll("%2F", "/");
-        const target = `${DEEP_LINK_PROTOCOL}://sso?host=${host}&code=${code}`;
-        return page(
-          reply,
-          200,
-          "Signed in",
-          "OwnBase is opening. If it does not, press the button. You can close this tab after.",
-          { href: target, label: "Open OwnBase" },
-          target,
-        );
-      }
-      return redirect(reply, `${base()}/#/sso/${code}`);
-    });
-
-    route(eeEndpoints.ssoRedeem, async ({ req, body }) => {
-      const key = s256(body.code);
-      const held = codes.get(key);
-      codes.delete(key);
-      if (!held || held.expiresAt <= now() || s256(body.verifier) !== held.challenge)
-        throw new HttpError(
-          401,
-          "sso_code_invalid",
-          "That sign-in has expired, or was started somewhere else. Start again.",
-        );
-      return given.startSession(held.userId, req);
-    });
-
-    route(eeEndpoints.ssoConnection, async ({ reply, user: me }) => {
-      reply.header("cache-control", "no-store");
-      const identity = linkedTo(me.id);
-      return identity
-        ? { connected: true, ...(identity.email ? { as: identity.email } : {}) }
-        : { connected: false };
-    });
-
-    route(eeEndpoints.ssoConnect, async ({ user: me }) => {
-      if (me.role === "guest")
-        throw new HttpError(403, "guest_not_allowed", "Guests sign in with their name alone.");
-      if (!configured(settings()) || !base())
-        throw new HttpError(409, "sso_off", "This workspace does not use single sign-on.");
-      if (!opts.licensed())
-        throw new HttpError(
-          403,
-          "license_required",
-          "Linking needs an Enterprise license with single sign-on.",
-        );
-      prune(tickets);
-      const ticket = randomToken();
-      tickets.set(s256(ticket), { userId: me.id, expiresAt: now() + CODE_MS });
-      return { url: `/api/sso/start?link=${ticket}` };
-    });
-
-    route(eeEndpoints.ssoDisconnect, async ({ user: me }) => {
-      // Without it they could not sign in again.
-      if (me.role !== "owner" && required())
-        throw new HttpError(
-          409,
-          "sso_required",
-          "This workspace requires single sign-on, so your account stays linked.",
-        );
-      unlink(me.id);
-      return { connected: false };
+      return flow.finish(reply, begun, claims);
     });
 
     route(eeEndpoints.ssoSettings, async ({ body }) => {
       const next: SsoSettings = { ...settings() };
-      for (const key of ["name", "issuer", "clientId", "clientSecret", "domains"] as const) {
+      for (const key of ["name", "issuer", "clientId", "clientSecret"] as const) {
         const value = body[key];
         if (value === undefined) continue;
-        if (key === "domains") {
-          const domains = parseDomains(value);
-          if (!domains)
-            throw new HttpError(
-              400,
-              "invalid_domains",
-              "Write domains such as acme.com, separated by commas.",
-            );
-          next.domains = domains;
-        } else if (key === "clientSecret") {
+        if (key === "clientSecret") {
           if (value) next.clientSecret = value;
         } else next[key] = value.trim();
       }
-      for (const key of ["newAccounts", "required"] as const) {
-        const value = body[key];
-        if (value !== undefined) next[key] = value;
-      }
+      applyLinkSettings(next, body);
       if (!next.issuer) {
         // Off: nothing more is needed, and anyone may turn it off.
         given.storage.set("sso:settings", JSON.stringify({ ...next, required: false }));
@@ -685,8 +295,7 @@ export function singleSignOn(opts: {
     // Without the license feature this build is the free edition, unless single
     // sign-on was set up already: its owner still sees it, and can turn it off.
     if (!opts.licensed() && !configured(s)) return [];
-    const field = (f: SettingsField) => f;
-    const linked = configured(s) ? linkedCount() : 0;
+    const linked = configured(s) ? flow.linkedCount() : 0;
     const people = (n: number) => `${n} ${n === 1 ? "person" : "people"}`;
     return [
       {
@@ -707,56 +316,35 @@ export function singleSignOn(opts: {
             : {}),
         ...(configured(s)
           ? {
-              status: `${linked} of ${people(context.memberCount())} can sign in with ${providerName(s)}.`,
+              status: `${linked} of ${people(context.memberCount())} can sign in with ${flow.providerName()}.`,
             }
           : {}),
         fields: [
-          field({
+          {
             key: "name",
             label: "Name on the button",
             kind: "text",
             value: s.name,
             placeholder: "Okta",
             help: "The sign-in screen says “Sign in with” and this.",
-          }),
-          field({
+          },
+          {
             key: "issuer",
             label: "Issuer",
             kind: "url",
             value: s.issuer,
             placeholder: "https://acme.okta.com",
             help: "The provider's issuer address. Left empty, single sign-on is off.",
-          }),
-          field({ key: "clientId", label: "Client ID", kind: "text", value: s.clientId }),
-          field({
+          },
+          { key: "clientId", label: "Client ID", kind: "text", value: s.clientId },
+          {
             key: "clientSecret",
             label: "Client secret",
             kind: "secret",
             value: "",
             isSet: !!s.clientSecret,
-          }),
-          field({
-            key: "newAccounts",
-            label: "Make accounts for new people",
-            kind: "toggle",
-            value: s.newAccounts,
-            help: "Someone the provider signs in who has no account here gets one, as a member. Off, people link the account they have, in Account settings.",
-          }),
-          field({
-            key: "domains",
-            label: "Email domains for new accounts",
-            kind: "text",
-            value: s.domains.join(", "),
-            placeholder: "acme.com",
-            help: "Separate them with commas. With any, the provider must have verified the address. Left empty, anyone it signs in gets an account.",
-          }),
-          field({
-            key: "required",
-            label: "Require single sign-on",
-            kind: "toggle",
-            value: s.required,
-            help: "Passwords then sign in only you, the owner, so you can always get back in. Anyone who has not linked an account cannot sign in until it is off.",
-          }),
+          },
+          ...linkFields(s),
         ],
       },
     ];
@@ -770,14 +358,14 @@ export function singleSignOn(opts: {
       return [
         {
           id: "sso",
-          name: providerName(s),
+          name: flow.providerName(),
           start: "/api/sso/start",
           redeem: "/api/sso/redeem",
           connect: "/api/sso/connect",
         },
       ];
     },
-    requiresSingleSignOn: required,
+    requiresSingleSignOn: flow.required,
     settingsPanels,
   };
 }
