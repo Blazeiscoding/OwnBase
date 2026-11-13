@@ -546,6 +546,10 @@ ${extensions.map((extension) => `\n${extension.help.replace(/\n+$/, "")}\n`).joi
     );
   }
 
+  const metricsToken = flagOrEnv(values, "metrics-token", envSetting)?.trim() || undefined;
+  if (metricsToken !== undefined && (metricsToken.length < 16 || /\s/.test(metricsToken)))
+    refuse("--metrics-token must be at least 16 characters without spaces");
+
   const accessPolicy = values["access-policy"];
   if (accessPolicy !== undefined && !isAccessPolicy(accessPolicy))
     refuse(`--access-policy must be one of ${ACCESS_POLICIES.join(", ")}`);
@@ -562,6 +566,7 @@ ${extensions.map((extension) => `\n${extension.help.replace(/\n+$/, "")}\n`).joi
     retentionDays,
     scheduledBackups,
     memberNotice,
+    metricsToken,
     claimCode,
     extensions: made,
     // Scheduled backups and the owner's copies, in a child process, so the

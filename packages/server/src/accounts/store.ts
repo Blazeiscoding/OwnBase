@@ -161,6 +161,11 @@ export class AccountStore {
     return toUser(r);
   }
 
+  /** How many sessions are signed in now, everyone's, for the host's metrics. */
+  liveSessions(now = Date.now()): number {
+    return countOf(this.db.prepare("SELECT COUNT(*) AS n FROM sessions WHERE expires_at > ?"), now);
+  }
+
   /** How many guests are signed in now, which bounds how many more are let in. */
   liveGuestSessions(now = Date.now()): number {
     return countOf(

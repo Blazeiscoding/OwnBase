@@ -548,6 +548,63 @@ The status holds no message, name, file name, address or delivery error, so it
 can go into a request for help as it is. **Diagnostics** in the app saves it as
 a file for that.
 
+### Metrics for Prometheus
+
+Start the server with `--metrics-token <token>`, or set `OWNBASE_METRICS_TOKEN`,
+which keeps the token out of the process list. `GET /metrics` then answers in
+Prometheus's text format to a request carrying `Authorization: Bearer <token>`,
+and refuses any other with `401`. Without a token the path does not exist. The
+token must be at least 16 characters with no spaces.
+
+```yaml
+scrape_configs:
+  - job_name: ownbase
+    scheme: https
+    authorization:
+      credentials_file: /etc/prometheus/ownbase-token
+    static_configs:
+      - targets: ["chat.example.org"]
+```
+
+To read it by hand:
+`curl -H "Authorization: Bearer $OWNBASE_METRICS_TOKEN" https://chat.example.org/metrics`.
+
+Metrics hold counts only: no names, ids, addresses or message text. Requests are
+labelled by the route's pattern (`/api/channels/:id/messages`), never the
+address asked for, so the number of series stays fixed. An address no route has
+is counted under `unmatched`.
+
+| Metric                                                 | Meaning                                                                              |
+| ------------------------------------------------------ | ------------------------------------------------------------------------------------ |
+| `ownbase_info{version}`                                | Always 1; the label carries the server's version                                     |
+| `ownbase_uptime_seconds`                               | Seconds since the server started                                                     |
+| `ownbase_open_sockets`                                 | Sockets open now, signed in or not yet                                               |
+| `ownbase_connected_people`                             | People connected now, each counted once however many devices they use                |
+| `ownbase_signed_in_sessions`                           | Sessions signed in and not expired                                                   |
+| `ownbase_events_written_total`                         | Counter of events written to the workspace's log; `rate()` of it is events a second  |
+| `ownbase_http_requests_total{method,route,code}`       | Counter of requests answered                                                         |
+| `ownbase_http_request_duration_seconds{method,route}`  | Histogram of how long requests took                                                  |
+| `ownbase_database_bytes`, `ownbase_database_wal_bytes` | Size of the database file and of its write-ahead log                                 |
+| `ownbase_disk_free_bytes`                              | Free space where the workspace is kept, when the system says                         |
+| `ownbase_files_stored`, `ownbase_files_stored_bytes`   | Attachments stored, and their bytes                                                  |
+| `ownbase_files_limit_bytes`                            | The `--storage-limit-mb` limit, when one is set                                      |
+| `ownbase_file_removals{state}`                         | Deleted attachments whose files are still to be removed: waiting, retrying, rejected |
+| `ownbase_app_deliveries{state}`                        | Events for apps waiting to be delivered, and given up on                             |
+| `ownbase_scheduled_messages{state}`                    | Scheduled messages queued, held for a retry, and failed                              |
+| `ownbase_backups_enabled`                              | 1 when the server takes backups on a timer                                           |
+| `ownbase_backup_last_success_age_seconds`              | Seconds since the last scheduled backup finished well; absent until one has          |
+| `ownbase_backup_failures`                              | Scheduled backups failed since the last good one                                     |
+| `ownbase_retention_failures`                           | History removals failed since the last good one, when `--retention-days` is set      |
+| `ownbase_event_loop_delay_seconds{quantile}`           | How late the event loop ran over the last full minute, at 0.5, 0.99 and 1 (the most) |
+| `ownbase_background_queues_failing`                    | Background queues failing now                                                        |
+| `ownbase_huddles`, `ownbase_huddle_people`             | Huddles going now, and the people in them                                            |
+
+The [table above](#reading-the-workspace-status) says what is ordinary for each
+of these and what to do when it is not. Good first alerts:
+`ownbase_backup_last_success_age_seconds` past twice the time between backups,
+`ownbase_disk_free_bytes` below one backup's size, and
+`ownbase_app_deliveries{state="failed"} > 0`.
+
 Create the owner account before allowing public traffic, using an SSH tunnel if
 necessary. The supplied Compose configuration then requires invitations for new
 accounts. Place an HTTPS reverse proxy in front and set `--public-url` in the

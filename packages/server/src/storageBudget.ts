@@ -38,6 +38,11 @@ export class StorageBudget {
     return true;
   }
 
+  /** How many blobs the budget is counting. */
+  get count(): number {
+    return this.files.size;
+  }
+
   /** Every blob the budget is counting, for reconciling against the database. */
   storedIds(): string[] {
     return [...this.files.keys()];

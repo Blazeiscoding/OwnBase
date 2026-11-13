@@ -883,6 +883,17 @@
       "concepts": ["storage cap", "concurrent upload", "resource accounting"]
     },
     {
+      "path": "packages/server/src/metrics.ts",
+      "plain": "Lets a host's monitoring read how busy and healthy the server is, as numbers only, when the host has given it a password.",
+      "summary": "Serves GET /metrics in Prometheus's text format behind a bearer token, from the workspace status plus per-route request counters.",
+      "details": [
+        "Requests are labelled by the route's pattern, never the address asked for, so a message id never becomes its own series; addresses no route has share the label unmatched.",
+        "The token is compared as a SHA-256 hash in constant time. Without a token the route is never registered.",
+        "Everything but the request counters is read from the same status the Diagnostics file holds, so the two never disagree; it carries counts only, no names or text."
+      ],
+      "concepts": ["observability", "Prometheus", "bounded cardinality"]
+    },
+    {
       "path": "packages/server/src/store.ts",
       "plain": "Reads and writes everything in the workspace's database, from accounts and channels to messages, search and who can see what.",
       "summary": "Maps workspace rules to transactional SQLite records and authorized query results.",
