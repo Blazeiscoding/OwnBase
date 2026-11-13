@@ -264,8 +264,9 @@ describe("single sign-on in Workspace settings", () => {
     const client = workspace(role);
     const read = vi.spyOn(client.api, "extensionSettings").mockResolvedValue({ panels });
     const save = vi.spyOn(client.api, "saveExtensionSettings").mockResolvedValue({ ok: true });
+    const downloadFile = vi.fn(async (_url: string) => {});
     render(
-      <PlatformContext.Provider value={platform("web")}>
+      <PlatformContext.Provider value={{ ...platform("web"), downloadFile }}>
         <ClientContext.Provider value={client}>
           <ConfirmProvider>
             <WorkspaceSettings onClose={() => {}} />
@@ -273,8 +274,39 @@ describe("single sign-on in Workspace settings", () => {
         </ClientContext.Provider>
       </PlatformContext.Provider>,
     );
-    return { client, read, save, user: userEvent.setup() };
+    return { client, read, save, downloadFile, user: userEvent.setup() };
   }
+
+  it("puts compliance panels under a tab of their own, and saves a button's download (P12)", async () => {
+    const exporting: SettingsPanel = {
+      id: "compliance-export",
+      section: "compliance",
+      title: "Compliance export",
+      description: "Messages, edits and deletions, as JSON lines with their files.",
+      fields: [],
+      actions: [{ id: "export", label: "Download an export", path: "/api/compliance/export" }],
+    };
+    const { client, downloadFile, user } = settings("owner", [panel(), exporting]);
+    const run = vi.spyOn(client.api, "runSettingsAction").mockResolvedValue({
+      download: "/api/compliance/export?download=one-time-ticket",
+    });
+    await user.click(await screen.findByRole("tab", { name: "Sign-in" }));
+    expect(screen.queryByRole("heading", { name: "Compliance export" })).toBeNull();
+    await user.click(screen.getByRole("tab", { name: "Compliance" }));
+    expect(screen.queryByRole("heading", { name: "Single sign-on" })).toBeNull();
+    await user.click(screen.getByRole("button", { name: "Download an export" }));
+    expect(run).toHaveBeenCalledWith("/api/compliance/export");
+    await waitFor(() =>
+      expect(downloadFile).toHaveBeenCalledWith(
+        `${client.api.baseUrl}/api/compliance/export?download=one-time-ticket`,
+      ),
+    );
+    expect(await accessibilityProblems()).toEqual([]);
+
+    downloadFile.mockRejectedValue(new Error("offline"));
+    await user.click(screen.getByRole("button", { name: "Download an export" }));
+    expect(await screen.findByRole("alert")).toHaveTextContent("The download did not start.");
+  });
 
   it("is a section of its own for the owner, saved where the server says", async () => {
     const { read, save, user } = settings("owner", [panel()]);

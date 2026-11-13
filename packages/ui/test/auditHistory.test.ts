@@ -141,6 +141,22 @@ describe("an entry, as an administrator would say it", () => {
     );
   });
 
+  it("finishes an extension's sentence with what it says was done (P12)", () => {
+    const held = { targetType: "workspace" as const, targetId: null };
+    expect(
+      say(entry("extension.action", { ...held, details: { did: "changed the legal hold" } })),
+    ).toBe("Alice changed the legal hold");
+    expect(
+      say(
+        entry("extension.action", {
+          ...held,
+          actorId: null,
+          details: { did: "stopped sending the record to a webhook" },
+        }),
+      ),
+    ).toBe("The host stopped sending the record to a webhook");
+  });
+
   it("says what was done about a reported message, and how many reported it", () => {
     expect(say(entry("report.resolved", { details: { resolution: "dismiss", reports: 1 } }))).toBe(
       "Alice dismissed a report about Bob's message",
@@ -184,6 +200,7 @@ describe("an entry, as an administrator would say it", () => {
       "subscription.deleted",
       "invite.created",
       "invite.revoked",
+      "extension.action",
     ];
     for (const action of actions) {
       // With every detail an entry can carry, and with none: an entry from a

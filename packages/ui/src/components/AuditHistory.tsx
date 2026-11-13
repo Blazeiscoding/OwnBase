@@ -125,6 +125,10 @@ export function describeAuditEntry(
       return `${actor} created an invite code`;
     case "invite.revoked":
       return `${actor} revoked an invite code`;
+    case "extension.action":
+      return typeof d.did === "string" && d.did
+        ? `${actor} ${d.did}`
+        : `${actor} changed an Enterprise setting`;
   }
 }
 

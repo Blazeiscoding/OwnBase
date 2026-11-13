@@ -93,6 +93,38 @@ describe("writing a zip", () => {
     }
   });
 
+  it("sums a CRC it was not given as the bytes go, and writes it after them (P12)", async () => {
+    const files = {
+      "messages.jsonl": Buffer.from('{"id":"01A"}\n{"id":"01B"}\n'),
+      "files/01ABC/report.pdf": Buffer.alloc(70_000, 7),
+      "manifest.json": Buffer.from('{"format":1}'),
+    };
+    const sources = Object.entries(files).map(([name, bytes]) => {
+      const known = entry(name, bytes);
+      // The first two are summed on the way; the last is given, as before.
+      return name === "manifest.json" ? known : { ...known, crc32: undefined };
+    });
+    const { path, length } = await write(sources);
+    const bytes = readFileSync(path);
+    expect(bytes.length).toBe(length);
+    // Bit 3: the CRC follows, in a data descriptor, right after the bytes.
+    expect(bytes.readUInt16LE(6) & 0x0008).toBe(0x0008);
+    expect(bytes.readUInt32LE(14)).toBe(0);
+    const first = files["messages.jsonl"];
+    const after = 30 + "messages.jsonl".length + first.length;
+    expect(bytes.readUInt32LE(after)).toBe(0x08074b50);
+    expect(bytes.readUInt32LE(after + 4)).toBe(crc32(first));
+    const entries = await readZipEntries(path);
+    expect(entries.map((e) => [e.name, e.crc32])).toEqual(
+      Object.entries(files).map(([name, b]) => [name, crc32(b)]),
+    );
+    for (const e of entries) {
+      const to = join(root, `summed-${entries.indexOf(e)}`);
+      await extractZipEntry(path, e, to);
+      expect(readFileSync(to)).toEqual(files[e.name as keyof typeof files]);
+    }
+  });
+
   it("dates every entry with the time it is given, as zip tools read it", async () => {
     // Local time, to two seconds: 26 October 2026, 21:03:05 is stored as :04.
     const at = new Date(2026, 9, 26, 21, 3, 5).getTime();

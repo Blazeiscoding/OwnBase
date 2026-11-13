@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 import { cleanup, act, screen, within } from "@testing-library/react";
 import { render } from "./render.js";
 import userEvent from "@testing-library/user-event";
-import { WorkspaceClient, type HuddleState } from "@ownbase/client-core";
+import { ApiError, WorkspaceClient, type HuddleState } from "@ownbase/client-core";
 import type { Channel, Message, User } from "@ownbase/protocol";
 import { ClientContext, PlatformContext } from "../src/context.js";
 import { webPlatform } from "../src/platform.js";
@@ -409,6 +409,27 @@ describe("message actions", () => {
     pointAtMessage();
     await user.click(screen.getByRole("button", { name: "More actions" }));
     expect(screen.getByRole("menuitem", { name: "Delete message" })).toBeEnabled();
+  });
+
+  it("says why when the server refuses a deletion, such as a message kept for the records (P12)", async () => {
+    const user = userEvent.setup();
+    const { deleteMessage } = messageItem();
+    deleteMessage.mockRejectedValueOnce(
+      new ApiError(
+        403,
+        "message_kept",
+        "This message is kept for the workspace's records, so it cannot be deleted.",
+      ),
+    );
+    await choose(user, "Delete message");
+    await user.click(
+      within(screen.getByRole("dialog", { name: "Delete this message?" })).getByRole("button", {
+        name: "Delete",
+      }),
+    );
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "The message was not deleted. This message is kept for the workspace's records, so it cannot be deleted.",
+    );
   });
 
   it("says so when an optimistic toggle comes back undone, and offers it again", async () => {

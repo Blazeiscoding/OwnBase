@@ -29,7 +29,30 @@ function toEntry(r: AuditRow): AuditEntry {
  * admin answers for writes to it, so it hangs off the store as `store.audit`.
  */
 export class AuditLog {
+  private readonly listeners = new Set<() => void>();
+  private telling = false;
+
   constructor(private readonly db: DatabaseSync) {}
+
+  /**
+   * Calls `listener` after entries are written, once for any number written
+   * together, and returns what stops it. It runs on a later turn, by when the
+   * transaction that wrote them has committed or rolled back, so `after` reads
+   * only entries that stayed.
+   */
+  onRecord(listener: () => void): () => void {
+    this.listeners.add(listener);
+    return () => this.listeners.delete(listener);
+  }
+
+  private tell(): void {
+    if (this.telling || this.listeners.size === 0) return;
+    this.telling = true;
+    setImmediate(() => {
+      this.telling = false;
+      for (const listener of this.listeners) listener();
+    });
+  }
 
   /** Call inside the transaction that makes the change, so neither exists without the other. */
   record(
@@ -55,6 +78,27 @@ export class AuditLog {
         entry.targetId,
         JSON.stringify(entry.details ?? {}),
       );
+    this.tell();
+  }
+
+  /**
+   * Oldest first, the entries written after the one with id `afterId`, or
+   * from the first when it is null. An id the log no longer has, as after a
+   * restore from an older backup, reads from the first again: a reader that
+   * sends entries on gets some twice rather than missing any.
+   */
+  after(afterId: ID | null, limit: number): AuditEntry[] {
+    const from =
+      afterId === null
+        ? 0
+        : ((
+            this.db.prepare("SELECT rowid AS at FROM audit_log WHERE id = ?").get(afterId) as
+              { at: number } | undefined
+          )?.at ?? 0);
+    const rows = this.db
+      .prepare("SELECT * FROM audit_log WHERE rowid > ? ORDER BY rowid LIMIT ?")
+      .all(from, limit) as AuditRow[];
+    return rows.map(toEntry);
   }
 
   /**

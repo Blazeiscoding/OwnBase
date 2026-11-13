@@ -96,6 +96,7 @@ export const ERROR_CODES = [
   "invalid_search_date",
   "message_changed",
   "message_deleted",
+  "message_kept",
   "message_not_found",
   "msg_too_long",
   "nonce_conflict",
@@ -162,7 +163,7 @@ export const ERROR_CODES = [
   "too_large",
   "unreachable",
 
-  // Single sign-on and licensing (ee)
+  // Single sign-on, compliance and licensing (ee)
   "invalid_domains",
   "license_required",
   "public_url_required",
@@ -171,6 +172,8 @@ export const ERROR_CODES = [
   "sso_incomplete",
   "sso_off",
   "sso_required",
+  "export_running",
+  "no_export_choice",
 
   // Made by the client when no answer explains a failure
   "avatar_unavailable",
