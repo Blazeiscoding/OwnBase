@@ -20,13 +20,13 @@
     "test": "vitest run"
   },
   "dependencies": {
-    "@fastify/cors": "^11.4.1",
+    "@fastify/cors": "^11.4.2",
     "@fastify/multipart": "^10.1.8",
     "@fastify/static": "^10.1.10",
     "@ownbase/protocol": "workspace:*",
     "bonjour-service": "^1.3.0",
     "fastify": "^5.12.8",
-    "ws": "^8.22.2",
+    "ws": "^8.23.0",
     "zod": "^4.6.7"
   },
   "devDependencies": {
