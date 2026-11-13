@@ -8,8 +8,8 @@ import type {
 import { ZodError, ZodType } from "zod";
 import {
   fillPath,
-  isAdministrator,
   requestSchemas,
+  roleMayCall,
   type App,
   type BodyOf,
   type DownloadTicket,
@@ -177,7 +177,8 @@ export function createRouter(opts: RouterOptions): Router {
     const sessionHash = sessionHashOf(req);
     const user = sessionHash ? opts.sessionUser(sessionHash) : null;
     if (!user) throw new HttpError(401, "unauthorized");
-    if (user.role === "guest" && endpoint.access !== "guest") {
+    const allowed = roleMayCall(endpoint.access, user.role);
+    if (!allowed && user.role === "guest") {
       throw new HttpError(
         403,
         "guest_not_allowed",
@@ -185,12 +186,10 @@ export function createRouter(opts: RouterOptions): Router {
       );
     }
     if (!endpoint.whileLocked && opts.mustChangePassword(user.id)) throw passwordChangeRequired();
-    if (endpoint.access === "admin" && !isAdministrator(user.role)) {
-      throw new HttpError(403, "admin_only");
-    }
-    if (endpoint.access === "owner" && user.role !== "owner") {
+    if (!allowed && endpoint.access === "owner") {
       throw new HttpError(403, "owner_only", "Only the workspace's owner can do this.");
     }
+    if (!allowed && endpoint.access === "admin") throw new HttpError(403, "admin_only");
     return user;
   };
 

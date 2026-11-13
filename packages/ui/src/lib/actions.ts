@@ -1,6 +1,7 @@
 import { useStore } from "zustand";
 import {
   selfIsAdministrator,
+  selfMay,
   type WorkspaceClient,
   type WorkspaceState,
 } from "@ownbase/client-core";
@@ -48,10 +49,11 @@ export interface Action {
 
 /** Owners and admins always may invite; a member when an admin allowed it; a guest never. */
 export function mayInvite(self: WorkspaceState["self"]): boolean {
-  return self?.role !== "guest" && self?.canInvite === true;
+  return selfMay({ self }, "createInvite") && self?.canInvite === true;
 }
 
 const guest = (ctx: ActionContext) => ctx.state.self?.role === "guest";
+// A guest has no profile, settings or schedule of its own here.
 const member = (ctx: ActionContext) => !guest(ctx);
 const always = () => true;
 const admin = (ctx: ActionContext) => selfIsAdministrator(ctx.state);
@@ -117,7 +119,7 @@ export const ACTIONS = [
     label: "New message",
     icon: "edit",
     keywords: "dm direct conversation write",
-    available: member,
+    available: (ctx) => selfMay(ctx.state, "createChannel"),
     run: (ctx) => ctx.nav.navigate({ to: "dialog", dialog: { kind: "new-dm" } }),
   },
   {
@@ -126,7 +128,7 @@ export const ACTIONS = [
     icon: "plus",
     keywords: "new add room",
     palette: { label: "Create a channel" },
-    available: member,
+    available: (ctx) => selfMay(ctx.state, "createChannel"),
     run: (ctx) => ctx.nav.navigate({ to: "dialog", dialog: { kind: "new-channel" } }),
   },
   {
@@ -152,7 +154,7 @@ export const ACTIONS = [
   },
   {
     ...panel("scheduled", "Scheduled messages", "clock", "send later", "scheduled"),
-    available: member,
+    available: (ctx) => selfMay(ctx.state, "scheduleMessage"),
   },
   {
     id: "search",
@@ -615,10 +617,14 @@ export function useActionContext(): ActionContext {
   };
 }
 
+/** Whether this account may use an action now: what a control that runs it is shown by. */
+export function offered(ctx: ActionContext, id: ActionId): boolean {
+  return action(id).available({ ...ctx, state: ctx.client.state });
+}
+
 /** Runs an action by id, if this account may. */
 export function runAction(ctx: ActionContext, id: ActionId): void {
-  const a = action(id);
-  if (a.available({ ...ctx, state: ctx.client.state })) a.run(ctx);
+  if (offered(ctx, id)) action(id).run(ctx);
 }
 
 /** The workspace's global keys, as `KEY_BINDINGS` lists them. */

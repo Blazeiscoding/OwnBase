@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { Channel } from "@ownbase/protocol";
-import { mentionsElsewhere, snoozedUntil, waitsForAttention } from "../src/index.js";
+import { mentionsElsewhere, selfMay, snoozedUntil, waitsForAttention } from "../src/index.js";
 
 const room = (id: string, extra: Partial<Channel> = {}) =>
   ({ id, type: "public", name: id, ...extra }) as Channel;
@@ -40,5 +40,15 @@ describe("what asks for attention", () => {
     expect(snoozedUntil(2_000, 1_000)).toBe(2_000);
     expect(snoozedUntil(1_000, 1_000)).toBeNull();
     expect(snoozedUntil(null)).toBeNull();
+  });
+
+  it("offers what the server would let this account call, by the endpoint table", () => {
+    const as = (role: "owner" | "member" | "guest") => ({ self: { role } as never });
+    expect(selfMay(as("member"), "pinMessage")).toBe(true);
+    expect(selfMay(as("guest"), "pinMessage")).toBe(false);
+    expect(selfMay(as("guest"), "sendMessage")).toBe(true);
+    expect(selfMay(as("member"), "listReports")).toBe(false);
+    expect(selfMay(as("owner"), "transferOwnership")).toBe(true);
+    expect(selfMay({ self: null }, "sendMessage")).toBe(false);
   });
 });

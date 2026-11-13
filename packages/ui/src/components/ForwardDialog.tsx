@@ -1,6 +1,12 @@
 import { useId, useRef, useState, type FormEvent } from "react";
 import { MESSAGE_TEXT_MAX, type ID } from "@ownbase/protocol";
-import { ApiError, blockedPartner, forwardOf, type ForwardSource } from "@ownbase/client-core";
+import {
+  ApiError,
+  blockedPartner,
+  forwardOf,
+  selfMay,
+  type ForwardSource,
+} from "@ownbase/client-core";
 import { useClient, useWorkspace } from "../context.js";
 import { matchTier } from "../lib/switcherRank.js";
 import { useListbox } from "../lib/useListbox.js";
@@ -46,7 +52,7 @@ export function ForwardDialog({ source, onClose }: { source: ForwardSource; onCl
   const field = useRef<HTMLInputElement>(null);
   const problemId = useId();
 
-  const guest = useWorkspace((s) => s.self?.role === "guest");
+  const startsDirect = useWorkspace((s) => selfMay(s, "createChannel"));
   const blocked = useWorkspace((s) => s.blocked);
   // Where this person can post: what they are in, and any public channel,
   // which posting joins; and anyone else, as the switcher offers them, in a
@@ -60,7 +66,7 @@ export function ForwardDialog({ source, onClose }: { source: ForwardSource; onCl
     if (c.type === "dm" && others.length === 1) directWith.add(others[0]!);
     places.push({ key: c.id, label: conversationName(c, users, selfId), channelId: c.id });
   }
-  if (!guest)
+  if (startsDirect)
     for (const u of Object.values(users))
       if (u.id !== selfId && !u.deactivated && !directWith.has(u.id) && !blocked.includes(u.id))
         places.push({ key: `person:${u.id}`, label: u.displayName, userId: u.id });

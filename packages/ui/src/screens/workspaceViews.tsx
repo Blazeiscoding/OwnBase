@@ -1,6 +1,6 @@
 import { lazy, useEffect, useRef, useState, type ComponentProps, type ReactNode } from "react";
 import type { ID } from "@ownbase/protocol";
-import { selfIsAdministrator, type WorkspaceState } from "@ownbase/client-core";
+import { selfIsAdministrator, selfMay, type WorkspaceState } from "@ownbase/client-core";
 import { useWorkspace } from "../context.js";
 import { LazyDialog, LazyPanel } from "../components/LazyView.js";
 import { QuickSwitcherLoading, type EarlyTyping } from "../components/QuickSwitcherLoading.js";
@@ -334,7 +334,7 @@ function useViewContext(): ViewContext {
   const nav = useNavigation();
   const shell = useWorkspaceShell();
   const channelId = useNavigationState((s) => s.channelId);
-  const schedules = useWorkspace((s) => !!s.self && s.self.role !== "guest");
+  const schedules = useWorkspace((s) => selfMay(s, "scheduleMessage"));
   return { nav, channelId, shell, schedules };
 }
 

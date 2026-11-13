@@ -1,10 +1,32 @@
 import { describe, expect, it } from "vitest";
-import { errorCodeOf, isAdministrator, isDirect, isRoom, userMentionsIn } from "../src/index.js";
+import {
+  errorCodeOf,
+  isAdministrator,
+  isDirect,
+  isRoom,
+  roleMayCall,
+  userMentionsIn,
+} from "../src/index.js";
 
 describe("shared rules", () => {
   it("counts owners and admins as running the workspace, and nobody else", () => {
     const roles = ["owner", "admin", "member", "guest", undefined] as const;
     expect(roles.map((role) => isAdministrator(role))).toEqual([true, true, false, false, false]);
+  });
+
+  it("lets each role call the routes its access names, and nobody signed out but public ones", () => {
+    const roles = ["owner", "admin", "member", "guest", undefined] as const;
+    const table = (["public", "guest", "member", "admin", "owner", "bot"] as const).map((access) =>
+      roles.map((role) => roleMayCall(access, role)),
+    );
+    expect(table).toEqual([
+      [true, true, true, true, true],
+      [true, true, true, true, false],
+      [true, true, true, false, false],
+      [true, true, false, false, false],
+      [true, false, false, false, false],
+      [false, false, false, false, false],
+    ]);
   });
 
   it("tells rooms from direct messages, and a missing conversation from both", () => {

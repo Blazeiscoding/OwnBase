@@ -1,5 +1,11 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { ApiError, blockedPartner, isUnread, notificationBody } from "@ownbase/client-core";
+import {
+  ApiError,
+  blockedPartner,
+  isUnread,
+  notificationBody,
+  selfMay,
+} from "@ownbase/client-core";
 import type { Channel, ID, Message } from "@ownbase/protocol";
 import { useClient, useWorkspace } from "../context.js";
 import { channelTitle, formatFull } from "../lib/format.js";
@@ -42,9 +48,10 @@ export function DirectMessagesPanel(props: {
   const friendRequests = useWorkspace(
     (s) => s.friends.filter((f) => f.status === "incoming").length,
   );
-  const guest = self?.role === "guest";
+  // A guest has the public channels only.
+  const messaging = useWorkspace((s) => selfMay(s, "latestDirectMessages"));
   const { panel, heading } = usePanelFocus({ takeFocus: true });
-  const latest = useLatestDirectMessages(status === "online" && !guest);
+  const latest = useLatestDirectMessages(status === "online" && messaging);
 
   const dms = useMemo(() => {
     const list: Channel[] = [];
@@ -73,7 +80,7 @@ export function DirectMessagesPanel(props: {
         <h2 ref={heading} tabIndex={-1} className="flex-1 text-[15px] font-semibold outline-none">
           Direct messages
         </h2>
-        {!guest && (
+        {messaging && (
           <>
             <Tooltip label="Friends">
               <button
@@ -128,11 +135,11 @@ export function DirectMessagesPanel(props: {
           empty={
             arriving || dms.length > 0
               ? null
-              : guest
+              : !messaging
                 ? "Direct messages are for members. As a guest, you can use the public channels."
                 : "No direct messages yet. Start one with anyone in this workspace."
           }
-          emptyAction={guest ? undefined : { label: "New message", run: props.onNewMessage }}
+          emptyAction={!messaging ? undefined : { label: "New message", run: props.onNewMessage }}
         />
         <ul className="space-y-px">
           {dms.map((channel) => {

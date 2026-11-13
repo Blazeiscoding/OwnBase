@@ -1,5 +1,7 @@
 import {
+  endpoints,
   isAdministrator,
+  roleMayCall,
   type Channel,
   type ID,
   type ThreadFollow,
@@ -92,4 +94,16 @@ export function isSnoozed(dndUntil: number | null | undefined, now = Date.now())
 
 export function selfIsAdministrator(state: Pick<WorkspaceState, "self">): boolean {
   return isAdministrator(state.self?.role);
+}
+
+/**
+ * Whether this account may call the endpoint `name`, by the access the
+ * endpoint table gives it: the server's own rule, so what the UI offers and
+ * what the server lets through cannot drift apart.
+ */
+export function selfMay(
+  state: Pick<WorkspaceState, "self">,
+  name: keyof typeof endpoints,
+): boolean {
+  return roleMayCall(endpoints[name].access, state.self?.role);
 }

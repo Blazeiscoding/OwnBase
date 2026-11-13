@@ -17,6 +17,7 @@ import {
   WORKSPACE_MENU,
   action,
   menuItems,
+  offered,
   runAction,
   useActionContext,
   type ActionContext,
@@ -178,7 +179,6 @@ export function Sidebar(props: {
   const presence = useWorkspace((s) => s.presence);
   const self = useWorkspace((s) => s.self);
   const selfId = self?.id;
-  // A guest has public channels only: no DMs, rooms of its own, friends or schedules.
   const guest = self?.role === "guest";
   const connectionLabel = useConnectionLabel();
 
@@ -750,15 +750,15 @@ export function Sidebar(props: {
                     icon: "compass",
                     onClick: () => runAction(actions, "browse"),
                   },
-                  ...(guest
-                    ? []
-                    : [
+                  ...(offered(actions, "new-channel")
+                    ? [
                         {
                           label: "New channel",
                           icon: "plus" as const,
                           onClick: () => runAction(actions, "new-channel"),
                         },
-                      ]),
+                      ]
+                    : []),
                 ]}
               />
               <ul key={reopened.channels} className={`mb-4 space-y-px ${rowsIn("channels")}`}>
@@ -767,7 +767,7 @@ export function Sidebar(props: {
             </div>
 
             <div {...dropZone("dms")}>
-              {!guest && (
+              {offered(actions, "new-message") && (
                 <SectionHeader
                   label="Direct messages"
                   section="dms"
@@ -793,7 +793,7 @@ export function Sidebar(props: {
               </ul>
             </div>
             {/* For someone with nobody to talk to yet; starred ones still count. */}
-            {dms.length === 0 && !starred.some(isDirect) && !guest && (
+            {dms.length === 0 && !starred.some(isDirect) && offered(actions, "new-message") && (
               <button
                 onClick={() => runAction(actions, "new-message")}
                 className="group mt-1 flex w-full items-center gap-2.5 rounded-lg px-2 py-1.5 text-left text-sm text-ink-faint transition-colors hover:bg-ink/[0.05] hover:text-ink"

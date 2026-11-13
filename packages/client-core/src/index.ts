@@ -89,6 +89,7 @@ export {
   isUnread,
   mentionsElsewhere,
   selfIsAdministrator,
+  selfMay,
   waitsForAttention,
 } from "./selectors.js";
 export { threadReplies, threadRootMessage, timelineMessages } from "./messageCache.js";

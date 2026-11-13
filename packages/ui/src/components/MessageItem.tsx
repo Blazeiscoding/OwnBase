@@ -13,7 +13,13 @@ import {
 import { writeClipboard } from "../lib/useCopy.js";
 import { browserLink } from "../lib/deeplink.js";
 import type { FileMeta, ID, Message } from "@ownbase/protocol";
-import { ApiError, draftKey, forwardSource, type ForwardSource } from "@ownbase/client-core";
+import {
+  ApiError,
+  draftKey,
+  forwardSource,
+  selfMay,
+  type ForwardSource,
+} from "@ownbase/client-core";
 import { failureText } from "../lib/failure.js";
 import { OpenMessageContext, useClient, useWorkspace } from "../context.js";
 import { onlyEmoji } from "../lib/emoji.js";
@@ -143,6 +149,7 @@ const MessageRow = memo(function MessageRow({
   const { users, channels } = useMessageReferences(message);
   const selfId = useWorkspace((s) => s.self?.id);
   const selfRole = useWorkspace((s) => s.self?.role);
+  const mayPin = useWorkspace((s) => selfMay(s, "pinMessage"));
   const [editing, setEditing] = useState(false);
   const [picking, setPicking] = useState(false);
   // What the dialog passes on, as it was when Forward was chosen.
@@ -366,7 +373,7 @@ const MessageRow = memo(function MessageRow({
     editable,
     canReply,
     canDelete,
-    canPin: selfRole !== "guest",
+    canPin: mayPin,
     canForward: !!forwarded,
     saved: isSaved,
     threadMuted,

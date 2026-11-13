@@ -1,8 +1,31 @@
+import type { Access } from "./endpoint.js";
 import type { Channel, Role, User } from "./entities.js";
 
 /** Owners and admins run the workspace; everything else about a role is a narrower rule. */
 export function isAdministrator(role: Role | undefined | null): boolean {
   return role === "owner" || role === "admin";
+}
+
+/**
+ * Whether an account of `role` may call a route of `access`, as the server
+ * decides it; `role` is undefined when nobody is signed in. A bot's routes
+ * take an app's token, never a person's.
+ */
+export function roleMayCall(access: Access, role: Role | undefined | null): boolean {
+  switch (access) {
+    case "public":
+      return true;
+    case "guest":
+      return !!role;
+    case "member":
+      return !!role && role !== "guest";
+    case "admin":
+      return isAdministrator(role);
+    case "owner":
+      return role === "owner";
+    case "bot":
+      return false;
+  }
 }
 
 /** Visibility must be checked separately; administrators do not gain private-room access. */
