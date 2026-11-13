@@ -168,6 +168,9 @@ and admins change in Workspace settings. `--help` lists the rest, along with the
 hours, verifies each copy before keeping it, and keeps the newest seven.
 `--backup-every-hours` and `--backup-keep` change those numbers. See
 [Backups on a schedule](docs/DEPLOYMENT.md#backups-on-a-schedule).
+`--backup-offsite <url>` also sends each backup to an S3-compatible bucket, such
+as Cloudflare R2, so a lost disk does not take the backups with it. See
+[Backups somewhere else](docs/DEPLOYMENT.md#backups-somewhere-else).
 
 To run the server as a service that starts with the machine and restarts after a
 crash, follow [A Linux server with systemd](docs/DEPLOYMENT.md#a-linux-server-with-systemd)
@@ -201,13 +204,21 @@ that number, the owner and admins see a notice. It never locks anyone out. See
 
 ## What works today
 
-- Public and private channels, DMs and group DMs, and threads.
+- Public and private channels, DMs and group DMs, and threads you can follow or
+  mute.
 - Reactions, mentions, pins and saved items.
+- Forwarding, polls, and reminders about a message.
+- Link previews, and a card for a link to another message.
 - Typing indicators, presence and unread tracking.
-- File and image sharing, with inline previews and a lightbox.
-- Drafts kept per conversation, which survive a restart.
-- Profiles and statuses, channel topics and member management.
+- File and image sharing, with inline previews and a lightbox, and a list of
+  every file shared where you can read it.
+- Drafts kept per conversation, which survive a restart, and a list of them.
+- Profiles, and statuses that can clear themselves. Channel topics and member
+  management.
+- Starred conversations and sidebar sections of your own.
 - Notification preferences per channel, with mute, and Do Not Disturb snoozing.
+- Two-step sign-in with an authenticator app, and recovery codes.
+- Blocking someone, and reporting a message to the admins.
 - Invites, LAN discovery, hosting from the desktop app, member administration,
   and a browser client the server serves itself.
 
@@ -413,13 +424,20 @@ without deleting the app or losing its configuration.
 Roles are deliberately blunt. An admin can promote and remove members. Only the
 owner can change another admin, no admin can change the owner's account, and
 nobody can change their own role. A workspace cannot be lost to an argument
-between two admins, or to a misclick.
+between two admins, or to a misclick. The owner can hand the workspace to
+someone else from People, and stays on as an admin.
 
 The owner can download the whole workspace as one `.zip` from **Workspace
 settings → General → Download a copy**, without access to the server.
 `ownbase-server restore --from <zip>` puts it back. The copy holds every
 message, file and account and the secrets apps use, so keep it as safe as the
 server.
+
+`ownbase-server import-slack` makes a new workspace from the export Slack gives
+you, with its people, channels, messages, threads, reactions and pins. `export`
+writes a workspace out in Slack's export format. See
+[Moving in from Slack](docs/DEPLOYMENT.md#moving-in-from-slack) and
+[Taking your data out](docs/DEPLOYMENT.md#taking-your-data-out).
 
 ## Enterprise edition
 
@@ -542,10 +560,10 @@ pnpm test:e2e       # browser scenarios against the built server
 `pnpm build:win` writes the installer to `apps/desktop/release/`. Local builds
 are unsigned unless you configure a signing certificate. The browser scenarios need
 `pnpm exec playwright install chromium webkit firefox` once (`--project=chromium`
-runs the Chromium scenarios alone). CI covers the server, the browser
-client, Docker and the Windows app. [CI duration and caching](docs/CI.md) has the
-build reuse, the installer selection and the measured baseline. The optimized
-workflows have not been timed on GitHub.
+runs the Chromium scenarios alone). CI covers the server, the browser client,
+Docker and the Windows app, in parallel jobs that take about four minutes.
+[CI duration and caching](docs/CI.md) has the build reuse, the installer
+selection and the measured times.
 
 The app icon is a pixel drawing in `scripts/icon-art.mjs`. After changing it, run
 `node scripts/generate-palette.mjs` to rewrite the SVGs, then install Playwright's
@@ -554,10 +572,11 @@ icons. Normal packaging uses the checked-in assets and does not need this step.
 
 ## Roadmap
 
-- **Done.** Moving in from Slack (`import-slack`) and taking a workspace out in
-  Slack's export format (`export`); see [DEPLOYMENT.md](docs/DEPLOYMENT.md#moving-in-from-slack).
+- **Done lately.** Moving in from Slack and taking a workspace out in Slack's
+  format, and a Windows app that updates itself.
 - **Next.** Push notifications for the browser client.
-- **Later.** An SFU for larger huddles, and optional Postgres and S3.
+- **Later.** SCIM and SAML in the Enterprise edition, an SFU for larger
+  huddles, and optional Postgres and S3.
 
 [Current boundaries](docs/DEPLOYMENT.md#current-boundaries) lists what is missing
 today.
