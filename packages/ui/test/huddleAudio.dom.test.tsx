@@ -70,7 +70,7 @@ function bar() {
   render(
     <PlatformContext.Provider value={platform}>
       <ClientContext.Provider value={client}>
-        <HuddleBar />
+        <HuddleBar onOpenSettings={() => {}} />
       </ClientContext.Provider>
     </PlatformContext.Provider>,
   );
@@ -330,7 +330,7 @@ describe("each person's volume, from the bar", () => {
     const utils = render(
       <PlatformContext.Provider value={platform}>
         <ClientContext.Provider value={client}>
-          <HuddleBar />
+          <HuddleBar onOpenSettings={() => {}} />
         </ClientContext.Provider>
       </PlatformContext.Provider>,
     );

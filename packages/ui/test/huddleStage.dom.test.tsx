@@ -92,7 +92,11 @@ function stage(
   render(
     <PlatformContext.Provider value={on}>
       <ClientContext.Provider value={client}>
-        <HuddleStage onHide={onHide} chat={chat && { shown: chat.shown, onToggle }} />
+        <HuddleStage
+          onOpenSettings={() => {}}
+          onHide={onHide}
+          chat={chat && { shown: chat.shown, onToggle }}
+        />
       </ClientContext.Provider>
     </PlatformContext.Provider>,
   );
@@ -436,7 +440,7 @@ describe("the huddle bar", () => {
     const ui = (next?: "call" | "chat") => (
       <PlatformContext.Provider value={platform}>
         <ClientContext.Provider value={client}>
-          <HuddleBar view={next} onViewChange={onViewChange} />
+          <HuddleBar onOpenSettings={() => {}} view={next} onViewChange={onViewChange} />
         </ClientContext.Provider>
       </PlatformContext.Provider>
     );
@@ -496,7 +500,7 @@ describe("the huddle bar", () => {
         <ToastProvider>
           <PlatformContext.Provider value={platform}>
             <ClientContext.Provider value={client}>
-              <HuddleBar />
+              <HuddleBar onOpenSettings={() => {}} />
             </ClientContext.Provider>
           </PlatformContext.Provider>
         </ToastProvider>,
@@ -532,7 +536,7 @@ describe("the huddle bar", () => {
       <ToastProvider>
         <PlatformContext.Provider value={platform}>
           <ClientContext.Provider value={client}>
-            <HuddleBar />
+            <HuddleBar onOpenSettings={() => {}} />
           </ClientContext.Provider>
         </PlatformContext.Provider>
       </ToastProvider>,

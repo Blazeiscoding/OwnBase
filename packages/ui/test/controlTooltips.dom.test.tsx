@@ -197,7 +197,11 @@ describe("compact controls explain themselves with the shared tooltip", () => {
     render(
       <PlatformContext.Provider value={platform}>
         <ClientContext.Provider value={c}>
-          <HuddleStage onHide={() => {}} chat={{ shown: true, onToggle: () => {} }} />
+          <HuddleStage
+            onOpenSettings={() => {}}
+            onHide={() => {}}
+            chat={{ shown: true, onToggle: () => {} }}
+          />
         </ClientContext.Provider>
       </PlatformContext.Provider>,
     );

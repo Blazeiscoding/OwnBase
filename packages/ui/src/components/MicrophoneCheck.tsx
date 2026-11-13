@@ -43,7 +43,7 @@ export function MicrophoneCheck({
   /** Where to play the voice back; "" for the system's default. */
   speakerId?: string;
   /** Told once a microphone opens, as the browser then gives devices' names. */
-  onOpened?: () => void;
+  onOpened: () => void;
   /** Listens at once rather than waiting to be asked. */
   autoStart?: boolean;
 }) {
@@ -100,7 +100,7 @@ export function MicrophoneCheck({
         system: opened.system,
         level: 0,
       });
-      onOpened?.();
+      onOpened();
     } catch (err) {
       if (alive.current && attempt.current === mine)
         setCheck({

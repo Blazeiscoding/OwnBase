@@ -330,7 +330,7 @@ describe("the caller", () => {
       C_GROUP: ring({ channelId: "C_GROUP", callerId: "U_SAM", ringing: ["U_MAYA", "U_LEE"] }),
     });
     inCall(client);
-    shown(<HuddleBar />);
+    shown(<HuddleBar onOpenSettings={() => {}} />);
     expect(screen.getByRole("status")).toHaveTextContent("Ringing Maya Chen and Lee Park…");
     act(() => {
       inCall(client, [
@@ -363,7 +363,7 @@ describe("the caller", () => {
   it("reads who declined, or that nobody answered, while alone in the call it rang for", () => {
     const { client, shown } = workspace({});
     inCall(client);
-    shown(<HuddleBar />);
+    shown(<HuddleBar onOpenSettings={() => {}} />);
     expect(screen.getByRole("status")).toHaveTextContent("Waiting for someone to join…");
     // How another conversation's ring went says nothing here.
     act(() =>
@@ -383,7 +383,7 @@ describe("the caller", () => {
       C_GROUP: ring({ channelId: "C_GROUP", callerId: "U_SAM", ringing: ["U_MAYA"] }),
     });
     inCall(client);
-    shown(<HuddleStage onHide={vi.fn()} />);
+    shown(<HuddleStage onOpenSettings={() => {}} onHide={vi.fn()} />);
     const call = screen.getByRole("region", { name: "Huddle call" });
     expect(within(call).getByText("Ringing Maya Chen…")).toBeInTheDocument();
     act(() =>
@@ -425,7 +425,7 @@ describe("someone in a call a ring still rings for", () => {
         ],
       },
     });
-    shown(<HuddleStage onHide={vi.fn()} />);
+    shown(<HuddleStage onOpenSettings={() => {}} onHide={vi.fn()} />);
     const call = screen.getByRole("region", { name: "Huddle call" });
     expect(within(call).getByText("Ringing Lee Park…")).toBeInTheDocument();
     // With someone there, how a ring went is no longer the call's news.

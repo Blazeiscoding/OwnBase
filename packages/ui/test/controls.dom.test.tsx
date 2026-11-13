@@ -97,7 +97,7 @@ describe("the huddle bar", () => {
     render(
       <PlatformContext.Provider value={platform}>
         <ClientContext.Provider value={client}>
-          <HuddleBar />
+          <HuddleBar onOpenSettings={() => {}} />
         </ClientContext.Provider>
       </PlatformContext.Provider>,
     );
@@ -134,7 +134,7 @@ describe("the huddle bar", () => {
     render(
       <PlatformContext.Provider value={platform}>
         <ClientContext.Provider value={client}>
-          <HuddleBar onShowCallLog={onShowCallLog} />
+          <HuddleBar onOpenSettings={() => {}} onShowCallLog={onShowCallLog} />
         </ClientContext.Provider>
       </PlatformContext.Provider>,
     );

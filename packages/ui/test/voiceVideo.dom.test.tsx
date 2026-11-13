@@ -354,7 +354,7 @@ describe("choosing devices from the huddle", () => {
 
   it("keeps the menus out of full screen, where they would open out of sight", () => {
     const ctx = setup(null, inHuddle);
-    render(ctx.wrap(<HuddleControls overlay />));
+    render(ctx.wrap(<HuddleControls onOpenSettings={() => {}} overlay />));
     expect(screen.queryByRole("button", { name: "Microphone and speaker" })).toBeNull();
     expect(screen.queryByRole("button", { name: "Camera options" })).toBeNull();
   });

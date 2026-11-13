@@ -57,7 +57,7 @@ function controls(overlay = false, micLost = false, talkingWhileMuted = false) {
   render(
     <PlatformContext.Provider value={platform}>
       <ClientContext.Provider value={client}>
-        <HuddleControls overlay={overlay} />
+        <HuddleControls onOpenSettings={() => {}} overlay={overlay} />
       </ClientContext.Provider>
     </PlatformContext.Provider>,
   );
@@ -188,7 +188,7 @@ describe("the share's quality while sharing, as Discord's stream quality", () =>
     render(
       <PlatformContext.Provider value={platform}>
         <ClientContext.Provider value={client}>
-          <HuddleControls />
+          <HuddleControls onOpenSettings={() => {}} />
         </ClientContext.Provider>
       </PlatformContext.Provider>,
     );

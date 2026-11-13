@@ -39,7 +39,7 @@ beforeEach(() => {
 /** As in Account settings, inside the page's landmarks. */
 const check = () => (
   <main>
-    <MicrophoneCheck />
+    <MicrophoneCheck onOpened={() => {}} />
   </main>
 );
 
