@@ -5,6 +5,7 @@ export * from "./rest.js";
 export * from "./discovery.js";
 export * from "./search.js";
 export * from "./format.js";
+export * from "./notify.js";
 export * from "./commands.js";
 export * from "./huddle.js";
 export * from "./socket.js";

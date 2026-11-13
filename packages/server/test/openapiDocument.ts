@@ -153,6 +153,7 @@ export const TAG_WORDS: Record<string, string> = {
   "link-previews": "What the server found at links in messages.",
   me: "The signed-in account: profile, picture, two-step sign-in, blocks.",
   messages: "One message: edits, reactions, pins, saves, polls, reminders, reports, buttons.",
+  push: "Notifications to a browser while OwnBase is closed: the server's key and this session's subscription.",
   reminders: "The signed-in account's reminders.",
   "rtc-config": "What calls connect through: ICE and TURN servers.",
   saved: "Messages the signed-in account saved.",

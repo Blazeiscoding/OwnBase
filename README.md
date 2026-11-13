@@ -217,6 +217,7 @@ that number, the owner and admins see a notice. It never locks anyone out. See
   management.
 - Starred conversations and sidebar sections of your own.
 - Notification preferences per channel, with mute, and Do Not Disturb snoozing.
+- Browser notifications with every tab closed, over HTTPS (Web Push).
 - Two-step sign-in with an authenticator app, and recovery codes.
 - Blocking someone, and reporting a message to the admins.
 - Invites, LAN discovery, hosting from the desktop app, member administration,
@@ -572,9 +573,9 @@ icons. Normal packaging uses the checked-in assets and does not need this step.
 
 ## Roadmap
 
-- **Done lately.** Moving in from Slack and taking a workspace out in Slack's
-  format, and a Windows app that updates itself.
-- **Next.** Push notifications for the browser client.
+- **Done lately.** Browser notifications while OwnBase is closed, moving in from
+  Slack and taking a workspace out in Slack's format, and a Windows app that
+  updates itself.
 - **Later.** SCIM and SAML in the Enterprise edition, an SFU for larger
   huddles, and optional Postgres and S3.
 

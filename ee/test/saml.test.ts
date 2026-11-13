@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it } from "vitest";
 import { createHash, generateKeyPairSync, randomBytes, sign } from "node:crypto";
-import type { ServerInfo, SettingsPanel, User } from "@ownbase/protocol";
+import type { AuditEntry, ServerInfo, SettingsPanel, User } from "@ownbase/protocol";
 import { createWorkspaceServer, type WorkspaceServer } from "@ownbase/server";
 import { enterprise } from "../src/enterprise.js";
 import { LICENSE_PREFIX, type LicenseClaims } from "../src/license.js";
@@ -567,6 +567,46 @@ describe("single sign-on through a SAML identity provider", () => {
     expect(
       ((await call("/api/server-info", undefined, undefined, "GET")).data as ServerInfo).signIn,
     ).toBeUndefined();
+  });
+
+  it("puts turning it on, changes and turning it off in the audit log, never the certificate", async () => {
+    await start();
+    const { owner } = await people();
+    const saving = (body: object) => call("/api/saml/settings", owner.token, body, "PUT");
+    const said = async () =>
+      (
+        (await call("/api/admin/audit", owner.token, undefined, "GET")).data.entries as AuditEntry[]
+      ).map((e) => [e.action, e.actorId, e.details.did, e.details.method]);
+    const by = (did: string) => ["extension.action", owner.user.id, did, "saml"];
+
+    await setUp(owner);
+    expect(await said()).toEqual([by("turned on single sign-on with SAML")]);
+    // The panel's values saved again change nothing.
+    const panel = (
+      (await call("/api/admin/extension-settings", owner.token, undefined, "GET")).data
+        .panels as SettingsPanel[]
+    ).find((p) => p.id === "saml")!;
+    expect(
+      (await saving(Object.fromEntries(panel.fields.map((f) => [f.key, f.value])))).status,
+    ).toBe(200);
+    expect(await said()).toHaveLength(1);
+
+    await saving({ certificate: idp.strangerCertificate, domains: "acme.com" });
+    await saving({ required: true, newAccounts: true });
+    await saving({ issuer: "" });
+    expect(await said()).toEqual([
+      by("turned off single sign-on with SAML"),
+      by(
+        "required single sign-on with SAML for everyone but the owner, and let it make accounts for new people",
+      ),
+      by(
+        "changed the signing certificate and the email domains for new accounts in the settings for single sign-on with SAML",
+      ),
+      by("turned on single sign-on with SAML"),
+    ]);
+    const recorded = JSON.stringify(server!.store.audit.after(null, 100));
+    for (const pem of [idp.certificate, idp.strangerCertificate])
+      expect(recorded).not.toContain(pem.split("\n")[1]);
   });
 
   it("is not offered without SSO in the license", async () => {

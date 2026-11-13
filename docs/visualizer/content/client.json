@@ -708,6 +708,27 @@
       "concepts": ["service worker", "Android", "notification clicks"]
     },
     {
+      "path": "packages/ui/src/lib/webPush.ts",
+      "plain": "Lets a browser get notifications with every OwnBase tab closed, and says why when it cannot.",
+      "summary": "Subscribes this browser to the server's pushes and keeps the server's copy current (G09).",
+      "details": [
+        "pushBlock says why a browser cannot be pushed to: not HTTPS or localhost, an iPhone or iPad not opened from the home screen, no Push API, or notifications denied.",
+        "subscribeBrowser registers /notification-worker.js and subscribes with the server's key, replacing a subscription made for another key.",
+        "Which accounts turned it on is kept on the device; keepPushCurrent, run by WorkspaceScreen, sends the subscription and the preview choice up again for such an account, so a new sign-in is pushed to."
+      ],
+      "concepts": ["web push", "service worker", "G09"]
+    },
+    {
+      "path": "packages/ui/src/components/PushSettings.tsx",
+      "plain": "The switch in Account settings that turns on notifications while OwnBase is closed.",
+      "summary": "Notify me when OwnBase is closed, under Account settings, Notifications, in a browser.",
+      "details": [
+        "Turning it on asks for permission, subscribes the browser and sends the subscription through client-core's account actions; turning it off tells the server and unsubscribes the browser.",
+        "It is shown on as long as this account chose it, the browser is still subscribed and permission is granted; otherwise it says what stops it."
+      ],
+      "concepts": ["web push", "settings"]
+    },
+    {
       "path": "packages/ui/src/lib/huddleEnded.ts",
       "plain": "Says once why a call ended when you did not leave it, such as joining it on another device.",
       "summary": "Shows WorkspaceState.huddleEnded as a notice.",

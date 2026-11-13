@@ -1,4 +1,4 @@
-import { endpoints, type Reminder, type User } from "@ownbase/protocol";
+import { endpoints, type ID, type Message, type Reminder, type User } from "@ownbase/protocol";
 import { requireVisibleMessage, type ServerContext } from "../core/context.js";
 import { SoonestTimer } from "../core/soonest.js";
 import { HttpError } from "../httpError.js";
@@ -15,7 +15,10 @@ export const REMINDER_LIMITS = {
 };
 
 /** Reminders (E4): set on a message, they come due for their account at their time. */
-export function registerReminders(ctx: ServerContext) {
+export function registerReminders(
+  ctx: ServerContext,
+  deps: { reminderDue?: (userId: ID, message: Message) => void } = {},
+) {
   const { store, route, opts, background } = ctx;
   const limits = { ...REMINDER_LIMITS, ...opts.reminderLimits };
 
@@ -45,6 +48,7 @@ export function registerReminders(ctx: ServerContext) {
             continue;
           }
           store.reminders.markDue(due.userId, due.messageId, now);
+          deps.reminderDue?.(due.userId, message);
         }
       }),
   });
