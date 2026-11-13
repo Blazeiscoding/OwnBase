@@ -111,4 +111,9 @@ export class AdminActions {
   saveExtensionSettings(path: string, values: Record<string, string | boolean>) {
     return doneOf(() => this.api.saveExtensionSettings(path, values));
   }
+
+  /** A settings panel's button, and what it answers, such as a token to show once. */
+  runSettingsAction(path: string) {
+    return answerOf(() => this.api.runSettingsAction(path));
+  }
 }

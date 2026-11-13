@@ -17,7 +17,7 @@ export async function registerExtensions(
   ctx: ServerContext,
   { accounts }: { accounts: Pick<Accounts, "makeMember" | "startSession"> },
 ) {
-  const { opts, app, store, settings, route, mutate, network } = ctx;
+  const { opts, app, store, settings, route, mutate, network, gateway } = ctx;
 
   /** A member made by an extension, such as single sign-on's first sign-in (P9). */
   const createMember = async (input: { handle: string; displayName: string }) => {
@@ -43,6 +43,47 @@ export async function registerExtensions(
     });
   };
 
+  /** A person changed by an extension, such as SCIM provisioning deactivating someone who left (P10). */
+  const updateMember = (
+    id: string,
+    patch: { displayName?: string; deactivated?: boolean },
+    by: string,
+  ) => {
+    if (
+      patch.displayName !== undefined &&
+      !memberName.shape.displayName.safeParse(patch.displayName).success
+    )
+      throw new HttpError(400, "invalid_request", "That is not a name a member can have.");
+    return mutate((emit, afterCommit) => {
+      const target = store.people.get(id);
+      if (!target || target.isBot) throw new HttpError(404, "user_not_found");
+      // The owner is the way back in when everything else fails.
+      if (patch.deactivated && target.role === "owner")
+        throw new HttpError(
+          403,
+          "owner_is_protected",
+          "The workspace's owner cannot be deactivated.",
+        );
+      const updated = store.people.update(id, patch);
+      if (patch.deactivated !== undefined && patch.deactivated !== target.deactivated) {
+        store.audit.record({
+          actorId: null,
+          action: patch.deactivated ? "user.deactivated" : "user.reactivated",
+          targetType: "user",
+          targetId: id,
+          details: { by },
+        });
+      }
+      if (patch.deactivated === true) {
+        store.accounts.deleteSessionsFor(id);
+        afterCommit(() => gateway.disconnectUser(id));
+      }
+      if (updated.displayName !== target.displayName || updated.deactivated !== target.deactivated)
+        emit({ type: "user.updated", user: updated });
+      return updated;
+    });
+  };
+
   for (const extension of opts.extensions ?? []) {
     await extension.register?.({
       route,
@@ -51,6 +92,7 @@ export async function registerExtensions(
       storage: settings.extensionStorage(extension.name),
       users: {
         get: (id) => store.people.get(id),
+        list: () => store.people.list(),
         byHandle: (handle) => {
           const auth = store.people.authByHandle(handle.toLowerCase());
           if (!auth) return null;
@@ -58,6 +100,7 @@ export async function registerExtensions(
           return user;
         },
         create: createMember,
+        update: updateMember,
       },
       startSession: (userId, req) => {
         const user = store.people.get(userId);

@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { endpoint, extensionRoutes, json, page } from "@ownbase/protocol";
+import { endpoint, extensionRoutes, json, page, text, type HttpMethod } from "@ownbase/protocol";
 import type { LicenseView } from "./enterprise.js";
 
 /** The longest a setting of single sign-on may be, as text. */
@@ -19,6 +19,38 @@ export const ssoSettingsBody = z.object({
   newAccounts: z.boolean().optional(),
   required: z.boolean().optional(),
 });
+
+/**
+ * A SCIM route (P10): the identity provider signs in with the token the
+ * owner made, not a session, and every answer and refusal is SCIM's own
+ * JSON, which the route sends itself.
+ */
+const scimRoute = <const M extends HttpMethod, const P extends string>(method: M, path: P) =>
+  endpoint({ method, path, access: "public", answer: text });
+
+export const scimEndpoints = {
+  scimServiceProviderConfig: scimRoute("GET", "/scim/v2/ServiceProviderConfig"),
+  scimResourceTypes: scimRoute("GET", "/scim/v2/ResourceTypes"),
+  scimSchemas: scimRoute("GET", "/scim/v2/Schemas"),
+  /** Everyone the provider may see, a page at a time, or those a filter picks. */
+  scimListUsers: scimRoute("GET", "/scim/v2/Users"),
+  scimCreateUser: scimRoute("POST", "/scim/v2/Users"),
+  scimGetUser: scimRoute("GET", "/scim/v2/Users/:id"),
+  scimReplaceUser: scimRoute("PUT", "/scim/v2/Users/:id"),
+  scimPatchUser: scimRoute("PATCH", "/scim/v2/Users/:id"),
+  /** Deactivates: nobody is deleted here. */
+  scimDeleteUser: scimRoute("DELETE", "/scim/v2/Users/:id"),
+  scimListGroups: scimRoute("GET", "/scim/v2/Groups"),
+  /** Anything else under SCIM's address, answered in SCIM's shape rather than with the web app. */
+  scimElsewhere: (["GET", "POST", "PUT", "PATCH", "DELETE"] as const).map((method) =>
+    scimRoute(method, "/scim/v2/*"),
+  ),
+
+  /** The owner's button: a new token, shown once, replacing any before it. */
+  scimMakeToken: endpoint({ ...extensionRoutes.settingsAction, path: "/api/scim/token" }),
+  /** The owner's button: no token, so the provider can do nothing more. */
+  scimTurnOff: endpoint({ ...extensionRoutes.settingsAction, path: "/api/scim/off" }),
+};
 
 /**
  * The Enterprise edition's routes, declared as the server's own are in
@@ -81,4 +113,6 @@ export const eeEndpoints = {
     path: "/api/sso/settings",
     body: ssoSettingsBody,
   }),
+
+  ...scimEndpoints,
 };

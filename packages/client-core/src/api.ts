@@ -148,6 +148,11 @@ export class Api {
     return this.http.json(route, { body: values });
   }
 
+  /** Presses a settings panel's button, at the path it names (P10). */
+  runSettingsAction(path: string) {
+    return this.http.json(endpoint({ ...extensionRoutes.settingsAction, path: serverPath(path) }));
+  }
+
   joinAsGuest(displayName: string) {
     return this.http.json(endpoints.joinAsGuest, { body: { displayName } });
   }

@@ -155,8 +155,14 @@ const identityKey = (issuer: string, subject: string) => s256(`${issuer}\n${subj
 
 /** A username for someone new, from what the provider calls them, not one taken. */
 export function handleFor(claims: IdClaims, taken: (handle: string) => boolean): string {
-  const from =
-    claims.preferred_username?.split("@")[0] || claims.email?.split("@")[0] || claims.name || "";
+  return handleFrom(
+    claims.preferred_username?.split("@")[0] || claims.email?.split("@")[0] || claims.name || "",
+    taken,
+  );
+}
+
+/** A username made from `from`, such as an address's first part, not one taken. */
+export function handleFrom(from: string, taken: (handle: string) => boolean): string {
   let base = from
     .toLowerCase()
     .normalize("NFKD")
@@ -188,6 +194,11 @@ export function parseDomains(text: string): string[] | null {
 
 export function singleSignOn(opts: {
   licensed: () => boolean;
+  /**
+   * The account provisioning (P10) made for a verified address, linked at
+   * that person's first sign-in: the provider's own records say who they are.
+   */
+  provisioned?: (email: string) => string | null;
   now?: () => number;
   fetch?: typeof fetch;
 }): SingleSignOn {
@@ -494,6 +505,28 @@ export function singleSignOn(opts: {
           back(),
         );
       let user: User | null = holder;
+      if (
+        !user &&
+        opts.licensed() &&
+        claims.email_verified === true &&
+        typeof claims.email === "string"
+      ) {
+        const id = opts.provisioned?.(claims.email);
+        const made = id ? given.users.get(id) : null;
+        // Linked once: another account of the provider's cannot take it over.
+        if (made && !store().get(`sso:user:${made.id}`)) {
+          if (made.deactivated)
+            return page(
+              reply,
+              403,
+              "Not signed in",
+              "This account has been deactivated. Ask an admin of the workspace.",
+              back(),
+            );
+          link(made.id, claims);
+          user = made;
+        }
+      }
       if (!user) {
         const refusal = newAccountRefusal(s, claims);
         if (refusal) return page(reply, 403, "No account here yet", refusal, back());

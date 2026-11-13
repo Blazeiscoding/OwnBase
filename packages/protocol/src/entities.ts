@@ -640,11 +640,32 @@ export interface SettingsPanel {
   title: string;
   description: string;
   fields: SettingsField[];
-  save: string;
+  /** Where its fields are saved; a panel with no fields has none. */
+  save?: string;
   /** Why it cannot be used now, such as a license without the feature. */
   problem?: string;
   /** Whether what it sets up is working, in a line. */
   status?: string;
+  /** Buttons that do one thing at once, such as making a token (P10). */
+  actions?: SettingsAction[];
+}
+
+/**
+ * A button in a settings panel: pressing it POSTs to `path`, after asking
+ * `confirm` in the window when it says to. The answer may hold a secret to
+ * show once (`SettingsActionResult`).
+ */
+export interface SettingsAction {
+  id: string;
+  label: string;
+  path: string;
+  /** Asked first, for a button that stops something working. */
+  confirm?: { title: string; text: string; action: string };
+}
+
+export interface SettingsActionResult {
+  /** Shown once, with a way to copy it, such as a new token. */
+  reveal?: { label: string; value: string; note: string };
 }
 
 export interface SettingsField {

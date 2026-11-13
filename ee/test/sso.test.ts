@@ -528,6 +528,45 @@ describe("single sign-on through an OpenID provider", () => {
     expect(twice.data.user.id).toBe(signedIn.data.user.id);
   });
 
+  it("links someone provisioning added at their first sign-in, by an address the provider verified (P10)", async () => {
+    await start(license({ features: ["sso", "scim"] }));
+    const { owner } = await people();
+    await setUp(owner);
+    const scimToken = (await call("/api/scim/token", owner.token)).data.reveal.value as string;
+    const provision = async (body: object) => {
+      const response = await fetch(`${base}/scim/v2/Users`, {
+        method: "POST",
+        headers: {
+          authorization: `Bearer ${scimToken}`,
+          "content-type": "application/scim+json",
+        },
+        body: JSON.stringify(body),
+      });
+      return (await response.json()) as { id: string };
+    };
+    const maya = await provision({
+      userName: "00u-maya-okta",
+      displayName: "Maya Lin",
+      emails: [{ type: "work", value: "Maya@Acme.com", primary: true }],
+    });
+
+    // Not verified by the provider: no link, and no account made.
+    provider.person = { sub: "00u-maya", email: "maya@acme.com", email_verified: false };
+    expect((await signInWithSso()).back.status).toBe(403);
+
+    provider.person = { sub: "00u-maya", email: "maya@acme.com", email_verified: true };
+    const first = await signInWithSso();
+    const signedIn = await call("/api/sso/redeem", undefined, {
+      code: codeIn(first.back.location),
+      verifier: first.verifier,
+    });
+    expect(signedIn.data.user).toMatchObject({ id: maya.id, displayName: "Maya Lin" });
+
+    // Linked once: another of the provider's accounts with that address is not her.
+    provider.person = { sub: "00u-other", email: "maya@acme.com", email_verified: true };
+    expect((await signInWithSso()).back.text).toContain("No account in this workspace is linked");
+  });
+
   it("with single sign-on required, keeps passwords for the owner alone", async () => {
     await start();
     const { owner, member } = await people();

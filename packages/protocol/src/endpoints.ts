@@ -19,6 +19,7 @@ import type {
   ScheduledMessage,
   ServerInfo,
   SessionInfo,
+  SettingsActionResult,
   SettingsPanel,
   SignInConnection,
   SharedFile,
@@ -1736,6 +1737,13 @@ export const extensionRoutes = {
     body: "settingsValuesBody",
     bodyOptional: true,
     answer: json<{ ok: true }>(),
+    timeoutMs: 20_000,
+  },
+  /** A settings panel's button, for the owner (P10). */
+  settingsAction: {
+    method: "POST",
+    access: "owner",
+    answer: json<SettingsActionResult>(),
     timeoutMs: 20_000,
   },
 } as const satisfies Record<string, Omit<EndpointSpec, "path">>;

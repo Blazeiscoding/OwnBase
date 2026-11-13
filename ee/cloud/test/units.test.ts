@@ -179,9 +179,10 @@ describe("the supervisor", () => {
     await until(() => supervisor.status("acme").state === "waiting");
     status = supervisor.status("acme");
     expect(status.nextStartAt! - status.lastExit!.at).toBeGreaterThanOrEqual(BACKOFF_MS[1]! - 50);
-    expect(readFileSync(join(dir, "server.log"), "utf8")).toMatch(
-      /starting again in 1 s[\s\S]*starting again in 2 s/,
-    );
+    // The state changes at once; the log line goes through a write stream and lands a moment later.
+    const log = () => readFileSync(join(dir, "server.log"), "utf8");
+    await until(() => log().includes("starting again in 2 s"));
+    expect(log()).toMatch(/starting again in 1 s[\s\S]*starting again in 2 s/);
   }, 30_000);
 
   it("stops a server for good when asked, and does not start it again", async () => {
