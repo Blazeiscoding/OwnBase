@@ -2,16 +2,18 @@
 
 Checks keep all seven workspace typechecks, all five unit-test tasks, three builds, both bundle-size guards, the browser E2E suite, the visual check and a smoke set in WebKit and Firefox. Desktop and Container run when their artifact inputs change, including shared UI and client-core code. Ordinary Markdown changes skip these workflows; `docs/INTEGRATIONS.md` runs Checks because the integration contract tests read it.
 
+Dependency updates and the audit step are described [at the end](#dependency-updates).
+
 Checks runs as ten Linux jobs side by side, so a run lasts about as long as its longest job instead of all of them in a row (about ten to twelve minutes in one job before):
 
-| Job                                              | What it runs                                                                                                                                                                                 |
-| ------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `checks`                                         | Formatting, the automation typecheck, the cache-input and script tests, every typecheck, protocol/client-core/desktop unit tests, the three builds and their guards, and the artifact lookup |
-| `unit (server)`                                  | The server's unit tests                                                                                                                                                                      |
-| `unit (ui 1 of 2)`, `unit (ui 2 of 2)`           | ui's unit tests in two halves (`vitest --shard`)                                                                                                                                             |
-| `browser (e2e 1 of 3)` to `browser (e2e 3 of 3)` | The browser suite in Chromium, in three parts (`playwright test --project=chromium --shard`)                                                                                                 |
-| `browser (visual)`                               | The visual check                                                                                                                                                                             |
-| `browser (webkit)`, `browser (firefox)`          | The scenarios tagged `@smoke` in WebKit, and in Firefox (`playwright test --project=webkit`, `--project=firefox`)                                                                            |
+| Job                                              | What it runs                                                                                                                                                                                                      |
+| ------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `checks`                                         | Formatting, the automation typecheck, the cache-input and script tests, every typecheck, protocol/client-core/desktop unit tests, the three builds and their guards, the dependency audit and the artifact lookup |
+| `unit (server)`                                  | The server's unit tests                                                                                                                                                                                           |
+| `unit (ui 1 of 2)`, `unit (ui 2 of 2)`           | ui's unit tests in two halves (`vitest --shard`)                                                                                                                                                                  |
+| `browser (e2e 1 of 3)` to `browser (e2e 3 of 3)` | The browser suite in Chromium, in three parts (`playwright test --project=chromium --shard`)                                                                                                                      |
+| `browser (visual)`                               | The visual check                                                                                                                                                                                                  |
+| `browser (webkit)`, `browser (firefox)`          | The scenarios tagged `@smoke` in WebKit, and in Firefox (`playwright test --project=webkit`, `--project=firefox`)                                                                                                 |
 
 Every job installs on its own, about half a minute; the repository is public, so the standard runners' minutes cost nothing. The browser jobs build only the server CLI and the web client it serves (`turbo run build --filter=ownbase-server`), from the task cache when an earlier run's `checks` job built the same source.
 
@@ -59,3 +61,44 @@ The batch was then integrated with `main` through `b681595`, preserving its newe
 The final concurrent-main merge through `6197c06` also preserves the new quote/link rendering and status runbook. Validation at merge commit `8603972` passes **1,533 tests, two skips**, all typechecks/builds, 18 browser scenarios, full NSIS packaging and three packaged Windows scenarios. The two entry bundles remain below 500 kB. The implementation record retains the earlier snapshots separately.
 
 Historical Actions evidence includes the [Windows packaging run](https://github.com/Blazeiscoding/OwnBase/actions/runs/36883563294), [typical Linux run](https://github.com/Blazeiscoding/OwnBase/actions/runs/36883563144) and [slow browser setup](https://github.com/Blazeiscoding/OwnBase/actions/runs/36880932839). The browser and container smoke checks remain uncached integration checks. The parallel jobs have run on every pull request since #354, and their measured times are above.
+
+## Dependency updates
+
+Two things keep dependencies current: a weekly bot that proposes updates, and an audit step that fails Checks on a known high or critical advisory.
+
+### What opens pull requests, and when
+
+Dependabot (`.github/dependabot.yml`) runs every Monday at 06:00 IST and opens at most two pull requests: one for production dependencies and one for development dependencies. Each bundles every minor and patch release across all workspace packages, and only releases at least a week old. Once a month it opens one more for the GitHub Actions the workflows and `.github/actions` use.
+
+It leaves out:
+
+- Majors, for every package. They change behaviour and come one at a time, by hand (`pnpm outdated -r` lists them). A major that is not in a group would get a pull request of its own each week, which is why the ignore rule covers all packages rather than a list.
+- React and react-dom minors. React 19.3 puts the desktop entry past its 700 kB budget. Patches still come. Remove the rule when the entry has room.
+
+Its pull requests run Checks like any other, with a read-only token and no secrets, as a fork's would. The `clean-up` job then cannot delete artifacts and prints a warning; the next run of ours deletes them.
+
+### Handling a bot pull request
+
+- Green: read the lockfile diff and the changelogs of anything that looks risky, then merge. Merging publishes the next release, since the lockfile changed, which is why updates are grouped.
+- Red because of one package: find it in the failing job's log. Either fix our code on the bot's branch (Dependabot stops updating a branch someone else has pushed to, so merge it soon), or hold that package back with an `ignore` entry in `.github/dependabot.yml` and a comment saying why and what would let it go, as React's has. Comment `@dependabot recreate` on the pull request to rebuild it without the package.
+- Out of date with main: comment `@dependabot rebase`.
+
+### What the audit step fails on
+
+The last step of the `checks` job runs `pnpm audit --audit-level high`. It fails on any high or critical advisory in the lockfile, development dependencies included, and prints only those. Moderate and low advisories do not fail it; run `pnpm audit` locally to see them. It runs even when an earlier step failed, so a new advisory never hides another failure. The registry's audit endpoint fails now and then, so the step tries once more after 20 seconds; if the second try fails too, the log says whether the registry or an advisory was the cause.
+
+An advisory published upstream turns every open pull request red at once. That is the point. Fix it in one pull request, and the others merge main after it lands:
+
+1. Update the package within its range: `pnpm update -r <package>`, which reaches it through other packages too. Check with `pnpm audit --audit-level high`.
+2. If the fix is outside the range a dependency allows, add an `overrides` entry to `pnpm-workspace.yaml` pinning the fixed version, with a comment saying which advisory it is for and when it can go (usually when the dependency itself moves on).
+3. If no fixed version exists, ignore the advisory in `pnpm-workspace.yaml`:
+
+   ```yaml
+   auditConfig:
+     ignoreGhsas:
+       # 2026-11-13, example-package (via some-dependency): GHSA-xxxx-xxxx-xxxx.
+       # No fixed release yet. Remove when example-package publishes one.
+       - GHSA-xxxx-xxxx-xxxx
+   ```
+
+   Every entry needs a comment with the date, the package, and what would let it be removed. Review the list when Dependabot's pull requests come in.
