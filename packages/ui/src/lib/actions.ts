@@ -10,8 +10,7 @@ import type { MenuItem } from "../components/Menu.js";
 import type { PaletteCommand } from "../components/QuickSwitcher.js";
 import { useToast, type ToastRequest } from "../components/Toast.js";
 import { useConfirm, type ConfirmRequest } from "../components/Confirm.js";
-import { useAppearance } from "./appearance.js";
-import { useMediaQuery } from "./useMediaQuery.js";
+import { useAppearance, useShownTheme } from "./appearance.js";
 import { failureText } from "./failure.js";
 import { markEverythingRead, unreadEverywhere, unreadSummary } from "./readAll.js";
 import { collapsedSections, neighbourConversation } from "./sidebarLayout.js";
@@ -596,7 +595,7 @@ export function useActionContext(): ActionContext {
   const toast = useToast();
   const confirm = useConfirm();
   const appearance = useAppearance();
-  const prefersDark = useMediaQuery("(prefers-color-scheme: dark)");
+  const shown = useShownTheme();
   // What `available` and the labels read, so a change to it draws the menus again.
   useWorkspace((s) => s.self);
   useWorkspace((s) => s.openReports);
@@ -609,7 +608,7 @@ export function useActionContext(): ActionContext {
     toast,
     confirm,
     theme: {
-      dark: appearance.theme === "dark" || (appearance.theme === "system" && prefersDark),
+      dark: shown === "dark",
       set: (theme) => void appearance.set({ theme }),
     },
   };

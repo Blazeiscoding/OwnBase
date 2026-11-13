@@ -3,6 +3,7 @@ import { useStore } from "zustand";
 import { createStore } from "zustand/vanilla";
 import { usePlatform } from "../context.js";
 import type { Platform } from "../platform.js";
+import { useMediaQuery } from "./useMediaQuery.js";
 
 /**
  * Onyx ("dark") and White ("light"); "system" follows what the device
@@ -151,19 +152,20 @@ export function useApplyAppearance(): void {
     if (loaded) platform.setWindowTheme?.(theme);
   }, [platform, theme, loaded]);
   // The browser's bars around the page (a phone's, an installed app's) in the same theme.
+  const shown = useShownTheme();
   useEffect(() => {
     const meta = document.querySelector<HTMLMetaElement>('meta[name="theme-color"]');
-    if (!meta) return;
-    const prefersLight =
-      theme === "system" && typeof window.matchMedia === "function"
-        ? window.matchMedia("(prefers-color-scheme: light)")
-        : null;
-    const paint = () => {
-      const light = theme === "light" || !!prefersLight?.matches;
-      meta.content = BAR_COLOURS[light ? "light" : "dark"];
-    };
-    paint();
-    prefersLight?.addEventListener("change", paint);
-    return () => prefersLight?.removeEventListener("change", paint);
-  }, [theme]);
+    if (meta) meta.content = BAR_COLOURS[shown];
+  }, [shown]);
+}
+
+/**
+ * The theme on screen. "System" is Onyx unless the device asks for light, as
+ * theme.css and first-paint.js read it: a device that states no preference
+ * gets Onyx.
+ */
+export function useShownTheme(): "dark" | "light" {
+  const { theme } = useAppearance();
+  const prefersLight = useMediaQuery("(prefers-color-scheme: light)");
+  return theme === "system" ? (prefersLight ? "light" : "dark") : theme;
 }
