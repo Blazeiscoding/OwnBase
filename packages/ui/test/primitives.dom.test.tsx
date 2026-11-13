@@ -12,7 +12,8 @@ import { Kbd } from "../src/components/Kbd.js";
 import { ListStatus } from "../src/components/ListStatus.js";
 import { Menu } from "../src/components/Menu.js";
 import { Select } from "../src/components/Select.js";
-import { SHEET_QUERY, Sheet, sheetCard } from "../src/components/Sheet.js";
+import { Sheet, sheetCard } from "../src/components/Sheet.js";
+import { SHEET_QUERY } from "../src/lib/layout.js";
 import { TextField, inputClass, inputCls } from "../src/components/TextField.js";
 import { accessibilityProblems } from "./accessibility.js";
 

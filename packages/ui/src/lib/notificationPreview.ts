@@ -2,6 +2,7 @@ import { useStore } from "zustand";
 import { createStore } from "zustand/vanilla";
 import { usePlatform } from "../context.js";
 import type { Platform } from "../platform.js";
+import { perDevice } from "./perDevice.js";
 
 /**
  * How much a message notification shows (IMP-03): the message, only who sent
@@ -111,7 +112,6 @@ const UNREADABLE =
   "Could not read your choice. Until you choose again, notifications show nothing about messages.";
 const isPreview = (value: unknown): value is NotificationPreview =>
   value === "full" || value === "sender" || value === "none";
-const stores = new WeakMap<Platform, ReturnType<typeof createPreviews>>();
 
 /**
  * The choices a saved value holds, or null when it is not a map of them. A
@@ -235,14 +235,7 @@ function createPreviews(platform: Platform) {
 }
 
 /** Every account's choice on this device, from the platform's storage. */
-export function notificationPreviews(platform: Platform) {
-  let store = stores.get(platform);
-  if (!store) {
-    store = createPreviews(platform);
-    stores.set(platform, store);
-  }
-  return store;
-}
+export const notificationPreviews = perDevice(createPreviews);
 
 export function useNotificationPreviews() {
   return useStore(notificationPreviews(usePlatform()));

@@ -1,4 +1,5 @@
 import { useState, type ComponentProps, type ReactNode } from "react";
+import { DURATION_FAST_MS, EASE_SMOOTH } from "../lib/layout.js";
 
 /**
  * How many times `value` has changed since this component was first drawn: 0
@@ -60,7 +61,7 @@ export function stepIn(element: Element | null | undefined, from: number) {
       { opacity: 0, translate: `${Math.sign(from) * 8}px 0`, filter: "blur(3px)" },
       { opacity: 1, translate: "0 0", filter: "blur(0)" },
     ],
-    { duration: 250, easing: "cubic-bezier(0.22, 1, 0.36, 1)" },
+    { duration: DURATION_FAST_MS, easing: EASE_SMOOTH },
   );
 }
 

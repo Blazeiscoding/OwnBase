@@ -1,14 +1,14 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useRef } from "react";
 import type { ID } from "@ownbase/protocol";
-import { useClient, usePlatform, useWorkspace } from "../context.js";
-import {
-  readWorkspaceStorage,
-  workspaceStorageKey,
-  writeWorkspaceStorage,
-} from "@ownbase/client-core";
+import { usePlatform } from "../context.js";
+import { writeWorkspaceStorage } from "@ownbase/client-core";
+import { useAccountKey, useAccountRead } from "./accountStorage.js";
 
 /** Channel ids never contain anything else. */
 const TOKEN = /^[A-Za-z0-9_-]{1,64}$/;
+
+const channelIdOf = (value: unknown): ID | null =>
+  typeof value === "string" && TOKEN.test(value) ? value : null;
 
 /**
  * The conversation this account last had open in this workspace, on this
@@ -17,29 +17,9 @@ const TOKEN = /^[A-Za-z0-9_-]{1,64}$/;
  */
 export function useLastConversation() {
   const platform = usePlatform();
-  const client = useClient();
-  const selfId = useWorkspace((s) => s.self?.id);
-  const workspaceId = useWorkspace((s) => s.workspaceId);
-  const key = useMemo(() => {
-    const scoped = workspaceStorageKey(client.baseUrl, workspaceId, selfId, "last-conversation");
-    return scoped && { key: scoped.key };
-  }, [client.baseUrl, workspaceId, selfId]);
-  const [read, setRead] = useState<{ key: string; value: ID | null } | null>(null);
+  const key = useAccountKey("last-conversation");
+  const remembered = useAccountRead(key, channelIdOf, null);
   const written = useRef<string | null>(null);
-
-  useEffect(() => {
-    if (!key) return;
-    let current = true;
-    readWorkspaceStorage<unknown>(platform, key)
-      .then((value) => (typeof value === "string" && TOKEN.test(value) ? value : null))
-      .catch(() => null)
-      .then((value) => {
-        if (current) setRead({ key: key.key, value });
-      });
-    return () => {
-      current = false;
-    };
-  }, [platform, key]);
 
   const remember = useCallback(
     (channelId: ID) => {
@@ -53,8 +33,5 @@ export function useLastConversation() {
     [platform, key],
   );
 
-  return {
-    remembered: read && key && read.key === key.key ? read.value : undefined,
-    remember,
-  };
+  return { remembered, remember };
 }

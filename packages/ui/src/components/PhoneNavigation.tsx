@@ -4,6 +4,7 @@ import { isSnoozed, mentionsElsewhere, selfMay, waitsForAttention } from "@ownba
 import { dueReminderCount, unreadRemovalCount, unreadThreadCount } from "@ownbase/client-core";
 import { useWorkspace } from "../context.js";
 import { useMediaQuery } from "../lib/useMediaQuery.js";
+import { DRAWER_QUERY, PHONE_QUERY, screenMatches } from "../lib/layout.js";
 import { useOnScreenKeyboard } from "../lib/onScreenKeyboard.js";
 import { useEdgeSwipe } from "../lib/edgeSwipe.js";
 import { AvatarWithPresence } from "./Avatar.js";
@@ -12,15 +13,6 @@ import { Icon, type IconName } from "./Icon.js";
 import { hasOpenModal } from "./Modal.js";
 import { useNavigation, useNavigationState } from "../lib/navigation.js";
 import { AccountMenu } from "./Sidebar.js";
-
-/**
- * Where the bottom bar shows: the width half of theme.css's drawer query, so a
- * phone held upright. On its side a phone keeps the drawer alone, since height
- * is what it lacks there.
- */
-export const PHONE_QUERY = "(max-width: 760px)";
-/** theme.css's drawer query, where a swipe from the edge opens the sidebar. */
-const DRAWER_QUERY = "(max-width: 760px), (max-height: 480px)";
 
 /**
  * What a phone adds to the workspace (UX-70, UX-71): a bar along the bottom
@@ -36,13 +28,12 @@ export function PhoneNavigation() {
   useOnScreenKeyboard();
   useEdgeSwipe({
     open: drawerOpen,
-    enabled: () =>
-      typeof window.matchMedia === "function" &&
-      window.matchMedia(DRAWER_QUERY).matches &&
-      !hasOpenModal(),
+    enabled: () => screenMatches(DRAWER_QUERY) && !hasOpenModal(),
     onOpen: () => nav.navigate({ to: "drawer" }),
     onClose: () => nav.closeDrawer(),
   });
+  // The bottom bar is for a phone held upright. On its side a phone keeps the
+  // drawer alone, since height is what it lacks there.
   const phone = useMediaQuery(PHONE_QUERY);
   const drawerLayout = useMediaQuery(DRAWER_QUERY);
   const workspaceName = useWorkspace((s) => s.workspaceName);

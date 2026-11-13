@@ -1,11 +1,9 @@
-import { useEffect, useState } from "react";
+import { useEffect } from "react";
 import { planMembers, type MemberNotice } from "@ownbase/protocol";
 import { selfIsAdministrator } from "@ownbase/client-core";
 import { usePlatform, useWorkspace } from "../context.js";
+import { useSnoozed } from "../lib/noticeSnooze.js";
 import { Banner, BannerAction } from "./Banner.js";
-
-/** How long "Not now" keeps the notice away, on this device and for this workspace. */
-export const MEMBER_NOTICE_SNOOZE_MS = 14 * 24 * 60 * 60 * 1000;
 
 /**
  * The plan's notice and how many members it counts now, for the owner and
@@ -49,37 +47,18 @@ export function MemberNoticeBanner({
   const platform = usePlatform();
   const plan = usePlanMembers();
   const workspaceId = useWorkspace((s) => s.workspaceId);
-  const key = `memberNoticeSnoozedAt:${workspaceId ?? "workspace"}`;
   const over = !!plan && plan.members > plan.notice.members;
-  // Unknown until storage answers, so a snoozed notice does not flash first.
-  const [snoozed, setSnoozed] = useState<boolean | null>(null);
+  const { snoozed, snooze } = useSnoozed(
+    platform.storage,
+    over ? `memberNoticeSnoozedAt:${workspaceId ?? "workspace"}` : null,
+    now,
+  );
   const showing = over && snoozed === false;
 
   useEffect(() => onShowing?.(showing), [onShowing, showing]);
   useEffect(() => () => onShowing?.(false), [onShowing]);
 
-  useEffect(() => {
-    if (!over) return;
-    let alive = true;
-    platform.storage
-      .get<number>(key)
-      .then((at) => typeof at === "number" && now() - at < MEMBER_NOTICE_SNOOZE_MS)
-      .catch(() => false)
-      .then((value) => {
-        if (alive) setSnoozed(value);
-      });
-    return () => {
-      alive = false;
-    };
-  }, [platform, key, now, over]);
-
   if (!showing || !plan) return null;
-
-  function snooze() {
-    setSnoozed(true);
-    // Remembering is a courtesy: if it cannot be saved, the notice is still gone.
-    platform.storage.set(key, now()).catch(() => {});
-  }
 
   return (
     <Banner

@@ -310,7 +310,7 @@ describe("preference-aware huddle admission (N04)", () => {
     await userEvent.setup().click(screen.getByRole("button", { name: "Start a huddle" }));
     expect(join).toHaveBeenLastCalledWith(general.id, { muted: true, noiseFilter });
     fail = false;
-    await act(async () => current.retryLoad());
+    await act(async () => current.retry());
     expect(screen.getByText("Loaded")).toBeVisible();
     await act(async () => current.joinHuddle(client, general.id));
     expect(join).toHaveBeenLastCalledWith(general.id, { muted: false, noiseFilter });
@@ -335,12 +335,12 @@ describe("preference-aware huddle admission (N04)", () => {
       render(wrap(<Reader />));
       await waitFor(() => expect(current.loaded).toBe(true));
       act(() => {
-        void current.retryLoad();
+        void current.retry();
       });
       await waitFor(() => expect(read).toHaveBeenCalledTimes(2));
       const joining = current.joinHuddle(client, general.id);
       act(() => {
-        void current.retryLoad();
+        void current.retry();
       });
       await waitFor(() => expect(read).toHaveBeenCalledTimes(3));
       if (order === "older-first") {
@@ -376,7 +376,7 @@ describe("preference-aware huddle admission (N04)", () => {
     render(wrap(<Reader />));
     await waitFor(() => expect(current.loaded).toBe(true));
     act(() => {
-      void current.retryLoad();
+      void current.retry();
     });
     await waitFor(() => expect(read).toHaveBeenCalledTimes(2));
     const joining = current.joinHuddle(client, general.id);

@@ -24,6 +24,7 @@ import {
   type ActionId,
 } from "../lib/actions.js";
 import { useRecentConversations } from "../lib/recentConversations.js";
+import { preloadable } from "../lib/preloadable.js";
 
 const ActivityPanel = lazy(() =>
   import("../components/ActivityPanel.js").then((module) => ({ default: module.ActivityPanel })),
@@ -116,17 +117,13 @@ const ChannelDetailsDialog = lazy(() =>
  * straight after Ctrl+K must not land on a loading state. In the moment before
  * it has arrived, its frame stands in and keeps what is typed, and an Enter.
  */
-let LoadedSwitcher: (typeof import("../components/QuickSwitcher.js"))["QuickSwitcher"] | null =
-  null;
-export const loadQuickSwitcher = () =>
-  import("../components/QuickSwitcher.js").then((module) => {
-    LoadedSwitcher = module.QuickSwitcher;
-    return { default: module.QuickSwitcher };
-  });
-const LazySwitcher = lazy(loadQuickSwitcher);
+const switcher = preloadable(() =>
+  import("../components/QuickSwitcher.js").then((module) => module.QuickSwitcher),
+);
+const LazySwitcher = lazy(() => switcher.load().then((loaded) => ({ default: loaded })));
 function SwitcherDialog(props: ComponentProps<typeof LazySwitcher>) {
   // Chosen once, as for search: a swap would start the palette over.
-  const [Loaded] = useState(() => LoadedSwitcher);
+  const [Loaded] = useState(switcher.loaded);
   const [typing, setTyping] = useState<EarlyTyping>({ query: "", entered: false });
   return Loaded ? (
     <Loaded {...props} />
@@ -152,16 +149,13 @@ function SwitcherDialog(props: ComponentProps<typeof LazySwitcher>) {
  * Search the same way: the header's search is pressed and typed into at once,
  * and words typed while it was still loading were lost.
  */
-let LoadedSearch: (typeof import("../components/SearchDialog.js"))["SearchDialog"] | null = null;
-export const loadSearchDialog = () =>
-  import("../components/SearchDialog.js").then((module) => {
-    LoadedSearch = module.SearchDialog;
-    return { default: module.SearchDialog };
-  });
-const LazySearch = lazy(loadSearchDialog);
+const search = preloadable(() =>
+  import("../components/SearchDialog.js").then((module) => module.SearchDialog),
+);
+const LazySearch = lazy(() => search.load().then((loaded) => ({ default: loaded })));
 function SearchDialog(props: ComponentProps<typeof LazySearch>) {
   // Chosen once: a swap would start the search over.
-  const [Loaded] = useState(() => LoadedSearch);
+  const [Loaded] = useState(search.loaded);
   return Loaded ? (
     <Loaded {...props} />
   ) : (
@@ -176,16 +170,13 @@ function SearchDialog(props: ComponentProps<typeof LazySearch>) {
  * workspace opens and drawn directly from then on, so opening one does not
  * stop at a loading state; only one opened in that first moment does.
  */
-let LoadedThreadPanel: (typeof import("../components/ThreadPanel.js"))["ThreadPanel"] | null = null;
-export const loadThreadPanel = () =>
-  import("../components/ThreadPanel.js").then((module) => {
-    LoadedThreadPanel = module.ThreadPanel;
-    return { default: module.ThreadPanel };
-  });
-const LazyThreadPanel = lazy(loadThreadPanel);
+const thread = preloadable(() =>
+  import("../components/ThreadPanel.js").then((module) => module.ThreadPanel),
+);
+const LazyThreadPanel = lazy(() => thread.load().then((loaded) => ({ default: loaded })));
 function ThreadPanel(props: ComponentProps<typeof LazyThreadPanel>) {
   // Chosen once, as for search: a swap would start the thread over.
-  const [Loaded] = useState(() => LoadedThreadPanel);
+  const [Loaded] = useState(thread.loaded);
   return Loaded ? (
     <Loaded {...props} />
   ) : (

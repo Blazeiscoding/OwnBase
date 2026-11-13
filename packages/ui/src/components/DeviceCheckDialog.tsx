@@ -1,4 +1,4 @@
-import { useEffect, useId, useRef, useState } from "react";
+import { useId, useState } from "react";
 import { Button } from "./Button.js";
 import { Dialog, DialogScroll } from "./Dialog.js";
 import { MicrophoneCheck } from "./MicrophoneCheck.js";
@@ -20,27 +20,7 @@ export function DeviceCheckDialog() {
   const [microphoneId, setMicrophoneId] = useState(calls.devices.microphoneId);
   const [cameraId, setCameraId] = useState(calls.devices.cameraId);
   const descriptionId = useId();
-  const { finishDeviceCheck } = calls;
-
-  // Closed by the workspace going rather than by an answer, the join waiting
-  // on it is called off. React mounts this twice in development, so only one
-  // still gone a moment later counts; one that answered leaves any question
-  // asked since alone.
-  const mounted = useRef(false);
-  const answered = useRef(false);
-  useEffect(() => {
-    mounted.current = true;
-    return () => {
-      mounted.current = false;
-      setTimeout(() => {
-        if (!mounted.current && !answered.current) finishDeviceCheck(null);
-      });
-    };
-  }, [finishDeviceCheck]);
-  const finish = (choice: Parameters<typeof finishDeviceCheck>[0]) => {
-    answered.current = true;
-    finishDeviceCheck(choice);
-  };
+  const finish = calls.finishDeviceCheck;
 
   return (
     <Dialog

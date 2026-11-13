@@ -366,7 +366,7 @@ export function AccountDialog({
             {composer.error && (
               <p role="alert" className="mt-2 text-sm text-alert">
                 {composer.error}
-                {composer.unread && (
+                {composer.unreadable && (
                   <>
                     {" "}
                     <button
@@ -382,7 +382,7 @@ export function AccountDialog({
             )}
           </section>
         )}
-        {section === "calls" && <VoiceVideoSettings titled={false} />}
+        {section === "calls" && <VoiceVideoSettings />}
         {section === "security" && (
           <>
             <section {...settingMark("password")} aria-labelledby="account-password-title">

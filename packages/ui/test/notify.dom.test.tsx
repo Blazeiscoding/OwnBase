@@ -1,10 +1,8 @@
 import { afterEach, describe, expect, it, onTestFinished, vi } from "vitest";
 import { act, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import {
-  NOTIFICATION_PROMPT_SNOOZE_MS,
-  NotificationBanner,
-} from "../src/components/NotificationBanner.js";
+import { NotificationBanner } from "../src/components/NotificationBanner.js";
+import { NOTICE_SNOOZE_MS } from "../src/lib/noticeSnooze.js";
 import { webPlatform, type Platform } from "../src/platform.js";
 import { accessibilityProblems } from "./accessibility.js";
 
@@ -98,7 +96,7 @@ describe("the notification banner", () => {
     second.unmount();
 
     // and once the two weeks are up, it offers again.
-    clock = 1_000_000 + NOTIFICATION_PROMPT_SNOOZE_MS;
+    clock = 1_000_000 + NOTICE_SNOOZE_MS;
     await banner({ storage, now }, reads);
     expect(screen.getByRole("region", { name: "Notifications" })).toBeVisible();
   });

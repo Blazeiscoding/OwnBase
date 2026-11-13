@@ -1,3 +1,4 @@
+import { useEffect } from "react";
 import { useStore } from "zustand";
 import { createStore, type StoreApi } from "zustand/vanilla";
 import {
@@ -10,6 +11,7 @@ import {
 import { usePlatform } from "../context.js";
 import type { Platform } from "../platform.js";
 import { noiseFilter } from "./noiseFilter.js";
+import { perDevice } from "./perDevice.js";
 import { qualityOf } from "./screenShareQuality.js";
 import { systemMicrophoneOpener } from "./systemMicrophone.js";
 
@@ -66,7 +68,7 @@ interface Preferences extends Omit<Kept, "screenShare"> {
    * Resolves true once they are kept.
    */
   setDevices: (patch: CallDevices) => Promise<boolean>;
-  retryLoad: () => Promise<void>;
+  retry: () => Promise<void>;
   /**
    * Every join waits for device preferences; unknown preferences keep the
    * mic off. The first join with a choice of devices asks which first.
@@ -92,7 +94,6 @@ const KEY = "call-preferences";
 /** Where the screen-share choice was kept before it joined the rest; moved on first read. */
 const OLD_QUALITY_KEY = "screen-share-quality";
 const OLD_SOUND_KEY = "screen-share-sound";
-const stores = new WeakMap<Platform, ReturnType<typeof createPreferences>>();
 
 /**
  * Only what was chosen: ids that are names, switches that are on or off.
@@ -224,7 +225,7 @@ function createPreferences(platform: Platform) {
         devicesChecked: devicesChecked || chose,
       });
     },
-    retryLoad: () => (store.getState().saving ? initialization : (initialization = load())),
+    retry: () => (store.getState().saving ? initialization : (initialization = load())),
     joinHuddle: async (client, channelId, stillWanted = () => true) => {
       // Wait for the latest choice, even if the read a Retry replaced stays hung.
       while (!store.getState().loaded || store.getState().saving) {
@@ -346,13 +347,18 @@ function createPreferences(platform: Platform) {
   return store;
 }
 
+const preferencesOf = perDevice(createPreferences);
+
 /** How huddles start on this device, for every workspace, from the platform's storage. */
 export function useCallPreferences() {
-  const platform = usePlatform();
-  let store = stores.get(platform);
-  if (!store) {
-    store = createPreferences(platform);
-    stores.set(platform, store);
-  }
-  return useStore(store);
+  return useStore(preferencesOf(usePlatform()));
+}
+
+/**
+ * Mounted by the screen that shows the device question: when it goes, as a
+ * workspace does, a join still waiting on the answer joins nothing.
+ */
+export function useDeviceCheckEndsWithScreen(): void {
+  const finish = useStore(preferencesOf(usePlatform()), (s) => s.finishDeviceCheck);
+  useEffect(() => () => finish(null), [finish]);
 }

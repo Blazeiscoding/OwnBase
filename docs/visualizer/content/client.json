@@ -505,7 +505,7 @@
       "details": [
         "Adding a panel or dialog is its entry here (and its kind in navigation.ts). An entry says what it needs (an open conversation), whether this account may open it (allowed), and draws it in its loading frame.",
         "A dialog this account may not open is never drawn, and one an address names closes once the account is known; one taken away while open, by another admin, says why it closed.",
-        "The Ctrl+K palette, search and the thread panel load as the workspace opens and are then drawn directly, so what is typed straight after Ctrl+K never meets a loading state."
+        "The Ctrl+K palette, search and the thread panel are preloadable (lib/preloadable.ts): they load as the workspace opens and are then drawn directly, so what is typed straight after Ctrl+K never meets a loading state."
       ],
       "concepts": ["navigation", "dialogs"]
     },
@@ -514,7 +514,7 @@
       "plain": "Every workspace-wide action and global key, each declared once, which the menus, Ctrl+K, the phone's account sheet, the keyboard and the shortcut list are made from.",
       "summary": "ACTIONS with available() and run(), the menu and palette lists, KEY_BINDINGS and useGlobalKeys.",
       "details": [
-        "An action has an id, a label, an icon, Ctrl+K's other words, available(ctx) (from client-core's selectors) and run(ctx). WORKSPACE_MENU, ACCOUNT_MENU and PALETTE list ids in their order; menuItems and paletteCommands keep those this account may use.",
+        "An action has an id, a label, an icon, Ctrl+K's other words, available(ctx) (from client-core's selectors) and run(ctx). WORKSPACE_MENU and ACCOUNT_MENU list ids in their order, and Ctrl+K lists ACTIONS in their own order, but for those marked palette: false; menuItems and paletteCommands keep those this account may use. useActionContext draws again when anything the menus show changes: every action's availability, words and icon, and every menu place's, worked out from the workspace state.",
         "KEY_BINDINGS are the global keys in the shortcut list's order; useGlobalKeys runs the first that matches a key the page may act on (lib/keys.ts), and a binding tied to an action shows its key on that action's menu item and Ctrl+K row.",
         "Alt+Up/Down walk the sidebar's order from lib/sidebarLayout.ts, not its DOM."
       ],
@@ -826,9 +826,18 @@
       "summary": "Shares the Enter-to-send choice across composers on this device.",
       "details": [
         "The store begins with Enter creating a newline until the initial preference read answers, and updates the selected choice only after a successful save.",
-        "A loaded boolean chooses the behavior; absence uses the current default. Since Q04 the read is strict and validated: a refused read or a value that is not a boolean choice leaves Enter as a new line, sets unread and an error, and retry reads again."
+        "A loaded boolean chooses the behavior; absence uses the current default. Since Q04 the read is strict and validated: a refused read or a value that is not a boolean choice leaves Enter as a new line, sets unreadable and an error, and retry reads again."
       ],
       "concepts": ["keyboard preference", "acknowledged save", "Q04"]
+    },
+    {
+      "path": "packages/ui/src/lib/perDevice.ts",
+      "plain": "Makes sure every part of the page on one device shares the same copy of each saved preference.",
+      "summary": "One store per platform, made on first use, for the per-device preference stores.",
+      "details": [
+        "Appearance, the Enter key, call preferences, call volumes, emoji choices and notification previews each keep their own key, value format and failure rules; perDevice only holds one store for each platform in a WeakMap, so a test that makes a new platform starts from nothing."
+      ],
+      "concepts": ["device preferences", "shared store"]
     },
     {
       "path": "packages/ui/src/lib/appearance.ts",
@@ -1207,6 +1216,26 @@
       "concepts": ["navigation memory", "account scope", "write deduplication"]
     },
     {
+      "path": "packages/ui/src/lib/accountStorage.ts",
+      "plain": "Reads what one account keeps for one workspace on this device, such as the last conversation open or the getting-started list.",
+      "summary": "useAccountKey and useAccountRead: the scoped key, and one read of it per key.",
+      "details": [
+        "useAccountKey makes the workspace and account key with workspaceStorageKey. Only recent-conversations, kept before workspaces had ids, keeps its old key and is stored wrapped; last-conversation, getting-started and keep-account-offer were only ever stored plain under the new key, and stay so.",
+        "useAccountRead gives undefined until storage answers, then the parsed value, or the caller's unreadable answer when the read fails. Each caller keeps its own rule for a change made before the read answers, and its own write."
+      ],
+      "concepts": ["account scope", "device storage"]
+    },
+    {
+      "path": "packages/ui/src/lib/noticeSnooze.ts",
+      "plain": "Remembers when you pressed Not now on a notice, so it stays away for two weeks on this device.",
+      "summary": "NOTICE_SNOOZE_MS, snoozedUnder, keepSnoozed and useSnoozed for the member, server and notifications notices.",
+      "details": [
+        "Each notice keeps its own key, unchanged: memberNoticeSnoozedAt:<workspace>, serverNoticeSnoozedAt:<workspace>:<notice id>, notificationPromptSnoozedAt, holding the time Not now was pressed.",
+        "Unknown until storage answers, so a snoozed notice does not flash first; a read that fails counts as not snoozed, and a write that fails still puts the notice away for now."
+      ],
+      "concepts": ["notices", "device storage"]
+    },
+    {
       "path": "packages/ui/src/lib/recentSearches.ts",
       "plain": "Remembers your ten most recent searches for each account, moving a repeated search back to the top.",
       "summary": "Maintains up to ten recent searches within an account's workspace scope.",
@@ -1333,7 +1362,7 @@
       "plain": "Fetches the full set of emoji the first time something needs it, and tells whether a message is only a few emoji, so they can be shown large.",
       "summary": "Lazily loads the emoji table, search and preferences, and detects emoji-only messages.",
       "details": [
-        "loadEmoji imports emojiSet.ts and emojiPreferences.ts once, about 46 kB compressed, and forgets a failed attempt so the next one tries again. The workspace calls it as it opens; useEmoji gives a component the kit once it has arrived.",
+        "loadEmoji imports emojiSet.ts and emojiPreferences.ts once, about 46 kB compressed, and forgets a failed attempt so the next one tries again (lib/preloadable.ts). The workspace fetches it as it opens; useEmoji gives a component the kit once it has arrived.",
         "onlyEmoji is true for a message of at most 64 characters made only of pictographs, flag letters, skin tones, keycaps and the joiners between them. MessageItem shows such a message at 32 px, as Slack and Discord do."
       ],
       "concepts": ["lazy loading", "emoji", "jumbo emoji"]
@@ -1509,7 +1538,7 @@
       "plain": "Adds Back and Forward to the desktop app with Alt plus the arrow keys and the mouse's side buttons.",
       "summary": "Adds desktop Back/Forward keyboard and mouse shortcuts.",
       "details": [
-        "When enabled, Alt+Left/Right and mouse side buttons call browser history.",
+        "When enabled, Alt+Left/Right and mouse side buttons call browser history. HISTORY_KEYS holds the two keys, which the shortcut sheet lists under Getting around.",
         "Modified or already handled key events are left alone; listeners are removed with the component. Ordinary web browsers already supply this behavior."
       ],
       "concepts": ["desktop navigation", "event cleanup"]
@@ -1523,6 +1552,26 @@
         "The hook rechecks on a query change and removes its listener, keeping viewport-driven component behavior synchronized with CSS."
       ],
       "concepts": ["responsive UI", "subscription lifetime"]
+    },
+    {
+      "path": "packages/ui/src/lib/layout.ts",
+      "plain": "Keeps the app's scripts in step with its stylesheet: the same window sizes for a phone, a drawer or a sheet, and the same timing for motion.",
+      "summary": "The media queries and motion values scripts share with theme.css: PHONE_QUERY, DRAWER_QUERY, WIDE_QUERY, NARROW_QUERY, TOUCH_QUERY, SHEET_QUERY, screenMatches, drawerLayout, DURATION_FAST_MS and EASE_SMOOTH.",
+      "details": [
+        "Each query is one theme.css asks in its @media rules, and the two motion values are its --duration-fast and --ease-smooth; test/layout.test.ts reads theme.css and fails when either side moves alone.",
+        "A notice's way out (Toast) and a dialog's copy (Modal) end when their animations have played, not after a timer that guesses their length."
+      ],
+      "concepts": ["responsive UI", "motion tokens"]
+    },
+    {
+      "path": "packages/ui/src/lib/preloadable.ts",
+      "plain": "Fetches the parts of the app left out of the first download as soon as a workspace opens, so they are usually there before they are wanted.",
+      "summary": "preloadable(fetch) gives load() and loaded(); preloadAll() fetches every one, from WorkspaceScreen as it opens.",
+      "details": [
+        "Made with it: the Ctrl+K palette, search and the thread panel (workspaceViews.tsx), a hint's floating text (Tooltip.tsx), the emoji kit (emoji.ts) and the emoji picker (FormattingToolbar.tsx). Making one adds it to what preloadAll fetches, so there is no second list to keep in step.",
+        "load() fetches once and forgets a failure, so wanting the part later tries again; loaded() gives it once it has arrived, for a view to draw it directly rather than through a loading state."
+      ],
+      "concepts": ["code splitting", "preloading"]
     },
     {
       "path": "packages/ui/src/lib/onScreenKeyboard.ts",
@@ -1935,7 +1984,7 @@
       "details": [
         "formatText wraps or inserts syntax and returns the corresponding selection so composer/editor behavior stays consistent.",
         "formatList makes each line the selection touches a bulleted or numbered item (numbered from 1), changes items of the other kind, or takes the markers off when every line already has that kind's; a caret keeps its place in its line's words. listShortcut reads Ctrl/Cmd+Shift+8 and +7 from the key's code, as Shift changes the key, and the toolbar has a button for each.",
-        "The toolbar supplies supported formatting and preview affordances; formattingShortcut and MESSAGE_LIMIT keep keyboard handling and validation aligned.",
+        "The toolbar supplies supported formatting and preview affordances; TEXT_FORMATS and LIST_FORMATS hold each format's marker and key once, for the buttons' hints, formattingShortcut and listShortcut, and the shortcut sheet, and MESSAGE_LIMIT keeps validation aligned.",
         "Its emoji button opens the same EmojiPicker the reactions use, loaded on first use, with a loading line meanwhile and a message if it cannot load. Escape, its own button or a press anywhere outside it closes it, and a press outside leaves focus where it landed."
       ],
       "concepts": ["formatting", "shared input behavior", "message limit"]
@@ -2476,7 +2525,7 @@
       "details": [
         "Appears after sign-in rather than asking from an unrelated first click. Not now defers the banner for two weeks on this device.",
         "An explicit browser denial remains quiet until site permission changes, and the native desktop notification adapter does not need this banner.",
-        "It sits in the workspace's one banner place and gives way to anything more pressing (UX-25). onShowing tells the workspace whether it is on show, so the Opening message… hint behind it waits."
+        "It sits in the workspace's one banner place and gives way to anything more pressing (UX-25). onShowing tells the banner place whether it is on show, so the Opening message… hint behind it waits."
       ],
       "concepts": ["notification permission", "gesture ownership", "respectful prompting", "UX-25"]
     },
@@ -2573,7 +2622,7 @@
       "details": [
         "Banner takes a tone, its words and optional actions at its end. An alert is tinted and read out at once by a screen reader; a status is a quiet passing note.",
         "BannerAction is a button whose words underline on hover, as a link would, such as Dismiss or Retry saving.",
-        "Which banner shows is WorkspaceScreen's choice, one at a time. App builds the one for sign-ins this device could not save, which the storage gate also shows while the workspace is not open yet."
+        "BannerQueue is the place itself: banners in order of how pressing they are, each drawn only while none before it is on show. A plain banner is on show whenever it is given; a notice that waits for storage gets an onShowing to say so. WorkspaceScreen lists them. App builds the one for sign-ins this device could not save, which the storage gate also shows while the workspace is not open yet."
       ],
       "concepts": ["banners", "UX-25"]
     },
@@ -2684,7 +2733,7 @@
       "details": [
         "Microphone, speaker (where setSinkId exists) and camera pickers with the system default first; a chosen device that is unplugged stays listed as such. Changes apply to a huddle in progress through chooseDevices and are kept for every workspace on this device.",
         "Noise suppression as Strong, Standard or Off (Discord's choice; Strong unless chosen otherwise, and Off for anyone who had turned suppression off), echo cancellation and automatic volume switches, a microphone test with playback, a two-tone speaker test, a mirrored camera preview, and join-muted. When the browser keeps device names back it offers to ask for the microphone once.",
-        "In Account settings it leaves out its own heading (titled={false}), since the window already names the section, and reports kept device and join-muted choices through savedNote."
+        "It has no heading of its own: Account settings, its one place, already names the section. It reports kept device and join-muted choices through savedNote."
       ],
       "concepts": ["device settings", "local media tests"]
     },
@@ -2704,7 +2753,7 @@
       "summary": "Asks once, before a first huddle, which microphone and camera to use.",
       "details": [
         "callPreferences.joinHuddle asks when this device has not been asked (devicesChecked), nothing is chosen, and the browser lists more than one microphone or camera; a browser that keeps names back lists none, so it is asked on the first join after it gives them. Choosing a microphone or camera in settings counts as an answer.",
-        "The dialog, loaded on first use from WorkspaceScreen, listens through MicrophoneCheck and shows the camera through CameraPreview at once. Join huddle keeps the choice and joins with it; Cancel, or the workspace closing, joins nothing and asks again next time. Only a dialog that went without an answer calls the waiting join off."
+        "The dialog, loaded on first use from WorkspaceScreen, listens through MicrophoneCheck and shows the camera through CameraPreview at once. Join huddle keeps the choice and joins with it; Cancel, or the workspace closing, joins nothing and asks again next time. The workspace screen mounts useDeviceCheckEndsWithScreen, so its going calls the waiting join off."
       ],
       "concepts": ["device settings", "first-call device check"]
     },
@@ -2906,7 +2955,7 @@
       "details": [
         "Built on Modal, so it is a named modal dialog: Escape and a press on the dimmed page close it, the page behind is inert, and focus goes back to what opened it. The backdrop is black at 40% and fades in; the column of cards rises from below the screen's edge (animate-sheet-in) and leaves as it came.",
         "Where it sits is theme.css's .bottom-sheet: 8 px from the sides and the bottom, plus the home indicator's inset. Its cards take sheetCard (surface-float, rounded-2xl), drawn solid inside a sheet: frosted over the dimmed page, White's turned grey enough that a red Delete in the message sheet read at 4.2:1.",
-        "SHEET_QUERY, (hover: none) and (max-width: 760px), is where a sheet is wanted, and wantsSheet() reads it. A phone held sideways, 844 px wide, is wider than that, so a menu there stays a dropdown.",
+        "SHEET_QUERY in lib/layout.ts, (hover: none) and (max-width: 760px), is where a sheet is wanted, and wantsSheet() reads it. A phone held sideways, 844 px wide, is wider than that, so a menu there stays a dropdown.",
         "Menu draws its touch sheet in one, for the message actions, a conversation's row, the conversation's ⋯ and the account menu from the phone's You. Focus handling stays Menu's and Modal's: the menu's one trigger button is where focus goes back to."
       ],
       "concepts": ["bottom sheet", "touch", "modal layer", "safe area", "focus restoration"]
