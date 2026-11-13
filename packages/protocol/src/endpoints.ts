@@ -117,6 +117,11 @@ export interface SlackAnswer {
 export const endpoints = {
   // ---------- unauthenticated ----------
 
+  /**
+   * Whether the server is up and its database answers. `instanceId` is new
+   * each time the server starts, so a host can tell its own server from
+   * another one on the same port.
+   */
   health: endpoint({
     method: "GET",
     path: "/api/health",
@@ -124,6 +129,10 @@ export const endpoints = {
     answer: json<{ status: "ok"; instanceId: string }>(),
   }),
 
+  /**
+   * The STUN and TURN servers calls connect through. A TURN relay the server
+   * shares a secret with gets a password made for the caller, which runs out.
+   */
   rtcConfig: endpoint({
     method: "GET",
     path: "/api/rtc-config",
@@ -132,6 +141,10 @@ export const endpoints = {
     timeoutMs: 5000,
   }),
 
+  /**
+   * What this server is, before anyone signs in: its name, versions, who may
+   * join, whether it still needs a claim code, and any other way to sign in.
+   */
   serverInfo: endpoint({
     method: "GET",
     path: "/api/server-info",
@@ -156,6 +169,12 @@ export const endpoints = {
     timeoutMs: 20000,
   }),
 
+  /**
+   * Creates an account with a password and signs it in. The first account
+   * owns the workspace, and needs the claim code unless it is made on the
+   * host's own machine. After that, an invite-only workspace needs an invite
+   * code.
+   */
   register: endpoint({
     method: "POST",
     path: "/api/auth/register",
@@ -195,6 +214,10 @@ export const endpoints = {
     timeoutMs: 20000,
   }),
 
+  /**
+   * Signs in with a handle and password. An account with two-step sign-in
+   * gets a challenge instead of a session, which `two-step` answers.
+   */
   login: endpoint({
     method: "POST",
     path: "/api/auth/login",
@@ -217,6 +240,7 @@ export const endpoints = {
     answer: json<SignedIn & { recoveryCodesLeft: number }>(),
   }),
 
+  /** Signs out the session the request carries, and closes its live connection. */
   logout: endpoint({
     method: "POST",
     path: "/api/auth/logout",
@@ -298,6 +322,7 @@ export const endpoints = {
     answer: json<{ sessions: SessionInfo[] }>(),
   }),
 
+  /** Signs out one of this account's devices, by the id `sessions` lists. */
   revokeSession: endpoint({
     method: "DELETE",
     path: "/api/auth/sessions/:id",
@@ -315,8 +340,13 @@ export const endpoints = {
 
   // ---------- me / users ----------
 
+  /** The signed-in account. */
   me: endpoint({ method: "GET", path: "/api/me", access: "guest", answer: json<{ user: User }>() }),
 
+  /**
+   * Changes the signed-in account's display name, status, Do Not Disturb,
+   * away and time zone. Everyone's devices hear of the change.
+   */
   updateMe: endpoint({
     method: "PATCH",
     path: "/api/me",
@@ -346,6 +376,7 @@ export const endpoints = {
     answer: json<{ user: User }>(),
   }),
 
+  /** Everyone with an account here, people and bots, by handle. */
   listUsers: endpoint({
     method: "GET",
     path: "/api/users",
@@ -353,6 +384,7 @@ export const endpoints = {
     answer: json<{ users: User[] }>(),
   }),
 
+  /** This account's friends and friend requests, sent and received, newest first. */
   friends: endpoint({
     method: "GET",
     path: "/api/friends",
@@ -360,6 +392,7 @@ export const endpoints = {
     answer: json<{ friends: Friendship[] }>(),
   }),
 
+  /** Sends someone a friend request. Bots and guests cannot be asked. */
   requestFriend: endpoint({
     method: "POST",
     path: "/api/friends/:id",
@@ -367,6 +400,7 @@ export const endpoints = {
     answer: json<{ friends: Friendship[] }>(),
   }),
 
+  /** Accepts the friend request this person sent. */
   acceptFriend: endpoint({
     method: "PUT",
     path: "/api/friends/:id",
@@ -374,6 +408,7 @@ export const endpoints = {
     answer: json<{ friends: Friendship[] }>(),
   }),
 
+  /** Ends a friendship with this person, or a request either of you sent. */
   removeFriend: endpoint({
     method: "DELETE",
     path: "/api/friends/:id",
@@ -401,6 +436,10 @@ export const endpoints = {
     answer: json<{ blocked: ID[] }>(),
   }),
 
+  /**
+   * Every public channel, and the private channels and direct conversations
+   * the caller is in, with how many members each room has.
+   */
   listChannels: endpoint({
     method: "GET",
     path: "/api/channels",
@@ -408,6 +447,11 @@ export const endpoints = {
     answer: json<{ channels: Channel[]; memberCounts: Record<ID, number> }>(),
   }),
 
+  /**
+   * Makes a channel or a direct conversation. A public channel takes in
+   * everyone, a private one the people named. Asking for a direct
+   * conversation that already exists with the same people returns it.
+   */
   createChannel: endpoint({
     method: "POST",
     path: "/api/channels",
@@ -417,6 +461,10 @@ export const endpoints = {
     status: 201,
   }),
 
+  /**
+   * Renames a channel, or changes its topic, description or archived state,
+   * for those who manage it.
+   */
   updateChannel: endpoint({
     method: "PATCH",
     path: "/api/channels/:id",
@@ -425,6 +473,7 @@ export const endpoints = {
     answer: json<{ channel: Channel }>(),
   }),
 
+  /** Joins a public channel that is not archived. */
   joinChannel: endpoint({
     method: "POST",
     path: "/api/channels/:id/join",
@@ -432,6 +481,7 @@ export const endpoints = {
     answer: json<{ ok: true }>(),
   }),
 
+  /** Leaves a channel or a group conversation. A two-person conversation cannot be left. */
   leaveChannel: endpoint({
     method: "POST",
     path: "/api/channels/:id/leave",
@@ -439,6 +489,7 @@ export const endpoints = {
     answer: json<{ ok: true }>(),
   }),
 
+  /** Adds someone to a channel. Members may, and admins even from outside it. */
   inviteMember: endpoint({
     method: "POST",
     path: "/api/channels/:id/invite-member",
@@ -447,6 +498,10 @@ export const endpoints = {
     answer: json<{ ok: true }>(),
   }),
 
+  /**
+   * Takes someone out of a channel, for those who manage it. They get a note
+   * in Activity, and a public channel stays open for them to join again.
+   */
   removeChannelMember: endpoint({
     method: "DELETE",
     path: "/api/channels/:id/members/:userId",
@@ -454,6 +509,7 @@ export const endpoints = {
     answer: json<{ ok: true }>(),
   }),
 
+  /** Makes a member of a channel one of its managers, or stops them being one. */
   setChannelManager: endpoint({
     method: "PATCH",
     path: "/api/channels/:id/managers/:userId",
@@ -462,6 +518,7 @@ export const endpoints = {
     answer: json<{ channel: Channel }>(),
   }),
 
+  /** The ids of everyone in a conversation the caller can read. */
   channelMembers: endpoint({
     method: "GET",
     path: "/api/channels/:id/members",
@@ -469,6 +526,7 @@ export const endpoints = {
     answer: json<{ memberIds: ID[] }>(),
   }),
 
+  /** Marks a conversation read up to `seq`, on every device of this account. */
   markRead: endpoint({
     method: "POST",
     path: "/api/channels/:id/read",
@@ -477,6 +535,7 @@ export const endpoints = {
     answer: json<{ ok: true; seq: number }>(),
   }),
 
+  /** Marks a conversation unread from the message at `seq` onwards. */
   markUnread: endpoint({
     method: "POST",
     path: "/api/channels/:id/unread",
@@ -487,6 +546,10 @@ export const endpoints = {
 
   // ---------- messages ----------
 
+  /**
+   * A page of a thread: its first message, and replies before, after or
+   * around one of them, or the newest when no cursor is given.
+   */
   threadHistory: endpoint({
     method: "GET",
     path: "/api/channels/:id/threads/:rootId",
@@ -495,6 +558,10 @@ export const endpoints = {
     answer: json<ThreadPage>(),
   }),
 
+  /**
+   * A conversation's messages, newest first, older than `before` when given.
+   * With `threadRootId`, that thread's replies instead.
+   */
   listMessages: endpoint({
     method: "GET",
     path: "/api/channels/:id/messages",
@@ -503,6 +570,10 @@ export const endpoints = {
     answer: json<{ messages: Message[]; readThroughSeq: number; seq: number }>(),
   }),
 
+  /**
+   * A window of history centred on one message, for a search hit, a pin or a
+   * link. For a reply, the window is centred on its thread's first message.
+   */
   listMessagesAround: endpoint({
     method: "GET",
     path: "/api/channels/:id/messages/around/:messageId",
@@ -532,6 +603,7 @@ export const endpoints = {
     answer: json<{ message: Message }>(),
   }),
 
+  /** The messages after one, newest first, for scrolling back down towards the latest. */
   listMessagesAfter: endpoint({
     method: "GET",
     path: "/api/channels/:id/messages/after/:messageId",
@@ -540,6 +612,11 @@ export const endpoints = {
     answer: json<{ messages: Message[]; seq: number }>(),
   }),
 
+  /**
+   * Posts a message, a thread reply, a forward or a poll, with any files
+   * already uploaded. Sending the same `nonce` again returns the first
+   * message instead of a second one.
+   */
   sendMessage: endpoint({
     method: "POST",
     path: "/api/channels/:id/messages",
@@ -550,6 +627,11 @@ export const endpoints = {
     timeoutMs: 30000,
   }),
 
+  /**
+   * Changes the words of the caller's own message. `expectedText` is what
+   * they started from, so an edit made meanwhile elsewhere is not overwritten.
+   * Polls and call notes cannot be changed.
+   */
   editMessage: endpoint({
     method: "PATCH",
     path: "/api/messages/:id",
@@ -558,6 +640,10 @@ export const endpoints = {
     answer: json<{ message: Message }>(),
   }),
 
+  /**
+   * Deletes a message and its files, the caller's own or, for an admin,
+   * anyone's. Deleting a thread's first message deletes its replies too.
+   */
   deleteMessage: endpoint({
     method: "DELETE",
     path: "/api/messages/:id",
@@ -603,6 +689,7 @@ export const endpoints = {
 
   // ---------- files ----------
 
+  /** How much room uploads take and have left, and the largest file the server takes. */
   storageUsage: endpoint({
     method: "GET",
     path: "/api/storage",
@@ -610,6 +697,10 @@ export const endpoints = {
     answer: json<StorageUsage>(),
   }),
 
+  /**
+   * Uploads one file to a conversation, for a message sent there to attach by
+   * its id. Refused when the workspace has no room left for it.
+   */
   uploadFile: endpoint({
     method: "POST",
     path: "/api/channels/:id/files",
@@ -632,6 +723,10 @@ export const endpoints = {
     answer: json<{ files: SharedFile[]; nextCursor: string | null }>(),
   }),
 
+  /**
+   * A one-time ticket for downloading a file by a plain link, which cannot
+   * carry the session header. The link is `GET /api/files/:id?download=<ticket>`.
+   */
   fileDownloadToken: endpoint({
     method: "POST",
     path: "/api/files/:id/download-token",
@@ -639,6 +734,10 @@ export const endpoints = {
     answer: json<DownloadTicket>(),
   }),
 
+  /**
+   * A file's bytes, for whoever can read its conversation. With the session
+   * header it opens in place; with `?download=<ticket>` it saves under its name.
+   */
   file: endpoint({
     method: "GET",
     path: "/api/files/:id",
@@ -651,6 +750,7 @@ export const endpoints = {
 
   // ---------- reactions ----------
 
+  /** Adds the caller's reaction to a message. Adding one they already made changes nothing. */
   addReaction: endpoint({
     method: "PUT",
     path: "/api/messages/:id/reactions/:emoji",
@@ -658,6 +758,7 @@ export const endpoints = {
     answer: json<{ ok: true }>(),
   }),
 
+  /** Takes the caller's reaction off a message. */
   removeReaction: endpoint({
     method: "DELETE",
     path: "/api/messages/:id/reactions/:emoji",
@@ -700,6 +801,7 @@ export const endpoints = {
     answer: json<WorkspaceStatus>(),
   }),
 
+  /** The owner's downloadable copy of the workspace: being made, ready, failed, or none. */
   workspaceCopy: endpoint({
     method: "GET",
     path: "/api/admin/copy",
@@ -707,6 +809,11 @@ export const endpoints = {
     answer: json<{ copy: WorkspaceCopy | null }>(),
   }),
 
+  /**
+   * Starts making a copy of the whole workspace for the owner to download,
+   * after checking the server has the disk space for it. A copy already
+   * being made is returned instead of a second one.
+   */
   makeWorkspaceCopy: endpoint({
     method: "POST",
     path: "/api/admin/copy",
@@ -714,6 +821,7 @@ export const endpoints = {
     answer: json<{ copy: WorkspaceCopy }>(),
   }),
 
+  /** A one-time ticket for downloading the ready copy by a plain link. */
   copyDownloadToken: endpoint({
     method: "POST",
     path: "/api/admin/copy/download-token",
@@ -747,6 +855,10 @@ export const endpoints = {
     answer: json<{ entries: CallLogEntry[] }>(),
   }),
 
+  /**
+   * Makes an app with its own bot user. The answer holds its `xoxb-` bot
+   * token, which is shown this once, and the signing secret.
+   */
   createApp: endpoint({
     method: "POST",
     path: "/api/apps",
@@ -756,6 +868,10 @@ export const endpoints = {
     status: 201,
   }),
 
+  /**
+   * Every app, newest first, with its webhooks, commands, event subscriptions
+   * and signing secret.
+   */
   listApps: endpoint({
     method: "GET",
     path: "/api/apps",
@@ -807,6 +923,10 @@ export const endpoints = {
     answer: json<{ signingSecret: string }>(),
   }),
 
+  /**
+   * Deletes an app with its tokens, webhooks, commands and event
+   * subscriptions. What its bot posted stays.
+   */
   deleteApp: endpoint({
     method: "DELETE",
     path: "/api/apps/:id",
@@ -814,6 +934,10 @@ export const endpoints = {
     answer: json<{ ok: true }>(),
   }),
 
+  /**
+   * Makes an incoming webhook that posts to one channel as the app's bot,
+   * and adds the bot to that channel. The URL is shown this once.
+   */
   createWebhook: endpoint({
     method: "POST",
     path: "/api/apps/:id/webhooks",
@@ -835,6 +959,7 @@ export const endpoints = {
     answer: json<{ webhook: Webhook; url: string }>(),
   }),
 
+  /** Deletes an incoming webhook. Its URL stops working at once. */
   deleteWebhook: endpoint({
     method: "DELETE",
     path: "/api/webhooks/:id",
@@ -880,6 +1005,10 @@ export const endpoints = {
     answer: json<SlackAnswer>(),
   }),
 
+  /**
+   * Gives an app a slash command, posted to its URL when someone types it.
+   * A name already taken, or built in, is refused.
+   */
   createCommand: endpoint({
     method: "POST",
     path: "/api/apps/:id/commands",
@@ -889,6 +1018,7 @@ export const endpoints = {
     status: 201,
   }),
 
+  /** Removes an app's slash command. */
   deleteCommand: endpoint({
     method: "DELETE",
     path: "/api/commands/:id",
@@ -926,11 +1056,6 @@ export const endpoints = {
   // ---------- people ----------
 
   /**
-   * Everyone with an account, for an admin who has to run this workspace: who
-   * they are, what they can do, and when they were last seen. Bots are in the
-   * list because a forgotten bot is exactly the account worth noticing.
-   */
-  /**
    * What administrators have changed, newest first, for a workspace that has
    * to be able to say who deactivated someone or replaced an app's token.
    */
@@ -942,6 +1067,12 @@ export const endpoints = {
     answer: json<{ entries: AuditEntry[]; nextCursor: string | null }>(),
   }),
 
+  /**
+   * Everyone with an account, for an admin who has to run this workspace: what
+   * they can do, when they were last seen, and whether they use two-step
+   * sign-in. Bots are in the list because a forgotten bot is exactly the
+   * account worth noticing.
+   */
   listAllUsers: endpoint({
     method: "GET",
     path: "/api/admin/users",
@@ -1082,6 +1213,10 @@ export const endpoints = {
     timeoutMs: 30000,
   }),
 
+  /**
+   * Sets the workspace's icon, for the owner and admins, sent whole as the
+   * image itself. The answer is its new version.
+   */
   setWorkspaceIcon: endpoint({
     method: "PUT",
     path: "/api/admin/workspace/icon",
@@ -1192,6 +1327,10 @@ export const endpoints = {
 
   // ---------- outgoing event subscriptions ----------
 
+  /**
+   * Sends an app's events to a URL, once the URL has echoed Slack's
+   * `url_verification` challenge. Without event types it gets every kind.
+   */
   createSubscription: endpoint({
     method: "POST",
     path: "/api/apps/:id/subscriptions",
@@ -1202,6 +1341,7 @@ export const endpoints = {
     timeoutMs: 30000,
   }),
 
+  /** Removes an event subscription, so its URL is sent no more events. */
   deleteSubscription: endpoint({
     method: "DELETE",
     path: "/api/subscriptions/:id",
@@ -1209,6 +1349,10 @@ export const endpoints = {
     answer: json<{ ok: true }>(),
   }),
 
+  /**
+   * Sends again the events a subscription gave up on, oldest first, as far
+   * as its queue has room. The rest wait their turn, and the answer counts both.
+   */
   retrySubscription: endpoint({
     method: "POST",
     path: "/api/subscriptions/:id/retry",
@@ -1216,6 +1360,10 @@ export const endpoints = {
     answer: json<{ ok: true; retried: number; waiting: number }>(),
   }),
 
+  /**
+   * Queues a message to post at `sendAt`, on the server, so it goes out with
+   * the sender's app closed. Sending the same `nonce` again returns the first.
+   */
   scheduleMessage: endpoint({
     method: "POST",
     path: "/api/channels/:id/scheduled",
@@ -1226,6 +1374,7 @@ export const endpoints = {
     timeoutMs: 15000,
   }),
 
+  /** The caller's scheduled messages not yet sent, held and failed ones too, soonest first. */
   listScheduled: endpoint({
     method: "GET",
     path: "/api/scheduled",
@@ -1233,6 +1382,7 @@ export const endpoints = {
     answer: json<{ scheduled: ScheduledMessage[] }>(),
   }),
 
+  /** Cancels one of the caller's scheduled messages. */
   cancelScheduled: endpoint({
     method: "DELETE",
     path: "/api/scheduled/:id",
@@ -1249,6 +1399,10 @@ export const endpoints = {
     answer: json<{ scheduled: ScheduledMessage }>(),
   }),
 
+  /**
+   * Changes the words of a scheduled message not yet sent. `expectedText` is
+   * what the caller started from, so an edit made meanwhile is not overwritten.
+   */
   editScheduledMessage: endpoint({
     method: "PATCH",
     path: "/api/scheduled/:id/text",
@@ -1257,6 +1411,7 @@ export const endpoints = {
     answer: json<{ scheduled: ScheduledMessage }>(),
   }),
 
+  /** Pins a message to its conversation, for everyone in it to see. */
   pinMessage: endpoint({
     method: "PUT",
     path: "/api/messages/:id/pin",
@@ -1264,6 +1419,7 @@ export const endpoints = {
     answer: json<{ ok: true }>(),
   }),
 
+  /** Unpins a message. */
   unpinMessage: endpoint({
     method: "DELETE",
     path: "/api/messages/:id/pin",
@@ -1271,6 +1427,7 @@ export const endpoints = {
     answer: json<{ ok: true }>(),
   }),
 
+  /** A page of a conversation's pinned messages, with how many there are in all. */
   listPins: endpoint({
     method: "GET",
     path: "/api/channels/:id/pins",
@@ -1279,6 +1436,7 @@ export const endpoints = {
     answer: json<{ messages: Message[]; nextCursor: string | null; total: number }>(),
   }),
 
+  /** Saves a message to the caller's own Saved list. */
   saveMessage: endpoint({
     method: "PUT",
     path: "/api/messages/:id/save",
@@ -1286,6 +1444,7 @@ export const endpoints = {
     answer: json<{ ok: true }>(),
   }),
 
+  /** Takes a message off the caller's Saved list. */
   unsaveMessage: endpoint({
     method: "DELETE",
     path: "/api/messages/:id/save",
@@ -1293,6 +1452,10 @@ export const endpoints = {
     answer: json<{ ok: true }>(),
   }),
 
+  /**
+   * The caller's own settings for one conversation: what it notifies about,
+   * muted, starred, its sidebar section, and closing a direct conversation.
+   */
   setChannelPrefs: endpoint({
     method: "PATCH",
     path: "/api/channels/:id/prefs",
@@ -1320,6 +1483,7 @@ export const endpoints = {
     answer: json<UnreadSummary>(),
   }),
 
+  /** Adds a named section to the caller's own sidebar, up to a fixed number of them. */
   createSidebarSection: endpoint({
     method: "POST",
     path: "/api/sidebar-sections",
@@ -1330,6 +1494,7 @@ export const endpoints = {
     status: 201,
   }),
 
+  /** Renames one of the caller's sidebar sections. */
   renameSidebarSection: endpoint({
     method: "PATCH",
     path: "/api/sidebar-sections/:id",
@@ -1347,6 +1512,10 @@ export const endpoints = {
     answer: json<{ sections: SidebarSection[] }>(),
   }),
 
+  /**
+   * Puts the caller's sidebar sections in the order given, which must name
+   * every one of them. Sections changed meanwhile refuse it.
+   */
   orderSidebarSections: endpoint({
     method: "PUT",
     path: "/api/sidebar-sections/order",
@@ -1356,6 +1525,7 @@ export const endpoints = {
     answer: json<{ sections: SidebarSection[] }>(),
   }),
 
+  /** Follows a thread or stops following it, for the caller, by its first message. */
   setThreadFollow: endpoint({
     method: "PUT",
     path: "/api/messages/:id/follow",
@@ -1365,6 +1535,7 @@ export const endpoints = {
     answer: json<{ state: ThreadFollow }>(),
   }),
 
+  /** Mutes a thread for the caller, or unmutes it, by its first message. */
   setThreadMute: endpoint({
     method: "PUT",
     path: "/api/messages/:id/mute",
@@ -1374,6 +1545,10 @@ export const endpoints = {
     answer: json<{ state: ThreadFollow }>(),
   }),
 
+  /**
+   * Reminds the caller about a message at `at`, which must be in the future
+   * and within five years. Setting it again moves the time.
+   */
   setReminder: endpoint({
     method: "PUT",
     path: "/api/messages/:id/reminder",
@@ -1383,6 +1558,7 @@ export const endpoints = {
     answer: json<{ reminder: Reminder }>(),
   }),
 
+  /** Cancels the caller's reminder about a message, or clears one that is done. */
   cancelReminder: endpoint({
     method: "DELETE",
     path: "/api/messages/:id/reminder",
@@ -1390,6 +1566,7 @@ export const endpoints = {
     answer: json<{ ok: true }>(),
   }),
 
+  /** The caller's reminders, each with the message it is about. */
   listReminders: endpoint({
     method: "GET",
     path: "/api/reminders",
@@ -1397,6 +1574,7 @@ export const endpoints = {
     answer: json<{ reminders: ReminderItem[] }>(),
   }),
 
+  /** Marks a thread read up to `seq` for the caller, by its first message. */
   markThreadRead: endpoint({
     method: "POST",
     path: "/api/messages/:id/thread/read",
@@ -1406,6 +1584,7 @@ export const endpoints = {
     answer: json<{ state: ThreadFollow }>(),
   }),
 
+  /** Marks a thread unread from the reply at `seq` onwards, by its first message. */
   markThreadUnread: endpoint({
     method: "POST",
     path: "/api/messages/:id/thread/unread",
@@ -1414,6 +1593,10 @@ export const endpoints = {
     answer: json<{ state: ThreadFollow }>(),
   }),
 
+  /**
+   * The threads the caller follows, latest reply first, or only those with
+   * unread replies.
+   */
   listFollowedThreads: endpoint({
     method: "GET",
     path: "/api/threads/followed",
@@ -1434,6 +1617,7 @@ export const endpoints = {
     answer: json<{ messages: Message[] }>(),
   }),
 
+  /** A page of the caller's saved messages, most recently saved first. */
   listSaved: endpoint({
     method: "GET",
     path: "/api/saved",
@@ -1444,6 +1628,10 @@ export const endpoints = {
 
   // ---------- invites & search ----------
 
+  /**
+   * Makes an invite code, which may run out after some hours or uses. The
+   * owner, admins and members an admin allowed may make one.
+   */
   createInvite: endpoint({
     method: "POST",
     path: "/api/invites",
@@ -1478,6 +1666,10 @@ export const endpoints = {
     answer: json<{ invite: Invite }>(),
   }),
 
+  /**
+   * The Activity list, newest first: unread messages, mentions of the caller,
+   * or unread replies in threads they follow, chosen by `mode`.
+   */
   activity: endpoint({
     method: "GET",
     path: "/api/activity",
@@ -1496,6 +1688,11 @@ export const endpoints = {
     answer: json<{ ids: ID[] }>(),
   }),
 
+  /**
+   * Searches the messages the caller can read, newest first, by words and
+   * modifiers such as `from:`, `in:`, `has:` and `before:`. `tz` says which
+   * calendar the dates are in.
+   */
   search: endpoint({
     method: "GET",
     path: "/api/search",
