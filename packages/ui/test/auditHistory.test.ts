@@ -56,6 +56,15 @@ describe("an entry, as an administrator would say it", () => {
     );
   });
 
+  it("names the part of the server that made a change nobody signed in made (P10)", () => {
+    expect(
+      say(entry("user.deactivated", { actorId: null, details: { by: "SCIM provisioning" } })),
+    ).toBe("SCIM provisioning deactivated Bob");
+    expect(say(entry("user.reactivated", { actorId: null, details: { by: "" } }))).toBe(
+      "The host reactivated Bob",
+    );
+  });
+
   it("says an app's name, and never more of a URL than its host", () => {
     expect(
       say(entry("app.token_replaced", { targetType: "app", details: { name: "Deploy Bot" } })),

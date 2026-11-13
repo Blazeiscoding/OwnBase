@@ -273,7 +273,7 @@ describe("single sign-on in Workspace settings", () => {
         </ClientContext.Provider>
       </PlatformContext.Provider>,
     );
-    return { read, save, user: userEvent.setup() };
+    return { client, read, save, user: userEvent.setup() };
   }
 
   it("is a section of its own for the owner, saved where the server says", async () => {
@@ -320,6 +320,72 @@ describe("single sign-on in Workspace settings", () => {
     expect(screen.getByRole("note")).toHaveTextContent("needs an Enterprise license");
     await user.click(screen.getByRole("button", { name: "Save" }));
     expect(await screen.findByRole("alert")).toHaveTextContent("answered 404");
+  });
+
+  it("presses a panel's buttons, asking first where it says, and shows a token once (P10)", async () => {
+    const provisioning = (made: boolean): SettingsPanel => ({
+      id: "scim",
+      title: "Provisioning with SCIM",
+      description: "Your identity provider can add people here.",
+      fields: [],
+      ...(made ? { status: "Token made on 13 November 2026, not used yet." } : {}),
+      actions: made
+        ? [
+            {
+              id: "token",
+              label: "Make a new token",
+              path: "/api/scim/token",
+              confirm: {
+                title: "Make a new token?",
+                text: "The token your identity provider has now stops working at once.",
+                action: "Make a new token",
+              },
+            },
+          ]
+        : [{ id: "token", label: "Make a token", path: "/api/scim/token" }],
+    });
+    const { client, read, user } = settings("owner", [provisioning(false)]);
+    const run = vi.spyOn(client.api, "runSettingsAction").mockResolvedValue({
+      reveal: {
+        label: "SCIM token",
+        value: "ownbase-scim-test-token-not-a-credential",
+        note: "It is shown only this once.",
+      },
+    });
+    await user.click(await screen.findByRole("tab", { name: "Sign-in" }));
+    // Nothing to fill in, so nothing to save.
+    expect(screen.queryByRole("button", { name: "Save" })).toBeNull();
+    read.mockResolvedValue({ panels: [provisioning(true)] });
+    await user.click(screen.getByRole("button", { name: "Make a token" }));
+    expect(run).toHaveBeenCalledWith("/api/scim/token");
+    // Drawn again from the server's answer, with the token still up until it is copied.
+    expect(await screen.findByText("Token made on 13 November 2026, not used yet.")).toBeVisible();
+    expect(screen.getByText("ownbase-scim-test-token-not-a-credential")).toBeVisible();
+    expect(screen.getByText("It is shown only this once.")).toBeVisible();
+    expect(await accessibilityProblems()).toEqual([]);
+
+    // Closing before copying asks first.
+    await user.keyboard("{Escape}");
+    const ask = await screen.findByRole("dialog", { name: "Close before copying?" });
+    await user.click(within(ask).getByRole("button", { name: "Cancel" }));
+
+    // A button that stops something working asks first, in the window.
+    await user.click(screen.getByRole("button", { name: "Make a new token" }));
+    const sure = await screen.findByRole("dialog", { name: "Make a new token?" });
+    expect(sure).toHaveTextContent("stops working at once");
+    await user.click(within(sure).getByRole("button", { name: "Cancel" }));
+    expect(run).toHaveBeenCalledTimes(1);
+
+    run.mockRejectedValue(
+      new ApiError(403, "license_required", "Provisioning needs an Enterprise license with SCIM."),
+    );
+    await user.click(screen.getByRole("button", { name: "Make a new token" }));
+    await user.click(
+      within(await screen.findByRole("dialog", { name: "Make a new token?" })).getByRole("button", {
+        name: "Make a new token",
+      }),
+    );
+    expect(await screen.findByRole("alert")).toHaveTextContent("needs an Enterprise license");
   });
 
   it("is not there for an admin, or where the server adds nothing", async () => {

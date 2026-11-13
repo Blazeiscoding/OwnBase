@@ -1222,6 +1222,26 @@
       "concepts": ["single sign-on", "account linking", "license keys", "P9"]
     },
     {
+      "path": "ee/src/scim.ts",
+      "plain": "Lets a company's identity provider, such as Okta or Microsoft Entra ID, add people, keep their names current and deactivate them when they leave.",
+      "summary": "SCIM 2.0 provisioning at /scim/v2/Users with a token the owner makes in Workspace settings (P10).",
+      "details": [
+        "Keeps what the provider sent about a person as it sent it, since the provider reads it back to compare; the account takes its name and whether it is active from it.",
+        "Nobody is deleted: a DELETE deactivates, which ends the person's sessions at once, and their messages stay. Apps, guests and the owner are never touched.",
+        "Groups are not offered. Without the license feature, people it added stay and can still be changed or deactivated, but nobody new is added."
+      ],
+      "concepts": ["SCIM provisioning", "license keys", "P10"]
+    },
+    {
+      "path": "ee/src/scimResource.ts",
+      "plain": "The parts of SCIM's language that Okta and Entra send: filters that pick people and patches that change them.",
+      "summary": "Parses SCIM filters such as userName eq \"x\" joined by and, and applies PATCH operations on paths such as emails[type eq \"work\"].value.",
+      "details": [
+        "No server here: only what a resource holds, what a filter picks and what a patch changes, with refusals in SCIM's error shape."
+      ],
+      "concepts": ["SCIM provisioning", "P10"]
+    },
+    {
       "path": "ee/src/main.ts",
       "plain": "Starts the server with the Enterprise edition in it; the server bundle is built from this file.",
       "summary": "The command line's entry for builds with ee/: adds the Enterprise extension, then imports the server's main.ts.",

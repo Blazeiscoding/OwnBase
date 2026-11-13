@@ -65,6 +65,8 @@ export interface ExtensionContext {
   storage: ExtensionStorage;
   users: {
     get(id: string): User | null;
+    /** Everyone with an account, apps and guests included, deactivated or not. */
+    list(): User[];
     byHandle(handle: string): User | null;
     /**
      * A new member, with no password anyone knows, joined to the public
@@ -72,6 +74,13 @@ export interface ExtensionContext {
      * for a handle taken, and for a handle or name joining would refuse.
      */
     create(input: { handle: string; displayName: string }): Promise<User>;
+    /**
+     * Renames, deactivates or reactivates a person, as an admin would, and
+     * tells everyone. Deactivating ends their sessions at once. A change of
+     * `deactivated` goes in the audit log as made by `by`, such as "SCIM
+     * provisioning". Refused for an app, and for deactivating the owner.
+     */
+    update(id: string, patch: { displayName?: string; deactivated?: boolean }, by: string): User;
   };
   /** Signs `userId` in, as a password would: a new session, and its token. */
   startSession(userId: string, req: FastifyRequest): { token: string; user: User };

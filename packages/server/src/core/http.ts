@@ -86,6 +86,14 @@ export async function createHttp(opts: HttpOptions): Promise<Http> {
     },
   );
 
+  // JSON under a name of its own (RFC 6839), such as SCIM's application/scim+json,
+  // which identity providers send to the Enterprise edition's provisioning (P10).
+  app.addContentTypeParser(
+    /^application\/[a-z0-9.-]+\+json(?:\s*;|$)/i,
+    { parseAs: "string" },
+    app.getDefaultJsonParser("error", "error"),
+  );
+
   // Serve the browser client (if bundled) so teammates without the app can join.
   const servesWebClient = !!opts.webDistPath && existsSync(join(opts.webDistPath, "index.html"));
   if (servesWebClient) {
