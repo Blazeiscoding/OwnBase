@@ -625,6 +625,16 @@
       "concepts": ["tooling", "bundle budget"]
     },
     {
+      "path": "scripts/coverage.mjs",
+      "plain": "Measures how much of each package's code its tests run, and names the largest files no test reaches.",
+      "summary": "Runs each vitest package with V8 coverage and prints one line a package, then the largest files under half covered.",
+      "details": [
+        "Every run lists every package's source, so a client-core file the UI's tests run counts as reached in the final list while its package's own line counts only its own tests.",
+        "No threshold and no CI gate on purpose: the number is for finding untested code, and a gate makes people write tests for the number."
+      ],
+      "concepts": ["tooling", "test coverage"]
+    },
+    {
       "path": "scripts/desktop-ci-mode.mjs",
       "plain": "Picks whether automatic checks build the full Windows installer or a quicker unpacked app, based on what changed.",
       "summary": "Chooses full installer coverage for installer/resource/dependency/install-policy changes and unpacked coverage for ordinary runtime changes.",
