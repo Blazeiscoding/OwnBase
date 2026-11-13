@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { focusOrigin } from "./opener.js";
 
 /**
  * A side panel takes focus when it opens and hands it back when it closes, so
@@ -16,11 +17,7 @@ export function usePanelFocus({ takeFocus }: { takeFocus: boolean }) {
   const panel = useRef<HTMLElement>(null);
   const heading = useRef<HTMLHeadingElement>(null);
   // Read while rendering, before any box inside the panel focuses itself.
-  const [opener] = useState(() =>
-    document.activeElement instanceof HTMLElement && document.activeElement !== document.body
-      ? document.activeElement
-      : null,
-  );
+  const [opener] = useState(focusOrigin);
 
   // What takes focus around it, found now: a message's toolbar is unmade once
   // focus leaves the message, and the button that opened a thread goes with it.
@@ -36,6 +33,9 @@ export function usePanelFocus({ takeFocus }: { takeFocus: boolean }) {
       !opener?.hasAttribute("aria-haspopup");
     const covered = !!opener?.closest("[inert]");
     if (takeFocus && (!toggle || covered)) heading.current?.focus({ preventScroll: true });
+    // Safari did not focus the toggle when it was pressed; it keeps focus by taking it.
+    else if (takeFocus && document.activeElement === document.body)
+      opener?.focus({ preventScroll: true });
     const element = panel.current;
     return () => {
       // Only focus that went with the panel comes back; somebody who has

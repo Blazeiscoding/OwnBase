@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { useState } from "react";
 import { describe, expect, it } from "vitest";
@@ -68,6 +68,20 @@ describe("a side panel", () => {
     expect(screen.getByRole("button", { name: "Open saved" })).toHaveFocus();
   });
 
+  it("goes back to a button pressed in Safari, which leaves focus on the page", () => {
+    render(<Page />);
+    // As Safari presses a button: clicked, but not focused.
+    const opener = screen.getByRole("button", { name: "Open saved" });
+    fireEvent.pointerDown(opener);
+    fireEvent.click(opener);
+    expect(screen.getByRole("heading", { name: "Saved" })).toHaveFocus();
+    const close = screen.getByRole("button", { name: "Close saved" });
+    fireEvent.pointerDown(close);
+    fireEvent.click(close);
+    expect(screen.queryByRole("complementary")).not.toBeInTheDocument();
+    expect(opener).toHaveFocus();
+  });
+
   it("leaves focus alone when somebody has moved on before it closes", async () => {
     const user = userEvent.setup();
     const { rerender } = render(<Shown open={false} />);
@@ -109,6 +123,26 @@ describe("a side panel", () => {
     expect(screen.getByRole("heading", { name: "Saved" })).toBeInTheDocument();
     expect(toggle).toHaveFocus();
     await user.click(screen.getByRole("button", { name: "Close saved" }));
+    expect(toggle).toHaveFocus();
+  });
+
+  it("gives focus to a toggle pressed in Safari, which leaves focus on the page", () => {
+    function Toggled() {
+      const [open, setOpen] = useState(false);
+      return (
+        <>
+          <button aria-pressed={open} onClick={() => setOpen((o) => !o)}>
+            Pinned messages
+          </button>
+          {open && <Panel takeFocus onClose={() => setOpen(false)} />}
+        </>
+      );
+    }
+    render(<Toggled />);
+    const toggle = screen.getByRole("button", { name: "Pinned messages" });
+    fireEvent.pointerDown(toggle);
+    fireEvent.click(toggle);
+    expect(screen.getByRole("heading", { name: "Saved" })).toBeInTheDocument();
     expect(toggle).toHaveFocus();
   });
 
