@@ -1028,7 +1028,7 @@
       "plain": "Sets up the browsers the automatic browser tests use, from copies saved ahead of time rather than slow downloads.",
       "summary": "Installs Chromium, or WebKit and Firefox, and their Linux packages from caches caches.yml fills.",
       "details": [
-        "Restores the Playwright browsers and the saved .deb files into apt's download folder, then runs playwright install --with-deps with the browsers input (chromium by default), so apt fetches only packages with a newer version. Ubuntu's mirror once served the nine missing font packages at 40 kB/s, a nine-minute install. The cache input picks the keys: playwright for Chromium, playwright-other for the browser (other) job's WebKit and Firefox. Used by ci.yml, release.yml and visual-baselines.yml."
+        "Restores the Playwright browsers and the saved .deb files into apt's download folder, then runs playwright install --with-deps with the browsers input (chromium by default), so apt fetches only packages with a newer version. Ubuntu's mirror once served the nine missing font packages at 40 kB/s, a nine-minute install. The cache input picks the keys: playwright for Chromium, playwright-other for the WebKit and Firefox jobs. Used by ci.yml, release.yml and visual-baselines.yml."
       ],
       "concepts": ["configuration", "CI"]
     },

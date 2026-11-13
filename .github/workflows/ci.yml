@@ -221,11 +221,17 @@ jobs:
             key: visual
             run: pnpm test:visual
           # The scenarios tagged @smoke in WebKit, the engine of every browser
-          # on an iPhone, and in Firefox (G14).
-          - part: other
-            key: other
-            run: pnpm test:e2e --project=webkit --project=firefox
-            browsers: webkit firefox
+          # on an iPhone, and in Firefox (G14). One job for both took six
+          # minutes; each browser alone takes about half the tests' time.
+          - part: webkit
+            key: webkit
+            run: pnpm test:e2e --project=webkit
+            browsers: webkit
+            cache: playwright-other
+          - part: firefox
+            key: firefox
+            run: pnpm test:e2e --project=firefox
+            browsers: firefox
             cache: playwright-other
     steps:
       - uses: actions/checkout@v7
