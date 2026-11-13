@@ -1,0 +1,57 @@
+# One grouped pull request a week for each of production and development
+# dependencies, and one a month for the workflows' actions (G05). Every merge
+# that changes the lockfile publishes a release, which is why they are grouped.
+# docs/CI.md ("Dependency updates") says how to handle them.
+version: 2
+updates:
+  # pnpm is the `npm` ecosystem. From the root, Dependabot reads
+  # pnpm-workspace.yaml and updates every workspace package and the lockfile.
+  - package-ecosystem: npm
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+      time: "06:00"
+      timezone: Asia/Kolkata
+    # A release must be a week old before it is offered, so a hijacked or
+    # broken publish is usually caught and pulled before it reaches us.
+    cooldown:
+      default-days: 7
+    commit-message:
+      prefix: deps
+      prefix-development: deps(dev)
+    groups:
+      production:
+        dependency-type: production
+        update-types: [minor, patch]
+      development:
+        dependency-type: development
+        update-types: [minor, patch]
+    ignore:
+      # Majors are taken by hand, one at a time (G13). An update that matches
+      # no group gets a pull request of its own, so majors are ignored for
+      # every package rather than for a list. `pnpm audit` in Checks still
+      # fails on a high advisory that only a major fixes.
+      - dependency-name: "*"
+        update-types: [version-update:semver-major]
+      # React 19.3 puts the desktop entry past its 700 kB budget (G01,
+      # 2026-11-13). Patches still come. Remove when the entry has room.
+      - dependency-name: react
+        update-types: [version-update:semver-minor]
+      - dependency-name: react-dom
+        update-types: [version-update:semver-minor]
+
+  # The workflows and the composite action in .github/actions. Actions are
+  # pinned to major tags, so every update here is a major: one group for all.
+  - package-ecosystem: github-actions
+    directories:
+      - /
+      - /.github/actions/*
+    schedule:
+      interval: monthly
+      timezone: Asia/Kolkata
+    commit-message:
+      prefix: ci
+    groups:
+      actions:
+        patterns: ["*"]

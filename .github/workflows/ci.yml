@@ -130,6 +130,13 @@ jobs:
         with:
           path: .turbo/cache
           key: ${{ steps.task-cache.outputs.cache-primary-key }}
+      # A known high or critical advisory in any dependency fails the checks
+      # (G05). It runs last and even after a failure, so a new advisory never
+      # hides what the steps above found. The registry's audit endpoint fails
+      # now and then, so one retry. docs/CI.md says how to handle a finding.
+      - name: Audit dependencies
+        if: ${{ !cancelled() }}
+        run: pnpm audit --audit-level high || { sleep 20; pnpm audit --audit-level high; }
       # The clean-up job below deletes what this finds. If the lookup fails, a
       # later run finds the same artifacts. A release run's release-* artifacts
       # carry its files between its jobs and expire in a day; they are left
