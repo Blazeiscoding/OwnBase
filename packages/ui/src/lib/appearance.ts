@@ -3,6 +3,7 @@ import { useStore } from "zustand";
 import { createStore } from "zustand/vanilla";
 import { usePlatform } from "../context.js";
 import type { Platform } from "../platform.js";
+import { perDevice } from "./perDevice.js";
 import { useMediaQuery } from "./useMediaQuery.js";
 
 /**
@@ -25,7 +26,6 @@ interface Appearance {
 }
 
 const KEY = "appearance";
-const stores = new WeakMap<Platform, ReturnType<typeof createAppearance>>();
 
 /**
  * A copy of the choice in localStorage, which a page can read before it is
@@ -118,15 +118,11 @@ function createAppearance(platform: Platform) {
   return store;
 }
 
+const appearanceOf = perDevice(createAppearance);
+
 /** How OwnBase looks on this device, across workspaces. */
 export function useAppearance() {
-  const platform = usePlatform();
-  let store = stores.get(platform);
-  if (!store) {
-    store = createAppearance(platform);
-    stores.set(platform, store);
-  }
-  return useStore(store);
+  return useStore(appearanceOf(usePlatform()));
 }
 
 /** The deep colour of Onyx and of White: the browser's own bars, and the desktop window. */

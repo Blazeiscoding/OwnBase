@@ -238,7 +238,7 @@ export function VoiceVideoSettings({ titled = true }: { titled?: boolean } = {})
         <button
           type="button"
           disabled={!calls.loaded || calls.saving}
-          onClick={() => void calls.retryLoad()}
+          onClick={() => void calls.retry()}
           className={buttonClass("secondary")}
         >
           Retry loading call preferences

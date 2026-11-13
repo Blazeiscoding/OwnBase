@@ -795,9 +795,18 @@
       "summary": "Shares the Enter-to-send choice across composers on this device.",
       "details": [
         "The store begins with Enter creating a newline until the initial preference read answers, and updates the selected choice only after a successful save.",
-        "A loaded boolean chooses the behavior; absence uses the current default. Since Q04 the read is strict and validated: a refused read or a value that is not a boolean choice leaves Enter as a new line, sets unread and an error, and retry reads again."
+        "A loaded boolean chooses the behavior; absence uses the current default. Since Q04 the read is strict and validated: a refused read or a value that is not a boolean choice leaves Enter as a new line, sets unreadable and an error, and retry reads again."
       ],
       "concepts": ["keyboard preference", "acknowledged save", "Q04"]
+    },
+    {
+      "path": "packages/ui/src/lib/perDevice.ts",
+      "plain": "Makes sure every part of the page on one device shares the same copy of each saved preference.",
+      "summary": "One store per platform, made on first use, for the per-device preference stores.",
+      "details": [
+        "Appearance, the Enter key, call preferences, call volumes, emoji choices and notification previews each keep their own key, value format and failure rules; perDevice only holds one store for each platform in a WeakMap, so a test that makes a new platform starts from nothing."
+      ],
+      "concepts": ["device preferences", "shared store"]
     },
     {
       "path": "packages/ui/src/lib/appearance.ts",

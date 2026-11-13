@@ -365,7 +365,7 @@ export function AccountDialog({
             {composer.error && (
               <p role="alert" className="mt-2 text-sm text-alert">
                 {composer.error}
-                {composer.unread && (
+                {composer.unreadable && (
                   <>
                     {" "}
                     <button

@@ -2,6 +2,7 @@ import { useStore } from "zustand";
 import { createStore } from "zustand/vanilla";
 import { usePlatform } from "../context.js";
 import type { Platform } from "../platform.js";
+import { perDevice } from "./perDevice.js";
 
 interface Preferences {
   enterSends: boolean;
@@ -9,14 +10,13 @@ interface Preferences {
   saving: boolean;
   error: string | null;
   /** The saved choice is there but could not be read; `retry` reads it again. */
-  unread: boolean;
+  unreadable: boolean;
   /** Resolves true once the choice is kept. */
   setEnterSends: (value: boolean) => Promise<boolean>;
   retry: () => Promise<void>;
 }
 
 const KEY = "composer-preferences";
-const stores = new WeakMap<Platform, ReturnType<typeof createPreferences>>();
 
 function createPreferences(platform: Platform) {
   const store = createStore<Preferences>(() => ({
@@ -25,13 +25,13 @@ function createPreferences(platform: Platform) {
     loaded: false,
     saving: false,
     error: null,
-    unread: false,
+    unreadable: false,
     setEnterSends: async (enterSends) => {
       if (!store.getState().loaded || store.getState().saving) return false;
       store.setState({ saving: true, error: null });
       try {
         await platform.storage.set(KEY, { enterSends });
-        store.setState({ enterSends, unread: false });
+        store.setState({ enterSends, unreadable: false });
         return true;
       } catch {
         store.setState({ error: "Could not save this preference. Please try again." });
@@ -57,13 +57,13 @@ function createPreferences(platform: Platform) {
         enterSends: typeof choice === "boolean" ? choice : true,
         loaded: true,
         error: null,
-        unread: false,
+        unreadable: false,
       });
     } catch {
       store.setState({
         enterSends: false,
         loaded: true,
-        unread: true,
+        unreadable: true,
         error:
           "Could not load your choice for Enter. Enter starts a new line until you choose again.",
       });
@@ -74,13 +74,9 @@ function createPreferences(platform: Platform) {
   return store;
 }
 
+const preferencesOf = perDevice(createPreferences);
+
 /** Shared by every composer on this device, using the browser or desktop storage adapter. */
 export function useComposerPreferences() {
-  const platform = usePlatform();
-  let store = stores.get(platform);
-  if (!store) {
-    store = createPreferences(platform);
-    stores.set(platform, store);
-  }
-  return useStore(store);
+  return useStore(preferencesOf(usePlatform()));
 }
