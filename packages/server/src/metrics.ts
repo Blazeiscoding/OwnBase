@@ -28,6 +28,8 @@ export interface MetricsSources {
   eventsWritten(): number;
   storedFiles(): number;
   huddles(): { huddles: number; people: number };
+  /** Pushes to closed browsers since the server started, and the browsers subscribed now. */
+  pushes(): { sent: number; failed: number; dropped: number; subscriptions: number };
 }
 
 type Labels = Record<string, string>;
@@ -266,6 +268,21 @@ export function createMetrics(app: FastifyInstance, token: string) {
     family(out, "ownbase_huddle_people", "gauge", "People in huddles now.", [
       { value: huddles.people },
     ]);
+    const pushes = sources.pushes();
+    family(out, "ownbase_push_subscriptions", "gauge", "Browsers subscribed to pushes.", [
+      { value: pushes.subscriptions },
+    ]);
+    family(
+      out,
+      "ownbase_pushes_total",
+      "counter",
+      "Pushes to closed browsers since the server started: sent, failed or dropped.",
+      [
+        { labels: { result: "sent" }, value: pushes.sent },
+        { labels: { result: "failed" }, value: pushes.failed },
+        { labels: { result: "dropped" }, value: pushes.dropped },
+      ],
+    );
     return out.join("\n") + "\n";
   };
 

@@ -13,6 +13,7 @@ import {
   type WorkspaceIcon,
 } from "./workspaceIcon.js";
 import { WORKSPACE_NAME_ROW } from "./workspaceFile.js";
+import { makeVapidKeys, validVapidKeys, type VapidKeys } from "../push/webPush.js";
 
 /** The rows of the database's `meta` table, which hold every workspace setting. */
 export interface MetaRows {
@@ -45,6 +46,7 @@ interface SettingValues {
   linkPreviews: boolean;
   claimCode: string | null;
   icon: WorkspaceIcon | null;
+  pushKeys: VapidKeys;
 }
 
 /** Every workspace setting, each declared once. */
@@ -107,6 +109,26 @@ export const SETTINGS: { [K in keyof SettingValues]: Setting<SettingValues[K]> }
     write: (icon) =>
       icon ? storedIconRows(icon) : Object.values(ICON_META_KEYS).map((key): Row => [key, null]),
     fallback: null,
+  },
+  /**
+   * The key pair this server signs pushes with (RFC 8292), made on first use.
+   * Browsers subscribe to its public half, so a new pair would leave every
+   * subscription unable to receive; a damaged one is replaced all the same.
+   */
+  pushKeys: {
+    read: (row) => {
+      const publicKey = row("push_public_key");
+      const privateKey = row("push_private_key");
+      if (!publicKey || !privateKey) return null;
+      const keys = { publicKey, privateKey };
+      return validVapidKeys(keys) ? keys : null;
+    },
+    write: (keys) => [
+      ["push_public_key", keys.publicKey],
+      ["push_private_key", keys.privateKey],
+    ],
+    fallback: () => makeVapidKeys(),
+    kept: true,
   },
 };
 

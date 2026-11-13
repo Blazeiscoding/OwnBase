@@ -316,6 +316,22 @@ export async function postToUrl(
   };
 }
 
+/**
+ * POSTs bytes, such as an encrypted push message, and gives back the status
+ * and headers; the body of the answer is not wanted. Guarded as `postToUrl`.
+ */
+export async function postBytes(
+  url: string,
+  body: Buffer,
+  headers: Record<string, string>,
+  opts: OutboundOptions = {},
+): Promise<{ status: number; headers: Record<string, string | string[] | undefined> }> {
+  const parsed = parseUrl(url);
+  if (parsed instanceof OutboundError) throw parsed;
+  const res = await exchange(parsed, "POST", body, headers, { ...opts, truncate: true });
+  return { status: res.status, headers: res.headers };
+}
+
 export interface FetchedPage {
   status: number;
   /** Where the answer came from, after any redirects. */

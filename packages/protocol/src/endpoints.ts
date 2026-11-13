@@ -1702,6 +1702,36 @@ export const endpoints = {
     answer: json<{ messages: Message[]; nextCursor: ID | null }>(),
   }),
 
+  // ---------- push to a closed browser (G09) ----------
+
+  /** The server's public key, which a browser subscribes to pushes with. */
+  pushKey: endpoint({
+    method: "GET",
+    path: "/api/push/key",
+    access: "guest",
+    answer: json<{ publicKey: string }>(),
+  }),
+
+  /**
+   * Keeps this session's browser push subscription, replacing any it had. It
+   * goes when the session ends. `preview` is how much a push may say.
+   */
+  addPushSubscription: endpoint({
+    method: "PUT",
+    path: "/api/push/subscription",
+    access: "guest",
+    body: "pushSubscriptionBody",
+    answer: json<{ ok: true }>(),
+  }),
+
+  /** Stops pushes to this session's browser. */
+  removePushSubscription: endpoint({
+    method: "DELETE",
+    path: "/api/push/subscription",
+    access: "guest",
+    answer: json<{ ok: true }>(),
+  }),
+
   // The panels the extensions add to Workspace settings, for the owner (P9).
   extensionSettings: endpoint({
     method: "GET",

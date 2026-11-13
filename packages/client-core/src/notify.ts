@@ -1,8 +1,10 @@
 import {
+  notificationWords,
   notifyDecision,
   plainText,
   reminderNotifyDecision,
   type ID,
+  type MentionLabels,
   type Message,
   type NotifyDecision,
 } from "@ownbase/protocol";
@@ -107,28 +109,23 @@ export function isMessageOnScreen(message: Message, screen: OnScreen): boolean {
   return (inChannel && screen.channelVisible) || (inThread && screen.threadVisible);
 }
 
-/** Message text with mention markup resolved to readable names, as a notification shows it. */
-export function readableText(state: WorkspaceState, text: string): string {
-  return plainText(text, {
+/** How a notification names the people and channels a message mentions. */
+function mentionLabels(state: WorkspaceState): MentionLabels {
+  return {
     user: (id) => {
       const user = state.users[id];
       return user ? `@${user.displayName}` : "@someone";
     },
     channel: (id) => `#${state.channels[id]?.name || "unknown"}`,
-  });
+  };
 }
 
-/**
- * Text for a notification, with mention markup resolved to readable names.
- * A code block's fences are markup, so only what is inside them is kept.
- */
+/** Message text with mention markup resolved to readable names, as a notification shows it. */
+export function readableText(state: WorkspaceState, text: string): string {
+  return plainText(text, mentionLabels(state));
+}
+
+/** Text for a notification; see protocol's `notificationWords`, which the server follows too. */
 export function notificationBody(state: WorkspaceState, message: Message): string {
-  const text = readableText(state, message.text);
-  const words = text.replaceAll(/```\n?/g, "");
-  if (words.trim()) return words;
-  if (text.trim()) return text;
-  const count = message.files.length;
-  // A forward with no words of its own carries neither words nor files.
-  if (count === 0) return message.forwardedFrom ? "Forwarded a message" : "Sent a message";
-  return count === 1 ? "Sent a file" : `Sent ${count} files`;
+  return notificationWords(message, mentionLabels(state));
 }

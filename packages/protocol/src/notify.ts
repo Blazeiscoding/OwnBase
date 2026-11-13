@@ -7,7 +7,7 @@ import {
   type Message,
   type NotifyLevel,
 } from "./entities.js";
-import { broadcastsIn, userMentionsIn } from "./format.js";
+import { broadcastsIn, plainText, userMentionsIn, type MentionLabels } from "./format.js";
 
 export type NotifyDecision =
   | {
@@ -111,4 +111,23 @@ export function reminderNotifyDecision(
 ): { notify: false; reason: "dnd" } | { notify: true; reason: "reminder" } {
   if (snoozed(dndUntil, now)) return { notify: false, reason: "dnd" };
   return { notify: true, reason: "reminder" };
+}
+
+/**
+ * What a notification says of a message: its words with mention markup read
+ * out by `labels`. A code block's fences are markup, so only what is inside
+ * them is kept. A message with no words says what it carries.
+ */
+export function notificationWords(
+  message: Pick<Message, "text" | "files" | "forwardedFrom">,
+  labels: MentionLabels,
+): string {
+  const text = plainText(message.text, labels);
+  const words = text.replaceAll(/```\n?/g, "");
+  if (words.trim()) return words;
+  if (text.trim()) return text;
+  const count = message.files.length;
+  // A forward with no words of its own carries neither words nor files.
+  if (count === 0) return message.forwardedFrom ? "Forwarded a message" : "Sent a message";
+  return count === 1 ? "Sent a file" : `Sent ${count} files`;
 }

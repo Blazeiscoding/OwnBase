@@ -26,8 +26,8 @@ export interface Commits {
    * transaction, so what it writes commits or rolls back with the event.
    */
   onRecorded(listener: (envelope: EventEnvelope) => void): void;
-  /** Calls `listener` after committed events have gone out. */
-  onPublished(listener: () => void): void;
+  /** Calls `listener` with committed events after they have gone out. */
+  onPublished(listener: (events: readonly EventEnvelope[]) => void): void;
 }
 
 export function createCommits(deps: {
@@ -38,7 +38,7 @@ export function createCommits(deps: {
 }): Commits {
   const { store, gateway, log, background } = deps;
   const recorded: ((envelope: EventEnvelope) => void)[] = [];
-  const published: (() => void)[] = [];
+  const published: ((events: readonly EventEnvelope[]) => void)[] = [];
 
   const recordEvent: RecordEvent = (event) => {
     const envelope = store.appendEvent(event, eventChannel(event), eventMessageId(event));
@@ -67,7 +67,7 @@ export function createCommits(deps: {
         gateway.resynchronize();
       }
     }
-    if (events.length > 0) for (const listener of published) listener();
+    if (events.length > 0) for (const listener of published) listener(events);
   };
 
   /**
