@@ -165,8 +165,7 @@ jobs:
           ELECTRON_SKIP_BINARY_DOWNLOAD: 1
       - run: ${{ matrix.run }}
         env:
-          VITEST_MAX_THREADS: "2"
-          VITEST_MAX_FORKS: "2"
+          VITEST_MAX_WORKERS: "2"
 
   browser:
     name: browser (e2e ${{ matrix.shard }} of 3)

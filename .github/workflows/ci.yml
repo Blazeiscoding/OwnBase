@@ -108,8 +108,7 @@ jobs:
       - name: Unit tests of protocol, client-core, desktop and ee
         run: pnpm exec turbo run test --filter=@ownbase/protocol --filter=@ownbase/client-core --filter=@ownbase/desktop --filter=@ownbase/ee --filter=@ownbase/cloud --concurrency=2
         env:
-          VITEST_MAX_THREADS: "2"
-          VITEST_MAX_FORKS: "2"
+          VITEST_MAX_WORKERS: "2"
       # typecheck can already build the web client through the CLI dependency.
       # Use Turbo here too, so all three artifacts build once and restore on hits.
       - run: pnpm build --concurrency=2
@@ -187,8 +186,7 @@ jobs:
             turbo-${{ runner.os }}-${{ runner.arch }}-node-${{ steps.node.outputs.node-version }}-${{ hashFiles('pnpm-lock.yaml', 'turbo.json') }}-unit-${{ matrix.key }}-
       - run: ${{ matrix.run }}
         env:
-          VITEST_MAX_THREADS: "2"
-          VITEST_MAX_FORKS: "2"
+          VITEST_MAX_WORKERS: "2"
       - name: Save successful task cache
         if: steps.task-cache.outputs.cache-hit != 'true'
         uses: actions/cache/save@v6

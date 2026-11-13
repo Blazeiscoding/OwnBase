@@ -69,6 +69,9 @@ async function lookingAtGeneral(previews: Record<string, string> | null = null) 
   }));
   vi.spyOn(document, "hasFocus").mockReturnValue(true);
   const connect = vi.spyOn(WorkspaceClient.prototype, "connect").mockImplementation(() => {});
+  // A test that opens the screen twice gets the same spy back from Vitest 4,
+  // calls and all, so the wait below would pass on the first screen's client.
+  connect.mockClear();
   vi.spyOn(WorkspaceClient.prototype, "loadTimeline").mockResolvedValue(undefined as never);
   const notify = vi.fn();
   render(

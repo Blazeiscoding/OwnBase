@@ -202,7 +202,7 @@ try {
       `The ${phase} phase must reuse the same web-build hash`,
     );
   }
-  const boundedTests = taskReport(["test"], { VITEST_MAX_THREADS: "2", VITEST_MAX_FORKS: "2" });
+  const boundedTests = taskReport(["test"], { VITEST_MAX_WORKERS: "2" });
   for (const task of boundedTests.tasks.filter((task) => task.command !== "<NONEXISTENT>")) {
     assert.deepEqual(
       task.cliArguments,
@@ -215,8 +215,8 @@ try {
     baseline.get(packageTask("web", "build")),
     "Bounded test workers must not change the dependency's web-build hash",
   );
-  const boundedHashes = hashes(undefined, { VITEST_MAX_THREADS: "2", VITEST_MAX_FORKS: "2" });
-  const differentWorkers = hashes(undefined, { VITEST_MAX_THREADS: "3", VITEST_MAX_FORKS: "3" });
+  const boundedHashes = hashes(undefined, { VITEST_MAX_WORKERS: "2" });
+  const differentWorkers = hashes(undefined, { VITEST_MAX_WORKERS: "3" });
   for (const [task, hash] of boundedHashes) {
     if (task.endsWith("#test")) {
       assert.notEqual(differentWorkers.get(task), hash, `Worker limits must invalidate ${task}`);
