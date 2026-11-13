@@ -1,4 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { z } from "zod";
 import { spawn } from "node:child_process";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -346,6 +347,104 @@ describe("an extension that signs people in (P9)", () => {
     await call(`/api/admin/users/${member.user.id}`, owner.token, { deactivated: true }, "PATCH");
     expect(() => held.context!.startSession(member.user.id, fake)).toThrow();
     expect(() => held.context!.startSession("no-such-person", fake)).toThrow();
+  });
+
+  it("renames, deactivates and reactivates people, ending their sessions at once (P10)", async () => {
+    const { extension, held } = signer();
+    await start([extension]);
+    const { owner, admin, member } = await people();
+    const users = held.context!.users;
+    await ready(admin.token);
+    const frames: ServerToClient[] = [];
+    sockets.at(-1)!.on("message", (raw) => frames.push(JSON.parse(String(raw)) as ServerToClient));
+    await ready(member.token);
+    const memberSocket = sockets.at(-1)!;
+    const closed = new Promise<void>((resolve) => memberSocket.on("close", () => resolve()));
+
+    expect(users.update(member.user.id, { displayName: "Sam Rivera" }, "SCIM").displayName).toBe(
+      "Sam Rivera",
+    );
+    const off = users.update(member.user.id, { deactivated: true }, "SCIM provisioning");
+    expect(off.deactivated).toBe(true);
+    // Their token no longer works, and their open connection is closed.
+    expect((await call("/api/me", member.token, undefined, "GET")).status).toBe(401);
+    await expect(closed).resolves.toBeUndefined();
+    await expect
+      .poll(
+        () =>
+          frames.filter((f) => f.type === "event" && f.envelope.event.type === "user.updated")
+            .length,
+      )
+      .toBe(2);
+    const audit = (await call("/api/admin/audit", owner.token, undefined, "GET")).data.entries;
+    expect(audit[0]).toMatchObject({
+      actorId: null,
+      action: "user.deactivated",
+      targetId: member.user.id,
+      details: { by: "SCIM provisioning" },
+    });
+
+    expect(users.update(member.user.id, { deactivated: false }, "SCIM provisioning")).toMatchObject(
+      { deactivated: false, role: "member" },
+    );
+    // The sessions they had stay ended; they sign in again.
+    expect((await call("/api/me", member.token, undefined, "GET")).status).toBe(401);
+    expect(
+      (await call("/api/auth/login", undefined, { handle: "member", password: "password123" }))
+        .status,
+    ).toBe(200);
+    // Nothing changed is nothing recorded.
+    users.update(member.user.id, { deactivated: false }, "SCIM provisioning");
+    const after = (await call("/api/admin/audit", owner.token, undefined, "GET")).data.entries;
+    expect(after.map((e: { action: string }) => e.action).slice(0, 2)).toEqual([
+      "user.reactivated",
+      "user.deactivated",
+    ]);
+
+    expect(() => users.update(owner.user.id, { deactivated: true }, "SCIM")).toThrow(
+      expect.objectContaining({ code: "owner_is_protected" }),
+    );
+    expect(() => users.update("nobody", { deactivated: true }, "SCIM")).toThrow(
+      expect.objectContaining({ code: "user_not_found" }),
+    );
+    expect(() => users.update(member.user.id, { displayName: "" }, "SCIM")).toThrow(
+      expect.objectContaining({ code: "invalid_request" }),
+    );
+  });
+
+  it("reads JSON sent under a name of its own, such as SCIM's", async () => {
+    const seen: unknown[] = [];
+    const scimish = endpoint({
+      method: "POST",
+      path: "/scim/v2/Probe",
+      access: "public",
+      body: z.unknown(),
+      answer: json<{ ok: true }>(),
+    });
+    await start([
+      {
+        name: "probe",
+        register({ route }) {
+          route(scimish, async ({ body }) => {
+            seen.push(body);
+            return { ok: true };
+          });
+        },
+      },
+    ]);
+    const response = await fetch(`${base}/scim/v2/Probe`, {
+      method: "POST",
+      headers: { "content-type": "application/scim+json; charset=utf-8" },
+      body: JSON.stringify({ userName: "maya@acme.com" }),
+    });
+    expect(response.status).toBe(200);
+    expect(seen).toEqual([{ userName: "maya@acme.com" }]);
+    const poisoned = await fetch(`${base}/scim/v2/Probe`, {
+      method: "POST",
+      headers: { "content-type": "application/scim+json" },
+      body: '{"__proto__":{"admin":true}}',
+    });
+    expect(poisoned.status).toBe(400);
   });
 
   it("shows its settings panels to the owner alone", async () => {
