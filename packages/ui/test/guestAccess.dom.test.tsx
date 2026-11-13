@@ -160,7 +160,10 @@ describe("a guest in the workspace", () => {
 
   const noop = () => {};
   const sidebar = (client: WorkspaceClient, onCreateAccount = vi.fn()) =>
-    renderPart(client, <Sidebar />, { channelId: general.id }).navigation.store.subscribe((s) => {
+    renderPart(client, <Sidebar />, {
+      channelId: general.id,
+      shell: { onAccountCreated: noop },
+    }).navigation.store.subscribe((s) => {
       if (s.dialog.kind === "guest-account") onCreateAccount();
     });
 

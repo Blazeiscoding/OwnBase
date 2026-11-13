@@ -207,8 +207,7 @@ export const ACTIONS = [
     label: "Reported messages",
     icon: "flag",
     keywords: "reports moderation abuse spam queue",
-    // A server that takes reports gives admins a count of those waiting (E12).
-    available: (ctx) => admin(ctx) && ctx.state.openReports !== null,
+    available: admin,
     run: (ctx) => ctx.nav.navigate({ to: "dialog", dialog: { kind: "reports" } }),
   },
   {
@@ -233,7 +232,7 @@ export const ACTIONS = [
     icon: "userPlus",
     keywords: "sign up keep",
     palette: { icon: "user" },
-    available: guest,
+    available: (ctx) => guest(ctx) && !!ctx.shell.onAccountCreated,
     run: (ctx) => ctx.nav.navigate({ to: "dialog", dialog: { kind: "guest-account" } }),
   },
   // This computer's hosting, in the desktop app: for a member or a guest alike.
@@ -613,6 +612,11 @@ export function useActionContext(): ActionContext {
       set: (theme) => void appearance.set({ theme }),
     },
   };
+}
+
+/** An action's name, as its menus show it now. */
+export function actionLabel(ctx: ActionContext, id: ActionId): string {
+  return text(action(id).label, ctx);
 }
 
 /** Whether this account may use an action now: what a control that runs it is shown by. */

@@ -484,7 +484,7 @@ describe("the admins' reported messages", () => {
 });
 
 describe("the workspace menu", () => {
-  function menu(waiting: number | null, onReview?: () => void) {
+  function menu(waiting: number, onReview?: () => void) {
     const { client } = workspace([], { ...sam, role: "admin" });
     client.store.setState({ openReports: waiting });
     const { navigation } = renderPart(client, <Sidebar />, { channelId: "C_GENERAL" });
@@ -505,8 +505,8 @@ describe("the workspace menu", () => {
     await user.click(screen.getByRole("menuitem", { name: /^Reported messages/ }));
     expect(onReview).toHaveBeenCalled();
     cleanup();
-    menu(null);
+    menu(0);
     await user.click(screen.getByRole("button", { name: "Rocket Team, workspace menu" }));
-    expect(screen.queryByRole("menuitem", { name: /^Reported messages/ })).toBeNull();
+    expect(screen.getByRole("menuitem", { name: "Reported messages" })).toBeVisible();
   });
 });
