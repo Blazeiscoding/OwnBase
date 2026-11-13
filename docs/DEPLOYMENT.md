@@ -2230,6 +2230,41 @@ given when any are, and can require single sign-on, after which passwords sign i
 owner alone.
 The desktop app signs in through the system's browser and comes back to itself.
 
+### Single sign-on with SAML
+
+The same `sso` license feature covers SAML 2.0, for providers set up that way, such
+as Okta, Microsoft Entra ID, AD FS, Google Workspace or Keycloak. It needs the public
+address too. At the provider, add a SAML application with:
+
+- **Entity ID** (Okta: audience URI, Entra: identifier):
+  `https://chat.acme.com/api/saml/metadata`. That address also serves this workspace's
+  metadata, for providers that read it, once the license is in.
+- **Sign-in address** (the assertion consumer service, Okta: single sign-on URL,
+  Entra: reply URL): `https://chat.acme.com/api/saml/acs`.
+- **Name ID**: a value that stays the same for each person, such as their email address
+  or a persistent ID. A transient one is refused, since nobody could be linked by it.
+- **Attributes**: `email` and `displayName`, or the provider's usual names for them.
+  Entra's own claims work as they come.
+
+Then, in Workspace settings under Sign-in, fill in "Single sign-on with SAML" with what
+the provider gives: its sign-in address (Okta: identity provider single sign-on URL,
+Entra: login URL), its entity ID (Okta: identity provider issuer, Entra: Microsoft Entra
+identifier) and its signing certificate. Paste the certificate as it comes; while the
+provider changes certificates, put the new one after the old one, separated by a comma.
+
+Sign-in begins in OwnBase. An answer the provider sends unasked, such as from its
+dashboard of apps, is refused, so point the dashboard tile at the workspace's address
+(Entra: sign-on URL). The answer must be signed with that certificate, on the assertion
+or on the response around it; come from that entity ID; be for this workspace; be in
+date, within a minute of this server's clock; and answer the sign-in it ends. It is
+used once. An email address in it counts as verified, since the provider is the
+company's directory, so give new accounts only to domains whose addresses the
+provider controls.
+
+Linking, new accounts and requiring single sign-on work as for OpenID Connect. Both
+can be set up at once: the sign-in screen then has a button for each, and requiring
+either one turns passwords off for everyone but the owner.
+
 ### Compliance: legal hold, export and sending the record
 
 A license with `compliance` adds a Compliance tab to Workspace settings, for the
@@ -2451,8 +2486,6 @@ What OwnBase does not do today:
   running.
 - **No SFU.** Calls are a mesh, which suits small groups. See
   [How many people a call holds](#how-many-people-a-call-holds).
-- **OpenID Connect only.** [Single sign-on](#single-sign-on) speaks OIDC,
-  through an Enterprise license. There is no SAML, and no SCIM provisioning.
 - **SQLite and a local folder.** A workspace is one SQLite database and its
   files on the server's disk. It cannot run on Postgres or keep files in S3.
   Backups can go to an S3-compatible bucket, see
