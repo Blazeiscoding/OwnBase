@@ -20,6 +20,7 @@ import {
   linkFields,
   page,
   redirect,
+  settingsChange,
   signInFlow,
   WAITING_MAX,
   type Claims,
@@ -429,8 +430,22 @@ export function samlSignOn(opts: {
       return flow.finish(reply, held.flow, held.claims);
     });
 
-    route(eeEndpoints.samlSettings, async ({ body }) => {
-      const next: SamlSettings = { ...settings() };
+    route(eeEndpoints.samlSettings, async ({ body, user }) => {
+      const before = settings();
+      const save = (saved: SamlSettings) => {
+        given.storage.set("saml:settings", JSON.stringify(saved));
+        const did = settingsChange("single sign-on with SAML", before, saved, {
+          on: configured,
+          named: {
+            "name on the button": (s) => s.name,
+            "sign-in address": (s) => s.signInUrl,
+            "identity provider's entity ID": (s) => s.issuer,
+            "signing certificate": (s) => s.certificates,
+          },
+        });
+        if (did) given.audit.record({ actorId: user.id, did, details: { method: "saml" } });
+      };
+      const next: SamlSettings = { ...before };
       for (const key of ["name", "signInUrl", "issuer"] as const) {
         const value = body[key];
         if (value !== undefined) next[key] = value.trim();
@@ -449,7 +464,7 @@ export function samlSignOn(opts: {
       applyLinkSettings(next, body);
       if (!next.issuer) {
         // Off: nothing more is needed, and anyone may turn it off.
-        given.storage.set("saml:settings", JSON.stringify({ ...next, required: false }));
+        save({ ...next, required: false });
         return { ok: true };
       }
       if (!opts.licensed())
@@ -485,7 +500,7 @@ export function samlSignOn(opts: {
           "invalid_sign_in_url",
           "The sign-in address must start with https://.",
         );
-      given.storage.set("saml:settings", JSON.stringify(next));
+      save(next);
       return { ok: true };
     });
   }
