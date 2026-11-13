@@ -7,7 +7,7 @@ import {
   type ThreadFollow,
   type User,
 } from "@ownbase/protocol";
-import type { WorkspaceState } from "./workspace.js";
+import type { ConnectionStatus, WorkspaceState } from "./workspace.js";
 
 type ReadState = Pick<WorkspaceState, "memberships" | "channelLastSeq">;
 
@@ -90,6 +90,14 @@ export function snoozedUntil(dndUntil: number | null | undefined, now = Date.now
 
 export function isSnoozed(dndUntil: number | null | undefined, now = Date.now()): boolean {
   return snoozedUntil(dndUntil, now) !== null;
+}
+
+/**
+ * Whether the server has ended this session: signed out, or refusing the
+ * account until its password is replaced.
+ */
+export function isSignedOut(status: ConnectionStatus): boolean {
+  return status === "auth_failed" || status === "password_change_required";
 }
 
 export function selfIsAdministrator(state: Pick<WorkspaceState, "self">): boolean {

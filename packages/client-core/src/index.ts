@@ -83,6 +83,7 @@ export type { SendAnswer } from "./workspace.js";
 export {
   blockedPartner,
   deactivatedPartner,
+  isSignedOut,
   isSnoozed,
   snoozedUntil,
   isThreadUnread,

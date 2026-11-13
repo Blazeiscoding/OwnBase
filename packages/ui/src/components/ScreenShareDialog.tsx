@@ -1,7 +1,7 @@
 import { useEffect, useId, useRef, useState } from "react";
 import { captureFailure, type ScreenShareQuality } from "@ownbase/client-core";
 import { useClient, usePlatform } from "../context.js";
-import type { ShareableSource } from "../platform.js";
+import { failureMessage, type ShareableSource } from "../platform.js";
 import { useTabs } from "../lib/useTabs.js";
 import { Button } from "./Button.js";
 import { Dialog, DialogScroll } from "./Dialog.js";
@@ -155,7 +155,7 @@ export function ScreenShareDialog({ onClose }: { onClose: () => void }) {
     } catch (err) {
       setStarting(false);
       // The choice has gone since it was listed: said beside the list.
-      setRefusal(err instanceof Error && err.message ? err.message : "Choose another to share.");
+      setRefusal(failureMessage(err, "Choose another to share."));
       toTheList();
       return;
     }

@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { HuddlePeer } from "@ownbase/client-core";
 import { useSpeaker } from "../lib/mediaDevices.js";
+import { startsWithin } from "../lib/audioRunning.js";
 import { gainOf, screenSoundKey, type PersonVolume } from "../lib/callVolumes.js";
 
 type PlaybackFailure = "gesture" | "failed";
@@ -66,16 +67,6 @@ function useBoost(stream: MediaStream | null, gain: number): Boost | null {
   return usable;
 }
 
-/** Whether a stopped graph starts, without waiting on a resume that waits for a gesture. */
-async function running(context: AudioContext): Promise<boolean> {
-  if (context.state === "running") return true;
-  await Promise.race([
-    context.resume().catch(() => {}),
-    new Promise((resolve) => setTimeout(resolve, RESUME_WAIT_MS)),
-  ]);
-  return (context.state as AudioContextState) === "running";
-}
-
 /**
  * Attach each microphone stream even when the call has no video, and a
  * shared screen's sound beside it, each as loud as you chose: `gain` times as
@@ -128,7 +119,9 @@ function PeerAudio({
       try {
         // The retry calls play directly from the button's user gesture, and
         // starts a boost's graph from it too.
-        const graph = boost ? running(boost.context) : Promise.resolve(true);
+        const graph = boost
+          ? startsWithin(boost.context, RESUME_WAIT_MS).catch(() => false)
+          : Promise.resolve(true);
         void Promise.all([Promise.resolve(element.play()), graph]).then(
           ([, started]) => settled(started ? null : "gesture"),
           (error: unknown) => settled(playbackFailure(error)),

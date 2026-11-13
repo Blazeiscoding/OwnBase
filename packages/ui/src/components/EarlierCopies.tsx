@@ -1,5 +1,10 @@
 import { useEffect, useRef, useState } from "react";
-import type { HostedBackup, Platform } from "../platform.js";
+import {
+  failureMessage,
+  failureWithReason,
+  type HostedBackup,
+  type Platform,
+} from "../platform.js";
 import { formatBytes, formatDay, formatTime } from "../lib/format.js";
 import { inventorySummary } from "../lib/restoreInventory.js";
 import { buttonClass } from "./Button.js";
@@ -43,9 +48,7 @@ export function EarlierCopies(props: {
     if (!backups) return;
     backups(props.folder).then(
       (list) => alive.current && setFound(list),
-      (error: unknown) =>
-        alive.current &&
-        setFailed(error instanceof Error && error.message ? error.message : "Try again."),
+      (error: unknown) => alive.current && setFailed(failureMessage(error, "Try again.")),
     );
     return () => {
       alive.current = false;
@@ -72,8 +75,10 @@ export function EarlierCopies(props: {
     } catch (error) {
       if (!alive.current) return;
       setBusy(false);
-      const why = error instanceof Error && error.message ? ` ${error.message}` : "";
-      props.onDone({ ok: false, text: `The earlier copy was not restored.${why}` });
+      props.onDone({
+        ok: false,
+        text: failureWithReason("The earlier copy was not restored.", error),
+      });
     }
   }
 
