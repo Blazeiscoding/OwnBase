@@ -1,6 +1,6 @@
 import { mkdirSync, writeFileSync } from "node:fs";
 import { resolve } from "node:path";
-import { defineConfig, externalizeDepsPlugin } from "electron-vite";
+import { defineConfig } from "electron-vite";
 import react from "@vitejs/plugin-react";
 import tailwindcss from "@tailwindcss/vite";
 import { ARTIFACTS, buildIdentity } from "../../scripts/build-identity.mjs";
@@ -15,14 +15,21 @@ const define = {
   __OWNBASE_RELEASE__: JSON.stringify(!!process.env.OWNBASE_VERSION),
 };
 
+// As in apps/web/vite.config.ts: Rolldown would otherwise put each module the
+// first screen shares with a lazy chunk into a file of its own (38 of them),
+// where Rollup kept them in the entry.
+const FIRST_PAINT_IN_ONE_FILE = { groups: [{ name: "index", tags: ["$initial" as const] }] };
+
 export default defineConfig({
   main: {
     define,
-    plugins: [
+    build: {
       // Workspace packages are TS source — bundle them; real deps stay external.
-      externalizeDepsPlugin({
+      externalizeDeps: {
         exclude: ["@ownbase/server", "@ownbase/protocol", "@ownbase/client-core"],
-      }),
+      },
+    },
+    plugins: [
       {
         name: "ownbase-build-identity",
         apply: "build",
@@ -35,8 +42,7 @@ export default defineConfig({
     ],
   },
   preload: {
-    plugins: [externalizeDepsPlugin()],
-    build: { rollupOptions: { output: { format: "cjs", entryFileNames: "index.cjs" } } },
+    build: { rolldownOptions: { output: { format: "cjs", entryFileNames: "index.cjs" } } },
   },
   renderer: {
     define,
@@ -44,6 +50,11 @@ export default defineConfig({
     assetsInclude: ["**/*.wasm"],
     plugins: [react(), tailwindcss()],
     // chunkSizeWarningLimit (kB) is the entry budget scripts/check-web-bundle.mjs enforces.
-    build: { minify: true, cssMinify: true, chunkSizeWarningLimit: 700 },
+    build: {
+      minify: true,
+      cssMinify: true,
+      chunkSizeWarningLimit: 700,
+      rolldownOptions: { output: { codeSplitting: FIRST_PAINT_IN_ONE_FILE } },
+    },
   },
 });

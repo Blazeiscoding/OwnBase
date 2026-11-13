@@ -23,6 +23,16 @@ export default defineConfig({
   // (`?inline`), which Vite does for assets it knows; WebAssembly is not one.
   assetsInclude: ["**/*.wasm"],
   plugins: [react(), tailwindcss(), stampBuild, precompress()],
-  // kB, the entry budget scripts/check-web-bundle.mjs enforces.
-  build: { chunkSizeWarningLimit: 700 },
+  build: {
+    // kB, the entry budget scripts/check-web-bundle.mjs enforces.
+    chunkSizeWarningLimit: 700,
+    rolldownOptions: {
+      output: {
+        // Rolldown would otherwise put each module the first screen shares with
+        // a lazy chunk into a file of its own (38 of them), where Rollup kept
+        // them in the entry. The desktop renderer's config does the same.
+        codeSplitting: { groups: [{ name: "index", tags: ["$initial"] }] },
+      },
+    },
+  },
 });

@@ -45,6 +45,7 @@ test("the hash follows the source and nothing a build or test writes", () => {
     put("apps/web/vite.config.ts.timestamp-1700000000000-abc.mjs", "a config being loaded");
     put("apps/web/tsup.config.bundled_x1y2z3.mjs", "a config being loaded");
     put("apps/web/electron.vite.config.1790913675585.mjs", "a config being loaded");
+    put("apps/web/electron.vite.config.ts.1790913675585-9f3a2b7c.mjs", "a config being loaded");
     assert.equal(inputsHash(inputs, root), first);
     // Windows line endings are the same source.
     put("packages/ui/src/App.tsx", "export const App = () => null;\r\n");

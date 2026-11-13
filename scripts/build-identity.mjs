@@ -102,10 +102,11 @@ const SKIPPED_DIRS = new Set([
 ]);
 // Bundlers load a TypeScript config by writing it out as JavaScript beside
 // itself for a moment (`tsup.config.bundled_….mjs`, `vite.config.ts.timestamp-….mjs`,
-// `electron.vite.config.1790913675585.mjs`), which is exactly when a build
-// reads its own identity.
+// `electron.vite.config.1790913675585.mjs`, and since electron-vite 6
+// `electron.vite.config.ts.1790913675585-9f3a2b.mjs`), which is exactly when a
+// build reads its own identity.
 const SKIPPED_FILE =
-  /\.(test|spec)\.[cm]?[jt]sx?$|\.tsbuildinfo$|^\.DS_Store$|\.bundled_[^/]*\.[cm]?js$|\.timestamp-[^/]*\.[cm]?js$|\.config\.\d+\.[cm]?js$/;
+  /\.(test|spec)\.[cm]?[jt]sx?$|\.tsbuildinfo$|^\.DS_Store$|\.bundled_[^/]*\.[cm]?js$|\.timestamp-[^/]*\.[cm]?js$|\.config\.([cm]?[jt]s\.)?\d+(-[0-9a-f]+)?\.[cm]?js$/;
 
 function* files(dir) {
   if (!existsSync(dir)) return;
