@@ -546,6 +546,7 @@ export type UpdateChannelBody = z.infer<typeof updateChannelBody>;
 export type SendMessageBody = z.input<typeof sendMessageBody>;
 export type CreateInviteBody = z.infer<typeof createInviteBody>;
 export type ChannelPrefsBody = z.infer<typeof channelPrefsBody>;
+export type PushSubscriptionBody = z.infer<typeof pushSubscriptionBody>;
 export type ScheduleMessageBody = z.infer<typeof scheduleMessageBody>;
 export type EditScheduledBody = z.infer<typeof editScheduledBody>;
 export type CreateCommandBody = z.infer<typeof createCommandBody>;
