@@ -4975,6 +4975,9 @@ test("reading a thread on a phone leaves an unseen mention in its channel unread
     await expect(nav.getByLabel("Threads with unread replies", { exact: true })).toHaveCount(0);
 
     await page.keyboard.press("Escape");
+    // The drawer closes by going Back. A reload before that lands would
+    // reload the drawer's own history entry, as it did in WebKit.
+    await expect(openNavigation).toHaveAttribute("aria-expanded", "false");
 
     // And after a reload, which connects again from nothing.
     await page.reload();
