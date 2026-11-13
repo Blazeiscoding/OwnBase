@@ -1,12 +1,19 @@
 import type { FastifyBaseLogger, FastifyRequest } from "fastify";
-import type { Route } from "./route.js";
+import type { Readable } from "node:stream";
+import type { Route, Router } from "./route.js";
+import type { Keep, RecordedMessage } from "./messages/store.js";
 import type {
+  AuditEntry,
+  Channel,
   ExtensionStatus,
+  ID,
   ServerNotice,
   SettingsPanel,
   SignInMethod,
   User,
 } from "@ownbase/protocol";
+
+export type { Keep, RecordedMessage };
 
 /** Refuses a setting an extension cannot use, as the server's own are refused. */
 export { ConfigError } from "./config.js";
@@ -39,6 +46,30 @@ export interface ServerExtension {
   requiresSingleSignOn?(): boolean;
   /** Panels the owner sees in Workspace settings, saved through the extension's own routes. */
   settingsPanels?(): SettingsPanel[];
+  /**
+   * People and conversations whose messages must stay, as a legal hold asks
+   * (P12). Retention skips their messages, and every thread one of them is in.
+   * Deleting one is refused for everyone, its author, admins and apps alike,
+   * and so is deleting the first message of a thread one of them is in, since
+   * that takes the replies with it. Asked each time, so it is kept cheap.
+   */
+  keeps?(): Keep;
+  /**
+   * Told a message's words just before an edit replaces them, inside the same
+   * change: what it stores of them is saved with the edit or not at all. The
+   * server keeps no earlier version itself.
+   */
+  editing?(earlier: EarlierWords): void;
+}
+
+/** The words a message had before an edit (P12). */
+export interface EarlierWords {
+  messageId: ID;
+  channelId: ID;
+  userId: ID;
+  text: string;
+  /** When they were written: the last edit, or when the message was sent. */
+  writtenAt: number;
 }
 
 /**
@@ -86,6 +117,58 @@ export interface ExtensionContext {
   startSession(userId: string, req: FastifyRequest): { token: string; user: User };
   /** How others reach this server, when it was told (--public-url). */
   publicUrl(): string | undefined;
+  /** The administrative record (P12). */
+  audit: {
+    /**
+     * Adds an entry that reads "<who> <did>", such as "changed the legal
+     * hold". Never put in it what anyone wrote or a credential.
+     */
+    record(entry: { actorId: ID | null; did: string; details?: AuditEntry["details"] }): void;
+    /** Oldest first, the entries after `afterId`, or from the first; see `AuditLog.after`. */
+    after(afterId: ID | null, limit: number): AuditEntry[];
+    /** Called soon after entries are written and committed. Returns what stops it. */
+    onRecord(listener: () => void): () => void;
+  };
+  messages: {
+    /**
+     * Messages written in a time range, by some people or in some
+     * conversations, oldest first, a page at a time: thread replies and
+     * deleted ones included. A deleted message keeps who wrote it, where and
+     * when, and when it was deleted; its words and files are gone. An edited
+     * one has its newest words and when they were written.
+     */
+    recorded(query: {
+      from: number;
+      to: number;
+      userIds: readonly ID[];
+      channelIds: readonly ID[];
+      afterId?: ID;
+      limit: number;
+    }): RecordedMessage[];
+  };
+  /** Every conversation, archived and direct ones included. */
+  channels: { list(): Channel[] };
+  files: {
+    /** An attachment's bytes, or null when the server keeps no files (an in-memory workspace). */
+    open(id: ID): Readable | null;
+  };
+  /**
+   * POSTs `body` to an address someone set, through the guard the server's
+   * own webhooks use: private addresses are refused unless the host allowed
+   * them (--allow-private-hooks), redirects are not followed, and nothing is
+   * sent from an isolated copy of the workspace.
+   */
+  post(
+    url: string,
+    body: string,
+    opts: { contentType: string; headers?: Record<string, string> },
+  ): Promise<{ status: number; body: string }>;
+  /**
+   * A one-time ticket that opens a download route the extension declared
+   * with `ticket: true`, for the session `req` was signed in with, as
+   * `?download=<token>`.
+   */
+  ticketFor: Router["ticketFor"];
 }
 
 /** A command-line flag an extension reads, as `node:util` parseArgs takes it. */

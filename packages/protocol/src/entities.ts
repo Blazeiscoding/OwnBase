@@ -455,7 +455,13 @@ export type AuditAction =
   | "subscription.deleted"
   | "subscription.retried"
   | "invite.created"
-  | "invite.revoked";
+  | "invite.revoked"
+  /**
+   * Something one of the server's extensions did or was told to do, such as
+   * a legal hold changed (P12). `details.did` ends the sentence that starts
+   * with who did it.
+   */
+  | "extension.action";
 
 export type AuditTargetType =
   "user" | "app" | "webhook" | "command" | "subscription" | "invite" | "workspace";
@@ -637,6 +643,8 @@ export interface SignInConnection {
  */
 export interface SettingsPanel {
   id: string;
+  /** The tab it goes under: Sign-in unless it says Compliance (P12). */
+  section?: "sign-in" | "compliance";
   title: string;
   description: string;
   fields: SettingsField[];
@@ -666,6 +674,11 @@ export interface SettingsAction {
 export interface SettingsActionResult {
   /** Shown once, with a way to copy it, such as a new token. */
   reveal?: { label: string; value: string; note: string };
+  /**
+   * A path on this server, with its one-time `?download=` ticket, that the
+   * client saves as a download, such as a compliance export (P12).
+   */
+  download?: string;
 }
 
 export interface SettingsField {

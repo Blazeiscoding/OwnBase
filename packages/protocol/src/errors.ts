@@ -96,6 +96,7 @@ export const ERROR_CODES = [
   "invalid_search_date",
   "message_changed",
   "message_deleted",
+  "message_kept",
   "message_not_found",
   "msg_too_long",
   "nonce_conflict",

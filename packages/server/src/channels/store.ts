@@ -164,6 +164,13 @@ export class ChannelStore {
     return r ? this.toChannel(r) : null;
   }
 
+  /** Every conversation, archived and direct ones included, oldest first. */
+  all(): Channel[] {
+    return channelRow
+      .all(this.db.prepare("SELECT * FROM channels ORDER BY id"))
+      .map((r) => this.toChannel(r));
+  }
+
   byName(name: string): Channel | null {
     const r = channelRow.get(
       this.db.prepare("SELECT * FROM channels WHERE name = ? AND type IN ('public','private')"),
