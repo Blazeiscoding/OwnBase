@@ -550,6 +550,10 @@ ${extensions.map((extension) => `\n${extension.help.replace(/\n+$/, "")}\n`).joi
   if (metricsToken !== undefined && (metricsToken.length < 16 || /\s/.test(metricsToken)))
     refuse("--metrics-token must be at least 16 characters without spaces");
 
+  const pushContact = flagOrEnv(values, "push-contact", envSetting)?.trim() || undefined;
+  if (pushContact !== undefined && !/^(mailto:\S+@\S+|https:\/\/\S+)$/.test(pushContact))
+    refuse("--push-contact must be a mailto: or https: address");
+
   const accessPolicy = values["access-policy"];
   if (accessPolicy !== undefined && !isAccessPolicy(accessPolicy))
     refuse(`--access-policy must be one of ${ACCESS_POLICIES.join(", ")}`);
@@ -587,6 +591,7 @@ ${extensions.map((extension) => `\n${extension.help.replace(/\n+$/, "")}\n`).joi
     webDistPath,
     publicUrl,
     allowPrivateHooks: values["allow-private-hooks"],
+    pushContact,
     trustProxy: values["trust-proxy"],
     backupBeforeUpgrade: !values["skip-upgrade-backup"],
     rateLimits: values["no-rate-limits"] || envSetting("RATE_LIMITS") === "off" ? false : undefined,
