@@ -1126,12 +1126,23 @@
       "summary": "Shares channel-management policy between server enforcement and UI affordances.",
       "details": [
         "isAdministrator is the one owner-or-admin check, used by the server, the gateway and the UI.",
+        "roleMayCall(access, role) is the endpoint table's access rule: the server's route sign-in enforces it, and client-core's selfMay asks it for the UI.",
         "Owner/admin, creator and delegated member managers receive different management powers; active human status and room type are checked.",
         "Delegated management ends with membership. Removing someone is not a public-room ban, and an administrator's management role does not grant visibility into private rooms.",
         "Removal protects self, owner, admins and privileged managers according to the actor's authority; manager assignment rejects inappropriate bot/deactivated/creator targets.",
         "Visibility must be checked separately by the server even when a management helper returns true."
       ],
       "concepts": ["authorization", "delegated managers", "shared policy"]
+    },
+    {
+      "path": "packages/protocol/src/messageRules.ts",
+      "plain": "Decides who may edit or delete a message, with the same rule in the app and on the server.",
+      "summary": "The edit and delete rules the server enforces and the message menu offers.",
+      "details": [
+        "editRefusal names why someone may not edit a message: not theirs, a poll, or a note about a call. The server answers with that code; the UI offers Edit only when there is none.",
+        "canDeleteMessage: their own message, or anyone's for the owner or an admin."
+      ],
+      "concepts": ["authorization", "shared policy"]
     },
     {
       "path": "packages/protocol/src/plan.ts",

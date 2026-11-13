@@ -1,6 +1,7 @@
 import {
+  canDeleteMessage,
+  editRefusal,
   endpoints,
-  isAdministrator,
   SEND_RETRY_WINDOW_MS,
   type ID,
   type Message,
@@ -370,13 +371,14 @@ export function registerMessages(ctx: ServerContext) {
 
   route(endpoints.editMessage, async ({ user: me, body, params }) => {
     const existing = requireVisibleMessage(store, params.id, me);
-    if (existing.userId !== me.id) throw new HttpError(403, "not_your_message");
-    // People voted on the question as it was.
-    if (existing.poll)
-      throw new HttpError(409, "poll_not_editable", "A poll's question cannot be changed.");
-    // It says what happened to a call, not what its caller wrote.
-    if (existing.call)
-      throw new HttpError(409, "call_not_editable", "A note about a call cannot be changed.");
+    switch (editRefusal(me.id, existing)) {
+      case "not_your_message":
+        throw new HttpError(403, "not_your_message");
+      case "poll_not_editable":
+        throw new HttpError(409, "poll_not_editable", "A poll's question cannot be changed.");
+      case "call_not_editable":
+        throw new HttpError(409, "call_not_editable", "A note about a call cannot be changed.");
+    }
     // Words already the new ones are a retry whose answer was lost, not a conflict.
     if (existing.text !== body.expectedText && existing.text !== body.text) {
       throw new HttpError(
@@ -390,8 +392,7 @@ export function registerMessages(ctx: ServerContext) {
 
   route(endpoints.deleteMessage, async ({ user: me, params }) => {
     const existing = requireVisibleMessage(store, params.id, me);
-    const isPrivileged = isAdministrator(me.role);
-    if (existing.userId !== me.id && !isPrivileged) throw new HttpError(403, "not_your_message");
+    if (!canDeleteMessage(me, existing)) throw new HttpError(403, "not_your_message");
 
     removeMessage(existing);
     return { ok: true };

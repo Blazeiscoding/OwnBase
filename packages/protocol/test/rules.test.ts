@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
+  canDeleteMessage,
+  editRefusal,
   errorCodeOf,
   isAdministrator,
   isDirect,
@@ -27,6 +29,23 @@ describe("shared rules", () => {
       [true, false, false, false, false],
       [false, false, false, false, false],
     ]);
+  });
+
+  it("lets only the author edit, and not a poll or a call's note", () => {
+    const own = { userId: "U1" };
+    expect(editRefusal("U1", own)).toBeNull();
+    expect(editRefusal("U2", own)).toBe("not_your_message");
+    expect(editRefusal(undefined, own)).toBe("not_your_message");
+    expect(editRefusal("U1", { ...own, poll: {} as never })).toBe("poll_not_editable");
+    expect(editRefusal("U1", { ...own, call: {} as never })).toBe("call_not_editable");
+  });
+
+  it("lets the author delete, and the owner and admins anyone's", () => {
+    const theirs = { userId: "U1" };
+    expect(canDeleteMessage({ id: "U1", role: "guest" }, theirs)).toBe(true);
+    expect(canDeleteMessage({ id: "U2", role: "member" }, theirs)).toBe(false);
+    expect(canDeleteMessage({ id: "U2", role: "admin" }, theirs)).toBe(true);
+    expect(canDeleteMessage(null, theirs)).toBe(false);
   });
 
   it("tells rooms from direct messages, and a missing conversation from both", () => {
