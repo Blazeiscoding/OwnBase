@@ -163,6 +163,20 @@ describe("account and admin changes that are refused", () => {
     });
   });
 
+  it("gives a settings button's download as an address on the workspace's server (P12)", async () => {
+    const { client } = signedIn();
+    const run = vi.spyOn(client.api, "runSettingsAction").mockResolvedValue({
+      download: "/api/compliance/export?download=one-time-ticket",
+    });
+    expect(await client.admin.runSettingsAction("/api/compliance/export")).toEqual({
+      download: `${client.api.baseUrl}/api/compliance/export?download=one-time-ticket`,
+    });
+    run.mockResolvedValue({ download: "https://elsewhere.example/steal" });
+    expect(await client.admin.runSettingsAction("/api/compliance/export")).toMatchObject({
+      code: "invalid_response",
+    });
+  });
+
   it("gives what was asked for once the server answers", async () => {
     const { client } = signedIn();
     vi.spyOn(client.api, "resetPassword").mockResolvedValue({ temporaryPassword: "temp-horse" });

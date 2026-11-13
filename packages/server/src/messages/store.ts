@@ -91,6 +91,30 @@ function parseActions(raw: string): MessageAction[] {
   }
 }
 
+/** People and conversations whose messages are kept, as a legal hold asks (P12). */
+export interface Keep {
+  userIds: readonly ID[];
+  channelIds: readonly ID[];
+}
+
+const NOTHING_KEPT: Keep = { userIds: [], channelIds: [] };
+
+/**
+ * A message as a record of what was said: deleted ones too, which keep who
+ * wrote them, where and when, and no words or files.
+ */
+export interface RecordedMessage {
+  id: ID;
+  channelId: ID;
+  userId: ID;
+  text: string;
+  threadRootId: ID | null;
+  createdAt: number;
+  editedAt: number | null;
+  deletedAt: number | null;
+  files: FileMeta[];
+}
+
 /** Messages: writing, editing and removing them, their link previews and reactions, and reading them back whole. */
 export class MessageStore {
   constructor(
@@ -490,12 +514,17 @@ export class MessageStore {
    * The doomed ids go through a temporary table rather than bound parameters,
    * so no thread is too large for SQLite's limit on those.
    *
+   * `keep` names people and conversations whose messages stay whatever their
+   * age, as a legal hold asks (P12). A thread with one of them in it stays
+   * whole, for the reason above.
+   *
    * Call inside a transaction: the rows, the files' rows, the queued blob
    * deletions and the redacted log go together or not at all.
    */
   purgeBefore(
     before: number,
     limits: { roots?: number; messages?: number } = {},
+    keep: Keep = NOTHING_KEPT,
   ): { messages: number; fileIds: ID[]; roots: { id: ID; channelId: ID }[] } {
     const rootLimit = limits.roots ?? 2000;
     const messageBudget = limits.messages ?? 5000;
@@ -508,10 +537,19 @@ export class MessageStore {
            AND NOT EXISTS (
              SELECT 1 FROM messages r WHERE r.thread_root_id = m.id AND r.created_at >= ?
            )
+           AND m.channel_id NOT IN (SELECT value FROM json_each(?))
+           AND m.user_id NOT IN (SELECT value FROM json_each(?))
+           AND NOT EXISTS (
+             SELECT 1 FROM messages r WHERE r.thread_root_id = m.id
+               AND r.user_id IN (SELECT value FROM json_each(?))
+           )
          ORDER BY m.id LIMIT ?`,
       ),
       before,
       before,
+      JSON.stringify(keep.channelIds),
+      JSON.stringify(keep.userIds),
+      JSON.stringify(keep.userIds),
       rootLimit,
     );
     if (candidates.length === 0) return { messages: 0, fileIds: [], roots: [] };
@@ -598,6 +636,74 @@ export class MessageStore {
     } finally {
       this.db.exec("DELETE FROM temp.purge_messages");
     }
+  }
+
+  /** Whether any of `ids` was written by someone `keep` names, or in a conversation it names. */
+  anyKept(ids: readonly ID[], keep: Keep): boolean {
+    if (ids.length === 0 || (keep.userIds.length === 0 && keep.channelIds.length === 0))
+      return false;
+    return !!this.db
+      .prepare(
+        `SELECT 1 FROM messages WHERE id IN (SELECT value FROM json_each(?))
+           AND (user_id IN (SELECT value FROM json_each(?))
+             OR channel_id IN (SELECT value FROM json_each(?)))
+         LIMIT 1`,
+      )
+      .get(JSON.stringify(ids), JSON.stringify(keep.userIds), JSON.stringify(keep.channelIds));
+  }
+
+  /**
+   * A page of the messages written from `from` until before `to`, by any of
+   * `userIds` or in any of `channelIds`, in id order after `afterId`: thread
+   * replies, deleted messages and the server's notes about calls included.
+   */
+  recorded(query: {
+    from: number;
+    to: number;
+    userIds: readonly ID[];
+    channelIds: readonly ID[];
+    afterId?: ID;
+    limit: number;
+  }): RecordedMessage[] {
+    const rows = messageRow.all(
+      this.db.prepare(
+        `SELECT * FROM messages
+         WHERE created_at >= ? AND created_at < ? AND id > ?
+           AND (user_id IN (SELECT value FROM json_each(?))
+             OR channel_id IN (SELECT value FROM json_each(?)))
+         ORDER BY id LIMIT ?`,
+      ),
+      query.from,
+      query.to,
+      query.afterId ?? "",
+      JSON.stringify(query.userIds),
+      JSON.stringify(query.channelIds),
+      query.limit,
+    );
+    if (rows.length === 0) return [];
+    const files = new Map<ID, FileMeta[]>();
+    for (const f of attachedFileRow.all(
+      this.db.prepare(
+        `SELECT id, message_id, name, mime, size, width, height FROM files
+         WHERE message_id IN (SELECT value FROM json_each(?)) ORDER BY created_at`,
+      ),
+      JSON.stringify(rows.map((r) => r.id)),
+    )) {
+      const list = files.get(f.message_id) ?? [];
+      list.push(toFileMeta(f));
+      files.set(f.message_id, list);
+    }
+    return rows.map((r) => ({
+      id: r.id,
+      channelId: r.channel_id,
+      userId: r.user_id,
+      text: r.text,
+      threadRootId: r.thread_root_id,
+      createdAt: r.created_at,
+      editedAt: r.edited_at,
+      deletedAt: r.deleted_at,
+      files: files.get(r.id) ?? [],
+    }));
   }
 
   /** Newest-first page of top-level channel messages (or thread replies). */

@@ -1,4 +1,7 @@
+import { createReadStream } from "node:fs";
+import { join } from "node:path";
 import { planMembers, registerBody } from "@ownbase/protocol";
+import { OutboundError, postToUrl } from "./outbound.js";
 import type { Accounts } from "./accounts/feature.js";
 import { hashPassword } from "./auth.js";
 import type { ServerContext } from "./core/context.js";
@@ -17,7 +20,8 @@ export async function registerExtensions(
   ctx: ServerContext,
   { accounts }: { accounts: Pick<Accounts, "makeMember" | "startSession"> },
 ) {
-  const { opts, app, store, settings, route, mutate, network, gateway } = ctx;
+  const { opts, app, store, settings, route, mutate, network, gateway, lifecycle, ticketFor } = ctx;
+  const filesDir = opts.dataDir === ":memory:" ? null : join(opts.dataDir, "files");
 
   /** A member made by an extension, such as single sign-on's first sign-in (P9). */
   const createMember = async (input: { handle: string; displayName: string }) => {
@@ -108,6 +112,39 @@ export async function registerExtensions(
         return { token: accounts.startSession(req, user.id), user };
       },
       publicUrl: () => network.publicUrl(),
+      audit: {
+        record: ({ actorId, did, details }) =>
+          store.audit.record({
+            actorId,
+            action: "extension.action",
+            targetType: "workspace",
+            targetId: null,
+            details: { ...details, did },
+          }),
+        after: (afterId, limit) => store.audit.after(afterId, limit),
+        onRecord: (listener) => store.audit.onRecord(listener),
+      },
+      messages: { recorded: (query) => store.messages.recorded(query) },
+      channels: { list: () => store.channels.all() },
+      files: {
+        // Ids are ULIDs, so a name never leaves the folder; checked all the same.
+        open: (id) =>
+          filesDir && /^[0-9A-Za-z]+$/.test(id) ? createReadStream(join(filesDir, id)) : null,
+      },
+      post: async (url, body, { contentType, headers }) => {
+        if (opts.isolated)
+          throw new OutboundError(
+            "blocked_host",
+            "this is an isolated copy of the workspace, which contacts nothing outside",
+          );
+        const res = await postToUrl(url, body, contentType, {
+          allowPrivate: opts.allowPrivateHooks,
+          signal: lifecycle.signal,
+          ...(headers ? { headers } : {}),
+        });
+        return { status: res.status, body: res.body };
+      },
+      ticketFor,
     });
   }
 }

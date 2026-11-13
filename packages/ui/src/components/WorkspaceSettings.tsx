@@ -1,6 +1,11 @@
 import { useEffect, useId, useRef, useState } from "react";
 import { UnsavedGuard } from "../lib/dismissGuard.js";
-import { WORKSPACE_NAME_MAX, type AccessPolicy, type WorkspaceCopy } from "@ownbase/protocol";
+import {
+  WORKSPACE_NAME_MAX,
+  type AccessPolicy,
+  type SettingsPanel,
+  type WorkspaceCopy,
+} from "@ownbase/protocol";
 import { ApiError } from "@ownbase/client-core";
 import { useClient, usePlatform, useWorkspace } from "../context.js";
 import { formatBytes, formatTime } from "../lib/format.js";
@@ -22,10 +27,15 @@ import { WorkspaceIcon } from "./WorkspaceIcon.js";
 const SECTIONS = [
   { id: "general", label: "General" },
   { id: "joining", label: "Who can join" },
-  // Only where the server's extensions add settings, for the owner (P9).
+  // Only where the server's extensions add settings, for the owner (P9, P12).
   { id: "signin", label: "Sign-in" },
+  { id: "compliance", label: "Compliance" },
 ] as const;
 type Section = (typeof SECTIONS)[number]["id"];
+
+/** The tab an extension's panel goes under. */
+const sectionOf = (panel: SettingsPanel): Section =>
+  panel.section === "compliance" ? "compliance" : "signin";
 
 /** How long "Saved" stays after a choice is kept. */
 const SAVED_FOR_MS = 2000;
@@ -61,7 +71,10 @@ export function WorkspaceSettings({
   const [section, setSection] = useState<Section>("general");
   const owner = useWorkspace((s) => s.self?.role === "owner");
   const extensions = useExtensionPanels(owner);
-  const sections = extensions.panels.length ? SECTIONS : SECTIONS.filter((s) => s.id !== "signin");
+  const added = new Set(extensions.panels.map(sectionOf));
+  const sections = SECTIONS.filter(
+    (s) => (s.id !== "signin" && s.id !== "compliance") || added.has(s.id),
+  );
   const panel = useRef<HTMLDivElement>(null);
   const [saved, markSaved, clearSaved] = useSavedNote();
 
@@ -94,8 +107,11 @@ export function WorkspaceSettings({
           </>
         )}
         {section === "joining" && <JoiningSection hostedHere={hostedHere} />}
-        {section === "signin" && (
-          <ExtensionPanels panels={extensions.panels} onSaved={extensions.reload} />
+        {(section === "signin" || section === "compliance") && (
+          <ExtensionPanels
+            panels={extensions.panels.filter((p) => sectionOf(p) === section)}
+            onSaved={extensions.reload}
+          />
         )}
       </SettingsWindow>
     </SavedContext.Provider>

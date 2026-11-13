@@ -6,7 +6,7 @@ import type {
   SettingsPanel,
 } from "@ownbase/protocol";
 import { ApiError } from "@ownbase/client-core";
-import { useClient } from "../context.js";
+import { useClient, usePlatform } from "../context.js";
 import { failureText } from "../lib/failure.js";
 import { useSaved } from "../lib/savedNote.js";
 import { UnsavedGuard, useDismissGuard } from "../lib/dismissGuard.js";
@@ -194,6 +194,7 @@ function PanelActions({
   onReveal: (reveal: Reveal | null) => void;
 }) {
   const client = useClient();
+  const platform = usePlatform();
   const confirm = useConfirm();
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -213,11 +214,22 @@ function PanelActions({
     setBusy(action.id);
     setError(null);
     const answer = await client.admin.runSettingsAction(action.path);
-    setBusy(null);
     if (answer instanceof ApiError) {
+      setBusy(null);
       setError(failureText("Nothing was changed.", answer, "Try again."));
       return;
     }
+    if (answer.download !== undefined) {
+      try {
+        if (!platform.downloadFile) throw new Error("This app cannot save downloads.");
+        await platform.downloadFile(answer.download);
+      } catch {
+        setBusy(null);
+        setError("The download did not start. Check your connection and try again.");
+        return;
+      }
+    }
+    setBusy(null);
     onReveal(answer.reveal ?? null);
     onDone();
   }

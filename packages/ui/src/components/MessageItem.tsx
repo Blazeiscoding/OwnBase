@@ -152,7 +152,7 @@ const MessageRow = memo(function MessageRow({
   const [reminding, setReminding] = useState(false);
   const [reporting, setReporting] = useState(false);
   const [deleting, setDeleting] = useState(false);
-  const [deleteError, setDeleteError] = useState(false);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
   // The toolbar shows on hover; while its menu is open it stays, so the menu
   // has a trigger to hang from and focus has somewhere to return to.
   const [moreOpen, setMoreOpen] = useState(false);
@@ -328,10 +328,17 @@ const MessageRow = memo(function MessageRow({
     });
     if (!go) return;
     setDeleting(true);
-    setDeleteError(false);
+    setDeleteError(null);
     const refused = await client.deleteMessage(message.id);
     setDeleting(false);
-    if (refused) setDeleteError(true);
+    // A refusal is an answer, such as a message kept for the workspace's
+    // records (P12); anything else may have gone through.
+    if (refused)
+      setDeleteError(
+        refused.status >= 400 && refused.status < 500
+          ? failureText("The message was not deleted.", refused, "Try again.")
+          : "Could not tell if the message was deleted. Check your connection, then try again.",
+      );
     else afterDeletion.current = box;
   }
   function copyLink() {
@@ -586,7 +593,7 @@ const MessageRow = memo(function MessageRow({
               <MessageActions message={message} />
               {deleteError && (
                 <p role="alert" className="mt-2 text-xs text-alert">
-                  Could not tell if the message was deleted. Check your connection, then try again.
+                  {deleteError}
                 </p>
               )}
             </>

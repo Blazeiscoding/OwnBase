@@ -12,7 +12,8 @@
     "./cliFlags": "./src/cli/flags.ts",
     "./ownership": "./src/core/ownership.ts",
     "./stoppedWorkspace": "./src/core/stoppedWorkspace.ts",
-    "./workspaceIcon": "./src/core/workspaceIcon.ts"
+    "./workspaceIcon": "./src/core/workspaceIcon.ts",
+    "./zip": "./src/backups/zip.ts"
   },
   "scripts": {
     "dev": "tsx watch src/main.ts --data ./data",

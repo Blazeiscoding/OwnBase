@@ -1751,6 +1751,9 @@ list and saved list immediately, and releases its attachments. Specifically:
   Nothing this server does reaches into a backup you have already made. If a
   deletion has to be permanent, the backups from before it have to go too.
 
+A message under an Enterprise legal hold cannot be deleted, and an edit of one keeps
+the words it replaced; see [Compliance](#compliance-legal-hold-export-and-sending-the-record).
+
 There is no account deletion. An account can be deactivated, which ends its
 sessions and stops it signing in, and what it wrote stays where it is.
 
@@ -1780,6 +1783,9 @@ Nothing is announced to connected clients. These messages are old enough that no
 screen is showing them, and announcing a year of deletions would put the events
 into the very log this is meant to keep small. A client scrolled that far back
 keeps what it already has until it next asks the server, which will not have it.
+
+Messages under an Enterprise legal hold, and every thread one is in, are skipped
+whatever their age.
 
 This is not reversible. Getting discarded conversation back means restoring a
 backup taken before the sweep ran. Decide the window before turning it on, take
@@ -2196,6 +2202,65 @@ accounts for people new to the workspace, only for verified addresses at the dom
 given when any are, and can require single sign-on, after which passwords sign in the
 owner alone.
 The desktop app signs in through the system's browser and comes back to itself.
+
+### Compliance: legal hold, export and sending the record
+
+A license with `compliance` adds a Compliance tab to Workspace settings, for the
+owner. It has three parts.
+
+**Legal hold.** Name people by username and channels by name. From then on, messages
+written by the people held, and every message in the channels held, are kept whatever
+their age: the retention sweep skips them and the whole thread each is in, and nobody
+can delete them, not their author, an administrator, an app, or a report's removal.
+Deleting one is refused with "This message is kept for the workspace's records, so it
+cannot be deleted." Deleting the first message of a thread a held message is in is
+refused too, since that deletes the replies. Editing still works, and the words an edit
+replaces are kept for the export. The people held are not told, apart from that
+refusal. Direct conversations cannot be named; hold the people in them instead, which
+keeps what they wrote there.
+
+**Export.** Choose a range of days (in UTC) and people, channels or both, save, then
+press Download the export. It downloads once, by a link that works for a minute, as a
+zip:
+
+- `messages.jsonl`, a line for each message written in the range by the people chosen,
+  anywhere, every message in their direct conversations whoever wrote it, and every
+  message in the channels chosen: thread replies and the server's notes about calls
+  included, oldest first.
+- `conversations.jsonl` and `people.jsonl`, for the ids those lines name.
+- `files/<id>/<name>` for each file still attached.
+- `manifest.json`: the range, the choice, who made it and when, and counts.
+
+What "edits" and "deletions" can honestly hold follows from what the server keeps (see
+[What deleting a message does](#what-deleting-a-message-does)). An edited message has
+its newest words and when it was last edited; earlier words are there only for messages
+that were held when they were edited. A deleted message has who wrote it, where, when it
+was sent and when it was deleted, and nothing of what it said: the words and files were
+erased at the time. Messages retention has already removed are not there at all.
+
+**Sending the record.** Each entry of the
+[administrative record](#the-administrative-record) goes, in order, to a webhook, to
+syslog, or both:
+
+- A webhook gets `POST {"entries": [...]}` as JSON, signed as OwnBase signs what it
+  sends apps: `x-ownbase-signature` is `v0=` and the HMAC-SHA256, with the signing secret
+  you give, of `v0:<x-ownbase-request-timestamp>:<body>`. It goes through the same guard
+  as app webhooks, so a private address is refused unless the server runs with
+  `--allow-private-hooks`. Any answer other than 2xx counts as a failure.
+- Syslog takes `udp://host:514`, `tcp://host:514` (octet counted, RFC 6587) or
+  `tls://host:6514`. Each entry is one RFC 5424 message, facility log audit, with the
+  entry's action as the message id and the entry as JSON.
+
+Each entry has its `id`, `time`, the username of who did it as `actor`, the action, its
+target and details, and never what anyone wrote. A destination set up for the first time
+gets the whole record first. A failure is shown in the panel and tried again every
+minute, from the entry after the last one sent, so nothing is skipped, though an entry
+can arrive twice; use its `id` to tell.
+
+Holds, exports and changes to where the record goes are themselves in the record. When
+the license ends, holds stay in force and can be lifted but not added to, no new export
+can be made, and nothing more is sent until the license is renewed; then everything
+recorded meanwhile goes.
 
 ## Hosting workspaces for others
 

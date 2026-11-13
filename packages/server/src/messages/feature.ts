@@ -13,6 +13,7 @@ import {
 import { HttpError } from "../httpError.js";
 import { fetchLinkPreview, previewLinks, type FetchedPreview } from "../linkPreview.js";
 import { createPosting } from "../messages/posting.js";
+import type { Keep } from "./store.js";
 
 /**
  * One hourly retention round runs passes of at most a few thousand messages
@@ -40,8 +41,37 @@ export function registerMessages(ctx: ServerContext) {
   const { opts, app, store, settings, route, ration, recordEvent, mutate, background, lifecycle } =
     ctx;
 
+  const extensions = opts.extensions ?? [];
+
+  /** Whose messages and which conversations the extensions say to keep (P12). */
+  const kept = (): Keep => {
+    const userIds: ID[] = [];
+    const channelIds: ID[] = [];
+    for (const extension of extensions) {
+      const keep = extension.keeps?.();
+      if (!keep) continue;
+      userIds.push(...keep.userIds);
+      channelIds.push(...keep.channelIds);
+    }
+    return { userIds, channelIds };
+  };
+
   const updateMessage = (existing: Message, text: string, clearActions = false): Message => {
     const updated = mutate((emit) => {
+      // The edit below erases the words it replaces, everywhere; an extension
+      // keeping a record hears them first, in this same change.
+      if (extensions.some((e) => e.editing)) {
+        const earlier = store.messages.get(existing.id);
+        if (earlier)
+          for (const extension of extensions)
+            extension.editing?.({
+              messageId: earlier.id,
+              channelId: earlier.channelId,
+              userId: earlier.userId,
+              text: earlier.text,
+              writtenAt: earlier.editedAt ?? earlier.createdAt,
+            });
+      }
       if (clearActions) store.messages.clearActions(existing.id);
       const message = store.messages.edit(existing.id, text);
       emit({ type: "message.updated", message });
@@ -159,7 +189,7 @@ export function registerMessages(ctx: ServerContext) {
   const applyRetention = (): number => {
     if (!retentionMs) return 0;
     const { messages, fileIds } = mutate((emit) => {
-      const purged = store.messages.purgeBefore(Date.now() - retentionMs);
+      const purged = store.messages.purgeBefore(Date.now() - retentionMs, {}, kept());
       const byChannel = new Map<ID, ID[]>();
       for (const root of purged.roots) {
         const ids = byChannel.get(root.channelId) ?? [];
@@ -231,6 +261,18 @@ export function registerMessages(ctx: ServerContext) {
       ...replies.map((id) => ({ id, threadRootId: existing.id as ID | null })),
       { id: existing.id, threadRootId: existing.threadRootId },
     ];
+    // Said without naming the hold: who is held is the owner's to know.
+    if (
+      store.messages.anyKept(
+        doomed.map((m) => m.id),
+        kept(),
+      )
+    )
+      throw new HttpError(
+        403,
+        "message_kept",
+        "This message is kept for the workspace's records, so it cannot be deleted.",
+      );
     for (const message of doomed) {
       const fileIds = store.files.idsForMessage(message.id);
       store.files.delete(fileIds);
