@@ -1094,6 +1094,17 @@
       "concepts": ["mrkdwn", "mentions", "shared utility"]
     },
     {
+      "path": "packages/protocol/src/notify.ts",
+      "plain": "The one rule for whether a message should notify someone, used by both the app and the server.",
+      "summary": "notifyDecision and reminderNotifyDecision over plain inputs, and notificationWords.",
+      "details": [
+        "notifyDecision weighs own message, blocked sender, membership, mute, the conversation's level or the account's default, a muted thread, mentions and pinging replies, @channel and @here, and Do Not Disturb, in that order, and names the reason.",
+        "client-core's decideNotification reads the inputs from its workspace state; the server's push feature reads them from its tables, with live false since nobody pushed to has a connection open.",
+        "notificationWords is what a notification says of a message: its words with mentions read out, code fences dropped, or what it carries when it has no words."
+      ],
+      "concepts": ["notify rule", "shared rule", "G09"]
+    },
+    {
       "path": "packages/protocol/src/huddle.ts",
       "plain": "The shared rules for the messages that set up a huddle, including which side starts the call so both do not at once.",
       "summary": "Describes peer-call signaling and deterministic offer ownership.",
@@ -1604,6 +1615,50 @@
       "summary": "The reminder and reminder.removed events, heard by the account's own devices.",
       "details": ["Spread into the event registry beside every other feature's events."],
       "concepts": ["events"]
+    },
+    {
+      "path": "packages/server/src/push/feature.ts",
+      "plain": "Sends a notification to someone's browser when OwnBase is closed there, for messages and reminders that would have notified them.",
+      "summary": "Push routes, who a new message or due reminder pushes to, and the words of a push (G09).",
+      "details": [
+        "GET /api/push/key gives the server's public key; PUT and DELETE /api/push/subscription keep or drop this session's browser. An endpoint must be HTTPS on a public address, checked when it is kept, unless --allow-private-hooks.",
+        "After message.created events are published, on a later turn and off the request path, each member with a subscription and no open socket is run through protocol's notifyDecision; at most PUSH_LIMITS.recipientsPerMessage are pushed to, and one person gets one push per conversation per gapMs.",
+        "registerReminders calls reminderDue when a reminder comes due; it pushes with high urgency unless the person is online or in Do Not Disturb.",
+        "pushWords mirrors the page's notificationContent and reminderContent for the device's preview choice; preview none says only New message. An isolated copy pushes to nobody."
+      ],
+      "concepts": ["web push", "notify rule", "G09"]
+    },
+    {
+      "path": "packages/server/src/push/sender.ts",
+      "plain": "Sends pushes in the background, a few at a time, giving up politely when a push service is busy or the browser is gone.",
+      "summary": "PushSender: a bounded queue, concurrency, retries and the push service's answers.",
+      "details": [
+        "The queue holds PUSH_LIMITS.queue pushes and drops the oldest past it; concurrency requests go at once through outbound.postBytes with a deadline.",
+        "404 and 410 delete the subscription; 429, 5xx and unreachable are tried again retries times, waiting retryBaseMs times four each time or the service's Retry-After up to a minute.",
+        "A VAPID token is signed once an hour per push service origin. counts feed ownbase_pushes_total; settled resolves when nothing is waiting, for tests and flushPushes."
+      ],
+      "concepts": ["web push", "bounded queue", "retries"]
+    },
+    {
+      "path": "packages/server/src/push/store.ts",
+      "plain": "Remembers which browsers asked to be notified while closed, one per sign-in.",
+      "summary": "PushStore: the push_subscriptions table (v57).",
+      "details": [
+        "A subscription references its session, so signing out, ending the session elsewhere, a password change and deactivation remove it by cascade.",
+        "An endpoint kept by another session moves to the newer one; an account keeps at most SUBSCRIPTIONS_PER_ACCOUNT, the oldest going first."
+      ],
+      "concepts": ["web push", "queries"]
+    },
+    {
+      "path": "packages/server/src/push/webPush.ts",
+      "plain": "Encrypts a notification so only the browser it is for can read it, and signs it so the push service knows which server sent it.",
+      "summary": "RFC 8291 aes128gcm encryption and RFC 8292 VAPID signing with node:crypto only.",
+      "details": [
+        "encryptPush does ECDH on P-256 with the browser's key, HKDF with its auth secret, and AES-128-GCM in one record; webPush.test.ts checks it against RFC 8291's worked example byte for byte.",
+        "vapidAuthorization signs an ES256 token for the push service's origin, good for 12 hours; the encoding is checked against RFC 8292's published signature.",
+        "makeVapidKeys makes the server's pair, kept as SETTINGS.pushKeys and made on first use; a damaged pair is replaced."
+      ],
+      "concepts": ["web push", "encryption", "no native modules"]
     },
     {
       "path": "packages/server/src/polls/feature.ts",

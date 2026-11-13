@@ -598,6 +598,8 @@ is counted under `unmatched`.
 | `ownbase_event_loop_delay_seconds{quantile}`           | How late the event loop ran over the last full minute, at 0.5, 0.99 and 1 (the most) |
 | `ownbase_background_queues_failing`                    | Background queues failing now                                                        |
 | `ownbase_huddles`, `ownbase_huddle_people`             | Huddles going now, and the people in them                                            |
+| `ownbase_push_subscriptions`                           | Browsers subscribed to notifications while OwnBase is closed                         |
+| `ownbase_pushes_total{result}`                         | Counter of pushes to closed browsers: sent, failed, or dropped from a full queue     |
 
 The [table above](#reading-the-workspace-status) says what is ordinary for each
 of these and what to do when it is not. Good first alerts:
@@ -1904,6 +1906,58 @@ message itself, and an edit that keeps the link does not bring it back. Apps are
 not told when a preview is added or removed, since the message's words did not
 change. An isolated copy of a workspace fetches no previews.
 
+## Notifications while the browser is closed
+
+Someone using OwnBase in a browser can turn on **Account settings →
+Notifications → Notify me when OwnBase is closed**. Their browser then gets a
+notification for any message that would have notified them in the app, and for
+reminders that come due, with every tab closed. It works on desktop browsers and
+Android. On an iPhone or iPad it works only after **Share → Add to Home Screen**,
+opened from the home screen. The desktop app notifies on its own and does not
+use this.
+
+What it needs:
+
+- **HTTPS.** A browser runs the service worker that receives pushes only on an
+  `https://` address or on `localhost`. A workspace opened at
+  `http://192.168.x.x` cannot use it, and the switch says so. A workspace hosted
+  from the desktop app works too when its public address is HTTPS, such as a
+  Cloudflare Tunnel's.
+- **Outbound HTTPS to the browsers' push services.** The server sends each push
+  to the service the person's browser chose, such as
+  `fcm.googleapis.com` (Chrome, Edge on Android), `updates.push.services.mozilla.com`
+  (Firefox), `wns2-*.notify.windows.com` (Edge on Windows) or
+  `web.push.apple.com` (Safari). A firewall that blocks them stops pushes and
+  nothing else.
+
+What the server sends: a payload encrypted for that one browser (RFC 8291), so
+the push service passes it on without being able to read it, signed with a key
+pair the server makes on first use and keeps with the workspace's settings
+(RFC 8292). The payload holds the notification's title and words and the ids of
+the conversation and message a click opens. A device set to show nothing about
+messages under **What notifications show** gets only "New message". Each push
+also names a contact for the push services, `https://ownbase.site` unless
+`--push-contact` (or `OWNBASE_PUSH_CONTACT`) gives a `mailto:` or `https:`
+address of your own.
+
+Who is pushed to: the same rule the app notifies by (mentions, direct messages,
+each conversation's level, muted conversations and threads, Do Not Disturb),
+and only people with no connection open, since an open app notifies by itself.
+A subscription belongs to one sign-in, so signing out, ending that session from
+**Devices**, changing the password or deactivating the account removes it. A
+browser that unsubscribed is forgotten when its push service answers `404` or
+`410`.
+
+Limits: one message pushes to at most 250 people; one person gets at most one
+push per conversation every 5 seconds; at most 2,000 pushes wait to go, and past
+that the oldest are dropped; 16 go at once, each with 10 seconds to answer. A
+push service that answers `429` or `5xx` is tried three more times, waiting 2,
+8 and 32 seconds (or longer when it says so), and then given up. A push service
+on a private or loopback address is refused when the browser subscribes, unless
+`--allow-private-hooks` is set. The metrics count pushes sent, failed and
+dropped (see [Metrics for Prometheus](#metrics-for-prometheus)). An isolated copy
+of a workspace pushes to nobody.
+
 ## Behind a reverse proxy
 
 Set `--public-url` to the address people actually use. It is what an app is told
@@ -2481,9 +2535,10 @@ What OwnBase does not do today:
 - **No email.** The server sends none, so a forgotten password cannot be reset
   by email. An admin resets it from People and passes the temporary password on
   privately, and the person changes it after signing in.
-- **No push notifications in the browser.** The browser client notifies only
-  while a tab has the workspace open. The desktop app notifies while it is
-  running.
+- **Browser notifications while closed need HTTPS.** A workspace opened at a
+  plain `http://` LAN address notifies only while a tab has it open. See
+  [Notifications while the browser is closed](#notifications-while-the-browser-is-closed).
+  The desktop app notifies while it is running.
 - **No SFU.** Calls are a mesh, which suits small groups. See
   [How many people a call holds](#how-many-people-a-call-holds).
 - **SQLite and a local folder.** A workspace is one SQLite database and its
