@@ -466,6 +466,9 @@ test("two people trade messages, edit and delete one, share a picture that opens
     await editor.fill("Morning, Bobby, and welcome back");
     await editor.press("Enter");
     await expect(bobby.getByText("Morning, Bobby, and welcome back")).toBeVisible();
+    // Bobby can see the edit before Alice's editor closes, which waits for
+    // the server's answer; until then she has two text boxes.
+    await expect(editor).toBeHidden();
 
     // One sent by mistake goes, from both screens.
     await takesTyping(alice.locator("textarea"));
