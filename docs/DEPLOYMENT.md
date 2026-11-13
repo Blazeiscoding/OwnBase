@@ -2062,6 +2062,9 @@ administrators under **People → Show recent changes**:
 - renaming the workspace and changing who may join it, from **Workspace
   settings**, or by the desktop app that hosts it, recorded as done by the host.
 - the owner making and downloading a copy of the workspace.
+- with an Enterprise license, turning single sign-on (OpenID Connect or SAML) or SCIM
+  provisioning on or off, changing their settings, and making a new SCIM token, as well
+  as the [compliance](#compliance-legal-hold-export-and-sending-the-record) changes.
 
 Each entry says who made the change, to what, and when, and is written in the same
 transaction as the change, so neither exists without the other. A change that
@@ -2264,6 +2267,40 @@ provider controls.
 Linking, new accounts and requiring single sign-on work as for OpenID Connect. Both
 can be set up at once: the sign-in screen then has a button for each, and requiring
 either one turns passwords off for everyone but the owner.
+
+### SCIM provisioning
+
+A license with `scim` lets the company's identity provider, such as Okta or Microsoft
+Entra ID, manage who is in the workspace over SCIM 2.0: it adds people, keeps their
+names current, and deactivates them when they leave.
+
+In Workspace settings under Sign-in, the owner presses Make a token in "Provisioning
+with SCIM". The token is shown once; copy it into the provider's SCIM settings as the
+bearer token (Okta: HTTP header, Entra: secret token). Give the provider the base
+address `https://chat.acme.com/scim/v2`, the server's public address followed by
+`/scim/v2`; people are at `/scim/v2/Users`. Making a new token stops the old one at
+once, and Turn off stops the provider changing anything. People it added stay either way.
+
+Someone the provider adds gets an account with a username from their address and no
+password, and joins the public channels as anyone joining does. They sign in with
+single sign-on: the first time the provider signs them in with a verified address it
+gave over SCIM, that account is theirs. The provider cannot change apps or guests, and
+never deactivates the owner.
+
+Deactivating someone, or deleting them, which OwnBase treats the same way, ends their
+sessions at once and keeps their messages; nobody is deleted. Adding them again brings
+back the same account. Groups are not mapped to channels: a provider asking for groups
+gets an empty list, and making one is refused, so leave group push off. Assigning a
+group to the application still works, since the provider then sends its people one by
+one.
+
+When the license ends, everyone the provider added stays, and it can still rename,
+deactivate and reactivate them, but it cannot add anyone new.
+
+Turning OpenID Connect, SAML or provisioning on or off, changing their settings and
+making a new SCIM token all go in the [administrative record](#the-administrative-record),
+with who did it. The entry names the settings that changed, never a secret, certificate
+or token.
 
 ### Compliance: legal hold, export and sending the record
 
