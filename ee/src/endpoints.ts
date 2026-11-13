@@ -1,5 +1,13 @@
 import { z } from "zod";
-import { endpoint, extensionRoutes, json, page, text, type HttpMethod } from "@ownbase/protocol";
+import {
+  bytes,
+  endpoint,
+  extensionRoutes,
+  json,
+  page,
+  text,
+  type HttpMethod,
+} from "@ownbase/protocol";
 import type { LicenseView } from "./enterprise.js";
 
 /** The longest a setting of single sign-on may be, as text. */
@@ -50,6 +58,37 @@ export const scimEndpoints = {
   scimMakeToken: endpoint({ ...extensionRoutes.settingsAction, path: "/api/scim/token" }),
   /** The owner's button: no token, so the provider can do nothing more. */
   scimTurnOff: endpoint({ ...extensionRoutes.settingsAction, path: "/api/scim/off" }),
+};
+
+/** Compliance (P12): the owner's panels and the export they download. */
+export const complianceEndpoints = {
+  /** The people and channels held, by usernames and channel names. */
+  complianceHold: endpoint({ ...extensionRoutes.saveSettings, path: "/api/compliance/hold" }),
+  /** What the next export covers: a range of days, and people, channels or both. */
+  complianceExportChoice: endpoint({
+    ...extensionRoutes.saveSettings,
+    path: "/api/compliance/export/choice",
+  }),
+  /** The button: a one-time link that downloads the export as saved. */
+  complianceExportLink: endpoint({
+    ...extensionRoutes.settingsAction,
+    path: "/api/compliance/export/link",
+  }),
+  /**
+   * The export, made as it downloads: one zip of JSON lines and the files.
+   * Opened with `?download=<ticket>` from the button's link.
+   */
+  complianceExport: endpoint({
+    method: "GET",
+    path: "/api/compliance/export",
+    access: "owner",
+    ticket: true,
+    query: "downloadQuery",
+    answer: bytes,
+    timeoutMs: 300000,
+  }),
+  /** Where the administrative record is sent: a webhook, syslog, or both. */
+  complianceStream: endpoint({ ...extensionRoutes.saveSettings, path: "/api/compliance/stream" }),
 };
 
 /**
@@ -115,4 +154,5 @@ export const eeEndpoints = {
   }),
 
   ...scimEndpoints,
+  ...complianceEndpoints,
 };

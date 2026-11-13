@@ -1253,6 +1253,36 @@
       "concepts": ["SCIM provisioning", "P10"]
     },
     {
+      "path": "ee/src/compliance.ts",
+      "plain": "Legal hold, the compliance export and sending the administrative record elsewhere, set up by the owner under Workspace settings, Compliance.",
+      "summary": "Three settings panels and their routes, with a license that has compliance (P12): who and which channels are held, what an export covers and its one-time download link, and where the record is sent.",
+      "details": [
+        "Tells the core what to keep: retention skips held messages and their threads, and the core refuses to delete them. An edit of a held message keeps the words it replaced, in the extension's own storage.",
+        "Sends the record a batch at a time, in order, from the entry after the last one every destination has; a failure is tried again every minute and nothing is skipped.",
+        "When the license ends, holds stay and can be lifted but not added to, no new export is made, and nothing more is sent until it is renewed."
+      ],
+      "concepts": ["legal hold", "compliance export", "audit streaming", "license keys", "P12"]
+    },
+    {
+      "path": "ee/src/complianceExport.ts",
+      "plain": "Makes the compliance export: a zip of messages as JSON lines, the conversations and people they name, and their files.",
+      "summary": "Writes messages.jsonl to a temporary folder a page at a time, then zips it with the files, which stream from where the server keeps them.",
+      "details": [
+        "Choosing a person takes everything they wrote and every message in their direct conversations; choosing a channel takes every message in it.",
+        "A deleted message keeps who wrote it, where and when; its words and files are gone. Earlier words are there only for messages held when they were edited."
+      ],
+      "concepts": ["compliance export", "P12"]
+    },
+    {
+      "path": "ee/src/auditStream.ts",
+      "plain": "How an entry of the administrative record goes to a webhook or a syslog server.",
+      "summary": "Signs a webhook's body as OwnBase signs requests to apps, and writes RFC 5424 messages over UDP, TCP (octet counted) or TLS.",
+      "details": [
+        "Webhooks go through the server's outbound guard, given in the extension's context; syslog addresses are the owner's to choose, private ones included."
+      ],
+      "concepts": ["audit streaming", "P12"]
+    },
+    {
       "path": "ee/src/main.ts",
       "plain": "Starts the server with the Enterprise edition in it; the server bundle is built from this file.",
       "summary": "The command line's entry for builds with ee/: adds the Enterprise extension, then imports the server's main.ts.",
