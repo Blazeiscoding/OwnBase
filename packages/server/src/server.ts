@@ -28,6 +28,7 @@ import { registerHuddles } from "./huddles/feature.js";
 import type { HuddleRooms } from "./huddles/rooms.js";
 import { DEFAULT_LIMITS, RateLimiter } from "./limits.js";
 import { advertise, type MdnsHandle } from "./mdns.js";
+import { createMetrics, METRICS_TOKEN_MIN_LENGTH } from "./metrics.js";
 import { registerMessages } from "./messages/feature.js";
 import { holdWorkspace, type WorkspaceHold } from "./core/ownership.js";
 import { workspaceDatabase } from "./core/workspaceFile.js";
@@ -188,6 +189,16 @@ async function startWorkspaceServer(
   ) {
     throw new Error("retentionDays must be a non-negative safe integer");
   }
+  if (
+    opts.metricsToken !== undefined &&
+    (typeof opts.metricsToken !== "string" ||
+      opts.metricsToken.length < METRICS_TOKEN_MIN_LENGTH ||
+      /\s/.test(opts.metricsToken))
+  ) {
+    throw new Error(
+      `metricsToken must be at least ${METRICS_TOKEN_MIN_LENGTH} characters without spaces`,
+    );
+  }
   // Checked here as well as by the CLI, so the desktop app's embedded server
   // and anyone calling this directly get the same refusal.
   if (opts.port !== undefined) parsePort(opts.port, "port");
@@ -216,6 +227,8 @@ async function startWorkspaceServer(
     maxFileSize: maxFileSizeOf(opts),
     webDistPath: opts.webDistPath,
   });
+  // Before any route, so every request is counted.
+  const metrics = opts.metricsToken ? createMetrics(app, opts.metricsToken) : null;
   if (upgradeBackup) {
     app.log.info({ file: upgradeBackup }, "backed up the workspace before upgrading it");
   }
@@ -308,7 +321,7 @@ async function startWorkspaceServer(
     joinPublicChannels,
     iconVersion: () => workspace.icon()?.version ?? null,
   });
-  registerAdmin(ctx, { instanceId, workspace, messages, files, backups });
+  const admin = registerAdmin(ctx, { instanceId, workspace, messages, files, backups });
   const people = registerPeople(ctx);
   const threads = registerThreads(ctx);
   const apps = registerApps(ctx, { messages });
@@ -328,6 +341,13 @@ async function startWorkspaceServer(
   }));
 
   await registerExtensions(ctx, { accounts });
+  metrics?.serve({
+    status: admin.status,
+    liveSessions: () => store.accounts.liveSessions(),
+    eventsWritten: () => store.currentSeq(),
+    storedFiles: () => files.storage.count,
+    huddles: () => huddles.rooms.occupancy(),
+  });
 
   const port = opts.port ?? DEFAULT_PORT;
   const host = opts.host ?? "0.0.0.0";

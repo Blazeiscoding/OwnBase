@@ -87,8 +87,8 @@ export function registerAdmin(
     loopDelay.disable();
   });
 
-  route(endpoints.workspaceStatus, async ({ reply }) => {
-    reply.header("Cache-Control", "no-store");
+  /** How the server is running: what the admin status page and /metrics both read. */
+  const status = (): WorkspaceStatus => {
     const inMemory = opts.dataDir === ":memory:";
     let diskFreeBytes: number | null = null;
     if (!inMemory) {
@@ -135,6 +135,11 @@ export function registerAdmin(
           }
         : {}),
     };
+  };
+
+  route(endpoints.workspaceStatus, async ({ reply }) => {
+    reply.header("Cache-Control", "no-store");
+    return status();
   });
 
   registerMemberAdmin(ctx, { messages });
@@ -188,4 +193,6 @@ export function registerAdmin(
     reply.header("cache-control", "no-store");
     return { panels: extensions.flatMap((extension) => extension.settingsPanels?.() ?? []) };
   });
+
+  return { status };
 }

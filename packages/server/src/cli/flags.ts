@@ -288,6 +288,23 @@ export const FLAGS = {
       ],
     },
   },
+  "metrics-token": {
+    type: "string",
+    env: "METRICS_TOKEN",
+    help: {
+      usage: "--metrics-token <t>",
+      gapBefore: true,
+      lines: [
+        "Serve GET /metrics in Prometheus's text format to requests",
+        "bearing this token (Authorization: Bearer <t>): sockets,",
+        "sessions, events, requests by route, database, attachments,",
+        "queues, backups and huddles. Counts only, no names or",
+        "message text. At least 16 characters. Off unless set. Also",
+        "settable with OWNBASE_METRICS_TOKEN, which keeps it out of",
+        "the process list.",
+      ],
+    },
+  },
   "skip-upgrade-backup": {
     type: "boolean",
     default: false,

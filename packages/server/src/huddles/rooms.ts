@@ -107,6 +107,18 @@ export class HuddleRooms implements Huddles {
     return { huddles, huddleRings };
   }
 
+  /** How many huddles are going and how many people are in them, for the host's metrics. */
+  occupancy(): { huddles: number; people: number } {
+    let huddles = 0;
+    let people = 0;
+    for (const members of this.rooms.values()) {
+      if (members.size === 0) continue;
+      huddles++;
+      people += members.size;
+    }
+    return { huddles, people };
+  }
+
   /** Participants of one channel's huddle, for tests and diagnostics. */
   participants(channelId: ID): ID[] {
     return [...(this.rooms.get(channelId)?.keys() ?? [])];

@@ -132,6 +132,12 @@ export interface ServerOptions {
    */
   memberNotice?: MemberNotice;
   /**
+   * Turns on `GET /metrics` in Prometheus's text format, answered only to a
+   * request bearing this token (G15). Counts only: no names, ids or text.
+   * At least 16 characters. Omitted, the path does not exist.
+   */
+  metricsToken?: string;
+  /**
    * The code that claims a workspace nobody owns yet, when the host gives
    * it (OWNBASE_CLAIM_CODE, P7) rather than letting the server make one.
    * Ignored once someone owns the workspace.
