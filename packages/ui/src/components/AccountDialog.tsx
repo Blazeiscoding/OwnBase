@@ -381,7 +381,7 @@ export function AccountDialog({
             )}
           </section>
         )}
-        {section === "calls" && <VoiceVideoSettings titled={false} />}
+        {section === "calls" && <VoiceVideoSettings />}
         {section === "security" && (
           <>
             <section {...settingMark("password")} aria-labelledby="account-password-title">

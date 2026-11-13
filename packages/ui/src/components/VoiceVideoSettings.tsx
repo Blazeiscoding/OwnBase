@@ -61,10 +61,9 @@ const PROCESSING = [
  * Voice & video: which microphone, speaker and camera huddles use, how the
  * microphone's sound is cleaned up, and a way to hear and see each before a
  * call. Each choice is kept on this device for every workspace, and changes
- * a huddle in progress at once. Untitled where the page around it already
- * names it.
+ * a huddle in progress at once. The page around it names it.
  */
-export function VoiceVideoSettings({ titled = true }: { titled?: boolean } = {}) {
+export function VoiceVideoSettings() {
   const client = useClient();
   const saved = useSaved();
   const calls = useCallPreferences();
@@ -100,13 +99,7 @@ export function VoiceVideoSettings({ titled = true }: { titled?: boolean } = {})
     );
 
   return (
-    <section aria-labelledby={titled ? "account-calls-title" : undefined} className="space-y-6">
-      {titled && (
-        <h3 id="account-calls-title" className="font-semibold">
-          Voice &amp; video
-        </h3>
-      )}
-
+    <section className="space-y-6">
       {devices.listed && !devices.named && (
         <div className="rounded-lg border border-edge p-3 text-sm text-ink-dim">
           <p>Your browser hides device names until you let OwnBase use your microphone.</p>
