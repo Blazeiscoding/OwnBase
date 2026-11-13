@@ -12,6 +12,7 @@ import { FileStore } from "./files/store.js";
 import { MessageStore } from "./messages/store.js";
 import { PeopleStore } from "./people/store.js";
 import { PollStore } from "./polls/store.js";
+import { PushStore } from "./push/store.js";
 import { ReminderStore } from "./reminders/store.js";
 import { SavedStore } from "./saved/store.js";
 import { ScheduledStore } from "./scheduled/store.js";
@@ -44,6 +45,7 @@ export class Store {
   readonly deliveries: DeliveryStore;
   readonly audit: AuditLog;
   readonly reports: ReportStore;
+  readonly push: PushStore;
 
   constructor(readonly db: DatabaseSync) {
     this.settings = new Settings(this);
@@ -62,6 +64,7 @@ export class Store {
     this.deliveries = new DeliveryStore(db);
     this.audit = new AuditLog(db);
     this.reports = new ReportStore(db, this);
+    this.push = new PushStore(db);
   }
 
   /** Only synchronous database work belongs here; publish events after this returns. */

@@ -305,6 +305,21 @@ export const FLAGS = {
       ],
     },
   },
+  "push-contact": {
+    type: "string",
+    env: "PUSH_CONTACT",
+    help: {
+      usage: "--push-contact <url>",
+      gapBefore: true,
+      lines: [
+        "How the browsers' push services can reach whoever runs this",
+        "server, as a mailto: or https: address. It goes with every",
+        "push to a closed browser, so a push service with a problem",
+        "can say so. https://ownbase.site unless set. Also settable",
+        "with OWNBASE_PUSH_CONTACT.",
+      ],
+    },
+  },
   "skip-upgrade-backup": {
     type: "boolean",
     default: false,

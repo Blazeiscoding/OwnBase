@@ -470,6 +470,22 @@ function WorkspaceLayout(props: { restore: boolean; banner?: ReactNode }) {
   const preview = previewFor(previews, account);
   const current = useRef({ preview, account });
   current.current = { preview, account };
+  // A browser that turned on notifications while closed tells this session
+  // the server's way to reach it, and how much it may say. Loaded only in a
+  // browser: the desktop app notifies on its own.
+  useEffect(() => {
+    if (platform.kind === "desktop" || !account || !previews.loaded) return;
+    void import("../lib/webPush.js")
+      .then(({ keepPushCurrent }) =>
+        keepPushCurrent({
+          platform,
+          account,
+          preview,
+          send: (body) => client.account.keepPushSubscription(body),
+        }),
+      )
+      .catch(() => {});
+  }, [platform, account, preview, previews.loaded, client]);
   // Other windows of this account, in this browser, stay quiet about what
   // this one shows while it has focus.
   useFocusedView(account, {

@@ -36,6 +36,7 @@ import { registerPeople } from "./people/feature.js";
 import { registerPolls } from "./polls/feature.js";
 import { serverRelaySchema, type ServerRelay } from "./huddles/relay.js";
 import { registerReminders } from "./reminders/feature.js";
+import { registerPush } from "./push/feature.js";
 import { createRouter } from "./route.js";
 import { registerSaved } from "./saved/feature.js";
 import { registerScheduled } from "./scheduled/feature.js";
@@ -94,6 +95,8 @@ export interface WorkspaceServer {
   runBackup: () => Promise<void>;
   /** Delivers a bounded batch of committed integration events. */
   flushEventDeliveries: () => Promise<void>;
+  /** Resolves once every push to a closed browser asked for so far was sent or given up. */
+  flushPushes: () => Promise<void>;
   /**
    * Changes the address others reach this server on while it runs, or clears
    * it with null. A desktop host that opens a tunnel learns the address only
@@ -328,7 +331,8 @@ async function startWorkspaceServer(
   const scheduledMessages = registerScheduled(ctx, { posting });
   const saved = registerSaved(ctx);
   registerSearch(ctx);
-  const reminders = registerReminders(ctx);
+  const push = registerPush(ctx);
+  const reminders = registerReminders(ctx, { reminderDue: push.reminderDue });
 
   gateway.useSnapshot((user) => ({
     ...reminders.snapshot(user),
@@ -347,6 +351,7 @@ async function startWorkspaceServer(
     eventsWritten: () => store.currentSeq(),
     storedFiles: () => files.storage.count,
     huddles: () => huddles.rooms.occupancy(),
+    pushes: push.counts,
   });
 
   const port = opts.port ?? DEFAULT_PORT;
@@ -424,6 +429,7 @@ async function startWorkspaceServer(
     backupStatus: backups.status,
     runBackup: backups.runNow,
     flushEventDeliveries: apps.flushEventDeliveries,
+    flushPushes: push.settled,
     setPublicUrl: (url) => network.setPublicUrl(url),
     setTrustLoopbackProxy: (enabled) => network.setTrustLoopbackProxy(enabled),
     setIceServers: (servers) => huddles.setIceServers(servers),
