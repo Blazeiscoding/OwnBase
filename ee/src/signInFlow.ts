@@ -406,7 +406,7 @@ export function signInFlow<Extra extends object>(opts: {
   const newAccountRefusal = (s: LinkSettings, claims: Claims): string | null => {
     const who = claims.email ?? claims.preferred_username ?? "you";
     if (!opts.licensed() || !s.newAccounts)
-      return `No account in this workspace is linked to ${who} yet. Sign in with your password, then link ${providerName()} in Account settings, under Sign-in.`;
+      return `No account in this workspace is linked to ${who} yet. Sign in with your password, then link ${providerName()} in Account settings, under Security.`;
     if (!s.domains.length) return null;
     if (typeof claims.email !== "string" || claims.email_verified !== true)
       return `${providerName()} has not verified ${who}, so no account is made for it here. Ask the workspace's owner.`;

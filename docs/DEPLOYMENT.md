@@ -2281,8 +2281,8 @@ address `https://chat.acme.com/scim/v2`, the server's public address followed by
 `/scim/v2`; people are at `/scim/v2/Users`. Making a new token stops the old one at
 once, and Turn off stops the provider changing anything. People it added stay either way.
 
-Someone the provider adds gets an account with a username from their address and no
-password, and joins the public channels as anyone joining does. They sign in with
+Someone the provider adds gets an account with no password and a username from the first
+part of their SCIM userName, usually their address, and joins the public channels as anyone joining does. They sign in with
 single sign-on: the first time the provider signs them in with a verified address it
 gave over SCIM, that account is theirs. The provider cannot change apps or guests, and
 never deactivates the owner.

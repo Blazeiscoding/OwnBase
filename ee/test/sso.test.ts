@@ -465,7 +465,7 @@ describe("single sign-on through an OpenID provider", () => {
     const { back } = await signInWithSso();
     expect(back.status).toBe(403);
     expect(back.text).toContain("No account in this workspace is linked to maya@acme.com yet");
-    expect(back.text).toContain("Account settings");
+    expect(back.text).toContain("in Account settings, under Security.");
   });
 
   it("tells a guest who asks to link one why they cannot", async () => {
