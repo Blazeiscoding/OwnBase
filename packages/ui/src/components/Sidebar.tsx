@@ -846,7 +846,7 @@ export function Sidebar(props: {
         <div className="flex items-center gap-0.5">
           <AccountMenu />
           {!snoozed && <SnoozeControl />}
-          {!guest && (
+          {offered(actions, "account-settings") && (
             <Tooltip label="Settings">
               <button
                 onClick={() => runAction(actions, "account-settings")}

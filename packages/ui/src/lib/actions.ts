@@ -53,7 +53,10 @@ export function mayInvite(self: WorkspaceState["self"]): boolean {
 }
 
 const guest = (ctx: ActionContext) => ctx.state.self?.role === "guest";
-// A guest has no profile, settings or schedule of its own here.
+/**
+ * A guest has no profile or settings of its own here: its picture, password,
+ * devices and storage are an account's.
+ */
 const member = (ctx: ActionContext) => !guest(ctx);
 const always = () => true;
 const admin = (ctx: ActionContext) => selfIsAdministrator(ctx.state);
@@ -170,7 +173,7 @@ export const ACTIONS = [
     icon: "user",
     keywords: "profile name away busy",
     palette: { label: "Set a status" },
-    available: always,
+    available: member,
     run: (ctx) =>
       ctx.nav.navigate({ to: "dialog", dialog: { kind: "account", section: "profile" } }),
   },
@@ -187,7 +190,7 @@ export const ACTIONS = [
     label: "Account settings",
     icon: "settings",
     keywords: "preferences notifications password",
-    available: always,
+    available: member,
     run: (ctx) => ctx.nav.navigate({ to: "dialog", dialog: { kind: "account" } }),
   },
   {
@@ -336,8 +339,6 @@ export interface MenuPlace {
   id: ActionId;
   /** Starts a group of its own, with a line above it. */
   section?: true;
-  /** Where this menu shows it more narrowly than the action allows. */
-  when?: (ctx: ActionContext) => boolean;
   hint?: (ctx: ActionContext) => string | undefined;
 }
 
@@ -357,15 +358,12 @@ export const WORKSPACE_MENU: readonly MenuPlace[] = [
   { id: "hosting" },
 ];
 
-/**
- * The account menu, after the status presets: what concerns only you. A
- * guest has no profile, settings or schedule of its own here.
- */
+/** The account menu, after the status presets: what concerns only you. */
 export const ACCOUNT_MENU: readonly MenuPlace[] = [
   { id: "away", section: true },
   { id: "create-account" },
-  { id: "profile", section: true, when: member },
-  { id: "account-settings", when: member },
+  { id: "profile", section: true },
+  { id: "account-settings" },
   { id: "scheduled" },
   // Help: the shortcut sheet opened only with Ctrl+/, and nothing said so.
   { id: "shortcuts", section: true },
@@ -379,7 +377,7 @@ export function menuItems(places: readonly MenuPlace[], ctx: ActionContext): Men
   const items: MenuItem[] = [];
   for (const place of places) {
     const a = action(place.id);
-    if (!a.available(ctx) || (place.when && !place.when(ctx))) continue;
+    if (!a.available(ctx)) continue;
     const binding = KEY_BINDINGS.find((b) => b.action === place.id);
     items.push({
       id: a.id,
