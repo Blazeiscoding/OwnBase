@@ -712,6 +712,25 @@
       "concepts": ["tooling", "unread benchmark"]
     },
     {
+      "path": "scripts/measure-soak.mts",
+      "plain": "Runs an hour of steady chat against one server to see whether anything it holds keeps growing.",
+      "summary": "Scripted people post, edit, react, upload, reconnect and hold huddles without media while it samples the server every minute.",
+      "details": [
+        "Each sample records resident memory, heap after a full collection, open handles, event loop delay, database and WAL size, and send-to-receive time at two watching devices.",
+        "At the end it says whether each line climbed for the whole run. The Soak workflow runs it on a GitHub runner, by hand only."
+      ],
+      "concepts": ["tooling", "soak test"]
+    },
+    {
+      "path": "scripts/measure-soak-server.mts",
+      "plain": "The server half of the soak test, in a process of its own so its memory is measured alone.",
+      "summary": "Starts a workspace server on a real disk database, seeds history on request and answers each sample with what it holds.",
+      "details": [
+        "Runs a full garbage collection before each sample, so only memory the server still holds is counted."
+      ],
+      "concepts": ["tooling", "soak test"]
+    },
+    {
       "path": "scripts/measure-snapshot.mts",
       "plain": "Measures how long and how much data it takes to catch an app up when it connects, as a workspace grows.",
       "summary": "Seeds accounts, membership, conversations, saved messages and followed threads.",

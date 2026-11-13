@@ -1,0 +1,42 @@
+name: Soak
+# An hour of steady chat against one server, scripts/measure-soak.mts, to see
+# whether anything the server holds keeps growing. Started by hand only, on a
+# standard runner (the repository is public, so the minutes are free). The
+# results are in the log: one line a minute, then whether each line climbed.
+# Nothing is uploaded.
+on:
+  workflow_dispatch:
+    inputs:
+      minutes:
+        description: How long to run, in minutes
+        default: "60"
+      rate:
+        description: How often everyone acts, as a multiple of the script's pace
+        default: "1"
+permissions:
+  contents: read
+jobs:
+  soak:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v7
+      - uses: pnpm/action-setup@v6
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+        env:
+          ELECTRON_SKIP_BINARY_DOWNLOAD: 1
+      - name: The runner
+        run: |
+          nproc
+          grep -m1 "model name" /proc/cpuinfo
+          free -m
+          df -h "$RUNNER_TEMP"
+      - name: Soak
+        env:
+          MINUTES: ${{ inputs.minutes }}
+          RATE: ${{ inputs.rate }}
+        run: pnpm --filter @ownbase/server exec tsx ../../scripts/measure-soak.mts --minutes="$MINUTES" --rate="$RATE"
