@@ -111,7 +111,7 @@ export function HuddleControls({
   /** Over the call in full screen, where a menu or a dialog would open out of sight. */
   overlay?: boolean;
   /** Opens Voice & video settings, from the device menus. */
-  onOpenSettings?: () => void;
+  onOpenSettings: () => void;
 }) {
   const client = useClient();
   const platform = usePlatform();
@@ -187,17 +187,13 @@ export function HuddleControls({
     void guarded(kind, async () => {
       await chooseDevices(client, calls.devices, patch, calls.setDevices);
     });
-  const settings: MenuItem[] = onOpenSettings
-    ? [
-        {
-          id: "settings",
-          label: "Voice & video settings",
-          icon: "settings",
-          section: true,
-          onSelect: onOpenSettings,
-        },
-      ]
-    : [];
+  const settings: MenuItem = {
+    id: "settings",
+    label: "Voice & video settings",
+    icon: "settings",
+    section: true,
+    onSelect: onOpenSettings,
+  };
   const pickerDisabled = busy !== null || !calls.loaded || calls.saving;
   // Full screen shows only what is inside the stage, and menus open on the
   // page beneath it, so devices are changed from the bar.
@@ -225,7 +221,7 @@ export function HuddleControls({
               (speakerId) => void calls.setDevices({ speakerId }),
             )
           : []),
-        ...settings,
+        settings,
       ]}
     />
   );
@@ -243,7 +239,7 @@ export function HuddleControls({
           "",
           (cameraId) => choose("camera", { cameraId }),
         ),
-        ...settings,
+        settings,
       ]}
     />
   );

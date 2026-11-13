@@ -1,4 +1,4 @@
-import type { Channel, ID, User } from "@ownbase/protocol";
+import { isRoom, type Channel, type ID, type User } from "@ownbase/protocol";
 import { dateFormat } from "./readerLocale.js";
 
 export function formatBytes(bytes: number): string {
@@ -80,10 +80,20 @@ export function channelTitle(
   users: Record<ID, User>,
   selfId: ID | undefined,
 ): string {
-  if (channel.type === "public" || channel.type === "private") return channel.name;
+  if (isRoom(channel.type)) return channel.name;
   const others = (channel.memberIds ?? []).filter((id) => id !== selfId);
   if (others.length === 0) return users[selfId ?? ""]?.displayName ?? "You";
   return others.map((id) => users[id]?.displayName ?? "unknown").join(", ");
+}
+
+/** A conversation as a sentence names it: #name for a channel, the people for a DM. */
+export function conversationName(
+  channel: Channel,
+  users: Record<ID, User>,
+  selfId: ID | undefined,
+): string {
+  const title = channelTitle(channel, users, selfId);
+  return isRoom(channel.type) ? `#${title}` : title;
 }
 
 const AVATAR_HUES = [18, 42, 96, 152, 200, 258, 312, 340];

@@ -4,6 +4,7 @@ import { PORT_RULE, portFromText } from "@ownbase/protocol/desktop";
 import {
   failureCode,
   failureMessage,
+  failureWithReason,
   type AutoBackup,
   type HostedWorkspaces,
   type HostingStart,
@@ -983,8 +984,7 @@ export function HostDialog(props: {
             (restored.inventory ? ` ${inventorySummary(restored.inventory)}` : ""),
         });
     } catch (reason) {
-      const why = reason instanceof Error && reason.message ? ` ${reason.message}` : "";
-      setBackupNote({ ok: false, text: `The backup was not restored.${why}` });
+      setBackupNote({ ok: false, text: failureWithReason("The backup was not restored.", reason) });
     } finally {
       setListRevision((n) => n + 1);
       operationPending.current = false;
@@ -1000,8 +1000,10 @@ export function HostDialog(props: {
     try {
       await forgetFn(folder);
     } catch (reason) {
-      const why = reason instanceof Error && reason.message ? ` ${reason.message}` : "";
-      setBackupNote({ ok: false, text: `${name} could not be removed from the list.${why}` });
+      setBackupNote({
+        ok: false,
+        text: failureWithReason(`${name} could not be removed from the list.`, reason),
+      });
     } finally {
       setListRevision((n) => n + 1);
       operationPending.current = false;
@@ -1018,8 +1020,10 @@ export function HostDialog(props: {
       const made = await backupFn(folder);
       if (made) setBackupNote({ ok: true, text: `Backed up ${name} to ${made.path}` });
     } catch (reason) {
-      const why = reason instanceof Error && reason.message ? ` ${reason.message}` : "";
-      setBackupNote({ ok: false, text: `The backup of ${name} did not finish.${why}` });
+      setBackupNote({
+        ok: false,
+        text: failureWithReason(`The backup of ${name} did not finish.`, reason),
+      });
     } finally {
       setListRevision((n) => n + 1);
       operationPending.current = false;

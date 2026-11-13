@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { MESSAGE_TEXT_MAX, type Message } from "@ownbase/protocol";
+import { MESSAGE_TEXT_MAX, isRoom, type Message } from "@ownbase/protocol";
 import { ApiError } from "@ownbase/client-core";
 import { useClient, useWorkspace } from "../context.js";
 import {
@@ -70,7 +70,7 @@ export function MessageEditor({ message, onClose }: { message: Message; onClose:
   const field = useMentionField(draft, box, (text) => change(text), users, channels);
   const room = useWorkspace((s) => {
     const type = s.channels[message.channelId]?.type;
-    return type === "public" || type === "private";
+    return isRoom(type);
   });
   const suggestions = useSuggestions({
     field,

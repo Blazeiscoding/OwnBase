@@ -1,5 +1,6 @@
 import { lazy, Suspense, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import {
+  isRoom,
   MESSAGE_TEXT_MAX,
   parseCommand,
   type ID,
@@ -76,7 +77,7 @@ export function Composer({ channelId, threadRootId, placeholder, autoFocus, onLe
   const workspaceId = useWorkspace((s) => s.workspaceId);
   const channelType = useWorkspace((s) => s.channels[channelId]?.type);
   const archived = useWorkspace((s) => s.channels[channelId]?.archived ?? false);
-  const isRoom = channelType === "public" || channelType === "private";
+  const room = isRoom(channelType);
   // A guest writes, but does not upload, schedule or run an app's commands.
   const guest = useWorkspace((s) => s.self?.role === "guest");
   /** The question the poll window opens with; null while it is closed. */
@@ -343,7 +344,7 @@ export function Composer({ channelId, threadRootId, placeholder, autoFocus, onLe
     field,
     box,
     apply: (next, caret) => rewrite(next, caret),
-    room: isRoom,
+    room,
   });
 
   /** Rewrites the draft, selecting `start..end` of the new text. */
@@ -408,8 +409,8 @@ export function Composer({ channelId, threadRootId, placeholder, autoFocus, onLe
     const m = /^\/([a-zA-Z0-9_-]*)$/.exec(text);
     if (!m || guest) return [];
     const q = m[1]!.toLowerCase();
-    return offeredCommands(commands, isRoom).filter((c) => c.command.startsWith(q));
-  }, [text, commands, guest, isRoom]);
+    return offeredCommands(commands, room).filter((c) => c.command.startsWith(q));
+  }, [text, commands, guest, room]);
   const commandList = useListbox(commandCandidates.length);
   function insertCommand(command: string) {
     const next = `/${command} `;

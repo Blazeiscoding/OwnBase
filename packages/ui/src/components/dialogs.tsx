@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { ApiError } from "@ownbase/client-core";
-import type { Channel, ID } from "@ownbase/protocol";
+import { isRoom, type Channel, type ID } from "@ownbase/protocol";
 import { useClient, useWorkspace } from "../context.js";
 import { failureText } from "../lib/failure.js";
 import { Avatar } from "./Avatar.js";
@@ -327,7 +327,7 @@ export function BrowseChannelsDialog(props: { onClose: () => void; onOpen: (id: 
   const all = useMemo(
     () =>
       Object.values(channels)
-        .filter((c) => c.type === "public" || c.type === "private")
+        .filter((c) => isRoom(c.type))
         .sort((a, b) => a.name.localeCompare(b.name)),
     [channels],
   );

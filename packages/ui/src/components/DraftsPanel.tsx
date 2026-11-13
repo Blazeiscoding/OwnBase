@@ -3,7 +3,7 @@ import { readableText } from "@ownbase/client-core";
 import { useClient, useWorkspace } from "../context.js";
 import type { DraftPlace } from "@ownbase/client-core";
 import { listDrafts, type DraftEntry } from "../lib/drafts.js";
-import { channelTitle, formatFull } from "../lib/format.js";
+import { conversationName, formatFull } from "../lib/format.js";
 import { usePanelFocus } from "../lib/usePanelFocus.js";
 import { dropRepeatClick } from "../lib/repeatClick.js";
 import { Icon } from "./Icon.js";
@@ -118,10 +118,7 @@ export function DraftsPanel(props: {
                   />
                 );
               const channel = channels[entry.place.channelId]!;
-              const name =
-                channel.type === "public" || channel.type === "private"
-                  ? `#${channel.name}`
-                  : channelTitle(channel, users, selfId);
+              const name = conversationName(channel, users, selfId);
               return (
                 <DraftRow
                   key={entry.key}

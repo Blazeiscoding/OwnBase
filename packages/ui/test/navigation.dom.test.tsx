@@ -111,6 +111,32 @@ describe("Invite people, for a member an admin has not let invite", () => {
   });
 });
 
+// Before, Ctrl+K offered a guest Set a status and Account settings, which the
+// account menu and its gear leave out: a guest's picture, password, devices
+// and storage are refused there.
+describe("Profile and Account settings, for a guest", () => {
+  const guest: User = { ...member, id: "U_VIC", handle: "vic", role: "guest" };
+
+  it("are in neither the account menu nor Ctrl+K", async () => {
+    const client = workspace(guest);
+    renderPart(client, <Sidebar />, { channelId: general.id });
+    await userEvent.setup().click(screen.getByRole("button", { name: /, your account$/ }));
+    const items = screen.getAllByRole("menuitem").map((item) => item.textContent);
+    expect(items).not.toContain("Profile and status");
+    expect(items).not.toContain("Account settings");
+    expect(screen.queryByRole("button", { name: "Settings" })).toBeNull();
+    const offered = paletteCommands(actionContext(client)).map((c) => c.label);
+    expect(offered).not.toContain("Set a status");
+    expect(offered).not.toContain("Account settings");
+  });
+
+  it("are in both for a member", () => {
+    const offered = paletteCommands(actionContext(workspace())).map((c) => c.label);
+    expect(offered).toContain("Set a status");
+    expect(offered).toContain("Account settings");
+  });
+});
+
 describe("the address and Back", () => {
   function opened() {
     const client = workspace();

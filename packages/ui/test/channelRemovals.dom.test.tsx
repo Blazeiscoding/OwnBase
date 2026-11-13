@@ -12,6 +12,8 @@ import { writeRoute } from "../src/lib/route.js";
 import type { Platform } from "../src/platform.js";
 import { accessibilityProblems } from "./accessibility.js";
 import { AppNotices } from "./workspaceParts.js";
+import { KEY_BINDINGS, type ActionContext } from "../src/lib/actions.js";
+import { Navigation } from "../src/lib/navigation.js";
 
 /**
  * Removed from a channel by someone else: a note in Activity's All, among the
@@ -325,6 +327,63 @@ describe("Activity's badge", () => {
       expect(within(bar).getByRole("button", { name: "Activity" })).toHaveAccessibleDescription(
         "1 channel you were removed from",
       ),
+    );
+  });
+});
+
+// Before, Shift+Esc read conversations and followed threads only: a note of a
+// removal, and a mention in a thread nobody follows, stayed unread and kept
+// Activity's badge, while Activity's own Mark all read cleared both.
+describe("marking everything read with Shift+Esc", () => {
+  it("reads notes of removals and mentions in threads nobody follows, as Activity does", async () => {
+    const { client, read } = workspace([fromDesign]);
+    const reply: Message = { ...message("M_REPLY", general.id, `<@${sam.id}> look`, 10, NOW) };
+    reply.threadRootId = "M_ROOT";
+    client.store.setState({ mentionCounts: { [general.id]: 1 } });
+    vi.mocked(client.api.activity).mockImplementation(async (mode) => ({
+      messages: mode === "mentions" ? [reply] : [],
+      nextCursor: null,
+    }));
+    const threadRead = vi
+      .spyOn(client.api, "markThreadRead")
+      .mockImplementation(async (rootId, seq) => ({
+        state: {
+          rootId,
+          channelId: general.id,
+          following: false,
+          lastReadSeq: seq,
+          lastSeq: seq,
+          revision: 1,
+        },
+      }));
+    const toast = vi.fn(() => () => {});
+    const ctx: ActionContext = {
+      client,
+      state: client.state,
+      nav: new Navigation(client, client.baseUrl, { channelId: general.id }),
+      shell: {
+        platform,
+        otherWorkspaces: [],
+        railPlace: 0,
+        onLeaveWorkspace: () => {},
+        onSignedOut: () => {},
+      },
+      toast,
+      confirm: async () => true,
+      theme: { dark: false, set: () => {} },
+    };
+    KEY_BINDINGS.find((binding) => binding.id === "mark-all-read")!.run(
+      ctx,
+      new KeyboardEvent("keydown", { key: "Escape", shiftKey: true }),
+    );
+    await waitFor(() => expect(read).toHaveBeenCalledWith([fromDesign.id]));
+    await waitFor(() => expect(threadRead).toHaveBeenCalledWith("M_ROOT", 10));
+    expect(client.state.channelRemovals).toEqual({});
+    await waitFor(() =>
+      expect(toast).toHaveBeenCalledWith({
+        message: "Marked 2 conversations and 1 removal note as read.",
+        kind: "success",
+      }),
     );
   });
 });

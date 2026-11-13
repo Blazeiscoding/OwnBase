@@ -2,6 +2,7 @@ import { lazy, Suspense, useEffect, useMemo, useRef, useState, type ReactNode } 
 import { keepInSight } from "../lib/keepInSight.js";
 import {
   channelPermissions,
+  isDirect,
   SIDEBAR_SECTIONS_MAX,
   type Channel,
   type ChannelPrefs,
@@ -17,17 +18,12 @@ import {
   WORKSPACE_MENU,
   action,
   menuItems,
+  offered,
   runAction,
   useActionContext,
   type ActionContext,
 } from "../lib/actions.js";
-import {
-  isDirect,
-  rowShown,
-  sidebarGroups,
-  toggleCollapsed,
-  useCollapsed,
-} from "../lib/sidebarLayout.js";
+import { rowShown, sidebarGroups, toggleCollapsed, useCollapsed } from "../lib/sidebarLayout.js";
 import { protocolMismatch } from "../lib/connection.js";
 import { useClient, useWorkspace } from "../context.js";
 import { dueReminderCount, unreadRemovalCount, unreadThreadCount } from "@ownbase/client-core";
@@ -178,7 +174,6 @@ export function Sidebar(props: {
   const presence = useWorkspace((s) => s.presence);
   const self = useWorkspace((s) => s.self);
   const selfId = self?.id;
-  // A guest has public channels only: no DMs, rooms of its own, friends or schedules.
   const guest = self?.role === "guest";
   const connectionLabel = useConnectionLabel();
 
@@ -316,7 +311,7 @@ export function Sidebar(props: {
   function rowMenu(ch: Channel, label: string): RowMenu {
     const conversation: Conversation = {
       id: ch.id,
-      noun: isDirect(ch) ? "conversation" : "channel",
+      noun: isDirect(ch.type) ? "conversation" : "channel",
     };
     const items: MenuItem[] = [];
     // Read without opening it, as Slack's row menu does.
@@ -329,7 +324,7 @@ export function Sidebar(props: {
       });
     const isStarred = prefs[ch.id]?.starred === true;
     const star = starItem(client, toast, conversation, isStarred);
-    const to = !isStarred ? "starred" : isDirect(ch) ? "dms" : "channels";
+    const to = !isStarred ? "starred" : isDirect(ch.type) ? "dms" : "channels";
     items.push({
       ...star,
       onSelect: () => {
@@ -337,7 +332,7 @@ export function Sidebar(props: {
         star.onSelect();
       },
     });
-    const home = isDirect(ch) ? "dms" : "channels";
+    const home = isDirect(ch.type) ? "dms" : "channels";
     items.push(
       ...moveItems(
         client,
@@ -353,7 +348,7 @@ export function Sidebar(props: {
       ...muteItem(client, toast, conversation, isMuted(ch.id)),
       section: true,
     });
-    if (isDirect(ch) && prefs[ch.id])
+    if (isDirect(ch.type) && prefs[ch.id])
       items.push(closeItem(client, toast, ch.id, channelLastSeq[ch.id] ?? 0, label));
     return { label, items };
   }
@@ -370,7 +365,7 @@ export function Sidebar(props: {
     const now = sectionOf(id);
     if (place === "starred") return !isStarred ? { starred: true } : null;
     if (place === "channels" || place === "dms") {
-      if (place !== (isDirect(ch) ? "dms" : "channels") || (!isStarred && !now)) return null;
+      if (place !== (isDirect(ch.type) ? "dms" : "channels") || (!isStarred && !now)) return null;
       return { starred: false, sectionId: null };
     }
     const sectionId = place.slice("section:".length);
@@ -403,7 +398,7 @@ export function Sidebar(props: {
         moved.current = { id, section: place };
         const conversation: Conversation = {
           id,
-          noun: isDirect(channels[id]!) ? "conversation" : "channel",
+          noun: isDirect(channels[id]!.type) ? "conversation" : "channel",
         };
         if (patch.starred) {
           starItem(client, toast, conversation, false).onSelect();
@@ -703,7 +698,7 @@ export function Sidebar(props: {
                 <ul key={reopened.starred} className={`mb-4 space-y-px ${rowsIn("starred")}`}>
                   {starred
                     .filter((ch) => shown("starred", ch.id))
-                    .map((ch) => (isDirect(ch) ? dmRow(ch) : roomRow(ch)))}
+                    .map((ch) => (isDirect(ch.type) ? dmRow(ch) : roomRow(ch)))}
                 </ul>
               </div>
             )}
@@ -732,7 +727,7 @@ export function Sidebar(props: {
                   >
                     {inIt
                       .filter((ch) => shown(place, ch.id))
-                      .map((ch) => (isDirect(ch) ? dmRow(ch) : roomRow(ch)))}
+                      .map((ch) => (isDirect(ch.type) ? dmRow(ch) : roomRow(ch)))}
                   </ul>
                 </div>
               );
@@ -750,15 +745,15 @@ export function Sidebar(props: {
                     icon: "compass",
                     onClick: () => runAction(actions, "browse"),
                   },
-                  ...(guest
-                    ? []
-                    : [
+                  ...(offered(actions, "new-channel")
+                    ? [
                         {
                           label: "New channel",
                           icon: "plus" as const,
                           onClick: () => runAction(actions, "new-channel"),
                         },
-                      ]),
+                      ]
+                    : []),
                 ]}
               />
               <ul key={reopened.channels} className={`mb-4 space-y-px ${rowsIn("channels")}`}>
@@ -767,7 +762,7 @@ export function Sidebar(props: {
             </div>
 
             <div {...dropZone("dms")}>
-              {!guest && (
+              {offered(actions, "new-message") && (
                 <SectionHeader
                   label="Direct messages"
                   section="dms"
@@ -793,17 +788,19 @@ export function Sidebar(props: {
               </ul>
             </div>
             {/* For someone with nobody to talk to yet; starred ones still count. */}
-            {dms.length === 0 && !starred.some(isDirect) && !guest && (
-              <button
-                onClick={() => runAction(actions, "new-message")}
-                className="group mt-1 flex w-full items-center gap-2.5 rounded-lg px-2 py-1.5 text-left text-sm text-ink-faint transition-colors hover:bg-ink/[0.05] hover:text-ink"
-              >
-                <span className="flex size-5 items-center justify-center rounded-full border border-dashed border-ink-faint/60 group-hover:border-ink-dim">
-                  <Icon name="plus" size={12} />
-                </span>
-                Send someone a message
-              </button>
-            )}
+            {dms.length === 0 &&
+              !starred.some((ch) => isDirect(ch.type)) &&
+              offered(actions, "new-message") && (
+                <button
+                  onClick={() => runAction(actions, "new-message")}
+                  className="group mt-1 flex w-full items-center gap-2.5 rounded-lg px-2 py-1.5 text-left text-sm text-ink-faint transition-colors hover:bg-ink/[0.05] hover:text-ink"
+                >
+                  <span className="flex size-5 items-center justify-center rounded-full border border-dashed border-ink-faint/60 group-hover:border-ink-dim">
+                    <Icon name="plus" size={12} />
+                  </span>
+                  Send someone a message
+                </button>
+              )}
           </div>
         </div>
       </div>
@@ -830,7 +827,10 @@ export function Sidebar(props: {
                 moveConversation(
                   client,
                   toast,
-                  { id: moveId, noun: isDirect(channels[moveId]) ? "conversation" : "channel" },
+                  {
+                    id: moveId,
+                    noun: isDirect(channels[moveId]?.type) ? "conversation" : "channel",
+                  },
                   made.id,
                 );
               }
@@ -846,7 +846,7 @@ export function Sidebar(props: {
         <div className="flex items-center gap-0.5">
           <AccountMenu />
           {!snoozed && <SnoozeControl />}
-          {!guest && (
+          {offered(actions, "account-settings") && (
             <Tooltip label="Settings">
               <button
                 onClick={() => runAction(actions, "account-settings")}

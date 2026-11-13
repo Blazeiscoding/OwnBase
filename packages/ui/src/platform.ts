@@ -47,8 +47,15 @@ export function failureCode(reason: unknown): DesktopErrorCode | undefined {
   return typeof code === "string" ? (code as DesktopErrorCode) : undefined;
 }
 
+/** What a refusal says, or `fallback` when it says nothing. */
 export function failureMessage(reason: unknown, fallback: string): string {
   return reason instanceof Error && reason.message ? reason.message : fallback;
+}
+
+/** What did not happen, followed by what the refusal says, when it says anything. */
+export function failureWithReason(failure: string, reason: unknown): string {
+  const why = failureMessage(reason, "");
+  return why ? `${failure} ${why}` : failure;
 }
 
 export type { SavedServer } from "@ownbase/client-core/savedSignIns";

@@ -1,44 +1,14 @@
-import { useEffect, useRef, useState } from "react";
+import { useRef } from "react";
 import type { ID } from "@ownbase/protocol";
 import { useClient, useWorkspace } from "../context.js";
 import { Avatar } from "./Avatar.js";
 import { Icon } from "./Icon.js";
 import { Tooltip } from "./Tooltip.js";
-import { useCallPreferences } from "../lib/callPreferences.js";
 import { huddleNames } from "../lib/huddleView.js";
 import { namesList } from "../lib/catchUp.js";
-import { channelTitle } from "../lib/format.js";
+import { useStartHuddle } from "../lib/startHuddle.js";
+import { failureMessage } from "../platform.js";
 import { useTryNotice } from "./Toast.js";
-import { useConfirm } from "./Confirm.js";
-import type { WorkspaceClient } from "@ownbase/client-core";
-
-/**
- * Joining a huddle leaves the one you are in. Asked first, so a press on
- * another channel's Join does not end a call, or a screen being shared.
- * True to go ahead.
- */
-export async function confirmHuddleSwitch(
-  client: WorkspaceClient,
-  confirm: ReturnType<typeof useConfirm>,
-  channelId: ID,
-): Promise<boolean> {
-  const current = client.state.huddle;
-  if (!current || current.channelId === channelId) return true;
-  const state = client.state;
-  const channel = state.channels[current.channelId];
-  const where = !channel
-    ? "the other conversation"
-    : channel.type === "public" || channel.type === "private"
-      ? `#${channel.name}`
-      : channelTitle(channel, state.users, state.self?.id);
-  return confirm({
-    title: "Switch huddles?",
-    body: current.sharingScreen
-      ? `You leave the huddle in ${where}, and stop sharing your screen there.`
-      : `You leave the huddle in ${where} and join this one.`,
-    confirmLabel: "Switch",
-  });
-}
 
 /** How many faces the button shows before it counts the rest. */
 const FACES = 3;
@@ -50,41 +20,26 @@ export function HuddleButton({ channelId }: { channelId: ID }) {
   const inThis = useWorkspace((s) => s.huddle?.channelId === channelId);
   const users = useWorkspace((s) => s.users);
   const selfId = useWorkspace((s) => s.self?.id);
-  const [joining, setJoining] = useState(false);
-  const calls = useCallPreferences();
-  const confirm = useConfirm();
+  const huddle = useStartHuddle();
   const notice = useTryNotice();
   const currentRoom = useRef({ client, channelId });
   currentRoom.current = { client, channelId };
-  const mounted = useRef(true);
-  useEffect(() => {
-    mounted.current = true;
-    return () => {
-      mounted.current = false;
-    };
-  }, []);
   const inside = participants ?? [];
   const count = inside.length;
 
   async function join() {
     notice.clear();
-    if (!(await confirmHuddleSwitch(client, confirm, channelId))) return;
-    setJoining(true);
-    try {
-      await calls.joinHuddle(
-        client,
-        channelId,
-        () =>
-          mounted.current &&
-          currentRoom.current.client === client &&
-          currentRoom.current.channelId === channelId,
-      );
-    } catch (err) {
-      const message = err instanceof Error ? err.message : "Could not join this huddle.";
-      notice.show({ message, kind: "error" });
-    } finally {
-      if (mounted.current) setJoining(false);
-    }
+    const failed = await huddle.start(channelId, {
+      stillWanted: () =>
+        huddle.shown() &&
+        currentRoom.current.client === client &&
+        currentRoom.current.channelId === channelId,
+    });
+    if (failed)
+      notice.show({
+        message: failureMessage(failed.error, "Could not join this huddle."),
+        kind: "error",
+      });
   }
 
   if (inThis) {
@@ -107,7 +62,7 @@ export function HuddleButton({ channelId }: { channelId: ID }) {
     <Tooltip label={label}>
       <button
         onClick={join}
-        disabled={joining}
+        disabled={huddle.starting}
         aria-label={label}
         className={`mr-1 flex h-8 items-center gap-1.5 rounded-full border px-3 text-[13px] font-medium transition-colors ${
           count > 0
@@ -115,7 +70,7 @@ export function HuddleButton({ channelId }: { channelId: ID }) {
             : "border-edge text-ink-dim hover:bg-ink/[0.05] hover:text-ink"
         }`}
       >
-        {joining ? (
+        {huddle.starting ? (
           "Joining…"
         ) : (
           <>

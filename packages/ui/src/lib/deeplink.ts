@@ -1,5 +1,6 @@
 import type { HostingStatus } from "../platform.js";
-import { DEEP_LINK_PROTOCOL, normalizeServerUrlSafe } from "./deeplinkHelpers.js";
+import { DEEP_LINK_PROTOCOL } from "@ownbase/protocol";
+import { normalizeServerUrlSafe } from "./deeplinkHelpers.js";
 
 export type DeepLink =
   | { kind: "join"; serverUrl: string; code: string | null }

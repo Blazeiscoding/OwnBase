@@ -9,7 +9,7 @@ import {
   useState,
   type ReactNode,
 } from "react";
-import type { ID } from "@ownbase/protocol";
+import { isRoom, type ID } from "@ownbase/protocol";
 import { TITLE_BAR_HEIGHT } from "@ownbase/protocol/desktop";
 import { BlockedComposer, DeactivatedComposer } from "../components/Blocking.js";
 import {
@@ -20,8 +20,8 @@ import {
   waitsForAttention,
 } from "@ownbase/client-core";
 import { ClientContext, OpenMessageContext, useClient, useWorkspace } from "../context.js";
-import type { Platform } from "../platform.js";
-import { channelTitle } from "../lib/format.js";
+import { failureMessage, type Platform } from "../platform.js";
+import { channelTitle, conversationName } from "../lib/format.js";
 import {
   HostingStatus,
   Sidebar,
@@ -37,6 +37,7 @@ import { GettingStarted } from "../components/GettingStarted.js";
 import { useHuddleView } from "../lib/huddleView.js";
 import { useHuddleEndedNotice } from "../lib/huddleEnded.js";
 import { useCallPreferences } from "../lib/callPreferences.js";
+import { useStartHuddle } from "../lib/startHuddle.js";
 import { previewAccount, previewFor, useNotificationPreviews } from "../lib/notificationPreview.js";
 import { focusOrigin } from "../lib/opener.js";
 import { useFocusedView } from "../lib/focusedView.js";
@@ -71,14 +72,13 @@ import { PartnerTime } from "../components/PartnerTime.js";
 import { draftPlace } from "@ownbase/client-core";
 import { PhoneNavigation } from "../components/PhoneNavigation.js";
 import { EmptyState } from "../components/EmptyState.js";
-import { signedOutHow, type SignedOutHow } from "../lib/signOut.js";
+import type { SignedOutHow } from "../lib/signOut.js";
 import {
   Navigation,
   NavigationContext,
   WIDE,
   inView,
   reading,
-  registerNavigation,
   useNavigation,
   useNavigationState,
 } from "../lib/navigation.js";
@@ -154,6 +154,11 @@ interface Props {
   hostedHere?: boolean;
   /** Manage hosting, for the workspace menu and Ctrl+K, in the desktop app. */
   hostingEntry?: HostingEntry;
+  /**
+   * Told the screen's navigation once it is on screen, and null once it goes,
+   * so the app around it can ask for a place: Invite people, from Manage hosting.
+   */
+  onNavigation?: (navigation: Navigation | null) => void;
 }
 
 export function WorkspaceScreen({ client, initialTarget, welcome, banner, ...rest }: Props) {
@@ -196,6 +201,7 @@ export function WorkspaceScreen({ client, initialTarget, welcome, banner, ...res
                   initialTarget={initialTarget ?? null}
                   welcome={welcome}
                   banner={banner}
+                  onNavigation={rest.onNavigation}
                 />
               </ShareableServerProvider>
             </WorkspaceStorageGate>
@@ -211,13 +217,17 @@ function WorkspaceNavigation(props: {
   initialTarget: { channelId: ID; messageId: ID } | null;
   welcome?: boolean;
   banner?: ReactNode;
+  onNavigation?: (navigation: Navigation | null) => void;
 }) {
   const client = useClient();
-  const { initialTarget } = props;
+  const { initialTarget, onNavigation } = props;
   const [{ navigation, fromRoute }] = useState(() =>
     Navigation.open(client, { target: initialTarget, welcome: props.welcome }),
   );
-  useEffect(() => registerNavigation(client, navigation), [client, navigation]);
+  useEffect(() => {
+    onNavigation?.(navigation);
+    return () => onNavigation?.(null);
+  }, [onNavigation, navigation]);
   useEffect(() => navigation.attach(), [navigation]);
   // A link to a message, on arrival or later: the screen keeps its key across
   // deep links, so it goes there without remounting.
@@ -260,12 +270,7 @@ function useConversationFallback(restore: boolean) {
    */
   const seenTitles = useRef(new Map<ID, string>());
   for (const channel of Object.values(channels))
-    seenTitles.current.set(
-      channel.id,
-      channel.type === "public" || channel.type === "private"
-        ? `#${channel.name}`
-        : channelTitle(channel, users, selfId),
-    );
+    seenTitles.current.set(channel.id, conversationName(channel, users, selfId));
 
   useEffect(() => {
     if (channelId && !(status === "online" && !channels[channelId])) return;
@@ -372,7 +377,6 @@ function WorkspaceLayout(props: { restore: boolean; banner?: ReactNode }) {
   const shell = useWorkspaceShell();
   const { platform } = shell;
   const actions = useActionContext();
-  const status = useWorkspace((s) => s.status);
   // So the saved workspaces show this one's icon while its server is off.
   useRememberWorkspaceIcon(platform);
   const channels = useWorkspace((s) => s.channels);
@@ -381,6 +385,7 @@ function WorkspaceLayout(props: { restore: boolean; banner?: ReactNode }) {
   // Every device of an account idle makes it away (E9).
   useIdleReport(client);
   const calls = useCallPreferences();
+  const huddle = useStartHuddle();
   const channelId = useNavigationState((s) => s.channelId);
   const panel = useNavigationState((s) => s.panel);
   const drawer = useNavigationState((s) => s.drawer);
@@ -449,7 +454,7 @@ function WorkspaceLayout(props: { restore: boolean; banner?: ReactNode }) {
 
   const activeChannel = channelId ? channels[channelId] : undefined;
   const title = activeChannel ? channelTitle(activeChannel, users, self?.id) : "";
-  const isRoom = activeChannel?.type === "public" || activeChannel?.type === "private";
+  const room = isRoom(activeChannel?.type);
   /** A public channel can be looked into without joining, and then has no settings of one's own. */
   const isMember = useWorkspace((s) => !!channelId && channelId in s.memberships);
   /** Whom this conversation is with, when it is a DM with someone blocked (E12). */
@@ -512,13 +517,6 @@ function WorkspaceLayout(props: { restore: boolean; banner?: ReactNode }) {
     [client, nav, platform, hear],
   );
 
-  useEffect(() => {
-    // Signing out is what leads back to the screen that can replace a password:
-    // signing in again lands on it, holding the password it needs to replace.
-    if (status === "auth_failed" || status === "password_change_required")
-      shell.onSignedOut(signedOutHow(client, status));
-  }, [status, shell, client]);
-
   const callLog = () =>
     nav.navigate({ to: "dialog", dialog: { kind: "diagnostics", callLog: true } });
   const callSettings = () =>
@@ -573,21 +571,21 @@ function WorkspaceLayout(props: { restore: boolean; banner?: ReactNode }) {
                   })
                 }
                 onNameWorkspace={() => runAction(actions, "workspace-settings")}
-                activeChannelName={activeChannel && isRoom ? `#${activeChannel.name}` : null}
+                activeChannelName={activeChannel && room ? `#${activeChannel.name}` : null}
                 onTryHuddle={() => {
                   if (!channelId) return;
                   const ticket = nav.moves;
                   if (nav.state.drawer) nav.closeDrawer();
-                  calls
-                    .joinHuddle(
-                      client,
-                      channelId,
-                      () => nav.current(ticket) && huddleRoom.current === channelId,
-                    )
-                    .catch((err: unknown) => {
+                  void huddle
+                    .start(channelId, {
+                      stillWanted: () => nav.current(ticket) && huddleRoom.current === channelId,
+                    })
+                    .then((failed) => {
+                      if (!failed) return;
+                      const why = failureMessage(failed.error, "");
                       nav.showError(
-                        err instanceof Error
-                          ? `Could not start a huddle: ${err.message}`
+                        why
+                          ? `Could not start a huddle: ${why}`
                           : "Could not start a huddle. Check your connection and try again.",
                       );
                     });
@@ -609,7 +607,7 @@ function WorkspaceLayout(props: { restore: boolean; banner?: ReactNode }) {
               className="flex min-w-0 flex-1 items-center gap-3 rounded-lg px-2 py-1.5 text-left transition-colors hover:bg-ink/[0.04]"
             >
               <h2 className="shrink-0 truncate text-[16px] font-semibold leading-tight">
-                {isRoom ? (
+                {room ? (
                   <>
                     <span className="mr-1 font-normal text-ink-faint">#</span>
                     {title}
@@ -630,7 +628,7 @@ function WorkspaceLayout(props: { restore: boolean; banner?: ReactNode }) {
             </button>
             {channelId && (
               <ConversationSearch
-                title={isRoom ? `#${title}` : title}
+                title={room ? `#${title}` : title}
                 onSearch={() =>
                   nav.navigate({ to: "dialog", dialog: { kind: "search", inConversation: true } })
                 }
@@ -648,7 +646,7 @@ function WorkspaceLayout(props: { restore: boolean; banner?: ReactNode }) {
                 {!deactivatedHere && <HuddleButton channelId={channelId} />}
                 <ConversationMenu
                   channelId={channelId}
-                  isRoom={isRoom}
+                  isRoom={room}
                   onPins={() => nav.navigate({ to: "panel", panel: { kind: "pins" } })}
                   onFiles={() => nav.navigate({ to: "panel", panel: { kind: "files", channelId } })}
                   onNotifications={
@@ -803,7 +801,7 @@ function WorkspaceLayout(props: { restore: boolean; banner?: ReactNode }) {
                   ) : (
                     <Composer
                       channelId={channelId}
-                      placeholder={isRoom ? `Message #${title}` : `Message ${title}`}
+                      placeholder={room ? `Message #${title}` : `Message ${title}`}
                       autoFocus
                       onLeft={() => nav.navigate({ to: "left" })}
                     />

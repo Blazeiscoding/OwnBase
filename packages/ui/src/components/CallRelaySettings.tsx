@@ -2,6 +2,7 @@ import { useCallback, useEffect, useId, useRef, useState } from "react";
 import type { DesktopErrorCode } from "@ownbase/protocol/desktop";
 import {
   failureCode,
+  failureMessage,
   type CallRelayDraft,
   type CallRelaySetting,
   type Platform,
@@ -47,7 +48,7 @@ const SAVED = "Saved. Leave empty to keep it.";
 /** What a key, username or secret may not hold, as the app checks it. */
 const SPACE = /[\s\p{Cc}]/u;
 
-const errorText = (reason: unknown) => (reason instanceof Error ? reason.message : String(reason));
+const errorText = (reason: unknown) => failureMessage(reason, String(reason));
 
 /**
  * The TURN relay for calls between networks that will not let people reach

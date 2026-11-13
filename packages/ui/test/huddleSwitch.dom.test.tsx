@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import { WorkspaceClient } from "@ownbase/client-core";
 import type { Channel } from "@ownbase/protocol";
-import { confirmHuddleSwitch } from "../src/components/HuddleButton.js";
+import { confirmHuddleSwitch } from "../src/lib/startHuddle.js";
 
 const room = (id: string, name: string): Channel => ({
   id,

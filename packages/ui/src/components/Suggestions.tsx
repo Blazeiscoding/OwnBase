@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import type React from "react";
-import type { Channel, ID, User } from "@ownbase/protocol";
+import { isRoom, type Channel, type ID, type User } from "@ownbase/protocol";
 import { usePlatform, useWorkspace } from "../context.js";
 import { Avatar } from "./Avatar.js";
 import { Icon } from "./Icon.js";
@@ -84,7 +84,7 @@ export function rankChannels(
 ) {
   const q = query.toLowerCase().normalize("NFC");
   return channels
-    .filter((c) => (c.type === "public" || c.type === "private") && !c.archived)
+    .filter((c) => isRoom(c.type) && !c.archived)
     .map((channel) => ({ channel, tier: bestTier(q, channel.name) }))
     .filter((r) => r.tier >= 0)
     .sort(

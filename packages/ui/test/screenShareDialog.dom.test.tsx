@@ -97,7 +97,7 @@ function picker(
   render(
     <PlatformContext.Provider value={platform}>
       <ClientContext.Provider value={client}>
-        <HuddleControls />
+        <HuddleControls onOpenSettings={() => {}} />
       </ClientContext.Provider>
     </PlatformContext.Provider>,
   );

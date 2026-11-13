@@ -21,7 +21,7 @@ import { Tooltip } from "./Tooltip.js";
 import { ListStatus } from "./ListStatus.js";
 import type { ReadingPosition } from "../lib/route.js";
 import { rememberThreadPosition, rememberedThreadPosition } from "../lib/threadPosition.js";
-import { channelTitle } from "../lib/format.js";
+import { conversationName } from "../lib/format.js";
 import { writeClipboard } from "../lib/useCopy.js";
 import { useToast } from "./Toast.js";
 import { failureText } from "../lib/failure.js";
@@ -62,8 +62,7 @@ export function ThreadPanel({
   const where = useWorkspace((s) => {
     const channel = s.channels[channelId];
     if (!channel) return "";
-    const title = channelTitle(channel, s.users, s.self?.id);
-    return channel.type === "public" || channel.type === "private" ? `#${title}` : title;
+    return conversationName(channel, s.users, s.self?.id);
   });
   const [lightbox, setLightbox] = useState<{ file: FileMeta; gallery?: FileMeta[] } | null>(null);
   const openImage = useCallback(

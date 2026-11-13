@@ -1,43 +1,11 @@
-import {
-  isThreadUnread,
-  isUnread,
-  type WorkspaceClient,
-  type WorkspaceState,
-} from "@ownbase/client-core";
-import type { ID } from "@ownbase/protocol";
+import type { Unread } from "@ownbase/client-core";
 
-/** Conversations and followed threads with something unread, as Mark all read clears them. */
-export function unreadEverywhere(state: WorkspaceState): {
-  channels: [ID, number][];
-  threads: WorkspaceState["threadFollows"][ID][];
-} {
-  const channels: [ID, number][] = [];
-  for (const channelId of Object.keys(state.memberships))
-    if (isUnread(state, channelId)) channels.push([channelId, state.channelLastSeq[channelId]!]);
-  const threads = Object.values(state.threadFollows).filter(isThreadUnread);
-  return { channels, threads };
-}
-
-/**
- * Reads every conversation and followed thread to its newest. Returns how many
- * there were, so whoever asked can say so.
- */
-export function markEverythingRead(client: WorkspaceClient): number {
-  const { channels, threads } = unreadEverywhere(client.state);
-  for (const [channelId, newest] of channels)
-    client.markRead(channelId, newest, { explicit: true });
-  for (const follow of threads)
-    client.markThreadRead(follow.rootId, {
-      explicit: true,
-      through: { channelId: follow.channelId, seq: follow.lastSeq },
-    });
-  return channels.length + threads.length;
-}
-
-/** "3 conversations", "1 thread", "2 conversations and 1 thread". */
-export function unreadSummary(channels: number, threads: number): string {
+/** "3 conversations", "1 thread", "2 conversations, 1 thread and 1 removal note". */
+export function unreadSummary({ channels, threads, removals }: Unread): string {
   const parts: string[] = [];
-  if (channels) parts.push(`${channels} conversation${channels === 1 ? "" : "s"}`);
-  if (threads) parts.push(`${threads} thread${threads === 1 ? "" : "s"}`);
-  return parts.join(" and ");
+  const count = (n: number, one: string) => n && parts.push(`${n} ${one}${n === 1 ? "" : "s"}`);
+  count(channels.length, "conversation");
+  count(threads.length, "thread");
+  count(removals.length, "removal note");
+  return parts.length > 1 ? `${parts.slice(0, -1).join(", ")} and ${parts.at(-1)}` : parts.join("");
 }

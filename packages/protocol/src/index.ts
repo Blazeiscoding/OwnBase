@@ -10,6 +10,7 @@ export * from "./commands.js";
 export * from "./huddle.js";
 export * from "./socket.js";
 export * from "./permissions.js";
+export * from "./messageRules.js";
 export * from "./plan.js";
 export * from "./errors.js";
 export * from "./endpoint.js";

@@ -531,20 +531,6 @@ export class Navigation {
   }
 }
 
-/** The navigation of each workspace on screen, so the app around it can ask for a place. */
-const byClient = new WeakMap<WorkspaceClient, Navigation>();
-
-export function registerNavigation(client: WorkspaceClient, navigation: Navigation): () => void {
-  byClient.set(client, navigation);
-  return () => {
-    if (byClient.get(client) === navigation) byClient.delete(client);
-  };
-}
-
-export function navigationOf(client: WorkspaceClient): Navigation | undefined {
-  return byClient.get(client);
-}
-
 export const NavigationContext = createContext<Navigation | null>(null);
 
 export function useNavigation(): Navigation {

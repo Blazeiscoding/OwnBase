@@ -49,7 +49,7 @@ import { FileCache, previewImageKey } from "./fileCache.js";
 import { AvatarCache } from "./avatars.js";
 import { captureFailure } from "./capture.js";
 import { ClientEmitter, type ClientEvents, type ClientListener } from "./events.js";
-import { isThreadUnread } from "./selectors.js";
+import { isSignedOut, isThreadUnread } from "./selectors.js";
 import {
   THREAD_WINDOW,
   forgetAllUnlisted,
@@ -728,11 +728,7 @@ export class WorkspaceClient {
     this.lists = new Lists(this.api, this.store);
     // A session that has ended keeps nothing it downloaded (F07).
     this.store.subscribe((now, before) => {
-      if (
-        now.status !== before.status &&
-        (now.status === "auth_failed" || now.status === "password_change_required")
-      )
-        this.files.invalidateAll();
+      if (now.status !== before.status && isSignedOut(now.status)) this.files.invalidateAll();
     });
   }
 

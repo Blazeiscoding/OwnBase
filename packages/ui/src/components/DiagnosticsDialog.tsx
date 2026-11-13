@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import type { CallLogEntry, ServerInfo, WorkspaceStatus } from "@ownbase/protocol";
 import { ApiError, selfIsAdministrator } from "@ownbase/client-core";
 import { useClient, usePlatform, useWorkspace } from "../context.js";
+import { failureMessage } from "../platform.js";
 import { CALL_LOG_HEADING, diagnosticsFileName, diagnosticsReport } from "../lib/diagnostics.js";
 import { useCopy } from "../lib/useCopy.js";
 import { saveText } from "../lib/download.js";
@@ -10,9 +11,7 @@ import { Swap } from "./Motion.js";
 import { buttonClass } from "./Button.js";
 
 type Failed = { error: string };
-const failure = (err: unknown): Failed => ({
-  error: err instanceof Error ? err.message : "no answer",
-});
+const failure = (err: unknown): Failed => ({ error: failureMessage(err, "no answer") });
 
 /** The server's answer, or why it could not be read, in words for the report. */
 function orWhy<T>(answer: T | ApiError): T | Failed {

@@ -4,9 +4,10 @@ import {
   channelPermissions,
   canRemoveChannelMember,
   canSetChannelManager,
-  type ID,
   DEFAULT_CHANNEL_PREFS,
   isDirect,
+  isRoom,
+  type ID,
   type NotifyLevel,
 } from "@ownbase/protocol";
 import { ApiError } from "@ownbase/client-core";
@@ -129,7 +130,7 @@ export function ChannelDetailsDialog(props: {
   }, [client, props.channelId, membersAttempt]);
 
   if (!channel) return null;
-  const isRoom = channel.type === "public" || channel.type === "private";
+  const room = isRoom(channel.type);
   const permissions = channelPermissions(self ?? undefined, channel, !!membership);
   const changed =
     name.trim() !== channel.name || topic !== channel.topic || description !== channel.description;
@@ -233,10 +234,7 @@ export function ChannelDetailsDialog(props: {
     if (!refused) props.onLeft();
     else
       setError(
-        channelError(
-          refused,
-          isRoom ? "Could not leave channel." : "Could not leave conversation.",
-        ),
+        channelError(refused, room ? "Could not leave channel." : "Could not leave conversation."),
       );
   }
 
@@ -245,11 +243,7 @@ export function ChannelDetailsDialog(props: {
   );
 
   return (
-    <Dialog
-      title={isRoom ? `#${channel.name}` : "Conversation"}
-      onClose={props.onClose}
-      width={480}
-    >
+    <Dialog title={room ? `#${channel.name}` : "Conversation"} onClose={props.onClose} width={480}>
       <UnsavedGuard dirty={changed && permissions.manage && !busy} what="channel changes" />
       {error && (
         <p role="alert" className="mb-3 text-sm text-alert">
@@ -281,7 +275,7 @@ export function ChannelDetailsDialog(props: {
         {tab === "notifications" ? (
           <NotificationSettings channelId={props.channelId} />
         ) : tab === "about" ? (
-          isRoom ? (
+          room ? (
             <form onSubmit={saveAbout} noValidate className="space-y-3">
               <TextField
                 ref={nameField}
@@ -449,7 +443,7 @@ export function ChannelDetailsDialog(props: {
           )
         ) : tab === "members" ? (
           <div>
-            {!isRoom && membership && (
+            {!room && membership && (
               <div className="mb-3 text-sm">
                 <p className="mb-2 text-ink-dim">
                   Changing who is in it starts a conversation with the people you choose. The
@@ -556,7 +550,7 @@ export function ChannelDetailsDialog(props: {
                     ? [
                         {
                           id: "remove",
-                          label: `Remove from ${isRoom ? `#${channel.name}` : "this conversation"}`,
+                          label: `Remove from ${room ? `#${channel.name}` : "this conversation"}`,
                           icon: "trash" as const,
                           destructive: true,
                           section: canManage ? (true as const) : undefined,
@@ -660,7 +654,7 @@ export function ChannelDetailsDialog(props: {
             {permissions.invite && !membersLoading && !membersError && notMembers.length > 0 && (
               <AddPeople
                 candidates={notMembers}
-                where={isRoom ? `#${channel.name}` : "the conversation"}
+                where={room ? `#${channel.name}` : "the conversation"}
                 disabled={busy}
                 autoFocus={props.initialTab === "members"}
                 onAdd={addMember}

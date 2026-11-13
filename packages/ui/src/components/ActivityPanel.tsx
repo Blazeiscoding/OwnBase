@@ -1,13 +1,13 @@
 import { useEffect, useId, useRef, useState } from "react";
 import {
+  anythingUnread,
   dueReminderCount,
   isMessageRead,
-  isThreadUnread,
-  isUnread,
+  markEverythingRead,
   notificationBody,
   PagedList,
 } from "@ownbase/client-core";
-import type { ChannelRemoval, ID, Message } from "@ownbase/protocol";
+import { isRoom, type ChannelRemoval, type ID, type Message } from "@ownbase/protocol";
 import { useClient, useWorkspace } from "../context.js";
 import { channelTitle, formatFull } from "../lib/format.js";
 import { Avatar } from "./Avatar.js";
@@ -23,7 +23,6 @@ import { useTabs } from "../lib/useTabs.js";
 import { useOpenList } from "../lib/pagedList.js";
 import { dropRepeatClick } from "../lib/repeatClick.js";
 import { RemindersList } from "./RemindersList.js";
-import { markEverythingRead } from "../lib/readAll.js";
 import { When } from "./When.js";
 
 /**
@@ -130,13 +129,7 @@ export function ActivityPanel({
   const modes: readonly ActivityMode[] = MODES;
   const [chosen, setMode] = useState<ActivityMode>("all");
   const mode = modes.includes(chosen) ? chosen : "all";
-  /** Whether anything is unread anywhere, which Mark all read reads. */
-  const unreadAnywhere = useWorkspace(
-    (s) =>
-      Object.keys(s.channelRemovals).length > 0 ||
-      Object.keys(s.memberships).some((id) => isUnread(s, id)) ||
-      Object.values(s.threadFollows).some(isThreadUnread),
-  );
+  const unreadAnywhere = useWorkspace(anythingUnread);
   const { panel, heading } = usePanelFocus({ takeFocus: true });
   const scroller = useRef<HTMLDivElement>(null);
   const groupId = useId();
@@ -218,20 +211,11 @@ export function ActivityPanel({
     else client.markRead(message.channelId, message.seq, { explicit: true });
   }
 
-  /** Every conversation and followed thread read to its newest, and every reply listed. */
   function markAllRead() {
-    markEverythingRead(client);
-    const notes = Object.keys(removals);
-    if (notes.length > 0) readRemovals(notes);
-    // A mention in a thread nobody follows is read through its thread too.
-    const newestReply = new Map<ID, Message>();
-    for (const message of messages)
-      if (message.threadRootId && !message.broadcast && unread(message)) {
-        const seen = newestReply.get(message.threadRootId);
-        if (!seen || message.seq > seen.seq) newestReply.set(message.threadRootId, message);
-      }
-    for (const [rootId, message] of newestReply)
-      client.markThreadRead(rootId, { explicit: true, through: message });
+    void markEverythingRead(client).then((error) => {
+      if (error)
+        toast({ message: failureText("Could not mark everything read.", error), kind: "error" });
+    });
   }
 
   /**
@@ -359,13 +343,12 @@ export function ActivityPanel({
                 }
                 const { group } = entry;
                 const channel = channels[group.channelId]!;
-                const where =
-                  channel.type === "public" || channel.type === "private"
-                    ? `#${channel.name}`
-                    : // Each row names its author, the other person in a direct message.
-                      channel.type === "dm"
-                      ? "Direct message"
-                      : channelTitle(channel, users, selfId);
+                const where = isRoom(channel.type)
+                  ? `#${channel.name}`
+                  : // Each row names its author, the other person in a direct message.
+                    channel.type === "dm"
+                    ? "Direct message"
+                    : channelTitle(channel, users, selfId);
                 const fresh = group.messages.filter(unread).length;
                 const title = group.threadRootId ? `Thread in ${where}` : where;
                 return (

@@ -1,6 +1,6 @@
 import { lazy, useEffect, useRef, useState, type ComponentProps, type ReactNode } from "react";
 import type { ID } from "@ownbase/protocol";
-import { selfIsAdministrator, type WorkspaceState } from "@ownbase/client-core";
+import { selfMay } from "@ownbase/client-core";
 import { useWorkspace } from "../context.js";
 import { LazyDialog, LazyPanel } from "../components/LazyView.js";
 import { QuickSwitcherLoading, type EarlyTyping } from "../components/QuickSwitcherLoading.js";
@@ -16,7 +16,13 @@ import {
   type PanelKind,
 } from "../lib/navigation.js";
 import { useWorkspaceShell, type WorkspaceShell } from "../lib/workspaceShell.js";
-import { mayInvite, paletteCommands, useActionContext } from "../lib/actions.js";
+import {
+  actionLabel,
+  offered,
+  paletteCommands,
+  useActionContext,
+  type ActionId,
+} from "../lib/actions.js";
 import { useRecentConversations } from "../lib/recentConversations.js";
 
 const ActivityPanel = lazy(() =>
@@ -334,7 +340,7 @@ function useViewContext(): ViewContext {
   const nav = useNavigation();
   const shell = useWorkspaceShell();
   const channelId = useNavigationState((s) => s.channelId);
-  const schedules = useWorkspace((s) => !!s.self && s.self.role !== "guest");
+  const schedules = useWorkspace((s) => selfMay(s, "scheduleMessage"));
   return { nav, channelId, shell, schedules };
 }
 
@@ -365,12 +371,13 @@ interface DialogView<K extends DialogKind> {
   /** Shown while its code loads. */
   loading: string;
   /**
-   * Whether this account may open it. One it may not is never drawn, and one
-   * an address names closes once the account is known.
+   * The action that opens it, which says whether this account may. One it may
+   * not is never drawn, and one an address names closes once the account is
+   * known.
    */
-  allowed?: (self: WorkspaceState["self"], shell: WorkspaceShell) => boolean;
+  action?: ActionId;
   /** Named when it closes because the account was no longer an admin. */
-  adminName?: string;
+  admin?: true;
   /** Draws its own loading state, so no frame around it. */
   frameless?: true;
   /** Drawn only over an open conversation. */
@@ -380,8 +387,6 @@ interface DialogView<K extends DialogKind> {
     ctx: ViewContext & { channelId: ID; close: () => void },
   ) => ReactNode;
 }
-
-const admin = (self: WorkspaceState["self"]) => selfIsAdministrator({ self });
 
 /** Every dialog the workspace opens over the conversation. */
 const DIALOGS: { [K in Exclude<DialogKind, "none">]: DialogView<K> } = {
@@ -409,7 +414,7 @@ const DIALOGS: { [K in Exclude<DialogKind, "none">]: DialogView<K> } = {
   },
   invite: {
     loading: "Loading invite",
-    allowed: mayInvite,
+    action: "invite",
     render: (dialog, { shell, close }) => {
       const hosting = shell.hosting;
       return (
@@ -430,7 +435,7 @@ const DIALOGS: { [K in Exclude<DialogKind, "none">]: DialogView<K> } = {
   },
   "guest-account": {
     loading: "Loading account",
-    allowed: (_, shell) => !!shell.onAccountCreated,
+    action: "create-account",
     render: (_, { shell, close }) => (
       <GuestAccountDialog onClose={close} onCreated={shell.onAccountCreated!} />
     ),
@@ -465,26 +470,26 @@ const DIALOGS: { [K in Exclude<DialogKind, "none">]: DialogView<K> } = {
   },
   apps: {
     loading: "Loading settings",
-    allowed: admin,
-    adminName: "Apps and integrations",
+    action: "apps",
+    admin: true,
     render: (_, { close }) => <AppsDialog onClose={close} />,
   },
   people: {
     loading: "Loading settings",
-    allowed: admin,
-    adminName: "People",
+    action: "people",
+    admin: true,
     render: (_, { close }) => <PeopleDialog onClose={close} />,
   },
   reports: {
     loading: "Loading settings",
-    allowed: admin,
-    adminName: "Reported messages",
+    action: "reports",
+    admin: true,
     render: (_, { close }) => <ReportsDialog onClose={close} />,
   },
   workspace: {
     loading: "Loading settings",
-    allowed: admin,
-    adminName: "Workspace settings",
+    action: "workspace-settings",
+    admin: true,
     render: (_, { shell, close }) => (
       <WorkspaceSettings onClose={close} hostedHere={shell.hostedHere} />
     ),
@@ -555,11 +560,11 @@ function Switcher({ nav, close }: { nav: Navigation; close: () => void }) {
 export function OpenDialog() {
   const ctx = useViewContext();
   const dialog = useNavigationState((s) => s.dialog);
-  const self = useWorkspace((s) => s.self);
+  const actions = useActionContext();
   useCloseRefused();
   if (dialog.kind === "none") return null;
   const view = DIALOGS[dialog.kind] as DialogView<typeof dialog.kind>;
-  if (view.allowed && !view.allowed(self, ctx.shell)) return null;
+  if (view.action && !offered(actions, view.action)) return null;
   if (view.needsChannel && !ctx.channelId) return null;
   const close = () => ctx.nav.closeDialog();
   const drawn = view.render(dialog as never, { ...ctx, channelId: ctx.channelId ?? "", close });
@@ -578,23 +583,24 @@ export function OpenDialog() {
  */
 function useCloseRefused() {
   const nav = useNavigation();
-  const shell = useWorkspaceShell();
+  const actions = useActionContext();
   const toast = useToast();
   const kind = useNavigationState((s) => s.dialog.kind);
   const self = useWorkspace((s) => s.self);
   const wasAllowed = useRef(false);
   const view = kind === "none" ? null : DIALOGS[kind];
-  const allowed = !view?.allowed || view.allowed(self, shell);
+  const allowed = !view?.action || offered(actions, view.action);
+  const name = view?.admin && view.action ? actionLabel(actions, view.action) : null;
   useEffect(() => {
     if (!self) return;
     if (view && !allowed) {
       nav.refuseDialog();
-      if (wasAllowed.current && view.adminName)
+      if (wasAllowed.current && name)
         toast({
-          message: `You are no longer an admin, so ${view.adminName} closed.`,
+          message: `You are no longer an admin, so ${name} closed.`,
           kind: "info",
         });
     }
     wasAllowed.current = allowed;
-  }, [self, view, allowed, nav, toast]);
+  }, [self, view, allowed, name, nav, toast]);
 }
