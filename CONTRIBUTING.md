@@ -117,9 +117,10 @@ Leave the page itself alone: the Atlas workflow rebuilds it after every merge.
 `pnpm visualizer:build` builds it locally to look at. The
 [atlas guide](docs/visualizer/README.md) has the rest.
 
-Browser checks: `pnpm exec playwright install chromium`, then `pnpm test:e2e`
-after building. Windows checks: `pnpm build:win`,
-then `pnpm test:desktop`. These tests use temporary workspaces and fake media.
+Browser checks: `pnpm exec playwright install chromium webkit firefox`, then
+`pnpm test:e2e` after building (Chromium runs every scenario, WebKit and Firefox
+the ones tagged `@smoke`). Windows checks: `pnpm build:win`, then
+`pnpm test:desktop`. These tests use temporary workspaces and fake media.
 
 The script every visit to the client downloads has a 700 kB budget. After
 building, `node scripts/check-web-bundle.mjs` measures the browser client and
