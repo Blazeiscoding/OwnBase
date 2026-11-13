@@ -72,14 +72,13 @@ import { PartnerTime } from "../components/PartnerTime.js";
 import { draftPlace } from "@ownbase/client-core";
 import { PhoneNavigation } from "../components/PhoneNavigation.js";
 import { EmptyState } from "../components/EmptyState.js";
-import { signedOutHow, type SignedOutHow } from "../lib/signOut.js";
+import type { SignedOutHow } from "../lib/signOut.js";
 import {
   Navigation,
   NavigationContext,
   WIDE,
   inView,
   reading,
-  registerNavigation,
   useNavigation,
   useNavigationState,
 } from "../lib/navigation.js";
@@ -155,6 +154,11 @@ interface Props {
   hostedHere?: boolean;
   /** Manage hosting, for the workspace menu and Ctrl+K, in the desktop app. */
   hostingEntry?: HostingEntry;
+  /**
+   * Told the screen's navigation once it is on screen, and null once it goes,
+   * so the app around it can ask for a place: Invite people, from Manage hosting.
+   */
+  onNavigation?: (navigation: Navigation | null) => void;
 }
 
 export function WorkspaceScreen({ client, initialTarget, welcome, banner, ...rest }: Props) {
@@ -197,6 +201,7 @@ export function WorkspaceScreen({ client, initialTarget, welcome, banner, ...res
                   initialTarget={initialTarget ?? null}
                   welcome={welcome}
                   banner={banner}
+                  onNavigation={rest.onNavigation}
                 />
               </ShareableServerProvider>
             </WorkspaceStorageGate>
@@ -212,13 +217,17 @@ function WorkspaceNavigation(props: {
   initialTarget: { channelId: ID; messageId: ID } | null;
   welcome?: boolean;
   banner?: ReactNode;
+  onNavigation?: (navigation: Navigation | null) => void;
 }) {
   const client = useClient();
-  const { initialTarget } = props;
+  const { initialTarget, onNavigation } = props;
   const [{ navigation, fromRoute }] = useState(() =>
     Navigation.open(client, { target: initialTarget, welcome: props.welcome }),
   );
-  useEffect(() => registerNavigation(client, navigation), [client, navigation]);
+  useEffect(() => {
+    onNavigation?.(navigation);
+    return () => onNavigation?.(null);
+  }, [onNavigation, navigation]);
   useEffect(() => navigation.attach(), [navigation]);
   // A link to a message, on arrival or later: the screen keeps its key across
   // deep links, so it goes there without remounting.
@@ -373,7 +382,6 @@ function WorkspaceLayout(props: { restore: boolean; banner?: ReactNode }) {
   const shell = useWorkspaceShell();
   const { platform } = shell;
   const actions = useActionContext();
-  const status = useWorkspace((s) => s.status);
   // So the saved workspaces show this one's icon while its server is off.
   useRememberWorkspaceIcon(platform);
   const channels = useWorkspace((s) => s.channels);
@@ -497,13 +505,6 @@ function WorkspaceLayout(props: { restore: boolean; banner?: ReactNode }) {
       }),
     [client, nav, platform, hear],
   );
-
-  useEffect(() => {
-    // Signing out is what leads back to the screen that can replace a password:
-    // signing in again lands on it, holding the password it needs to replace.
-    if (status === "auth_failed" || status === "password_change_required")
-      shell.onSignedOut(signedOutHow(client, status));
-  }, [status, shell, client]);
 
   const callLog = () =>
     nav.navigate({ to: "dialog", dialog: { kind: "diagnostics", callLog: true } });

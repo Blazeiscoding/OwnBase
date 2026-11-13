@@ -63,6 +63,8 @@ export function WorkspaceStorageGate({
   const approve = useRef<(() => void) | null>(null);
 
   useEffect(() => {
+    // Signing out is what leads back to the screen that can replace a password:
+    // signing in again lands on it, holding the password it needs to replace.
     if (isSignedOut(status)) onSignedOut(signedOutHow(client, status));
   }, [status, onSignedOut, client]);
 
