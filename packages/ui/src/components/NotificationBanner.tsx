@@ -1,10 +1,7 @@
 import { useEffect, useState } from "react";
 import type { Platform } from "../platform.js";
+import { useSnoozed } from "../lib/noticeSnooze.js";
 import { Icon } from "./Icon.js";
-
-/** How long "Not now" keeps the banner away on this device. */
-export const NOTIFICATION_PROMPT_SNOOZE_MS = 14 * 24 * 60 * 60 * 1000;
-const SNOOZED_AT = "notificationPromptSnoozedAt";
 
 function current(): NotificationPermission | "unsupported" {
   if (typeof Notification === "undefined") return "unsupported";
@@ -30,28 +27,16 @@ export function NotificationBanner({
   onShowing?: (showing: boolean) => void;
 }) {
   const [permission, setPermission] = useState(current);
-  // Unknown until storage answers, so a snoozed banner does not flash first.
-  const [snoozed, setSnoozed] = useState<boolean | null>(null);
+  const { snoozed, snooze } = useSnoozed(
+    storage,
+    permission === "default" ? "notificationPromptSnoozedAt" : null,
+    now,
+  );
   const [busy, setBusy] = useState(false);
   const showing = permission === "default" && snoozed === false;
 
   useEffect(() => onShowing?.(showing), [onShowing, showing]);
   useEffect(() => () => onShowing?.(false), [onShowing]);
-
-  useEffect(() => {
-    if (permission !== "default") return;
-    let alive = true;
-    storage
-      .get<number>(SNOOZED_AT)
-      .then((at) => typeof at === "number" && now() - at < NOTIFICATION_PROMPT_SNOOZE_MS)
-      .catch(() => false)
-      .then((value) => {
-        if (alive) setSnoozed(value);
-      });
-    return () => {
-      alive = false;
-    };
-  }, [storage, now, permission]);
 
   if (!showing) return null;
 
@@ -63,12 +48,6 @@ export function NotificationBanner({
     } finally {
       setBusy(false);
     }
-  }
-
-  function snooze() {
-    setSnoozed(true);
-    // Remembering is a courtesy: if it cannot be saved, the banner is still gone.
-    storage.set(SNOOZED_AT, now()).catch(() => {});
   }
 
   return (

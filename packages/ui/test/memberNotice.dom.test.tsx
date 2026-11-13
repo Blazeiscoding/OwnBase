@@ -6,7 +6,7 @@ import { WorkspaceClient } from "@ownbase/client-core";
 import type { Channel, MemberNotice, User } from "@ownbase/protocol";
 import { ClientContext, PlatformContext } from "../src/context.js";
 import { ConfirmProvider } from "../src/components/Confirm.js";
-import { MEMBER_NOTICE_SNOOZE_MS } from "../src/components/MemberNotice.js";
+import { NOTICE_SNOOZE_MS } from "../src/lib/noticeSnooze.js";
 import { WorkspaceSettings } from "../src/components/WorkspaceSettings.js";
 import { WorkspaceScreen } from "../src/screens/WorkspaceScreen.js";
 import { writeRoute } from "../src/lib/route.js";
@@ -211,7 +211,7 @@ describe("the member notice", () => {
     cleanup();
 
     workspace(owner, team, TEAM, {
-      saved: { "memberNoticeSnoozedAt:W_PLAN": NOW - MEMBER_NOTICE_SNOOZE_MS - 1 },
+      saved: { "memberNoticeSnoozedAt:W_PLAN": NOW - NOTICE_SNOOZE_MS - 1 },
     });
     expect(await screen.findByText(/more than the 3/)).toBeVisible();
   });

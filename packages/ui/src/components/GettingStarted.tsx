@@ -1,12 +1,9 @@
-import { useEffect, useEffectEvent, useId, useMemo, useRef, useState } from "react";
+import { useEffect, useEffectEvent, useId, useMemo, useState } from "react";
 import { DEFAULT_WORKSPACE_NAME } from "@ownbase/protocol";
 import { useToast } from "./Toast.js";
-import { useClient, usePlatform, useWorkspace } from "../context.js";
-import {
-  readWorkspaceStorage,
-  workspaceStorageKey,
-  writeWorkspaceStorage,
-} from "@ownbase/client-core";
+import { usePlatform, useWorkspace } from "../context.js";
+import { writeWorkspaceStorage } from "@ownbase/client-core";
+import { useAccountKey, useAccountRead } from "../lib/accountStorage.js";
 import { Icon } from "./Icon.js";
 
 interface Saved {
@@ -58,6 +55,10 @@ function keepCopy(key: string, saved: Saved) {
   }
 }
 
+const NOTHING_SAVED: Saved = {};
+const savedOf = (value: unknown): Saved =>
+  value && typeof value === "object" ? (value as Saved) : NOTHING_SAVED;
+
 /** What the browser allows, or whether the desktop app shows its own. */
 function notificationsOn(kind: "web" | "desktop"): boolean {
   if (kind === "desktop") return true;
@@ -85,26 +86,21 @@ export function GettingStarted(props: {
   onTryHuddle: () => void;
 }) {
   const platform = usePlatform();
-  const client = useClient();
   const toast = useToast();
   const self = useWorkspace((s) => s.self);
-  const workspaceId = useWorkspace((s) => s.workspaceId);
   const channels = useWorkspace((s) => s.channels);
   const users = useWorkspace((s) => s.users);
   const workspaceName = useWorkspace((s) => s.workspaceName);
   const inHuddle = useWorkspace((s) => s.huddle !== null);
-  const key = useMemo(() => {
-    const scoped = workspaceStorageKey(client.baseUrl, workspaceId, self?.id, "getting-started");
-    return scoped && { key: scoped.key };
-  }, [client.baseUrl, workspaceId, self?.id]);
-  const [saved, setSaved] = useState<{ key: string; value: Saved } | null>(null);
+  const key = useAccountKey("getting-started");
+  const read = useAccountRead(key, savedOf, NOTHING_SAVED);
+  // A press, even on the copy, is newer than any read.
+  const [pressed, setPressed] = useState<{ key: string; value: Saved } | null>(null);
   // Drawn from with the sidebar until the store is read. None on a device
   // that has never shown the list, which then appears once it is read.
   const copy = useMemo(() => (key ? cleaned(copies()[key.key]) : null), [key]);
-  const loaded = key && saved?.key === key.key ? saved.value : null;
+  const loaded = key ? (pressed?.key === key.key ? pressed.value : (read ?? null)) : null;
   const current = loaded ?? copy;
-  // The key last pressed for: a press on the copy is newer than any read.
-  const pressed = useRef<string | null>(null);
   // Notification permission changes outside the app, so look again on return.
   const [, recheck] = useState(0);
   // How often the whole list has been opened: its rows come in afresh each time.
@@ -112,26 +108,12 @@ export function GettingStarted(props: {
   const listId = useId();
 
   useEffect(() => {
-    if (!key) return;
-    let alive = true;
-    readWorkspaceStorage<Saved>(platform, key)
-      .catch(() => null)
-      .then((value) => {
-        if (!alive || pressed.current === key.key) return;
-        const read = value && typeof value === "object" ? value : {};
-        setSaved({ key: key.key, value: read });
-        keepCopy(key.key, read);
-      });
-    return () => {
-      alive = false;
-    };
-  }, [platform, key]);
+    if (key && loaded) keepCopy(key.key, loaded);
+  }, [key, loaded]);
 
   const save = (next: Saved) => {
     if (!key) return;
-    pressed.current = key.key;
-    setSaved({ key: key.key, value: next });
-    keepCopy(key.key, next);
+    setPressed({ key: key.key, value: next });
     // Losing this only shows the list again; nothing to report.
     writeWorkspaceStorage(platform, key, next).catch(() => {});
   };

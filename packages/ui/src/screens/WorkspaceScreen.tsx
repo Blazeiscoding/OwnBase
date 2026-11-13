@@ -41,7 +41,7 @@ import { previewAccount, previewFor, useNotificationPreviews } from "../lib/noti
 import { focusOrigin } from "../lib/opener.js";
 import { useFocusedView } from "../lib/focusedView.js";
 import { HuddleButton } from "../components/HuddleButton.js";
-import { Banner, BannerAction } from "../components/Banner.js";
+import { Banner, BannerAction, BannerQueue } from "../components/Banner.js";
 import { MemberNoticeBanner } from "../components/MemberNotice.js";
 import { ServerNoticeBanner } from "../components/ServerNotice.js";
 import { UpdateBanner, useReportCall } from "../components/Updates.js";
@@ -430,12 +430,6 @@ function WorkspaceLayout(props: { restore: boolean; banner?: ReactNode }) {
     lastChannel.current = channelId;
     if (nav.state.cover.call) setHuddleView("chat");
   }, [channelId, nav, setHuddleView]);
-  /** The notifications ask is on show, so a hint waits behind it. */
-  const [asking, setAsking] = useState(false);
-  /** A server notice is on show, so the member notice after it waits (P6). */
-  const [noticeShowing, setNoticeShowing] = useState(false);
-  /** A new version's notice is on show, so the member notice waits. */
-  const [updateShowing, setUpdateShowing] = useState(false);
 
   useEffect(() => {
     // Failing here is not final: opening the palette, search, a thread, a hint or an emoji picker fetches it again.
@@ -662,47 +656,47 @@ function WorkspaceLayout(props: { restore: boolean; banner?: ReactNode }) {
               the server's extensions say (P6), then a new version of the
               desktop app, then a workspace with more members than its plan
               includes (P5). */}
-          {error ? (
-            <Banner
-              tone="alert"
-              actions={
-                <>
-                  {error === lostDraftsNote && (
-                    <BannerAction
-                      onClick={() => {
-                        nav.dismissError();
-                        nav.navigate({ to: "panel", panel: { kind: "drafts" } });
-                      }}
-                    >
-                      Show drafts
-                    </BannerAction>
-                  )}
-                  <BannerAction onClick={() => nav.dismissError()}>Dismiss</BannerAction>
-                </>
-              }
-            >
-              {error}
-            </Banner>
-          ) : props.banner ? (
-            props.banner
-          ) : (
-            <>
-              {platform.kind !== "desktop" && typeof Notification !== "undefined" && (
-                // The ask is a courtesy: if it cannot load, the workspace carries on without it.
-                <ErrorBoundary fallback={<span hidden />}>
-                  <Suspense fallback={null}>
-                    <NotificationBanner storage={platform.storage} onShowing={setAsking} />
-                  </Suspense>
-                </ErrorBoundary>
-              )}
-              {navigating && !asking && <Banner tone="status">Opening message…</Banner>}
-              {!navigating && !asking && <ServerNoticeBanner onShowing={setNoticeShowing} />}
-              {!navigating && !asking && !noticeShowing && (
-                <UpdateBanner onShowing={setUpdateShowing} />
-              )}
-              {!navigating && !asking && !noticeShowing && !updateShowing && <MemberNoticeBanner />}
-            </>
-          )}
+          <BannerQueue
+            banners={[
+              error && (
+                <Banner
+                  tone="alert"
+                  actions={
+                    <>
+                      {error === lostDraftsNote && (
+                        <BannerAction
+                          onClick={() => {
+                            nav.dismissError();
+                            nav.navigate({ to: "panel", panel: { kind: "drafts" } });
+                          }}
+                        >
+                          Show drafts
+                        </BannerAction>
+                      )}
+                      <BannerAction onClick={() => nav.dismissError()}>Dismiss</BannerAction>
+                    </>
+                  }
+                >
+                  {error}
+                </Banner>
+              ),
+              props.banner,
+              platform.kind !== "desktop" &&
+                typeof Notification !== "undefined" &&
+                ((onShowing) => (
+                  // The ask is a courtesy: if it cannot load, the workspace carries on without it.
+                  <ErrorBoundary fallback={<span hidden />}>
+                    <Suspense fallback={null}>
+                      <NotificationBanner storage={platform.storage} onShowing={onShowing} />
+                    </Suspense>
+                  </ErrorBoundary>
+                )),
+              navigating && <Banner tone="status">Opening message…</Banner>,
+              (onShowing) => <ServerNoticeBanner onShowing={onShowing} />,
+              (onShowing) => <UpdateBanner onShowing={onShowing} />,
+              (onShowing) => <MemberNoticeBanner onShowing={onShowing} />,
+            ]}
+          />
 
           {channelId ? (
             // The call beside the chat on a wide window, over it otherwise.

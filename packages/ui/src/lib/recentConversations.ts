@@ -1,17 +1,16 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import type { ID } from "@ownbase/protocol";
-import { useClient, usePlatform, useWorkspace } from "../context.js";
-import {
-  readWorkspaceStorage,
-  updateWorkspaceStorage,
-  workspaceStorageKey,
-} from "@ownbase/client-core";
+import { usePlatform } from "../context.js";
+import { updateWorkspaceStorage } from "@ownbase/client-core";
+import { useAccountKey, useAccountRead } from "./accountStorage.js";
 
 /** How many conversations Ctrl+K remembers having been open. */
 export const RECENT_LIMIT = 12;
 
 /** Channel ids never contain anything else. */
 const TOKEN = /^[A-Za-z0-9_-]{1,64}$/;
+
+const NONE: ID[] = [];
 
 function valid(value: unknown): ID[] {
   return Array.isArray(value)
@@ -32,34 +31,23 @@ export function withRecent(list: readonly ID[], id: ID): ID[] {
  */
 export function useRecentConversations() {
   const platform = usePlatform();
-  const client = useClient();
-  const selfId = useWorkspace((s) => s.self?.id);
-  const workspaceId = useWorkspace((s) => s.workspaceId);
-  const key = useMemo(
-    () => workspaceStorageKey(client.baseUrl, workspaceId, selfId, "recent-conversations"),
-    [client.baseUrl, workspaceId, selfId],
-  );
-  const [recent, setRecent] = useState<ID[]>([]);
-
-  useEffect(() => {
-    setRecent([]);
-    if (!key) return;
-    let current = true;
-    readWorkspaceStorage<unknown>(platform, key)
-      .then(valid)
-      .catch(() => [])
-      .then((stored) => {
-        // Anything opened while it was read is newer than what was stored.
-        if (current) setRecent((opened) => opened.reduceRight(withRecent, stored));
-      });
-    return () => {
-      current = false;
-    };
-  }, [platform, key]);
+  const key = useAccountKey("recent-conversations", true);
+  const stored = useAccountRead(key, valid, NONE);
+  /** Opened here, newest first, for the key they were opened under. */
+  const [opened, setOpened] = useState<{ key: string | undefined; ids: ID[] }>({
+    key: undefined,
+    ids: NONE,
+  });
+  const here = opened.key === key?.key ? opened.ids : NONE;
+  // Anything opened here is newer than what was stored, read or not yet.
+  const recent = useMemo(() => here.reduceRight(withRecent, stored ?? NONE), [here, stored]);
 
   const remember = useCallback(
     (channelId: ID) => {
-      setRecent((list) => (list[0] === channelId ? list : withRecent(list, channelId)));
+      setOpened((was) => {
+        const ids = was.key === key?.key ? was.ids : NONE;
+        return ids[0] === channelId ? was : { key: key?.key, ids: withRecent(ids, channelId) };
+      });
       if (!key) return;
       // Losing this costs Ctrl+K its order once; nothing to report.
       updateWorkspaceStorage(platform, key, (stored) => withRecent(valid(stored), channelId)).catch(

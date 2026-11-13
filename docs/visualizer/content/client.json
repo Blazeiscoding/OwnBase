@@ -1185,6 +1185,26 @@
       "concepts": ["navigation memory", "account scope", "write deduplication"]
     },
     {
+      "path": "packages/ui/src/lib/accountStorage.ts",
+      "plain": "Reads what one account keeps for one workspace on this device, such as the last conversation open or the getting-started list.",
+      "summary": "useAccountKey and useAccountRead: the scoped key, and one read of it per key.",
+      "details": [
+        "useAccountKey makes the workspace and account key with workspaceStorageKey. Only recent-conversations, kept before workspaces had ids, keeps its old key and is stored wrapped; last-conversation, getting-started and keep-account-offer were only ever stored plain under the new key, and stay so.",
+        "useAccountRead gives undefined until storage answers, then the parsed value, or the caller's unreadable answer when the read fails. Each caller keeps its own rule for a change made before the read answers, and its own write."
+      ],
+      "concepts": ["account scope", "device storage"]
+    },
+    {
+      "path": "packages/ui/src/lib/noticeSnooze.ts",
+      "plain": "Remembers when you pressed Not now on a notice, so it stays away for two weeks on this device.",
+      "summary": "NOTICE_SNOOZE_MS, snoozedUnder, keepSnoozed and useSnoozed for the member, server and notifications notices.",
+      "details": [
+        "Each notice keeps its own key, unchanged: memberNoticeSnoozedAt:<workspace>, serverNoticeSnoozedAt:<workspace>:<notice id>, notificationPromptSnoozedAt, holding the time Not now was pressed.",
+        "Unknown until storage answers, so a snoozed notice does not flash first; a read that fails counts as not snoozed, and a write that fails still puts the notice away for now."
+      ],
+      "concepts": ["notices", "device storage"]
+    },
+    {
       "path": "packages/ui/src/lib/recentSearches.ts",
       "plain": "Remembers your ten most recent searches for each account, moving a repeated search back to the top.",
       "summary": "Maintains up to ten recent searches within an account's workspace scope.",
@@ -2454,7 +2474,7 @@
       "details": [
         "Appears after sign-in rather than asking from an unrelated first click. Not now defers the banner for two weeks on this device.",
         "An explicit browser denial remains quiet until site permission changes, and the native desktop notification adapter does not need this banner.",
-        "It sits in the workspace's one banner place and gives way to anything more pressing (UX-25). onShowing tells the workspace whether it is on show, so the Opening message… hint behind it waits."
+        "It sits in the workspace's one banner place and gives way to anything more pressing (UX-25). onShowing tells the banner place whether it is on show, so the Opening message… hint behind it waits."
       ],
       "concepts": ["notification permission", "gesture ownership", "respectful prompting", "UX-25"]
     },
@@ -2541,7 +2561,7 @@
       "details": [
         "Banner takes a tone, its words and optional actions at its end. An alert is tinted and read out at once by a screen reader; a status is a quiet passing note.",
         "BannerAction is a button whose words underline on hover, as a link would, such as Dismiss or Retry saving.",
-        "Which banner shows is WorkspaceScreen's choice, one at a time. App builds the one for sign-ins this device could not save, which the storage gate also shows while the workspace is not open yet."
+        "BannerQueue is the place itself: banners in order of how pressing they are, each drawn only while none before it is on show. A plain banner is on show whenever it is given; a notice that waits for storage gets an onShowing to say so. WorkspaceScreen lists them. App builds the one for sign-ins this device could not save, which the storage gate also shows while the workspace is not open yet."
       ],
       "concepts": ["banners", "UX-25"]
     },
