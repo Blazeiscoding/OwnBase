@@ -1,4 +1,4 @@
-import { z } from "zod";
+import { z } from "./zod.js";
 import type { AppScope, ChannelType } from "./entities.js";
 import type { WorkspaceEvent } from "./events.js";
 

@@ -8,6 +8,7 @@ import {
 import { GuardContext, useGuardRegistry, type GuardRegistry } from "../lib/dismissGuard.js";
 import { createPortal } from "react-dom";
 import { isImeKey } from "../lib/textInput.js";
+import { focusOrigin } from "../lib/opener.js";
 
 interface Layer {
   root: HTMLDivElement;
@@ -461,7 +462,7 @@ export function Modal({
   const panel = useRef<HTMLDivElement>(null);
   const layer = useRef<Layer | null>(null);
   const lastFocus = useRef<HTMLElement | null>(null);
-  const opener = useRef(focusedElement());
+  const opener = useRef(focusOrigin());
   const around = useRef(surrounding(opener.current));
   const owner = useRef(ownerOf(opener.current));
   const close = useRef(onClose);

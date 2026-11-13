@@ -240,6 +240,50 @@ async function skipDeviceCheck(page: Page) {
 }
 
 /**
+ * A browser context with a microphone and a camera a call can use, in each
+ * engine. Chromium's come from its launch flags (the chromium project) and
+ * Firefox's from the preferences in its project. Playwright's WebKit has mock
+ * devices of its own behind the same permissions as Chromium's. On Windows
+ * it is built without WebRTC, and the call scenarios skip there.
+ */
+function mediaContext(browser: Browser, browserName: string) {
+  return browser.newContext(
+    browserName === "firefox" ? {} : { permissions: ["microphone", "camera"] },
+  );
+}
+
+/**
+ * Whether a script can make touches to send. Desktop WebKit, which is what
+ * Playwright runs, has touch events but no Touch constructor; Safari on an
+ * iPhone makes real ones, so what a test cannot send there is left untried.
+ */
+function makesTouches(page: Page) {
+  return page.evaluate(() => {
+    try {
+      new Touch({ identifier: 1, target: document.body });
+      return true;
+    } catch {
+      return false;
+    }
+  });
+}
+
+/** Collects each RTCPeerConnection the page makes, as `window.peers`. */
+async function trackPeers(page: Page) {
+  await page.addInitScript(() => {
+    const Original = window.RTCPeerConnection;
+    if (!Original) return;
+    (window as any).peers = [];
+    window.RTCPeerConnection = class extends Original {
+      constructor(config?: RTCConfiguration) {
+        super(config);
+        (window as any).peers.push(this);
+      }
+    };
+  });
+}
+
+/**
  * Waits for what is moving to stop, such as a sheet rising or a panel
  * stepping in, so a place is measured where it comes to rest. Loops, such as
  * a spinner, never stop and are not waited for.
@@ -382,6 +426,183 @@ test(
     await expect(page.getByText("serving this page")).toBeVisible();
   },
 );
+
+test("two people trade messages, edit and delete one, share a picture that opens full size, and sign out @smoke", async ({
+  browser,
+}) => {
+  const folder = mkdtempSync(join(tmpdir(), "ownbase-picture-"));
+  const picture = join(folder, "mock.png");
+  writeFileSync(picture, solidPng(320, 200));
+  const aliceContext = await browser.newContext();
+  const bobbyContext = await browser.newContext();
+  const alice = await aliceContext.newPage();
+  const bobby = await bobbyContext.newPage();
+  const errors: string[] = [];
+  for (const page of [alice, bobby]) {
+    page.on("pageerror", (error) => errors.push(error.message));
+    // A blocked resource or eval is reported to the console, not thrown.
+    // Chromium writes "Content Security Policy", Firefox "Content-Security-Policy".
+    page.on("console", (m) => {
+      if (/Content.Security.Policy/.test(m.text())) errors.push(m.text());
+    });
+  }
+  try {
+    await signIn(alice, "alice");
+    await signIn(bobby, "bobby");
+    await alice.locator("textarea").fill("Morning, Bobby");
+    await alice.locator("textarea").press("Enter");
+    await expect(bobby.getByRole("article").filter({ hasText: "Morning, Bobby" })).toBeVisible();
+    await takesTyping(bobby.locator("textarea"));
+    await bobby.locator("textarea").fill("Morning! Coffee?");
+    await bobby.locator("textarea").press("Enter");
+    await expect(alice.getByRole("article").filter({ hasText: "Morning! Coffee?" })).toBeVisible();
+
+    // Alice edits her message, and Bobby's copy follows.
+    const sent = alice.getByRole("article").filter({ hasText: "Morning, Bobby" });
+    await alice.mouse.move(0, 0);
+    await sent.hover();
+    await sent.getByRole("button", { name: "Edit message", exact: true }).click();
+    const editor = alice.getByRole("textbox", { name: "Edit message", exact: true });
+    await editor.fill("Morning, Bobby, and welcome back");
+    await editor.press("Enter");
+    await expect(bobby.getByText("Morning, Bobby, and welcome back")).toBeVisible();
+
+    // One sent by mistake goes, from both screens.
+    await takesTyping(alice.locator("textarea"));
+    await alice.locator("textarea").fill("Wrong channel, sorry");
+    await alice.locator("textarea").press("Enter");
+    const mistake = alice.getByRole("article").filter({ hasText: "Wrong channel, sorry" });
+    // The rows, not any text: a screen reader's live log keeps the last arrival.
+    const mistakeForBobby = bobby.getByRole("article").filter({ hasText: "Wrong channel, sorry" });
+    await expect(mistakeForBobby).toBeVisible();
+    await alice.mouse.move(0, 0);
+    await mistake.hover();
+    await mistake.getByRole("button", { name: "More actions", exact: true }).click();
+    await alice.getByRole("menuitem", { name: /^Delete message/ }).click();
+    await alice
+      .getByRole("dialog", { name: "Delete this message?", exact: true })
+      .getByRole("button", { name: "Delete", exact: true })
+      .click();
+    await expect(mistake).toHaveCount(0);
+    await expect(mistakeForBobby).toHaveCount(0);
+
+    // A picture from the + menu reaches Bobby, and opens full size.
+    await takesTyping(alice.locator("textarea"));
+    const chooser = alice.waitForEvent("filechooser");
+    await alice.getByRole("button", { name: "Add to message", exact: true }).click();
+    await alice.getByRole("menuitem", { name: "Upload a file", exact: true }).click();
+    await (await chooser).setFiles(picture);
+    await alice.locator("textarea").fill("The new mock");
+    await alice.locator("textarea").press("Enter");
+    const preview = bobby.getByRole("button", { name: "Open image mock.png", exact: true });
+    await expect
+      .poll(() => preview.locator("img").evaluate((image: HTMLImageElement) => image.naturalWidth))
+      .toBe(320);
+    await preview.click();
+    const viewer = bobby.getByRole("dialog", { name: "Image mock.png", exact: true });
+    await expect
+      .poll(() =>
+        viewer
+          .locator("img")
+          .first()
+          .evaluate((image: HTMLImageElement) => image.naturalWidth),
+      )
+      .toBe(320);
+    await bobby.keyboard.press("Escape");
+    await expect(viewer).toHaveCount(0);
+
+    // Account settings open and close. They load the forms' checks, which
+    // once asked the browser for eval and were refused.
+    await bobby.getByRole("button", { name: /, your account$/ }).click();
+    await bobby.getByRole("menuitem", { name: "Account settings", exact: true }).click();
+    const settings = bobby.getByRole("dialog", { name: "Account settings" });
+    await expect(settings.getByRole("searchbox", { name: "Search settings" })).toBeVisible();
+    await bobby.keyboard.press("Escape");
+    await expect(settings).toHaveCount(0);
+
+    // Signed out, Bobby is back at the sign-in card.
+    await bobby.getByRole("button", { name: /, your account$/ }).click();
+    await bobby.getByRole("menuitem", { name: "Sign out", exact: true }).click();
+    await bobby
+      .getByRole("dialog", { name: "Sign out of this workspace?", exact: true })
+      .getByRole("button", { name: "Sign out", exact: true })
+      .click();
+    await expect(bobby.getByLabel("Username", { exact: true })).toBeVisible();
+    expect(errors).toEqual([]);
+  } finally {
+    await aliceContext.close().catch(() => {});
+    await bobbyContext.close().catch(() => {});
+    rmSync(folder, { recursive: true, force: true });
+  }
+});
+
+test("two people in a huddle hear each other and see a camera, in every browser @smoke", async ({
+  browser,
+  browserName,
+}) => {
+  const a = await mediaContext(browser, browserName);
+  const b = await mediaContext(browser, browserName);
+  try {
+    const alice = await a.newPage();
+    const bobby = await b.newPage();
+    for (const page of [alice, bobby]) {
+      await trackPeers(page);
+      await skipDeviceCheck(page);
+    }
+    await signIn(alice, "alice");
+    await signIn(bobby, "bobby");
+    test.skip(
+      await alice.evaluate(() => typeof RTCPeerConnection === "undefined"),
+      "This build of the browser has no WebRTC (Playwright's WebKit on Windows).",
+    );
+    await alice.getByRole("button", { name: "Start a huddle", exact: true }).click();
+    await expect(alice.getByText("Huddle in #general", { exact: true })).toBeVisible();
+    await bobby.getByRole("button", { name: "Join the huddle with alice", exact: true }).click();
+    for (const page of [alice, bobby]) {
+      await expect
+        .poll(() =>
+          page.evaluate(() =>
+            (window as any).peers.some((p: RTCPeerConnection) => p.connectionState === "connected"),
+          ),
+        )
+        .toBe(true);
+      await expect
+        .poll(() =>
+          page.evaluate(async () => {
+            let bytes = 0;
+            for (const pc of (window as any).peers as RTCPeerConnection[])
+              (await pc.getStats()).forEach((r) => {
+                if (r.type === "inbound-rtp" && r.kind === "audio") bytes += r.bytesReceived;
+              });
+            return bytes;
+          }),
+        )
+        .toBeGreaterThan(0);
+    }
+    await alice.getByRole("button", { name: "Camera", exact: true, pressed: false }).click();
+    await expect
+      .poll(() =>
+        bobby
+          .locator("video")
+          .evaluateAll((videos) => videos.some((v) => (v as HTMLVideoElement).videoWidth > 0)),
+      )
+      .toBe(true);
+    const stage = bobby.getByRole("region", { name: "Huddle call" });
+    await expect(stage.getByRole("group", { name: "alice", exact: true })).toBeVisible();
+    await alice.getByRole("button", { name: "Leave", exact: true }).click();
+    await bobby.getByRole("button", { name: "Leave", exact: true }).click();
+    await expect
+      .poll(() =>
+        alice.evaluate(() =>
+          (window as any).peers.every((p: RTCPeerConnection) => p.connectionState === "closed"),
+        ),
+      )
+      .toBe(true);
+  } finally {
+    await a.close().catch(() => {});
+    await b.close().catch(() => {});
+  }
+});
 
 test(
   "two people register, chat, become friends, reconnect, and exchange real WebRTC media",
@@ -1794,8 +2015,9 @@ async function launchProfile(profile: string) {
   return { browser, context, open, kill };
 }
 
-test("the composer shows mentions as names while typing, and sends them as ids", async ({
+test("the composer shows mentions as names while typing, and sends them as ids @smoke", async ({
   page,
+  browserName,
 }) => {
   await signIn(page, "alice");
   const composer = page.getByRole("textbox", { name: "Message #general", exact: true });
@@ -1846,10 +2068,20 @@ test("the composer shows mentions as names while typing, and sends them as ids",
   expect(await composer.evaluate((el) => (el as HTMLTextAreaElement).selectionStart)).toBe(11);
 
   // An input method composes after the mention without disturbing it.
-  const cdp = await page.context().newCDPSession(page);
-  await cdp.send("Input.imeSetComposition", { text: "に", selectionStart: 1, selectionEnd: 1 });
-  await cdp.send("Input.imeSetComposition", { text: "にほん", selectionStart: 3, selectionEnd: 3 });
-  await cdp.send("Input.insertText", { text: "日本" });
+  // Only Chromium lets a test drive one (through CDP); elsewhere the words
+  // arrive as typing does.
+  if (browserName === "chromium") {
+    const cdp = await page.context().newCDPSession(page);
+    await cdp.send("Input.imeSetComposition", { text: "に", selectionStart: 1, selectionEnd: 1 });
+    await cdp.send("Input.imeSetComposition", {
+      text: "にほん",
+      selectionStart: 3,
+      selectionEnd: 3,
+    });
+    await cdp.send("Input.insertText", { text: "日本" });
+  } else {
+    await page.keyboard.insertText("日本");
+  }
   await expect(composer).toHaveValue("ask @bobby 日本");
   await page.keyboard.press("Enter");
   await expect.poll(latest).toBe(`ask <@${bobby}> 日本`);
@@ -2435,7 +2667,7 @@ test("deactivating someone signs them out of the app they already have open", as
   }
 });
 
-test("a poll made from the + menu takes votes from two browsers, each seeing the other's (E6)", async ({
+test("a poll made from the + menu takes votes from two browsers, each seeing the other's (E6) @smoke", async ({
   browser,
 }) => {
   const aliceContext = await browser.newContext({ viewport: { width: 1280, height: 820 } });
@@ -3196,8 +3428,9 @@ test("the demo seed fills a new workspace with something to try, and leaves one 
   }
 });
 
-test("Back, Forward and a reload return to the conversation, thread and panel someone was in", async ({
+test("Back, Forward and a reload return to the conversation, thread and panel someone was in @smoke", async ({
   browser,
+  browserName,
 }) => {
   test.setTimeout(90_000);
   const port = 18546;
@@ -3424,8 +3657,12 @@ test("Back, Forward and a reload return to the conversation, thread and panel so
     await expect(again.locator(".channel-header h2")).toHaveText("#design");
     await expect(again).toHaveURL(`${origin}/#/c/${design.id}`);
     // Back leaves the app rather than stopping in #general on the way.
+    // Firefox keeps no history entry for a new tab's first blank page, so
+    // there Back has nowhere to go and the conversation stays.
     await again.goBack();
-    await expect(again).toHaveURL("about:blank");
+    await expect(again).toHaveURL(
+      browserName === "firefox" ? `${origin}/#/c/${design.id}` : "about:blank",
+    );
     await again.close();
     // Once that conversation is archived, the next start lands in #general.
     await fetch(`${origin}/api/channels/${design.id}`, {
@@ -3536,7 +3773,7 @@ test("Back, Forward and a reload return to the conversation, thread and panel so
   }
 });
 
-test("on a touchscreen each message offers its actions in a menu, and any emoji as a reaction", async ({
+test("on a touchscreen each message offers its actions in a menu, and any emoji as a reaction @smoke", async ({
   browser,
 }) => {
   test.setTimeout(90_000);
@@ -3634,29 +3871,35 @@ test("on a touchscreen each message offers its actions in a menu, and any emoji 
 
     // Holding the message opens the same actions as a sheet along the bottom,
     // with a row of reactions a thumb reaches in one more tap.
-    await row.getByText("Launch is on Friday", { exact: true }).evaluate(async (text) => {
-      const at = text.getBoundingClientRect();
-      const touch = new Touch({
-        identifier: 1,
-        target: text,
-        clientX: at.left + 4,
-        clientY: at.top + 4,
+    if (await makesTouches(page)) {
+      await row.getByText("Launch is on Friday", { exact: true }).evaluate(async (text) => {
+        const at = text.getBoundingClientRect();
+        const touch = new Touch({
+          identifier: 1,
+          target: text,
+          clientX: at.left + 4,
+          clientY: at.top + 4,
+        });
+        text.dispatchEvent(
+          new TouchEvent("touchstart", {
+            bubbles: true,
+            touches: [touch],
+            changedTouches: [touch],
+          }),
+        );
+        await new Promise((resolve) => setTimeout(resolve, 600));
+        text.dispatchEvent(
+          new TouchEvent("touchend", { bubbles: true, touches: [], changedTouches: [touch] }),
+        );
       });
-      text.dispatchEvent(
-        new TouchEvent("touchstart", { bubbles: true, touches: [touch], changedTouches: [touch] }),
-      );
-      await new Promise((resolve) => setTimeout(resolve, 600));
-      text.dispatchEvent(
-        new TouchEvent("touchend", { bubbles: true, touches: [], changedTouches: [touch] }),
-      );
-    });
-    await expect(menu).toBeVisible();
-    await expectInsideViewport(page, menu);
-    const sheet = (await menu.boundingBox())!;
-    expect(sheet.y + sheet.height).toBeGreaterThan(844 - 120);
-    await page.getByRole("button", { name: "React with 👍", exact: true }).tap();
-    await expect(menu).toHaveCount(0);
-    await expect(row.getByRole("button", { name: /👍\s*1/ })).toBeVisible();
+      await expect(menu).toBeVisible();
+      await expectInsideViewport(page, menu);
+      const sheet = (await menu.boundingBox())!;
+      expect(sheet.y + sheet.height).toBeGreaterThan(844 - 120);
+      await page.getByRole("button", { name: "React with 👍", exact: true }).tap();
+      await expect(menu).toHaveCount(0);
+      await expect(row.getByRole("button", { name: /👍\s*1/ })).toBeVisible();
+    }
 
     await more.tap();
     await menu.getByRole("menuitem", { name: "Reply in thread", exact: true }).tap();
@@ -3675,7 +3918,7 @@ test("on a touchscreen each message offers its actions in a menu, and any emoji 
   }
 });
 
-test("on a phone the bottom bar reaches Activity and a DM without the drawer, below the composer (UX-70)", async ({
+test("on a phone the bottom bar reaches Activity and a DM without the drawer, below the composer (UX-70) @smoke", async ({
   browser,
 }) => {
   const login = async (handle: string) =>
@@ -3810,23 +4053,25 @@ test("on a phone the bottom bar reaches Activity and a DM without the drawer, be
     await expect(item("Home")).toBeFocused();
 
     // A swipe in from the left edge opens it too.
-    await page.locator("main").evaluate(async (main) => {
-      const at = (x: number) =>
-        new Touch({ identifier: 1, target: main, clientX: x, clientY: 400 });
-      const send = (type: string, touch: Touch | null, last: Touch) =>
-        main.dispatchEvent(
-          new TouchEvent(type, {
-            bubbles: true,
-            touches: touch ? [touch] : [],
-            changedTouches: [last],
-          }),
-        );
-      send("touchstart", at(14), at(14));
-      send("touchmove", at(50), at(50));
-      send("touchmove", at(110), at(110));
-      send("touchend", null, at(110));
-    });
-    await expect(drawer).toBeVisible();
+    if (await makesTouches(page)) {
+      await page.locator("main").evaluate(async (main) => {
+        const at = (x: number) =>
+          new Touch({ identifier: 1, target: main, clientX: x, clientY: 400 });
+        const send = (type: string, touch: Touch | null, last: Touch) =>
+          main.dispatchEvent(
+            new TouchEvent(type, {
+              bubbles: true,
+              touches: touch ? [touch] : [],
+              changedTouches: [last],
+            }),
+          );
+        send("touchstart", at(14), at(14));
+        send("touchmove", at(50), at(50));
+        send("touchmove", at(110), at(110));
+        send("touchend", null, at(110));
+      });
+      await expect(drawer).toBeVisible();
+    }
   } finally {
     await context.close().catch(() => {});
   }
@@ -3940,7 +4185,7 @@ test("Jump to keeps a name and an Enter typed before its code has arrived", asyn
   await expect(page.getByRole("textbox", { name: "Message #design" })).toBeFocused();
 });
 
-test("somebody with only a keyboard signs in, switches channel, replies, reacts, searches and opens settings", async ({
+test("somebody with only a keyboard signs in, switches channel, replies, reacts, searches and opens settings @smoke", async ({
   browser,
 }) => {
   test.setTimeout(90_000);
@@ -4573,7 +4818,7 @@ test("a visitor joins with only a name where guests are allowed, and can keep it
   }
 });
 
-test("reading a thread on a phone leaves an unseen mention in its channel unread", async ({
+test("reading a thread on a phone leaves an unseen mention in its channel unread @smoke", async ({
   browser,
 }) => {
   test.setTimeout(90_000);
@@ -4695,6 +4940,9 @@ test("reading a thread on a phone leaves an unseen mention in its channel unread
     await expect(nav.getByLabel("Threads with unread replies", { exact: true })).toHaveCount(0);
 
     await page.keyboard.press("Escape");
+    // The drawer closes by going Back. A reload before that lands would
+    // reload the drawer's own history entry, as it did in WebKit.
+    await expect(openNavigation).toHaveAttribute("aria-expanded", "false");
 
     // And after a reload, which connects again from nothing.
     await page.reload();
@@ -4713,7 +4961,9 @@ test("reading a thread on a phone leaves an unseen mention in its channel unread
   }
 });
 
-test("a browser refetches authenticated file bytes after access is revoked", async ({ page }) => {
+test("a browser refetches authenticated file bytes after access is revoked @smoke", async ({
+  page,
+}) => {
   const registerAccount = async (handle: string) => {
     const response = await fetch(`${base}/api/auth/register`, {
       method: "POST",
@@ -4943,7 +5193,7 @@ test("the client arrives compressed, and a second visit reuses its hashed files"
   await cdp.detach();
 });
 
-test("a message is answered in place or in its thread, as in Discord", async ({ page }) => {
+test("a message is answered in place or in its thread, as in Discord @smoke", async ({ page }) => {
   // Bobby asks, then the channel moves on far enough to scroll it out of view.
   const login = await fetch(`${base}/api/auth/login`, {
     method: "POST",
@@ -5483,7 +5733,7 @@ test("an admin uploads the workspace's icon, everyone signed in sees it, and so 
   }
 });
 
-test("a picture, a time zone and away set in one browser reach the other as they change (E9)", async ({
+test("a picture, a time zone and away set in one browser reach the other as they change (E9) @smoke", async ({
   browser,
 }) => {
   // A picture taller than it is wide, as a phone takes one: the browser cuts it square.
@@ -5569,18 +5819,23 @@ test("a picture, a time zone and away set in one browser reach the other as they
   }
 });
 
-test("a huddle in a direct message rings the other browser, which can decline, answer or miss it (E10)", async ({
+test("a huddle in a direct message rings the other browser, which can decline, answer or miss it (E10) @smoke", async ({
   browser,
+  browserName,
 }) => {
   test.setTimeout(120_000);
-  const a = await browser.newContext({ permissions: ["microphone"] });
-  const b = await browser.newContext({ permissions: ["microphone"] });
+  const a = await mediaContext(browser, browserName);
+  const b = await mediaContext(browser, browserName);
   try {
     const alice = await a.newPage();
     const bob = await b.newPage();
     for (const page of [alice, bob]) await skipDeviceCheck(page);
     await signIn(alice, "alice");
     await signIn(bob, "bobby");
+    test.skip(
+      await alice.evaluate(() => typeof RTCPeerConnection === "undefined"),
+      "This build of the browser has no WebRTC (Playwright's WebKit on Windows).",
+    );
     const headers = { authorization: `Bearer ${await savedToken(alice)}` };
     const { users } = (await (await fetch(`${base}/api/users`, { headers })).json()) as {
       users: { id: string; handle: string }[];

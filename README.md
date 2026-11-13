@@ -94,6 +94,10 @@ Then open `http://localhost:8543`, sign in as `maya`, and try:
   browser with the invite code filled in. The desktop app has its own form of the
   same link, `ownbase://join?host=...&code=...`.
 - **No app.** The server serves a full browser client at `http://host:8543/`.
+  Every pull request runs it in Chromium, and its main paths, calls included,
+  in WebKit and Firefox. WebKit is the engine of Safari and of every browser on
+  an iPhone, but the tests run desktop WebKit on Linux, so iOS behaviour such as
+  the on-screen keyboard and Add to Home Screen is not tested.
 
 The first account created on a fresh server becomes its owner. Creating it on
 the machine running the server needs nothing more. From anywhere else,
@@ -555,10 +559,11 @@ pnpm test:e2e       # browser scenarios against the built server
 
 `pnpm build:win` writes the installer to `apps/desktop/release/`. Local builds
 are unsigned unless you configure a signing certificate. The browser scenarios need
-`pnpm exec playwright install chromium` once. CI covers the server, the browser
-client, Docker and the Windows app, in parallel jobs that take about four
-minutes. [CI duration and caching](docs/CI.md) has the build reuse, the
-installer selection and the measured times.
+`pnpm exec playwright install chromium webkit firefox` once (`--project=chromium`
+runs the Chromium scenarios alone). CI covers the server, the browser client,
+Docker and the Windows app, in parallel jobs that take about four minutes.
+[CI duration and caching](docs/CI.md) has the build reuse, the installer
+selection and the measured times.
 
 The app icon is a pixel drawing in `scripts/icon-art.mjs`. After changing it, run
 `node scripts/generate-palette.mjs` to rewrite the SVGs, then install Playwright's

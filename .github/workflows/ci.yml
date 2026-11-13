@@ -194,9 +194,10 @@ jobs:
           path: .turbo/cache
           key: ${{ steps.task-cache.outputs.cache-primary-key }}
 
-  # The browser suite in three parts, and the visual check beside them. Each
-  # builds the server and the client it serves, from the task cache when the
-  # checks job of an earlier run built the same source.
+  # The browser suite in three parts, the visual check beside them, and the
+  # smoke set in WebKit and Firefox. Each builds the server and the client it
+  # serves, from the task cache when the checks job of an earlier run built
+  # the same source.
   browser:
     name: browser (${{ matrix.part }})
     runs-on: ubuntu-latest
@@ -206,19 +207,32 @@ jobs:
         include:
           - part: e2e 1 of 3
             key: e2e-1
-            run: pnpm test:e2e --shard=1/3
+            run: pnpm test:e2e --project=chromium --shard=1/3
           - part: e2e 2 of 3
             key: e2e-2
-            run: pnpm test:e2e --shard=2/3
+            run: pnpm test:e2e --project=chromium --shard=2/3
           - part: e2e 3 of 3
             key: e2e-3
-            run: pnpm test:e2e --shard=3/3
+            run: pnpm test:e2e --project=chromium --shard=3/3
           # The main screens, in both themes on a desktop window and a phone,
           # against pictures taken on Linux, and axe on each (UX-15). A change
           # to how they look takes new pictures: see visual-baselines.yml.
           - part: visual
             key: visual
             run: pnpm test:visual
+          # The scenarios tagged @smoke in WebKit, the engine of every browser
+          # on an iPhone, and in Firefox (G14). One job for both took six
+          # minutes; each browser alone takes about half the tests' time.
+          - part: webkit
+            key: webkit
+            run: pnpm test:e2e --project=webkit
+            browsers: webkit
+            cache: playwright-other
+          - part: firefox
+            key: firefox
+            run: pnpm test:e2e --project=firefox
+            browsers: firefox
+            cache: playwright-other
     steps:
       - uses: actions/checkout@v7
       - uses: pnpm/action-setup@v6
@@ -239,9 +253,12 @@ jobs:
             turbo-${{ runner.os }}-${{ runner.arch }}-node-${{ steps.node.outputs.node-version }}-${{ hashFiles('pnpm-lock.yaml', 'turbo.json') }}-checks-
             turbo-${{ runner.os }}-${{ runner.arch }}-node-${{ steps.node.outputs.node-version }}-${{ hashFiles('pnpm-lock.yaml', 'turbo.json') }}-
       - run: pnpm exec turbo run build --filter=ownbase-server
-      # Chromium and its fonts come from caches caches.yml fills on main, and
-      # are only downloaded when the lockfile has moved on without them.
-      - uses: ./.github/actions/chromium
+      # The browsers and their packages come from caches caches.yml fills on
+      # main, and are only downloaded when the lockfile has moved on without them.
+      - uses: ./.github/actions/browsers
+        with:
+          browsers: ${{ matrix.browsers || 'chromium' }}
+          cache: ${{ matrix.cache || 'playwright' }}
       - run: ${{ matrix.run }}
       - uses: actions/upload-artifact@v7
         if: failure()

@@ -38,6 +38,7 @@ import { useHuddleView } from "../lib/huddleView.js";
 import { useHuddleEndedNotice } from "../lib/huddleEnded.js";
 import { useCallPreferences } from "../lib/callPreferences.js";
 import { previewAccount, previewFor, useNotificationPreviews } from "../lib/notificationPreview.js";
+import { focusOrigin } from "../lib/opener.js";
 import { useFocusedView } from "../lib/focusedView.js";
 import { HuddleButton } from "../components/HuddleButton.js";
 import { Banner, BannerAction } from "../components/Banner.js";
@@ -324,7 +325,7 @@ function useDrawer() {
   useEffect(() => {
     if (!open) return;
     const sidebar = document.querySelector<HTMLElement>('[aria-label="Workspace navigation"]');
-    const previous = document.activeElement as HTMLElement | null;
+    const previous = focusOrigin();
     // Jump to…, not the first button: the rail's buttons show a tooltip on
     // focus, which would take the Escape meant to close the drawer.
     (

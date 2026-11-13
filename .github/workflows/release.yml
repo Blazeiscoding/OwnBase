@@ -195,8 +195,8 @@ jobs:
         run: |
           mkdir -p apps/server-cli/dist
           tar -xzf release/ownbase-server-*.tar.gz -C apps/server-cli/dist
-      - uses: ./.github/actions/chromium
-      - run: pnpm test:e2e --shard=${{ matrix.shard }}/3
+      - uses: ./.github/actions/browsers
+      - run: pnpm test:e2e --project=chromium --shard=${{ matrix.shard }}/3
 
   windows:
     needs: [plan]

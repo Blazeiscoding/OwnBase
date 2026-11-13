@@ -98,6 +98,19 @@ describe("modal keyboard and focus ownership", () => {
     expect(screen.getByRole("button", { name: "Open settings" })).toHaveFocus();
   });
 
+  it("returns focus to a button pressed in Safari, which leaves focus on the page", async () => {
+    render(<Stacked />);
+    // As Safari presses a button: the pointer goes down and it is clicked,
+    // but focus does not move to it.
+    const opener = screen.getByRole("button", { name: "Open settings" });
+    fireEvent.pointerDown(opener);
+    fireEvent.click(opener);
+    expect(screen.getByRole("dialog", { name: "Settings" })).toBeInTheDocument();
+    fireEvent.keyDown(document.activeElement ?? document.body, { key: "Escape" });
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    expect(opener).toHaveFocus();
+  });
+
   it("gives focus to what holds the opener when the opener went out of sight", async () => {
     // A message's toolbar shows only while the pointer is over the message.
     function Message() {

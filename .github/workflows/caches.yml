@@ -3,7 +3,7 @@ name: Dependency caches
 # repeated a run that had just passed on the same code, and used almost half
 # of September's minutes. But a pull request can restore caches made on main
 # and nowhere else, so when the lockfile changes this refills the caches the
-# checks install from: the pnpm store on both systems, and the Chromium the
+# checks install from: the pnpm store on both systems, and the browsers the
 # browser tests use on Linux. It does nothing more.
 on:
   push:
@@ -34,25 +34,46 @@ jobs:
       - run: pnpm install --frozen-lockfile
         env:
           ELECTRON_SKIP_BINARY_DOWNLOAD: 1
-      - if: runner.os == 'Linux'
-        uses: actions/cache@v6
+
+  # Chromium for every browser job, WebKit and Firefox for the smoke set in
+  # them (.github/actions/browsers), each with the Linux packages it needs
+  # that the runner image lacks, as the files apt downloaded. Each check run
+  # hands them to apt, which installs them without going to Ubuntu's mirror,
+  # slow at times.
+  browsers:
+    name: browsers (${{ matrix.browsers }})
+    strategy:
+      matrix:
+        include:
+          - browsers: chromium
+            cache: playwright
+          - browsers: webkit firefox
+            cache: playwright-other
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: pnpm/action-setup@v6
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+        env:
+          ELECTRON_SKIP_BINARY_DOWNLOAD: 1
+      - uses: actions/cache@v6
         with:
           path: ~/.cache/ms-playwright
-          key: playwright-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml') }}
-      # And the Linux packages it needs that the runner image lacks, fonts
-      # alone so far, as the files apt downloaded. Each check run hands them
-      # to apt (.github/actions/chromium), which installs them without going
-      # to Ubuntu's mirror, slow at times.
-      - if: runner.os == 'Linux'
-        uses: actions/cache@v6
+          key: ${{ matrix.cache }}-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml') }}
+      - uses: actions/cache@v6
         with:
           path: ~/.cache/playwright-apt
-          key: playwright-apt-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml') }}
-      - if: runner.os == 'Linux'
+          key: ${{ matrix.cache }}-apt-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml') }}
+      - env:
+          BROWSERS: ${{ matrix.browsers }}
         run: |
           echo 'APT::Keep-Downloaded-Packages "true";' | sudo tee /etc/apt/apt.conf.d/99keep-downloads
           sudo rm -f /etc/apt/apt.conf.d/docker-clean
-          pnpm exec playwright install --with-deps chromium
+          pnpm exec playwright install --with-deps $BROWSERS
           mkdir -p ~/.cache/playwright-apt
           shopt -s nullglob
           debs=(/var/cache/apt/archives/*.deb)

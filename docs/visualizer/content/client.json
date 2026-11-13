@@ -1545,6 +1545,16 @@
       "concepts": ["panel accessibility", "focus ownership"]
     },
     {
+      "path": "packages/ui/src/lib/opener.ts",
+      "plain": "Remembers which button opened a dialog or panel, so the keyboard goes back to it when that closes, in Safari too.",
+      "summary": "focusOrigin: the focused element, or in Safari the control last pressed, as the opener to return focus to.",
+      "details": [
+        "Safari, and every browser on an iPhone, does not focus a button that is clicked or tapped, so focus is still on the page when a dialog, panel or the phone drawer opens.",
+        "A capturing pointerdown listener remembers the nearest pressable control; a keydown forgets it, so a shortcut pressed with focus on the page is not credited to an old press. Modal, usePanelFocus and the drawer read it."
+      ],
+      "concepts": ["focus ownership", "Safari", "dialog accessibility"]
+    },
+    {
       "path": "packages/ui/src/lib/useRovingMessages.ts",
       "plain": "Makes a long message list easy to move through by keyboard, one message at a time with the arrow keys.",
       "summary": "Turns a long message list into a practical keyboard navigation region.",
