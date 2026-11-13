@@ -38,6 +38,7 @@ import { resumeTime, snoozeOptions } from "../lib/snooze.js";
 import { modKey, shortcutLabel } from "../lib/shortcuts.js";
 import { useLongPress } from "../lib/useLongPress.js";
 import { useMediaQuery } from "../lib/useMediaQuery.js";
+import { TOUCH_QUERY } from "../lib/layout.js";
 import { AvatarWithPresence, PresenceDot } from "./Avatar.js";
 import { Badge } from "./Badge.js";
 import { Icon, type IconName } from "./Icon.js";
@@ -1394,7 +1395,7 @@ function ChannelRow(props: {
   // Holding the row opens its menu, on iOS too, where there is no right-click.
   const hold = useLongPress(props.menu && (() => setMenuOpen(true)));
   // A finger's hold is for the menu; iOS would start a drag with it instead.
-  const touch = useMediaQuery("(hover: none)");
+  const touch = useMediaQuery(TOUCH_QUERY);
   const dragStart = touch ? undefined : props.onDragStart;
   // The open conversation stays in sight, however it was opened: Alt+Down
   // through a long list went past the bottom of the sidebar and on unseen.

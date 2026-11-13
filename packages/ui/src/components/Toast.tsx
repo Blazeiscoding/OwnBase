@@ -239,10 +239,17 @@ function ToastItem({
   };
   const closeRef = useRef(close);
   closeRef.current = close;
+  // Gone once its way out has played: theme.css's toast-out on the notice.
   useEffect(() => {
     if (!leaving) return;
-    const gone = setTimeout(() => dismiss(id), 250);
-    return () => clearTimeout(gone);
+    let alive = true;
+    const out = element.current?.getAnimations() ?? [];
+    void Promise.allSettled(out.map((animation) => animation.finished)).then(() => {
+      if (alive) dismiss(id);
+    });
+    return () => {
+      alive = false;
+    };
   }, [dismiss, id, leaving]);
 
   useEffect(() => {

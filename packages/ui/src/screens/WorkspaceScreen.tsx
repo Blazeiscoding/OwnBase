@@ -64,6 +64,7 @@ import { useLastConversation } from "../lib/lastConversation.js";
 import { useRecentConversations } from "../lib/recentConversations.js";
 import { useRememberWorkspaceIcon } from "../lib/workspaceIcon.js";
 import { useMediaQuery } from "../lib/useMediaQuery.js";
+import { NARROW_QUERY, WIDE_QUERY } from "../lib/layout.js";
 import { loadEmoji } from "../lib/emoji.js";
 import { useHistoryKeys } from "../lib/historyKeys.js";
 import { useIdleReport } from "../lib/idle.js";
@@ -75,7 +76,6 @@ import { signedOutHow, type SignedOutHow } from "../lib/signOut.js";
 import {
   Navigation,
   NavigationContext,
-  WIDE,
   inView,
   reading,
   registerNavigation,
@@ -357,7 +357,7 @@ function useDrawer() {
   }, [open]);
 
   useEffect(() => {
-    const wide = window.matchMedia(WIDE);
+    const wide = window.matchMedia(WIDE_QUERY);
     const onResize = () => {
       if (wide.matches && nav.state.drawer) nav.closeDrawer();
     };
@@ -402,7 +402,7 @@ function WorkspaceLayout(props: { restore: boolean; banner?: ReactNode }) {
   // lays it out, so what it covers leaves the Tab order and the screen
   // reader's reading as the page does behind a dialog. The main landmark
   // around it stays, so the page still has one.
-  const narrow = useMediaQuery("(max-width: 1023px)");
+  const narrow = useMediaQuery(NARROW_QUERY);
   const panelCovers = narrow && panel.kind !== "none";
   const [huddleView, setHuddleView] = useHuddleView();
   const inHuddle = useWorkspace((s) => !!s.huddle);

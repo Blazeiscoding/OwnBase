@@ -1523,6 +1523,16 @@
       "concepts": ["responsive UI", "subscription lifetime"]
     },
     {
+      "path": "packages/ui/src/lib/layout.ts",
+      "plain": "Keeps the app's scripts in step with its stylesheet: the same window sizes for a phone, a drawer or a sheet, and the same timing for motion.",
+      "summary": "The media queries and motion values scripts share with theme.css: PHONE_QUERY, DRAWER_QUERY, WIDE_QUERY, NARROW_QUERY, TOUCH_QUERY, SHEET_QUERY, screenMatches, drawerLayout, DURATION_FAST_MS and EASE_SMOOTH.",
+      "details": [
+        "Each query is one theme.css asks in its @media rules, and the two motion values are its --duration-fast and --ease-smooth; test/layout.test.ts reads theme.css and fails when either side moves alone.",
+        "A notice's way out (Toast) and a dialog's copy (Modal) end when their animations have played, not after a timer that guesses their length."
+      ],
+      "concepts": ["responsive UI", "motion tokens"]
+    },
+    {
       "path": "packages/ui/src/lib/onScreenKeyboard.ts",
       "plain": "Keeps the conversation and the message box in the part of a phone's screen the keyboard leaves, and tells the bottom bar to step aside while you type.",
       "summary": "Follows visualViewport where the browser does not resize the page for the keyboard, and marks the root while a keyboard is up.",
@@ -2894,7 +2904,7 @@
       "details": [
         "Built on Modal, so it is a named modal dialog: Escape and a press on the dimmed page close it, the page behind is inert, and focus goes back to what opened it. The backdrop is black at 40% and fades in; the column of cards rises from below the screen's edge (animate-sheet-in) and leaves as it came.",
         "Where it sits is theme.css's .bottom-sheet: 8 px from the sides and the bottom, plus the home indicator's inset. Its cards take sheetCard (surface-float, rounded-2xl), drawn solid inside a sheet: frosted over the dimmed page, White's turned grey enough that a red Delete in the message sheet read at 4.2:1.",
-        "SHEET_QUERY, (hover: none) and (max-width: 760px), is where a sheet is wanted, and wantsSheet() reads it. A phone held sideways, 844 px wide, is wider than that, so a menu there stays a dropdown.",
+        "SHEET_QUERY in lib/layout.ts, (hover: none) and (max-width: 760px), is where a sheet is wanted, and wantsSheet() reads it. A phone held sideways, 844 px wide, is wider than that, so a menu there stays a dropdown.",
         "Menu draws its touch sheet in one, for the message actions, a conversation's row, the conversation's ⋯ and the account menu from the phone's You. Focus handling stays Menu's and Modal's: the menu's one trigger button is where focus goes back to."
       ],
       "concepts": ["bottom sheet", "touch", "modal layer", "safe area", "focus restoration"]

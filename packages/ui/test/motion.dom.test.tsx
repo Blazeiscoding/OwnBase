@@ -154,8 +154,13 @@ function Raiser() {
 }
 
 describe("a notice on its way out", () => {
-  it("folds its row away before it goes", () => {
-    vi.useFakeTimers();
+  it("folds its row away, and goes once that has played", async () => {
+    let played = () => {};
+    const finished = new Promise<void>((resolve) => (played = resolve));
+    playing = (element) =>
+      element.parentElement?.classList.contains("is-leaving")
+        ? [{ animationName: "toast-out", finished }]
+        : [];
     render(
       <ToastProvider>
         <Raiser />
@@ -167,8 +172,9 @@ describe("a notice on its way out", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "Dismiss" }));
     expect(notice.parentElement).toHaveClass("is-leaving");
+    await act(async () => {});
     expect(screen.getByText("Link copied.")).toBeInTheDocument();
-    act(() => void vi.advanceTimersByTime(250));
+    await act(async () => played());
     expect(screen.queryByText("Link copied.")).toBeNull();
   });
 });

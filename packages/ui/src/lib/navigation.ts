@@ -5,6 +5,7 @@ import { ApiError, isMessageOnScreen, type WorkspaceClient } from "@ownbase/clie
 import type { AccountSection } from "./accountSections.js";
 import type { DraftPlace } from "@ownbase/client-core";
 import { requestEdit } from "./editRequest.js";
+import { drawerLayout } from "./layout.js";
 import {
   ROUTE_DIALOGS,
   ROUTE_VIEWS,
@@ -91,13 +92,6 @@ export type Intent =
   | { to: "details"; channelId: ID; tab?: "members" }
   /** This account left the open conversation; the screen picks another. */
   | { to: "left" };
-
-/** The opposite of the query in theme.css that turns the sidebar into a drawer. */
-export const WIDE = "(min-width: 761px) and (min-height: 481px)";
-
-export function drawerLayout(): boolean {
-  return typeof window.matchMedia === "function" && !window.matchMedia(WIDE).matches;
-}
 
 /** The dialog each name in the address stands for. */
 const ROUTE_DIALOG_KINDS = {
