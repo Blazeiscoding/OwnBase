@@ -38,7 +38,6 @@ import { useHuddleView } from "../lib/huddleView.js";
 import { useHuddleEndedNotice } from "../lib/huddleEnded.js";
 import { useCallPreferences } from "../lib/callPreferences.js";
 import { previewAccount, previewFor, useNotificationPreviews } from "../lib/notificationPreview.js";
-import { keepPushCurrent } from "../lib/webPush.js";
 import { focusOrigin } from "../lib/opener.js";
 import { useFocusedView } from "../lib/focusedView.js";
 import { HuddleButton } from "../components/HuddleButton.js";
@@ -472,15 +471,20 @@ function WorkspaceLayout(props: { restore: boolean; banner?: ReactNode }) {
   const current = useRef({ preview, account });
   current.current = { preview, account };
   // A browser that turned on notifications while closed tells this session
-  // the server's way to reach it, and how much it may say.
+  // the server's way to reach it, and how much it may say. Loaded only in a
+  // browser: the desktop app notifies on its own.
   useEffect(() => {
     if (platform.kind === "desktop" || !account || !previews.loaded) return;
-    void keepPushCurrent({
-      platform,
-      account,
-      preview,
-      send: (body) => client.account.keepPushSubscription(body),
-    }).catch(() => {});
+    void import("../lib/webPush.js")
+      .then(({ keepPushCurrent }) =>
+        keepPushCurrent({
+          platform,
+          account,
+          preview,
+          send: (body) => client.account.keepPushSubscription(body),
+        }),
+      )
+      .catch(() => {});
   }, [platform, account, preview, previews.loaded, client]);
   // Other windows of this account, in this browser, stay quiet about what
   // this one shows while it has focus.
