@@ -18,6 +18,7 @@ import {
   linkFields,
   page,
   redirect,
+  settingsChange,
   signInFlow,
   type LinkSettings,
 } from "./signInFlow.js";
@@ -244,8 +245,22 @@ export function singleSignOn(opts: {
       return flow.finish(reply, begun, claims);
     });
 
-    route(eeEndpoints.ssoSettings, async ({ body }) => {
-      const next: SsoSettings = { ...settings() };
+    route(eeEndpoints.ssoSettings, async ({ body, user }) => {
+      const before = settings();
+      const save = (saved: SsoSettings) => {
+        given.storage.set("sso:settings", JSON.stringify(saved));
+        const did = settingsChange("single sign-on", before, saved, {
+          on: configured,
+          named: {
+            "name on the button": (s) => s.name,
+            issuer: (s) => s.issuer,
+            "client ID": (s) => s.clientId,
+            "client secret": (s) => s.clientSecret,
+          },
+        });
+        if (did) given.audit.record({ actorId: user.id, did, details: { method: "sso" } });
+      };
+      const next: SsoSettings = { ...before };
       for (const key of ["name", "issuer", "clientId", "clientSecret"] as const) {
         const value = body[key];
         if (value === undefined) continue;
@@ -256,7 +271,7 @@ export function singleSignOn(opts: {
       applyLinkSettings(next, body);
       if (!next.issuer) {
         // Off: nothing more is needed, and anyone may turn it off.
-        given.storage.set("sso:settings", JSON.stringify({ ...next, required: false }));
+        save({ ...next, required: false });
         return { ok: true };
       }
       if (!opts.licensed())
@@ -284,7 +299,7 @@ export function singleSignOn(opts: {
         throw new HttpError(400, "sso_discovery_failed", error.message);
       }
       provider = null;
-      given.storage.set("sso:settings", JSON.stringify(next));
+      save(next);
       return { ok: true };
     });
   }

@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it } from "vitest";
 import { generateKeyPairSync, sign } from "node:crypto";
-import type { SettingsPanel, User } from "@ownbase/protocol";
+import type { AuditEntry, SettingsPanel, User } from "@ownbase/protocol";
 import { createWorkspaceServer, type WorkspaceServer } from "@ownbase/server";
 import { enterprise } from "../src/enterprise.js";
 import { LICENSE_PREFIX, type LicenseClaims } from "../src/license.js";
@@ -607,6 +607,33 @@ describe("provisioning and the license", () => {
     expect(panel.problem).toContain("adds nobody new");
     expect(panel.actions!.map((a) => a.id)).toEqual(["off"]);
     expect((await call("/api/scim/token", owner.token)).status).toBe(403);
+  });
+
+  it("puts turning it on, a new token and turning it off in the audit log, never the token", async () => {
+    await start();
+    const { owner } = await people();
+    const first = await makeToken(owner);
+    const second = await makeToken(owner);
+    expect((await call("/api/scim/off", owner.token)).status).toBe(200);
+    // Turning off what is off already changes nothing.
+    expect((await call("/api/scim/off", owner.token)).status).toBe(200);
+    const entries = (await call("/api/admin/audit", owner.token, undefined, "GET")).data
+      .entries as AuditEntry[];
+    expect(entries.map((e) => [e.action, e.actorId, e.details.did])).toEqual([
+      ["extension.action", owner.user.id, "turned off provisioning with SCIM"],
+      [
+        "extension.action",
+        owner.user.id,
+        "made a new SCIM token, and the one before stopped working",
+      ],
+      ["extension.action", owner.user.id, "turned on provisioning with SCIM and made its token"],
+    ]);
+    // What the compliance stream sends is the same record.
+    const recorded = JSON.stringify(server!.store.audit.after(null, 100));
+    for (const token of [first, second]) {
+      expect(recorded).not.toContain(token);
+      expect(recorded).not.toContain(token.slice("ownbase-scim-".length));
+    }
   });
 });
 

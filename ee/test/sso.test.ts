@@ -2,7 +2,7 @@ import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
 import { createHash, generateKeyPairSync, randomBytes, sign, type KeyObject } from "node:crypto";
 import { createServer, type Server } from "node:http";
 import type { AddressInfo } from "node:net";
-import type { ServerInfo, SettingsPanel, User } from "@ownbase/protocol";
+import type { AuditEntry, ServerInfo, SettingsPanel, User } from "@ownbase/protocol";
 import { createWorkspaceServer, type WorkspaceServer } from "@ownbase/server";
 import { enterprise } from "../src/enterprise.js";
 import { LICENSE_PREFIX, type LicenseClaims } from "../src/license.js";
@@ -465,7 +465,7 @@ describe("single sign-on through an OpenID provider", () => {
     const { back } = await signInWithSso();
     expect(back.status).toBe(403);
     expect(back.text).toContain("No account in this workspace is linked to maya@acme.com yet");
-    expect(back.text).toContain("Account settings");
+    expect(back.text).toContain("in Account settings, under Security.");
   });
 
   it("tells a guest who asks to link one why they cannot", async () => {
@@ -672,6 +672,37 @@ describe("single sign-on through an OpenID provider", () => {
     await call("/api/sso/settings", owner.token, { clientSecret: "", name: "Acme" }, "PUT");
     await linkAccount(member);
     expect((await signInWithSso()).back.status).toBe(302);
+  });
+
+  it("puts turning it on, changes and turning it off in the audit log, never the secret", async () => {
+    await start();
+    const { owner } = await people();
+    const saving = (body: object) => call("/api/sso/settings", owner.token, body, "PUT");
+    const said = async () =>
+      (
+        (await call("/api/admin/audit", owner.token, undefined, "GET")).data.entries as AuditEntry[]
+      ).map((e) => [e.action, e.actorId, e.details.did, e.details.method]);
+    const by = (did: string) => ["extension.action", owner.user.id, did, "sso"];
+
+    await setUp(owner, { required: true });
+    expect(await said()).toEqual([
+      by("turned on single sign-on, and required it for everyone but the owner"),
+    ]);
+    // Saved again as it is, with the secret left empty as the panel sends it: no entry.
+    await saving({ name: "Okta", issuer: provider.issuer, clientId: provider.clientId });
+    await saving({ clientSecret: "" });
+    expect(await said()).toHaveLength(1);
+
+    await saving({ clientSecret: "another-provider-secret", required: false });
+    await saving({ issuer: "" });
+    expect(await said()).toEqual([
+      by("turned off single sign-on"),
+      by("changed the client secret in the settings for single sign-on, and stopped requiring it"),
+      by("turned on single sign-on, and required it for everyone but the owner"),
+    ]);
+    const recorded = JSON.stringify(server!.store.audit.after(null, 100));
+    expect(recorded).not.toContain(provider.clientSecret);
+    expect(recorded).not.toContain("another-provider-secret");
   });
 
   it("is not offered without SSO in the license, and says when the public address is missing", async () => {
