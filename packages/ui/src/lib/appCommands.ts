@@ -2,6 +2,7 @@ import {
   IN_APP_COMMANDS,
   isInAppCommand,
   userMentionsIn,
+  isRoom,
   type ID,
   type InAppCommandName,
 } from "@ownbase/protocol";
@@ -36,7 +37,7 @@ export async function runAppCommand(
 ): Promise<CommandOutcome> {
   const state = client.state;
   const channel = state.channels[channelId];
-  const room = channel?.type === "public" || channel?.type === "private";
+  const room = isRoom(channel?.type);
   const where = channel && room ? `#${channel.name}` : "this conversation";
   if (roomOnly(name) && !room)
     return { ok: false, said: `/${name} works in channels, not in direct messages.` };

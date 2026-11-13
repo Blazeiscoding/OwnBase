@@ -1,5 +1,5 @@
 import type { Access } from "./endpoint.js";
-import type { Channel, Role, User } from "./entities.js";
+import { isRoom, type Channel, type Role, type User } from "./entities.js";
 
 /** Owners and admins run the workspace; everything else about a role is a narrower rule. */
 export function isAdministrator(role: Role | undefined | null): boolean {
@@ -30,7 +30,7 @@ export function roleMayCall(access: Access, role: Role | undefined | null): bool
 
 /** Visibility must be checked separately; administrators do not gain private-room access. */
 export function channelPermissions(user: User | undefined, channel: Channel, isMember: boolean) {
-  const room = channel.type === "public" || channel.type === "private";
+  const room = isRoom(channel.type);
   const active = !!user && !user.deactivated && !user.isBot;
   const administrator = isAdministrator(user?.role);
   const manageManagers =

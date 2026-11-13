@@ -1,5 +1,5 @@
 import { createStore, useStore } from "zustand";
-import type { Channel, ID } from "@ownbase/protocol";
+import { isDirect, type Channel, type ID } from "@ownbase/protocol";
 import { blockedPartner, isUnread, type WorkspaceState } from "@ownbase/client-core";
 import { channelTitle } from "./format.js";
 import { isClosed } from "./conversationChoices.js";
@@ -44,11 +44,6 @@ export function useCollapsed(): Set<string> {
   return useStore(collapsedSections, (s) => s.collapsed);
 }
 
-/** A direct message or a group one, rather than a channel. */
-export function isDirect(ch: Channel): boolean {
-  return ch.type === "dm" || ch.type === "group_dm";
-}
-
 export interface SidebarGroups {
   starred: Channel[];
   /** Each of this account's sections (E8), by id, in the sections' order. */
@@ -83,19 +78,23 @@ export function sidebarGroups(s: LayoutState, activeId: ID | null): SidebarGroup
     // A DM with someone this account blocked leaves the sidebar (E12).
     if (blockedPartner(ch, selfId, s.blocked)) continue;
     // So does one it closed, until someone writes there; the open one stays.
-    if (isDirect(ch) && ch.id !== activeId && isClosed(s.prefs[ch.id], s.channelLastSeq[ch.id]))
+    if (
+      isDirect(ch.type) &&
+      ch.id !== activeId &&
+      isClosed(s.prefs[ch.id], s.channelLastSeq[ch.id])
+    )
       continue;
     // Starred moves a conversation out of its usual section, as Slack's does,
     // and so does a section of this account's (E8); one it no longer has is none.
     const inSection = sectioned.get(s.prefs[ch.id]?.sectionId ?? "");
     if (s.prefs[ch.id]?.starred) starred.push(ch);
     else if (inSection) inSection.push(ch);
-    else if (isDirect(ch)) dms.push(ch);
+    else if (isDirect(ch.type)) dms.push(ch);
     else rooms.push(ch);
   }
   // By name, channels and people together, so a row stays where it was put
   // rather than jumping each time a message arrives.
-  const named = (ch: Channel) => (isDirect(ch) ? channelTitle(ch, s.users, selfId) : ch.name);
+  const named = (ch: Channel) => (isDirect(ch.type) ? channelTitle(ch, s.users, selfId) : ch.name);
   const byName = (a: Channel, b: Channel) => named(a).localeCompare(named(b));
   starred.sort(byName);
   for (const list of sectioned.values()) list.sort(byName);

@@ -1,6 +1,6 @@
 import { ApiError } from "@ownbase/client-core";
 import { Fragment, useEffect, useEffectEvent, useMemo, useRef, useState } from "react";
-import type { ID } from "@ownbase/protocol";
+import { isRoom, type ID } from "@ownbase/protocol";
 import { useClient, useWorkspace } from "../context.js";
 import { channelTitle } from "../lib/format.js";
 import { Modal } from "./Modal.js";
@@ -149,7 +149,7 @@ export function QuickSwitcher(props: {
     const directWith = new Map<ID, ID>();
     for (const c of Object.values(channels)) {
       if (c.archived) continue;
-      if (c.type === "public" || c.type === "private") {
+      if (isRoom(c.type)) {
         const tier = matchTier(c.name, query);
         if (tier >= 0)
           ranked.push({

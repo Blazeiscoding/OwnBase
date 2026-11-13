@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { ApiError, readableText } from "@ownbase/client-core";
-import type { ReportedMessage, ReportResolution, User } from "@ownbase/protocol";
+import { isRoom, type ReportedMessage, type ReportResolution, type User } from "@ownbase/protocol";
 import { useClient, useWorkspace } from "../context.js";
 import { accountError } from "../lib/account.js";
 import { REPORT_REASON_LABELS } from "../lib/blocking.js";
@@ -160,10 +160,9 @@ function Reported({
   const client = useClient();
   const author = users[item.authorId];
   const name = author?.displayName ?? "Someone who left";
-  const where =
-    item.channel.type === "public" || item.channel.type === "private"
-      ? `#${item.channel.name}`
-      : `${item.channel.type === "dm" ? "Direct message" : "Group DM"}: ${channelTitle(item.channel, users, undefined)}`;
+  const where = isRoom(item.channel.type)
+    ? `#${item.channel.name}`
+    : `${item.channel.type === "dm" ? "Direct message" : "Group DM"}: ${channelTitle(item.channel, users, undefined)}`;
   // People's rules for deactivating, so a button that would be refused is not offered.
   // One's own message is among them: the owner is never deactivated, and an
   // admin only by the owner.

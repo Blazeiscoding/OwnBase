@@ -4,7 +4,7 @@ import type { ID } from "@ownbase/protocol";
 import { useClient } from "../context.js";
 import { useConfirm } from "../components/Confirm.js";
 import { useCallPreferences } from "./callPreferences.js";
-import { channelTitle } from "./format.js";
+import { conversationName } from "./format.js";
 
 /**
  * Joining a huddle leaves the one you are in. Asked first, so a press on
@@ -20,11 +20,9 @@ export async function confirmHuddleSwitch(
   if (!current || current.channelId === channelId) return true;
   const state = client.state;
   const channel = state.channels[current.channelId];
-  const where = !channel
-    ? "the other conversation"
-    : channel.type === "public" || channel.type === "private"
-      ? `#${channel.name}`
-      : channelTitle(channel, state.users, state.self?.id);
+  const where = channel
+    ? conversationName(channel, state.users, state.self?.id)
+    : "the other conversation";
   return confirm({
     title: "Switch huddles?",
     body: current.sharingScreen

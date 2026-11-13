@@ -7,7 +7,7 @@ import {
   notificationBody,
   PagedList,
 } from "@ownbase/client-core";
-import type { ChannelRemoval, ID, Message } from "@ownbase/protocol";
+import { isRoom, type ChannelRemoval, type ID, type Message } from "@ownbase/protocol";
 import { useClient, useWorkspace } from "../context.js";
 import { channelTitle, formatFull } from "../lib/format.js";
 import { Avatar } from "./Avatar.js";
@@ -343,13 +343,12 @@ export function ActivityPanel({
                 }
                 const { group } = entry;
                 const channel = channels[group.channelId]!;
-                const where =
-                  channel.type === "public" || channel.type === "private"
-                    ? `#${channel.name}`
-                    : // Each row names its author, the other person in a direct message.
-                      channel.type === "dm"
-                      ? "Direct message"
-                      : channelTitle(channel, users, selfId);
+                const where = isRoom(channel.type)
+                  ? `#${channel.name}`
+                  : // Each row names its author, the other person in a direct message.
+                    channel.type === "dm"
+                    ? "Direct message"
+                    : channelTitle(channel, users, selfId);
                 const fresh = group.messages.filter(unread).length;
                 const title = group.threadRootId ? `Thread in ${where}` : where;
                 return (

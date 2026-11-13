@@ -11,7 +11,7 @@ import {
   type User,
 } from "@ownbase/protocol";
 import { useClient, useWorkspace } from "../context.js";
-import { channelTitle } from "../lib/format.js";
+import { conversationName } from "../lib/format.js";
 import { Avatar } from "./Avatar.js";
 import { Dialog, DialogScroll } from "./Dialog.js";
 import { inputCls } from "./TextField.js";
@@ -114,10 +114,7 @@ function choicesFor(
         .filter((c) => !c.archived && (!kinds || kinds.includes(c.type)))
         .map((c) => ({
           value: c.id,
-          text:
-            c.type === "public" || c.type === "private"
-              ? `#${c.name}`
-              : channelTitle(c, users, selfId),
+          text: conversationName(c, users, selfId),
         }))
         .sort(byText);
     }

@@ -9,7 +9,7 @@ import {
   useState,
   type ReactNode,
 } from "react";
-import type { ID } from "@ownbase/protocol";
+import { isRoom, type ID } from "@ownbase/protocol";
 import { TITLE_BAR_HEIGHT } from "@ownbase/protocol/desktop";
 import { BlockedComposer, DeactivatedComposer } from "../components/Blocking.js";
 import {
@@ -21,7 +21,7 @@ import {
 } from "@ownbase/client-core";
 import { ClientContext, OpenMessageContext, useClient, useWorkspace } from "../context.js";
 import { failureMessage, type Platform } from "../platform.js";
-import { channelTitle } from "../lib/format.js";
+import { channelTitle, conversationName } from "../lib/format.js";
 import {
   HostingStatus,
   Sidebar,
@@ -270,12 +270,7 @@ function useConversationFallback(restore: boolean) {
    */
   const seenTitles = useRef(new Map<ID, string>());
   for (const channel of Object.values(channels))
-    seenTitles.current.set(
-      channel.id,
-      channel.type === "public" || channel.type === "private"
-        ? `#${channel.name}`
-        : channelTitle(channel, users, selfId),
-    );
+    seenTitles.current.set(channel.id, conversationName(channel, users, selfId));
 
   useEffect(() => {
     if (channelId && !(status === "online" && !channels[channelId])) return;
@@ -459,7 +454,7 @@ function WorkspaceLayout(props: { restore: boolean; banner?: ReactNode }) {
 
   const activeChannel = channelId ? channels[channelId] : undefined;
   const title = activeChannel ? channelTitle(activeChannel, users, self?.id) : "";
-  const isRoom = activeChannel?.type === "public" || activeChannel?.type === "private";
+  const room = isRoom(activeChannel?.type);
   /** A public channel can be looked into without joining, and then has no settings of one's own. */
   const isMember = useWorkspace((s) => !!channelId && channelId in s.memberships);
   /** Whom this conversation is with, when it is a DM with someone blocked (E12). */
@@ -560,7 +555,7 @@ function WorkspaceLayout(props: { restore: boolean; banner?: ReactNode }) {
                   })
                 }
                 onNameWorkspace={() => runAction(actions, "workspace-settings")}
-                activeChannelName={activeChannel && isRoom ? `#${activeChannel.name}` : null}
+                activeChannelName={activeChannel && room ? `#${activeChannel.name}` : null}
                 onTryHuddle={() => {
                   if (!channelId) return;
                   const ticket = nav.moves;
@@ -596,7 +591,7 @@ function WorkspaceLayout(props: { restore: boolean; banner?: ReactNode }) {
               className="flex min-w-0 flex-1 items-center gap-3 rounded-lg px-2 py-1.5 text-left transition-colors hover:bg-ink/[0.04]"
             >
               <h2 className="shrink-0 truncate text-[16px] font-semibold leading-tight">
-                {isRoom ? (
+                {room ? (
                   <>
                     <span className="mr-1 font-normal text-ink-faint">#</span>
                     {title}
@@ -617,7 +612,7 @@ function WorkspaceLayout(props: { restore: boolean; banner?: ReactNode }) {
             </button>
             {channelId && (
               <ConversationSearch
-                title={isRoom ? `#${title}` : title}
+                title={room ? `#${title}` : title}
                 onSearch={() =>
                   nav.navigate({ to: "dialog", dialog: { kind: "search", inConversation: true } })
                 }
@@ -635,7 +630,7 @@ function WorkspaceLayout(props: { restore: boolean; banner?: ReactNode }) {
                 {!deactivatedHere && <HuddleButton channelId={channelId} />}
                 <ConversationMenu
                   channelId={channelId}
-                  isRoom={isRoom}
+                  isRoom={room}
                   onPins={() => nav.navigate({ to: "panel", panel: { kind: "pins" } })}
                   onFiles={() => nav.navigate({ to: "panel", panel: { kind: "files", channelId } })}
                   onNotifications={
@@ -790,7 +785,7 @@ function WorkspaceLayout(props: { restore: boolean; banner?: ReactNode }) {
                   ) : (
                     <Composer
                       channelId={channelId}
-                      placeholder={isRoom ? `Message #${title}` : `Message ${title}`}
+                      placeholder={room ? `Message #${title}` : `Message ${title}`}
                       autoFocus
                       onLeft={() => nav.navigate({ to: "left" })}
                     />

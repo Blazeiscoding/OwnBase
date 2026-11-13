@@ -1,5 +1,5 @@
 import { memo, useCallback, useEffect, useLayoutEffect, useReducer, useRef, useState } from "react";
-import type { FileMeta, ID } from "@ownbase/protocol";
+import { isRoom, type FileMeta, type ID } from "@ownbase/protocol";
 import { timelineMessages, type EphemeralMessage, type PendingMessage } from "@ownbase/client-core";
 import { useClient, useWorkspace } from "../context.js";
 import { formatDay, sameDay } from "../lib/format.js";
@@ -838,12 +838,12 @@ function ChannelIntro({
   const users = useWorkspace((s) => s.users);
   const selfId = useWorkspace((s) => s.self?.id);
   if (!channel) return null;
-  const isRoom = channel.type === "public" || channel.type === "private";
+  const room = isRoom(channel.type);
   const others = (channel.memberIds ?? []).filter((id) => id !== selfId);
-  const name = isRoom
+  const name = room
     ? `#${channel.name}`
     : others.map((id) => users[id]?.displayName ?? "unknown").join(", ") || "Just you";
-  const person = !isRoom && others.length === 1 ? users[others[0]!] : undefined;
+  const person = !room && others.length === 1 ? users[others[0]!] : undefined;
   // A direct message opens with the person it is with, so both their
   // picture and their name open their profile, as an author's do.
   const openPerson = person && onOpenProfile ? () => onOpenProfile(person.id) : undefined;
@@ -866,7 +866,7 @@ function ChannelIntro({
         ) : (
           <span className="intro-tile flex size-[68px] items-center justify-center rounded-2xl">
             <Icon
-              name={isRoom ? (channel.type === "private" ? "lock" : "hash") : "friends"}
+              name={room ? (channel.type === "private" ? "lock" : "hash") : "friends"}
               size={36}
             />
           </span>
@@ -882,7 +882,7 @@ function ChannelIntro({
         )}
       </h2>
       <p className="mt-1.5 max-w-xl text-[16px] leading-relaxed text-ink-dim">
-        {isRoom
+        {room
           ? channel.description || (
               <>
                 This is the very beginning of <span className="text-ink">#{channel.name}</span>.
@@ -894,7 +894,7 @@ function ChannelIntro({
             ? "Your direct messages start here."
             : "This conversation is just between you. It starts here."}
       </p>
-      {empty && isRoom && (onInvite || onDetails) && (
+      {empty && room && (onInvite || onDetails) && (
         <div className="mt-4 flex flex-wrap gap-2">
           {onInvite && (
             <button

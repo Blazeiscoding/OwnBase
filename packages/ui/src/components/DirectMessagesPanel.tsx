@@ -6,7 +6,7 @@ import {
   notificationBody,
   selfMay,
 } from "@ownbase/client-core";
-import type { Channel, ID, Message } from "@ownbase/protocol";
+import { isDirect, type Channel, type ID, type Message } from "@ownbase/protocol";
 import { useClient, useWorkspace } from "../context.js";
 import { channelTitle, formatFull } from "../lib/format.js";
 import { usePanelFocus } from "../lib/usePanelFocus.js";
@@ -58,7 +58,7 @@ export function DirectMessagesPanel(props: {
     for (const channel of Object.values(channels))
       if (
         !channel.archived &&
-        (channel.type === "dm" || channel.type === "group_dm") &&
+        isDirect(channel.type) &&
         channel.id in memberships &&
         // One with someone this account blocked is not listed (E12).
         !blockedPartner(channel, self?.id, blocked)
@@ -253,7 +253,7 @@ function useLatestDirectMessages(active: boolean): Record<ID, Message> {
   const read = useRef(false);
   const signature = useWorkspace((s) =>
     Object.values(s.channels)
-      .filter((c) => (c.type === "dm" || c.type === "group_dm") && c.id in s.memberships)
+      .filter((c) => isDirect(c.type) && c.id in s.memberships)
       .map((c) => `${c.id}:${s.channelLastSeq[c.id] ?? 0}:${s.changedContent[c.id] ?? 0}`)
       .sort()
       .join(","),

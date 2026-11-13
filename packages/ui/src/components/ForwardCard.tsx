@@ -1,21 +1,11 @@
 import { useContext } from "react";
 import type { Channel, FileMeta, ForwardReference, ID, Message, User } from "@ownbase/protocol";
 import { OpenMessageContext } from "../context.js";
-import { channelTitle, formatFull, formatTime } from "../lib/format.js";
+import { conversationName, formatFull, formatTime } from "../lib/format.js";
 import { MessageAttachments } from "./Attachments.js";
 import { Avatar } from "./Avatar.js";
 import { Icon } from "./Icon.js";
 import { Mrkdwn } from "./Mrkdwn.js";
-
-/** A conversation as a forward names it: #name for a channel, the people for a DM. */
-export function conversationName(
-  channel: Channel,
-  users: Record<ID, User>,
-  selfId: ID | undefined,
-): string {
-  const title = channelTitle(channel, users, selfId);
-  return channel.type === "public" || channel.type === "private" ? `#${title}` : title;
-}
 
 /**
  * The message a forward passes on, under its own words (E1): who wrote it,
