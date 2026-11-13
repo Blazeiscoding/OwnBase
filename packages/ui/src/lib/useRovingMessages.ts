@@ -6,6 +6,23 @@ const CONTROL = "a[href], button, input, select, textarea, [tabindex]";
 /** Marks a control this hook took out of the Tab order, so it can put it back. */
 const TAKEN = "data-roving-out";
 
+type Move = (messages: HTMLElement[], at: number) => HTMLElement | undefined;
+
+/** The keys of a list of messages, as the shortcut sheet shows them, and where each moves to. */
+export const MESSAGE_LIST_KEYS: readonly {
+  key: string;
+  label: string;
+  describe: string;
+  to?: Move;
+}[] = [
+  { key: "ArrowUp", label: "↑", describe: "Previous message", to: (all, at) => all[at - 1] },
+  { key: "ArrowDown", label: "↓", describe: "Next message", to: (all, at) => all[at + 1] },
+  { key: "Home", label: "Home", describe: "First message", to: (all) => all[0] },
+  { key: "End", label: "End", describe: "Last message", to: (all) => all.at(-1) },
+  { key: "Enter", label: "Enter", describe: "Go to the message's buttons" },
+  { key: "Escape", label: "Esc", describe: "Go back to the message, or cancel an edit" },
+];
+
 /**
  * Makes a list of messages one Tab stop. Only the current message, the
  * newest until somebody moves, is in the Tab order, with its own controls; the
@@ -83,14 +100,6 @@ export function useRovingMessages(list: React.RefObject<HTMLElement | null>) {
         }
         return;
       }
-      const messages = [...root.querySelectorAll<HTMLElement>(MESSAGE)];
-      const at = messages.indexOf(message);
-      const next = {
-        ArrowDown: messages[at + 1],
-        ArrowUp: messages[at - 1],
-        Home: messages[0],
-        End: messages.at(-1),
-      }[event.key];
       if (event.key === "Enter") {
         const action = message.querySelector<HTMLElement>(".message-toolbar button");
         if (!action) return;
@@ -98,8 +107,11 @@ export function useRovingMessages(list: React.RefObject<HTMLElement | null>) {
         action.focus();
         return;
       }
-      if (!(event.key in { ArrowDown: 1, ArrowUp: 1, Home: 1, End: 1 })) return;
+      const move = MESSAGE_LIST_KEYS.find((k) => k.key === event.key)?.to;
+      if (!move) return;
       event.preventDefault();
+      const messages = [...root.querySelectorAll<HTMLElement>(MESSAGE)];
+      const next = move(messages, messages.indexOf(message));
       if (!next) return;
       next.focus();
       next.scrollIntoView?.({ block: "nearest" });

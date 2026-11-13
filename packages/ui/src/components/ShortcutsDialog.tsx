@@ -6,8 +6,18 @@ import { Kbd } from "./Kbd.js";
 import { modKey } from "../lib/shortcuts.js";
 import { KEY_BINDINGS, type KeyBinding } from "../lib/actions.js";
 import { messageKeys } from "../lib/messageActions.js";
+import { HISTORY_KEYS } from "../lib/historyKeys.js";
+import { MESSAGE_LIST_KEYS } from "../lib/useRovingMessages.js";
+import { LIST_FORMATS, TEXT_FORMATS } from "./FormattingToolbar.js";
 
 const MOD = modKey();
+
+/** "Mod+Shift+X" as the sheet's keycaps: "Ctrl Shift X" or "⌘ Shift X". */
+const sheetKeys = (combo: string) =>
+  combo
+    .split("+")
+    .map((part) => (part === "Mod" ? MOD : part))
+    .join(" ");
 
 /** What Enter does depends on the preference in Account settings, so the list follows it. */
 function writingKeys(enterSends: boolean): [string, string][] {
@@ -30,18 +40,20 @@ function bindings(group: KeyBinding["group"]): [string, string][] {
 const groups = (
   enterSends: boolean,
 ): { title: string; items: [string, string][]; note?: string }[] => [
-  { title: "Getting around", items: bindings("Getting around") },
+  {
+    title: "Getting around",
+    items: [
+      ...bindings("Getting around"),
+      ...HISTORY_KEYS.map((k): [string, string] => [k.keys.join(" "), k.describe]),
+    ],
+  },
   {
     title: "Writing",
     note: "Choose what Enter does in Account settings.",
     items: [
       ...writingKeys(enterSends),
-      [`${MOD} B`, "Bold selected text"],
-      [`${MOD} I`, "Italic selected text"],
-      [`${MOD} Shift X`, "Strikethrough selected text"],
-      [`${MOD} E`, "Inline code"],
-      [`${MOD} Shift 8`, "Bulleted list"],
-      [`${MOD} Shift 7`, "Numbered list"],
+      ...TEXT_FORMATS.map((f): [string, string] => [sheetKeys(f.combo), f.sheet]),
+      ...LIST_FORMATS.map((l): [string, string] => [sheetKeys(l.combo), l.label]),
       ["↑", "Edit your last message, when the message box is empty"],
       ["@", "Mention someone"],
       [":", "Add an emoji by name, as :rocket"],
@@ -53,12 +65,7 @@ const groups = (
     title: "Messages",
     note: "These keys work once the list of messages is selected. Press Tab to reach it.",
     items: [
-      ["↑", "Previous message"],
-      ["↓", "Next message"],
-      ["Home", "First message"],
-      ["End", "Last message"],
-      ["Enter", "Go to the message's buttons"],
-      ["Esc", "Go back to the message, or cancel an edit"],
+      ...MESSAGE_LIST_KEYS.map((k): [string, string] => [k.label, k.describe]),
       ...messageKeys(),
     ],
   },

@@ -504,7 +504,7 @@
       "plain": "Every workspace-wide action and global key, each declared once, which the menus, Ctrl+K, the phone's account sheet, the keyboard and the shortcut list are made from.",
       "summary": "ACTIONS with available() and run(), the menu and palette lists, KEY_BINDINGS and useGlobalKeys.",
       "details": [
-        "An action has an id, a label, an icon, Ctrl+K's other words, available(ctx) (from client-core's selectors) and run(ctx). WORKSPACE_MENU, ACCOUNT_MENU and PALETTE list ids in their order; menuItems and paletteCommands keep those this account may use.",
+        "An action has an id, a label, an icon, Ctrl+K's other words, available(ctx) (from client-core's selectors) and run(ctx). WORKSPACE_MENU and ACCOUNT_MENU list ids in their order, and Ctrl+K lists ACTIONS in their own order, but for those marked palette: false; menuItems and paletteCommands keep those this account may use. useActionContext draws again when anything the menus show changes: every action's availability, words and icon, and every menu place's, worked out from the workspace state.",
         "KEY_BINDINGS are the global keys in the shortcut list's order; useGlobalKeys runs the first that matches a key the page may act on (lib/keys.ts), and a binding tied to an action shows its key on that action's menu item and Ctrl+K row.",
         "Alt+Up/Down walk the sidebar's order from lib/sidebarLayout.ts, not its DOM."
       ],
@@ -1507,7 +1507,7 @@
       "plain": "Adds Back and Forward to the desktop app with Alt plus the arrow keys and the mouse's side buttons.",
       "summary": "Adds desktop Back/Forward keyboard and mouse shortcuts.",
       "details": [
-        "When enabled, Alt+Left/Right and mouse side buttons call browser history.",
+        "When enabled, Alt+Left/Right and mouse side buttons call browser history. HISTORY_KEYS holds the two keys, which the shortcut sheet lists under Getting around.",
         "Modified or already handled key events are left alone; listeners are removed with the component. Ordinary web browsers already supply this behavior."
       ],
       "concepts": ["desktop navigation", "event cleanup"]
@@ -1933,7 +1933,7 @@
       "details": [
         "formatText wraps or inserts syntax and returns the corresponding selection so composer/editor behavior stays consistent.",
         "formatList makes each line the selection touches a bulleted or numbered item (numbered from 1), changes items of the other kind, or takes the markers off when every line already has that kind's; a caret keeps its place in its line's words. listShortcut reads Ctrl/Cmd+Shift+8 and +7 from the key's code, as Shift changes the key, and the toolbar has a button for each.",
-        "The toolbar supplies supported formatting and preview affordances; formattingShortcut and MESSAGE_LIMIT keep keyboard handling and validation aligned.",
+        "The toolbar supplies supported formatting and preview affordances; TEXT_FORMATS and LIST_FORMATS hold each format's marker and key once, for the buttons' hints, formattingShortcut and listShortcut, and the shortcut sheet, and MESSAGE_LIMIT keeps validation aligned.",
         "Its emoji button opens the same EmojiPicker the reactions use, loaded on first use, with a loading line meanwhile and a message if it cannot load. Escape, its own button or a press anywhere outside it closes it, and a press outside leaves focus where it landed."
       ],
       "concepts": ["formatting", "shared input behavior", "message limit"]
