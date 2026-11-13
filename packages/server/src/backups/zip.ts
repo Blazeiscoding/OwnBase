@@ -6,8 +6,8 @@ import { crc32, createInflateRaw } from "node:zlib";
 
 /**
  * Just enough ZIP for a workspace copy (P4), with no dependency: writing
- * stored entries whose sizes and CRCs are known before the first byte, so the
- * length is exact and every unzip tool reads the result, and reading back
+ * stored entries whose sizes are known before the first byte, so the length
+ * is exact and every unzip tool reads the result, and reading back
  * stored or deflated entries for a restore.
  *
  * ZIP64 records are added only where a size, an offset or the number of
@@ -19,7 +19,12 @@ export interface ZipSource {
   /** The name inside the zip, with forward slashes. */
   name: string;
   size: number;
-  crc32: number;
+  /**
+   * Left out, it is summed as the bytes go by and written after them in a
+   * data descriptor, so a large file is not read once just for this before
+   * the zip can start (P12's export).
+   */
+  crc32?: number;
   /** Its bytes, exactly `size` of them. */
   open: () => Readable;
 }
@@ -29,10 +34,35 @@ const CENTRAL = 0x02014b50;
 const END = 0x06054b50;
 const END64 = 0x06064b50;
 const END64_LOCATOR = 0x07064b50;
+const DESCRIPTOR = 0x08074b50;
 const MAX32 = 0xffffffff;
 const MAX16 = 0xffff;
 /** Names are UTF-8. */
 const UTF8 = 0x0800;
+/** The CRC follows the bytes, in a data descriptor. */
+const CRC_AFTER = 0x0008;
+
+const flagsOf = (entry: ZipSource) => UTF8 | (entry.crc32 === undefined ? CRC_AFTER : 0);
+
+/**
+ * The data descriptor after an entry whose CRC was summed as it streamed.
+ * Its sizes are 8 bytes where the entry is a ZIP64 one, as APPNOTE 4.3.9.1 says.
+ */
+function descriptor(entry: ZipSource, crc: number): Buffer {
+  if (entry.crc32 !== undefined) return Buffer.alloc(0);
+  const big = entry.size >= MAX32;
+  const record = Buffer.alloc(big ? 24 : 16);
+  record.writeUInt32LE(DESCRIPTOR, 0);
+  record.writeUInt32LE(crc >>> 0, 4);
+  if (big) {
+    record.writeBigUInt64LE(BigInt(entry.size), 8);
+    record.writeBigUInt64LE(BigInt(entry.size), 16);
+  } else {
+    record.writeUInt32LE(entry.size, 8);
+    record.writeUInt32LE(entry.size, 12);
+  }
+  return record;
+}
 
 /**
  * A time as a zip stores it: local time, to two seconds, 1980 to 2107. Every
@@ -73,11 +103,13 @@ function localHeader(entry: ZipSource, name: Buffer, at: DosTime): Buffer {
   const header = Buffer.alloc(30);
   header.writeUInt32LE(LOCAL, 0);
   header.writeUInt16LE(big ? 45 : 20, 4);
-  header.writeUInt16LE(UTF8, 6);
+  header.writeUInt16LE(flagsOf(entry), 6);
   header.writeUInt16LE(0, 8);
   header.writeUInt16LE(at.time, 10);
   header.writeUInt16LE(at.date, 12);
-  header.writeUInt32LE(entry.crc32 >>> 0, 14);
+  // With the CRC to follow, it is 0 here. The sizes stay: they are known, and
+  // a reader going through a stored entry front to back needs them to find its end.
+  header.writeUInt32LE((entry.crc32 ?? 0) >>> 0, 14);
   header.writeUInt32LE(big ? MAX32 : entry.size, 18);
   header.writeUInt32LE(big ? MAX32 : entry.size, 22);
   header.writeUInt16LE(name.length, 26);
@@ -85,7 +117,13 @@ function localHeader(entry: ZipSource, name: Buffer, at: DosTime): Buffer {
   return Buffer.concat([header, name, extra]);
 }
 
-function centralHeader(entry: ZipSource, name: Buffer, offset: number, at: DosTime): Buffer {
+function centralHeader(
+  entry: ZipSource,
+  name: Buffer,
+  offset: number,
+  at: DosTime,
+  crc: number,
+): Buffer {
   const bigSize = entry.size >= MAX32;
   const bigOffset = offset >= MAX32;
   const fields: bigint[] = [];
@@ -102,11 +140,11 @@ function centralHeader(entry: ZipSource, name: Buffer, offset: number, at: DosTi
   header.writeUInt32LE(CENTRAL, 0);
   header.writeUInt16LE(45, 4);
   header.writeUInt16LE(zip64 ? 45 : 20, 6);
-  header.writeUInt16LE(UTF8, 8);
+  header.writeUInt16LE(flagsOf(entry), 8);
   header.writeUInt16LE(0, 10);
   header.writeUInt16LE(at.time, 12);
   header.writeUInt16LE(at.date, 14);
-  header.writeUInt32LE(entry.crc32 >>> 0, 16);
+  header.writeUInt32LE(crc >>> 0, 16);
   header.writeUInt32LE(bigSize ? MAX32 : entry.size, 20);
   header.writeUInt32LE(bigSize ? MAX32 : entry.size, 24);
   header.writeUInt16LE(name.length, 28);
@@ -176,26 +214,37 @@ export function zipArchive(
   const locals = entries.map((entry, i) => {
     offsets.push(offset);
     const header = localHeader(entry, names[i]!, at);
-    offset += header.length + entry.size;
+    offset += header.length + entry.size + descriptor(entry, 0).length;
     return header;
   });
-  const centrals = entries.map((entry, i) => centralHeader(entry, names[i]!, offsets[i]!, at));
-  const centralSize = centrals.reduce((sum, header) => sum + header.length, 0);
+  // A CRC summed on the way changes no length, so the directory's size is
+  // known now and its bytes are made once the last entry has gone.
+  const central = (crcs: number[]) =>
+    entries.map((entry, i) => centralHeader(entry, names[i]!, offsets[i]!, at, crcs[i]!));
+  const centralSize = central(entries.map(() => 0)).reduce((sum, h) => sum + h.length, 0);
   const end = endRecords(entries.length, centralSize, offset);
   const length = offset + centralSize + end.length;
 
   async function* bytes(): AsyncGenerator<Buffer> {
+    const crcs = entries.map((entry) => entry.crc32 ?? 0);
     for (const [i, entry] of entries.entries()) {
       yield locals[i]!;
+      const summing = entry.crc32 === undefined;
       let sent = 0;
+      let sum = 0;
       for await (const chunk of entry.open()) {
         sent += (chunk as Buffer).length;
         if (sent > entry.size) throw new Error(`${entry.name} grew while it was being zipped.`);
+        if (summing) sum = crc32(chunk as Buffer, sum);
         yield chunk as Buffer;
       }
       if (sent !== entry.size) throw new Error(`${entry.name} shrank while it was being zipped.`);
+      if (summing) {
+        crcs[i] = sum;
+        yield descriptor(entry, sum);
+      }
     }
-    yield* centrals;
+    yield* central(crcs);
     yield end;
   }
   return { length, open: () => Readable.from(bytes(), { objectMode: false }) };
