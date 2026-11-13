@@ -36,7 +36,7 @@ import { Composer } from "../components/Composer.js";
 import { GettingStarted } from "../components/GettingStarted.js";
 import { useHuddleView } from "../lib/huddleView.js";
 import { useHuddleEndedNotice } from "../lib/huddleEnded.js";
-import { useCallPreferences } from "../lib/callPreferences.js";
+import { useCallPreferences, useDeviceCheckEndsWithScreen } from "../lib/callPreferences.js";
 import { previewAccount, previewFor, useNotificationPreviews } from "../lib/notificationPreview.js";
 import { focusOrigin } from "../lib/opener.js";
 import { useFocusedView } from "../lib/focusedView.js";
@@ -374,6 +374,7 @@ function WorkspaceLayout(props: { restore: boolean; banner?: ReactNode }) {
   // Every device of an account idle makes it away (E9).
   useIdleReport(client);
   const calls = useCallPreferences();
+  useDeviceCheckEndsWithScreen();
   const channelId = useNavigationState((s) => s.channelId);
   const panel = useNavigationState((s) => s.panel);
   const drawer = useNavigationState((s) => s.drawer);

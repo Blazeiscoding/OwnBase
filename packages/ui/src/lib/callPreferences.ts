@@ -1,3 +1,4 @@
+import { useEffect } from "react";
 import { useStore } from "zustand";
 import { createStore, type StoreApi } from "zustand/vanilla";
 import {
@@ -353,4 +354,13 @@ const preferencesOf = perDevice(createPreferences);
 /** How huddles start on this device, for every workspace, from the platform's storage. */
 export function useCallPreferences() {
   return useStore(preferencesOf(usePlatform()));
+}
+
+/**
+ * Mounted by the screen that shows the device question: when it goes, as a
+ * workspace does, a join still waiting on the answer joins nothing.
+ */
+export function useDeviceCheckEndsWithScreen(): void {
+  const finish = useStore(preferencesOf(usePlatform()), (s) => s.finishDeviceCheck);
+  useEffect(() => () => finish(null), [finish]);
 }

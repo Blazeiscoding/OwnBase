@@ -24,7 +24,8 @@ vi.mock("@ownbase/client-core", async (original) => ({
 const { ClientContext, PlatformContext } = await import("../src/context.js");
 const { HuddleButton } = await import("../src/components/HuddleBar.js");
 const { DeviceCheckDialog } = await import("../src/components/DeviceCheckDialog.js");
-const { useCallPreferences } = await import("../src/lib/callPreferences.js");
+const { useCallPreferences, useDeviceCheckEndsWithScreen } =
+  await import("../src/lib/callPreferences.js");
 const { noiseFilter } = await import("../src/lib/noiseFilter.js");
 type Platform = import("../src/platform.js").Platform;
 
@@ -95,9 +96,10 @@ beforeEach(() => {
 
 afterEach(() => vi.restoreAllMocks());
 
-/** The workspace's part: the question shows while a join waits on it. */
+/** The workspace's part: the question shows while a join waits on it, and goes with it. */
 function Host() {
   calls = useCallPreferences();
+  useDeviceCheckEndsWithScreen();
   return (
     <main>
       <HuddleButton channelId="C_GENERAL" />
@@ -119,7 +121,7 @@ function setup(saved: unknown = { joinMuted: false }) {
     notify: () => {},
   };
   const join = vi.spyOn(client, "joinHuddle").mockResolvedValue();
-  render(
+  const view = render(
     <PlatformContext.Provider value={platform}>
       <ClientContext.Provider value={client}>
         <Host />
@@ -132,7 +134,7 @@ function setup(saved: unknown = { joinMuted: false }) {
     await act(() => new Promise((resolve) => setTimeout(resolve, 0)));
     await user.click(screen.getByRole("button", { name: "Start a huddle" }));
   };
-  return { client, set, join, user, start };
+  return { client, set, join, user, start, unmount: view.unmount };
 }
 
 const dialog = () => screen.findByRole("dialog", { name: "Choose your microphone and camera" });
@@ -248,6 +250,17 @@ describe("which microphone and camera, asked before a first huddle", () => {
     await userEvent.click(within(asked).getByRole("button", { name: "Join huddle" }));
     await act(async () => joining);
     expect(join).toHaveBeenCalledTimes(1);
+  });
+
+  it("joins nothing, and asks nothing, once the workspace has gone", async () => {
+    const { client, join, unmount } = setup();
+    await waitFor(() => expect(calls.loaded).toBe(true));
+    const joining = calls.joinHuddle(client, "C_GENERAL");
+    await dialog();
+    unmount();
+    // Answered, rather than left waiting for a question nobody can see.
+    await act(async () => joining);
+    expect(join).not.toHaveBeenCalled();
   });
 
   it("joins nothing when the huddle stopped being wanted while the devices were listed", async () => {
