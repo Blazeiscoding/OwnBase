@@ -28,7 +28,6 @@
     "@fontsource/noto-color-emoji": "5.3.2",
     "@playwright/test": "^1.65.0",
     "@types/node": "^24.3.0",
-    "lodash": "4.17.20",
     "prettier": "^3.10.1",
     "turbo": "^2.11.11",
     "typescript": "^5.9.2"
