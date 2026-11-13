@@ -605,6 +605,33 @@ of these and what to do when it is not. Good first alerts:
 `ownbase_disk_free_bytes` below one backup's size, and
 `ownbase_app_deliveries{state="failed"} > 0`.
 
+### An hour of steady use
+
+`scripts/measure-soak.mts` runs one server for a set time against scripted
+people who post, reply, edit, delete, react, upload and remove files, join and
+leave channels, drop and reconnect, sign in and out, read history and start
+huddles, and samples the server once a minute. The **Soak** workflow runs it on
+a GitHub runner when started by hand.
+
+The first full run, on 13 November 2026 (v0.2.0, a 4-core runner with 16 GB, Node
+24), had 20 people on a workspace seeded with 20,000 messages for 60 minutes:
+
+| Over the hour                | Start       | End         |
+| ---------------------------- | ----------- | ----------- |
+| Server memory (resident)     | 316 MiB     | 318.1 MiB   |
+| JavaScript heap              | 30.3 MiB    | 31.2 MiB    |
+| Open handles                 | 32          | 33          |
+| Event loop delay, p99        | 12.9 ms     | 11.2 ms     |
+| Send to receive, p50 and p99 | 3.7, 157 ms | 3.5, 106 ms |
+| Database                     | 17.1 MiB    | 34 MiB      |
+
+"Start" is the first settled minute (the fifth or sixth); the database is as
+seeded. About 23,700 actions (10,935 posts, 237 huddles, 211 uploads, 513 reconnects)
+and none failed. Memory and heap rose by about 2 MiB and 1 MiB in the first
+40 minutes and then stayed level for the last 20; the database grows because it
+keeps what was said. Run it again after a change to how the server holds
+connections, caches or queues, and compare.
+
 Create the owner account before allowing public traffic, using an SSH tunnel if
 necessary. The supplied Compose configuration then requires invitations for new
 accounts. Place an HTTPS reverse proxy in front and set `--public-url` in the
