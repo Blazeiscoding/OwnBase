@@ -203,6 +203,59 @@ export function linkFields(s: LinkSettings): SettingsField[] {
   ];
 }
 
+/**
+ * What saving a way of signing in changed, as the audit log says it: turned
+ * on or off, the settings changed by their names, and who it lets in. Never a
+ * value, since some are secrets or certificates. Null when nothing changed.
+ * While it is off, whether it makes accounts or is required decides nothing,
+ * so only the named settings are told then.
+ */
+export function settingsChange<S extends LinkSettings>(
+  method: string,
+  before: S,
+  after: S,
+  opts: { on: (s: S) => boolean; named: Record<string, (s: S) => unknown> },
+): string | null {
+  const same = (a: unknown, b: unknown) => JSON.stringify(a) === JSON.stringify(b);
+  const wasOn = opts.on(before);
+  const isOn = opts.on(after);
+  const changed = Object.entries({ ...opts.named, "email domains for new accounts": domainsOf })
+    .filter(([, of]) => !same(of(before), of(after)))
+    .map(([name]) => `the ${name}`);
+  const clauses: string[] = [];
+  if (wasOn !== isOn) clauses.push(`turned ${isOn ? "on" : "off"} ${method}`);
+  else if (changed.length)
+    clauses.push(`changed ${inWords(changed)} in the settings for ${method}`);
+  if (isOn) {
+    const from = wasOn ? before : { required: false, newAccounts: false };
+    const it = () => (clauses.length ? "it" : method);
+    if (after.required !== from.required)
+      clauses.push(
+        after.required
+          ? `required ${it()} for everyone but the owner`
+          : `stopped requiring ${it()}`,
+      );
+    if (after.newAccounts !== from.newAccounts)
+      clauses.push(
+        after.newAccounts
+          ? `let ${it()} make accounts for new people`
+          : `stopped ${it()} from making accounts for new people`,
+      );
+  }
+  if (!clauses.length) return null;
+  const last = clauses.pop()!;
+  return clauses.length ? `${clauses.join(", ")}, and ${last}` : last;
+}
+
+const domainsOf = (s: LinkSettings) => s.domains;
+
+/** "a, b and c". */
+function inWords(items: string[]): string {
+  return items.length < 2
+    ? (items[0] ?? "")
+    : `${items.slice(0, -1).join(", ")} and ${items.at(-1)}`;
+}
+
 /** One of the routes every way of signing in has, at its own path. */
 export type AccountRoute<S extends Omit<EndpointSpec, "path">> = Endpoint<S & { path: string }>;
 
