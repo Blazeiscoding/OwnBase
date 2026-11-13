@@ -106,6 +106,8 @@ export const ERROR_CODES = [
   "poll_not_editable",
   "poll_not_found",
   "preview_not_found",
+  "push_endpoint_refused",
+  "push_keys_invalid",
   "reminder_in_past",
   "reminder_limit",
   "reminder_too_far",

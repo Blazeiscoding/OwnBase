@@ -13,7 +13,11 @@ import type {
 import { deviceStore } from "./lib/deviceStore.js";
 import type { SavedServer, SignInChange } from "@ownbase/client-core/savedSignIns";
 import { parseDeepLink } from "./lib/deeplink.js";
-import { workerNotifications, type WorkerNotifications } from "./lib/workerNotifications.js";
+import {
+  onOpenLink,
+  workerNotifications,
+  type WorkerNotifications,
+} from "./lib/workerNotifications.js";
 
 export type {
   AutoBackup,
@@ -253,7 +257,16 @@ export function webPlatform(): Platform {
           if (link) cb(link);
         };
         window.addEventListener("hashchange", onHashChange);
-        return () => window.removeEventListener("hashchange", onHashChange);
+        // A click on a push the server sent, while this page was behind others.
+        const stopLinks = navigator.serviceWorker
+          ? onOpenLink(navigator.serviceWorker, (link) => {
+              if (parseDeepLink(link)) cb(link);
+            })
+          : undefined;
+        return () => {
+          window.removeEventListener("hashchange", onHashChange);
+          stopLinks?.();
+        };
       },
     },
   };

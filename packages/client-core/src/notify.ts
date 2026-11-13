@@ -1,29 +1,16 @@
 import {
-  broadcastsIn,
-  effectiveNotifyLevel,
-  isDirect,
+  notificationWords,
+  notifyDecision,
   plainText,
-  userMentionsIn,
+  reminderNotifyDecision,
   type ID,
+  type MentionLabels,
   type Message,
+  type NotifyDecision,
 } from "@ownbase/protocol";
-import { isSnoozed } from "./selectors.js";
 import type { WorkspaceState } from "./workspace.js";
 
-export type NotifyDecision =
-  | {
-      notify: false;
-      reason:
-        | "own-message"
-        | "blocked"
-        | "not-a-member"
-        | "muted"
-        | "thread-muted"
-        | "level"
-        | "dnd"
-        | "not-here";
-    }
-  | { notify: true; reason: "dm" | "mention" | "broadcast" | "all" };
+export type { NotifyDecision } from "@ownbase/protocol";
 
 interface NotifyContext {
   now?: number;
@@ -36,9 +23,9 @@ interface NotifyContext {
 }
 
 /**
- * Whether an incoming message should raise a desktop notification.
- * Kept here rather than in the UI so the rules are testable and identical
- * on every client.
+ * Whether an incoming message should raise a desktop notification. The rule
+ * is protocol's `notifyDecision`, which the server also follows for pushes to
+ * a closed browser; this reads its inputs from the workspace state.
  */
 export function decideNotification(
   state: WorkspaceState,
@@ -47,69 +34,29 @@ export function decideNotification(
 ): NotifyDecision {
   const { now = Date.now(), live = true } = context;
   const self = state.self;
-  if (!self || message.userId === self.id) return { notify: false, reason: "own-message" };
-  // Someone this account blocked never reaches it, whatever they write (E12).
-  if (state.blocked.includes(message.userId)) return { notify: false, reason: "blocked" };
-
   const channel = state.channels[message.channelId];
-  if (!channel || !(message.channelId in state.memberships)) {
-    return { notify: false, reason: "not-a-member" };
-  }
-
-  const prefs = state.prefs[message.channelId];
-  if (prefs?.muted) return { notify: false, reason: "muted" };
-  // Its own level, or the account's default where it follows that (v53).
-  const level = effectiveNotifyLevel(prefs, state.notifyDefault);
-  if (level === "nothing") return { notify: false, reason: "level" };
-
-  // A reply that chose to notify the author of what it answers names them.
-  const named =
-    userMentionsIn(message.text).has(self.id) ||
-    (message.replyTo?.ping === true && message.replyTo.userId === self.id);
-  const broadcasts = broadcastsIn(message.text);
-  // A room-wide mention only reaches a room: in a DM it is just words.
-  const isDm = isDirect(channel.type);
-  const addressed = named || (!isDm && broadcasts.size > 0);
-
-  // A muted thread speaks up only for what is addressed to this account, as
-  // its mention badge counts it; in a DM, too, where everything else would.
-  if (
-    message.threadRootId !== null &&
-    state.threadFollows[message.threadRootId]?.muted &&
-    !addressed
-  ) {
-    return { notify: false, reason: "thread-muted" };
-  }
-
-  if (level === "mentions" && !addressed && !isDm) {
-    return { notify: false, reason: "level" };
-  }
-
-  // Do Not Disturb wins over everything except the decision to stay silent,
-  // which is already settled above.
-  if (isSnoozed(self.dndUntil, now)) return { notify: false, reason: "dnd" };
-
-  if (isDm) return { notify: true, reason: "dm" };
-  if (named) return { notify: true, reason: "mention" };
-  if (!isDm && broadcasts.size > 0) {
-    // @channel reaches everyone in it; @here only the people who are here.
-    if (broadcasts.has("channel") || live) return { notify: true, reason: "broadcast" };
-    return { notify: false, reason: "not-here" };
-  }
-  return { notify: true, reason: "all" };
+  const member = channel !== undefined && message.channelId in state.memberships;
+  return notifyDecision({
+    selfId: self?.id ?? null,
+    message,
+    senderBlocked: state.blocked.includes(message.userId),
+    channelType: member ? channel.type : null,
+    prefs: state.prefs[message.channelId],
+    notifyDefault: state.notifyDefault,
+    threadMuted:
+      message.threadRootId !== null && state.threadFollows[message.threadRootId]?.muted === true,
+    dndUntil: self?.dndUntil,
+    now,
+    live,
+  });
 }
 
-/**
- * Whether a reminder that came due should raise a notification. The person
- * asked for it, so a muted or quiet conversation does not hold it back; Do Not
- * Disturb does, and it waits in Activity.
- */
+/** Whether a reminder that came due should raise a notification; see `reminderNotifyDecision`. */
 export function decideReminderNotification(
   state: WorkspaceState,
   now = Date.now(),
 ): { notify: false; reason: "dnd" } | { notify: true; reason: "reminder" } {
-  if (isSnoozed(state.self?.dndUntil, now)) return { notify: false, reason: "dnd" };
-  return { notify: true, reason: "reminder" };
+  return reminderNotifyDecision(state.self?.dndUntil, now);
 }
 
 /** Reminders come due, in conversations this client still has. */
@@ -162,28 +109,23 @@ export function isMessageOnScreen(message: Message, screen: OnScreen): boolean {
   return (inChannel && screen.channelVisible) || (inThread && screen.threadVisible);
 }
 
-/** Message text with mention markup resolved to readable names, as a notification shows it. */
-export function readableText(state: WorkspaceState, text: string): string {
-  return plainText(text, {
+/** How a notification names the people and channels a message mentions. */
+function mentionLabels(state: WorkspaceState): MentionLabels {
+  return {
     user: (id) => {
       const user = state.users[id];
       return user ? `@${user.displayName}` : "@someone";
     },
     channel: (id) => `#${state.channels[id]?.name || "unknown"}`,
-  });
+  };
 }
 
-/**
- * Text for a notification, with mention markup resolved to readable names.
- * A code block's fences are markup, so only what is inside them is kept.
- */
+/** Message text with mention markup resolved to readable names, as a notification shows it. */
+export function readableText(state: WorkspaceState, text: string): string {
+  return plainText(text, mentionLabels(state));
+}
+
+/** Text for a notification; see protocol's `notificationWords`, which the server follows too. */
 export function notificationBody(state: WorkspaceState, message: Message): string {
-  const text = readableText(state, message.text);
-  const words = text.replaceAll(/```\n?/g, "");
-  if (words.trim()) return words;
-  if (text.trim()) return text;
-  const count = message.files.length;
-  // A forward with no words of its own carries neither words nor files.
-  if (count === 0) return message.forwardedFrom ? "Forwarded a message" : "Sent a message";
-  return count === 1 ? "Sent a file" : `Sent ${count} files`;
+  return notificationWords(message, mentionLabels(state));
 }

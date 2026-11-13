@@ -39,6 +39,7 @@ import { isImeKey } from "../lib/textInput.js";
 import { When } from "./When.js";
 import { runAction, useActionContext } from "../lib/actions.js";
 import { UpdateSettings } from "./Updates.js";
+import { PushSettings } from "./PushSettings.js";
 
 type Confirmation = { kind: "device"; session: SessionInfo } | { kind: "others" };
 
@@ -666,6 +667,7 @@ function NotificationSettings() {
           </button>
         )}
       </section>
+      {platform.kind !== "desktop" && <PushSettings />}
       <section
         {...settingMark("pause-notifications")}
         aria-labelledby="account-pause-title"

@@ -11,6 +11,29 @@ export const NOTIFICATION_WORKER = "/notification-worker.js";
  * clicked.
  */
 export const NOTIFICATION_CLICK = "ownbase:notification-click";
+/**
+ * The message the worker sends the page used last when a push the server
+ * sent is clicked: the link of the message it was about, on this site.
+ */
+export const OPEN_LINK = "ownbase:open-link";
+
+/** Hands `cb` each link the worker asks this page to open; returns a stop. */
+export function onOpenLink(container: ServiceWorkerContainer, cb: (link: string) => void) {
+  const listener = (event: MessageEvent) => {
+    const data = event.data as { type?: unknown; link?: unknown } | null;
+    if (data?.type !== OPEN_LINK || typeof data.link !== "string") return;
+    let url: URL;
+    try {
+      url = new URL(data.link);
+    } catch {
+      return;
+    }
+    if (url.origin === window.location.origin) cb(url.href);
+  };
+  container.addEventListener("message", listener);
+  return () => container.removeEventListener("message", listener);
+}
+
 /** Clicks a page still answers, oldest dropped first. */
 const KEPT_CLICKS = 50;
 

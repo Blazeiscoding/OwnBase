@@ -5,6 +5,7 @@ import type { ServerExtension } from "./extensions.js";
 import type { Limits } from "./limits.js";
 import type { FetchedPreview } from "./linkPreview.js";
 import type { ServerRelay } from "./huddles/relay.js";
+import type { PushLimits } from "./push/sender.js";
 import type { REMINDER_LIMITS } from "./reminders/feature.js";
 import type { SCHEDULED_LIMITS } from "./scheduled/feature.js";
 
@@ -90,6 +91,13 @@ export interface ServerOptions {
   scheduledLimits?: Partial<typeof SCHEDULED_LIMITS>;
   /** Overrides for reminders' bounds; see `REMINDER_LIMITS`. */
   reminderLimits?: Partial<typeof REMINDER_LIMITS>;
+  /** Overrides for pushes to closed browsers; see `PUSH_LIMITS`. */
+  pushLimits?: Partial<PushLimits>;
+  /**
+   * How push services can reach whoever runs this server, as a `mailto:` or
+   * `https:` address (RFC 8292). OwnBase's own site when not given.
+   */
+  pushContact?: string;
   /**
    * Copy an existing workspace before upgrading its schema. On by default; see
    * `OpenDbOptions.backupBeforeUpgrade` for when turning it off is reasonable.

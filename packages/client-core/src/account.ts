@@ -1,4 +1,4 @@
-import type { ID, SignInConnection, SignInMethod } from "@ownbase/protocol";
+import type { ID, PushSubscriptionBody, SignInConnection, SignInMethod } from "@ownbase/protocol";
 import { serverPath, type Api } from "./api.js";
 import { answerOf, doneOf } from "./answers.js";
 
@@ -33,6 +33,21 @@ export class AccountActions {
    */
   keepAsAccount(body: { handle: string; password: string }) {
     return answerOf(() => this.api.createAccountFromGuest(body));
+  }
+
+  /** The server's public key, which this browser subscribes to pushes with. */
+  pushKey() {
+    return answerOf(async () => (await this.api.pushKey()).publicKey);
+  }
+
+  /** Has the server push to this browser while OwnBase is closed, for this session. */
+  keepPushSubscription(body: PushSubscriptionBody) {
+    return doneOf(() => this.api.addPushSubscription(body));
+  }
+
+  /** Stops pushes to this browser. */
+  stopPushes() {
+    return doneOf(() => this.api.removePushSubscription());
   }
 
   storageUsage(signal?: AbortSignal) {

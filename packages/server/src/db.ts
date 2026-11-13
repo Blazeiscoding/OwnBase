@@ -780,6 +780,21 @@ const MIGRATIONS: string[] = [
   `
   DROP TABLE download_tokens;
   `,
+  // v57 — browsers that asked to be pushed to while OwnBase is closed (G09).
+  // One per session, which takes it along when it ends; the endpoint is the
+  // push service's address for that browser, and the keys encrypt for it.
+  `
+  CREATE TABLE push_subscriptions (
+    endpoint TEXT PRIMARY KEY,
+    session_hash TEXT NOT NULL UNIQUE REFERENCES sessions(token_hash) ON DELETE CASCADE,
+    user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    p256dh TEXT NOT NULL,
+    auth TEXT NOT NULL,
+    preview TEXT NOT NULL,
+    created_at INTEGER NOT NULL
+  );
+  CREATE INDEX idx_push_subscriptions_user ON push_subscriptions(user_id);
+  `,
 ];
 
 /** The schema this build understands. A workspace above it cannot be opened. */

@@ -13,6 +13,7 @@ import {
   type FileKind,
   type ID,
   type NotifyLevel,
+  type PushSubscriptionBody,
   type RegisterBody,
   type ReportReason,
   type ReportResolution,
@@ -506,6 +507,18 @@ export class Api {
 
   setNotifyDefault(level: NotifyLevel) {
     return this.http.json(endpoints.setNotifyDefault, { body: { level } });
+  }
+
+  pushKey() {
+    return this.http.json(endpoints.pushKey);
+  }
+
+  addPushSubscription(body: PushSubscriptionBody) {
+    return this.http.json(endpoints.addPushSubscription, { body });
+  }
+
+  removePushSubscription() {
+    return this.http.json(endpoints.removePushSubscription);
   }
 
   /** What waits in this workspace, for a device showing another one. */
