@@ -3,6 +3,7 @@ import { createStore, type StoreApi } from "zustand/vanilla";
 import type { ID } from "@ownbase/protocol";
 import { usePlatform } from "../context.js";
 import type { Platform } from "../platform.js";
+import { perDevice } from "./perDevice.js";
 
 /**
  * How loud one person in a call is to you, as Discord's user volume: heard
@@ -54,8 +55,6 @@ interface Volumes {
   set: (userId: ID, patch: Partial<PersonVolume>) => void;
 }
 
-const stores = new WeakMap<Platform, StoreApi<Volumes>>();
-
 function createVolumes(platform: Platform): StoreApi<Volumes> {
   /** Changed here before what was saved had been read, so newer than it. */
   const changed = new Set<ID>();
@@ -99,13 +98,9 @@ function createVolumes(platform: Platform): StoreApi<Volumes> {
   return store;
 }
 
+const volumesOf = perDevice(createVolumes);
+
 /** Everyone's volume in calls on this device, read once and shared by the bar and the stage. */
 export function useCallVolumes() {
-  const platform = usePlatform();
-  let store = stores.get(platform);
-  if (!store) {
-    store = createVolumes(platform);
-    stores.set(platform, store);
-  }
-  return useStore(store);
+  return useStore(volumesOf(usePlatform()));
 }

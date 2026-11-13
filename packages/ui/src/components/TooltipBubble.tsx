@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useLayoutEffect, useState, type RefObject } from "react";
 import { createPortal } from "react-dom";
 import { isImeKey } from "../lib/textInput.js";
+import { EASE_SMOOTH } from "../lib/layout.js";
 
 const VISUAL_GAP = 8;
 const VIEWPORT_MARGIN = 8;
@@ -137,7 +138,7 @@ export function TooltipBubble(props: {
       const y = from.top - parseFloat(tooltip.style.top);
       tooltip.animate(
         { translate: [`${x}px ${y}px`, "0 0"] },
-        { duration: 160, easing: "cubic-bezier(0.22, 1, 0.36, 1)" },
+        { duration: 160, easing: EASE_SMOOTH },
       );
     }
     const onFullscreenChange = () => refreshHost((version) => version + 1);

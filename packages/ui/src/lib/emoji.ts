@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { preloadable } from "./preloadable.js";
 
 /**
  * The emoji table, its search and this device's emoji choices, fetched on
@@ -8,25 +9,18 @@ import { useEffect, useState } from "react";
  */
 export type EmojiKit = typeof import("./emojiSet.js") & typeof import("./emojiPreferences.js");
 
-let kit: EmojiKit | null = null;
-let loading: Promise<EmojiKit> | null = null;
-
-export function loadEmoji(): Promise<EmojiKit> {
-  return (loading ??= Promise.all([import("./emojiSet.js"), import("./emojiPreferences.js")]).then(
-    ([set, preferences]) => (kit = { ...set, ...preferences }),
-    (error: unknown) => {
-      // Asked for again next time, as after a dropped connection.
-      loading = null;
-      throw error;
-    },
-  ));
-}
+const kit = preloadable<EmojiKit>(() =>
+  Promise.all([import("./emojiSet.js"), import("./emojiPreferences.js")]).then(
+    ([set, preferences]) => ({ ...set, ...preferences }),
+  ),
+);
+export const loadEmoji = kit.load;
 
 /** The kit once it has arrived, or null. It is asked for while `wanted`. */
 export function useEmoji(wanted: boolean): EmojiKit | null {
   const [, arrived] = useState(false);
   useEffect(() => {
-    if (!wanted || kit) return;
+    if (!wanted || kit.loaded()) return;
     let current = true;
     loadEmoji().then(
       () => current && arrived(true),
@@ -36,7 +30,7 @@ export function useEmoji(wanted: boolean): EmojiKit | null {
       current = false;
     };
   }, [wanted]);
-  return kit;
+  return kit.loaded();
 }
 
 // What a message of emoji alone is made of: pictographs, flags' letters, skin

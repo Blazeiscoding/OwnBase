@@ -36,12 +36,12 @@ import { Composer } from "../components/Composer.js";
 import { GettingStarted } from "../components/GettingStarted.js";
 import { useHuddleView } from "../lib/huddleView.js";
 import { useHuddleEndedNotice } from "../lib/huddleEnded.js";
-import { useCallPreferences } from "../lib/callPreferences.js";
+import { useCallPreferences, useDeviceCheckEndsWithScreen } from "../lib/callPreferences.js";
 import { previewAccount, previewFor, useNotificationPreviews } from "../lib/notificationPreview.js";
 import { focusOrigin } from "../lib/opener.js";
 import { useFocusedView } from "../lib/focusedView.js";
 import { HuddleButton } from "../components/HuddleButton.js";
-import { Banner, BannerAction } from "../components/Banner.js";
+import { Banner, BannerAction, BannerQueue } from "../components/Banner.js";
 import { MemberNoticeBanner } from "../components/MemberNotice.js";
 import { ServerNoticeBanner } from "../components/ServerNotice.js";
 import { UpdateBanner, useReportCall } from "../components/Updates.js";
@@ -59,12 +59,11 @@ import { useMessageAnnouncer } from "../components/MessageAnnouncer.js";
 import { WorkspaceStorageGate } from "../components/WorkspaceStorageGate.js";
 import { ShareableServerProvider } from "../components/ShareableServer.js";
 import { hasOpenModal } from "../components/Modal.js";
-import { loadTooltipBubble } from "../components/Tooltip.js";
 import { useLastConversation } from "../lib/lastConversation.js";
 import { useRecentConversations } from "../lib/recentConversations.js";
 import { useRememberWorkspaceIcon } from "../lib/workspaceIcon.js";
 import { useMediaQuery } from "../lib/useMediaQuery.js";
-import { loadEmoji } from "../lib/emoji.js";
+import { NARROW_QUERY, WIDE_QUERY } from "../lib/layout.js";
 import { useHistoryKeys } from "../lib/historyKeys.js";
 import { useIdleReport } from "../lib/idle.js";
 import { PartnerTime } from "../components/PartnerTime.js";
@@ -75,7 +74,6 @@ import { signedOutHow, type SignedOutHow } from "../lib/signOut.js";
 import {
   Navigation,
   NavigationContext,
-  WIDE,
   inView,
   reading,
   registerNavigation,
@@ -89,13 +87,8 @@ import {
 } from "../lib/workspaceShell.js";
 import { action, runAction, useActionContext, useGlobalKeys } from "../lib/actions.js";
 import { startNotifications } from "../lib/notifications.js";
-import {
-  OpenDialog,
-  SidePanel,
-  loadQuickSwitcher,
-  loadSearchDialog,
-  loadThreadPanel,
-} from "./workspaceViews.js";
+import { OpenDialog, SidePanel } from "./workspaceViews.js";
+import { preloadAll } from "../lib/preloadable.js";
 
 // Asked once per device, and only by a browser that has not answered yet.
 const NotificationBanner = lazy(() =>
@@ -357,7 +350,7 @@ function useDrawer() {
   }, [open]);
 
   useEffect(() => {
-    const wide = window.matchMedia(WIDE);
+    const wide = window.matchMedia(WIDE_QUERY);
     const onResize = () => {
       if (wide.matches && nav.state.drawer) nav.closeDrawer();
     };
@@ -381,6 +374,7 @@ function WorkspaceLayout(props: { restore: boolean; banner?: ReactNode }) {
   // Every device of an account idle makes it away (E9).
   useIdleReport(client);
   const calls = useCallPreferences();
+  useDeviceCheckEndsWithScreen();
   const channelId = useNavigationState((s) => s.channelId);
   const panel = useNavigationState((s) => s.panel);
   const drawer = useNavigationState((s) => s.drawer);
@@ -402,7 +396,7 @@ function WorkspaceLayout(props: { restore: boolean; banner?: ReactNode }) {
   // lays it out, so what it covers leaves the Tab order and the screen
   // reader's reading as the page does behind a dialog. The main landmark
   // around it stays, so the page still has one.
-  const narrow = useMediaQuery("(max-width: 1023px)");
+  const narrow = useMediaQuery(NARROW_QUERY);
   const panelCovers = narrow && panel.kind !== "none";
   const [huddleView, setHuddleView] = useHuddleView();
   const inHuddle = useWorkspace((s) => !!s.huddle);
@@ -430,22 +424,8 @@ function WorkspaceLayout(props: { restore: boolean; banner?: ReactNode }) {
     lastChannel.current = channelId;
     if (nav.state.cover.call) setHuddleView("chat");
   }, [channelId, nav, setHuddleView]);
-  /** The notifications ask is on show, so a hint waits behind it. */
-  const [asking, setAsking] = useState(false);
-  /** A server notice is on show, so the member notice after it waits (P6). */
-  const [noticeShowing, setNoticeShowing] = useState(false);
-  /** A new version's notice is on show, so the member notice waits. */
-  const [updateShowing, setUpdateShowing] = useState(false);
 
-  useEffect(() => {
-    // Failing here is not final: opening the palette, search, a thread, a hint or an emoji picker fetches it again.
-    loadQuickSwitcher().catch(() => undefined);
-    loadSearchDialog().catch(() => undefined);
-    loadThreadPanel().catch(() => undefined);
-    loadTooltipBubble().catch(() => undefined);
-    loadEmoji().catch(() => undefined);
-    import("../components/EmojiPicker.js").catch(() => undefined);
-  }, []);
+  useEffect(preloadAll, []);
 
   const activeChannel = channelId ? channels[channelId] : undefined;
   const title = activeChannel ? channelTitle(activeChannel, users, self?.id) : "";
@@ -678,47 +658,47 @@ function WorkspaceLayout(props: { restore: boolean; banner?: ReactNode }) {
               the server's extensions say (P6), then a new version of the
               desktop app, then a workspace with more members than its plan
               includes (P5). */}
-          {error ? (
-            <Banner
-              tone="alert"
-              actions={
-                <>
-                  {error === lostDraftsNote && (
-                    <BannerAction
-                      onClick={() => {
-                        nav.dismissError();
-                        nav.navigate({ to: "panel", panel: { kind: "drafts" } });
-                      }}
-                    >
-                      Show drafts
-                    </BannerAction>
-                  )}
-                  <BannerAction onClick={() => nav.dismissError()}>Dismiss</BannerAction>
-                </>
-              }
-            >
-              {error}
-            </Banner>
-          ) : props.banner ? (
-            props.banner
-          ) : (
-            <>
-              {platform.kind !== "desktop" && typeof Notification !== "undefined" && (
-                // The ask is a courtesy: if it cannot load, the workspace carries on without it.
-                <ErrorBoundary fallback={<span hidden />}>
-                  <Suspense fallback={null}>
-                    <NotificationBanner storage={platform.storage} onShowing={setAsking} />
-                  </Suspense>
-                </ErrorBoundary>
-              )}
-              {navigating && !asking && <Banner tone="status">Opening message…</Banner>}
-              {!navigating && !asking && <ServerNoticeBanner onShowing={setNoticeShowing} />}
-              {!navigating && !asking && !noticeShowing && (
-                <UpdateBanner onShowing={setUpdateShowing} />
-              )}
-              {!navigating && !asking && !noticeShowing && !updateShowing && <MemberNoticeBanner />}
-            </>
-          )}
+          <BannerQueue
+            banners={[
+              error && (
+                <Banner
+                  tone="alert"
+                  actions={
+                    <>
+                      {error === lostDraftsNote && (
+                        <BannerAction
+                          onClick={() => {
+                            nav.dismissError();
+                            nav.navigate({ to: "panel", panel: { kind: "drafts" } });
+                          }}
+                        >
+                          Show drafts
+                        </BannerAction>
+                      )}
+                      <BannerAction onClick={() => nav.dismissError()}>Dismiss</BannerAction>
+                    </>
+                  }
+                >
+                  {error}
+                </Banner>
+              ),
+              props.banner,
+              platform.kind !== "desktop" &&
+                typeof Notification !== "undefined" &&
+                ((onShowing) => (
+                  // The ask is a courtesy: if it cannot load, the workspace carries on without it.
+                  <ErrorBoundary fallback={<span hidden />}>
+                    <Suspense fallback={null}>
+                      <NotificationBanner storage={platform.storage} onShowing={onShowing} />
+                    </Suspense>
+                  </ErrorBoundary>
+                )),
+              navigating && <Banner tone="status">Opening message…</Banner>,
+              (onShowing) => <ServerNoticeBanner onShowing={onShowing} />,
+              (onShowing) => <UpdateBanner onShowing={onShowing} />,
+              (onShowing) => <MemberNoticeBanner onShowing={onShowing} />,
+            ]}
+          />
 
           {channelId ? (
             // The call beside the chat on a wide window, over it otherwise.

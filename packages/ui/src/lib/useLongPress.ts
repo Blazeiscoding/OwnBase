@@ -1,5 +1,6 @@
 import { useEffect, useRef } from "react";
 import type React from "react";
+import { TOUCH_QUERY, screenMatches } from "./layout.js";
 
 /** How long a finger rests before a hold counts, as a message's is (MessageItem). */
 export const LONG_PRESS_MS = 450;
@@ -35,7 +36,7 @@ export function useLongPress(
       held.current = false;
       if (!run.current || event.touches.length !== 1) return;
       if (options.skip?.(event.target as Element)) return;
-      if (typeof matchMedia !== "function" || !matchMedia("(hover: none)").matches) return;
+      if (!screenMatches(TOUCH_QUERY)) return;
       const touch = event.touches[0]!;
       press.current = {
         x: touch.clientX,

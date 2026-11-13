@@ -1,12 +1,13 @@
 import type { ReactNode } from "react";
 import { Modal } from "./Modal.js";
+import { SHEET_QUERY, screenMatches } from "../lib/layout.js";
 
-/** Phones without a pointer get a sheet where anything else gets a dropdown. */
-export const SHEET_QUERY = "(hover: none) and (max-width: 760px)";
-
-/** Whether this screen is one that gets a sheet. Read once, as what opens decides how. */
+/**
+ * Whether this screen is one that gets a sheet where anything else gets a
+ * dropdown. Read once, as what opens decides how.
+ */
 export function wantsSheet(): boolean {
-  return typeof window.matchMedia === "function" && window.matchMedia(SHEET_QUERY).matches;
+  return screenMatches(SHEET_QUERY);
 }
 
 /** The surface of a card in a sheet: each part of what it holds floats on its own. */

@@ -5,11 +5,14 @@ import { ApiError, isMessageOnScreen, type WorkspaceClient } from "@ownbase/clie
 import type { AccountSection } from "./accountSections.js";
 import type { DraftPlace } from "@ownbase/client-core";
 import { requestEdit } from "./editRequest.js";
+import { drawerLayout } from "./layout.js";
 import {
+  ROUTE_DIALOGS,
   ROUTE_VIEWS,
   currentRoute,
   writeRoute,
   type RouteDialog,
+  type RouteDialogName,
   type RouteView,
   type WorkspaceRoute,
 } from "./route.js";
@@ -90,19 +93,23 @@ export type Intent =
   /** This account left the open conversation; the screen picks another. */
   | { to: "left" };
 
-/** The opposite of the query in theme.css that turns the sidebar into a drawer. */
-export const WIDE = "(min-width: 761px) and (min-height: 481px)";
-
-export function drawerLayout(): boolean {
-  return typeof window.matchMedia === "function" && !window.matchMedia(WIDE).matches;
-}
+/** The dialog each name in the address stands for. */
+const ROUTE_DIALOG_KINDS = {
+  account: "account",
+  workspace: "workspace",
+  people: "people",
+  reports: "reports",
+  apps: "apps",
+  invite: "invite",
+  shortcuts: "shortcuts",
+  details: "channel-details",
+} as const satisfies Record<RouteDialogName, DialogKind>;
 
 function dialogFromRoute(dialog: RouteDialog | null | undefined): Dialog {
   if (!dialog) return { kind: "none" };
-  if (dialog.name === "account")
-    return dialog.section ? { kind: "account", section: dialog.section } : { kind: "account" };
-  if (dialog.name === "details") return { kind: "channel-details" };
-  return { kind: dialog.name };
+  if (dialog.name === "account" && dialog.section)
+    return { kind: "account", section: dialog.section };
+  return { kind: ROUTE_DIALOG_KINDS[dialog.name] };
 }
 
 function panelFromRoute(route: WorkspaceRoute | null): Panel {
@@ -113,21 +120,9 @@ function panelFromRoute(route: WorkspaceRoute | null): Panel {
 
 /** The part of an open dialog the address keeps, if it keeps any. */
 function routeDialogOf(dialog: Dialog): RouteDialog | null {
-  switch (dialog.kind) {
-    case "account":
-      return dialog.section ? { name: "account", section: dialog.section } : { name: "account" };
-    case "channel-details":
-      return { name: "details" };
-    case "people":
-    case "reports":
-    case "apps":
-    case "workspace":
-    case "invite":
-    case "shortcuts":
-      return { name: dialog.kind };
-    default:
-      return null;
-  }
+  const name = ROUTE_DIALOGS.find((n) => ROUTE_DIALOG_KINDS[n] === dialog.kind);
+  if (!name) return null;
+  return dialog.kind === "account" && dialog.section ? { name, section: dialog.section } : { name };
 }
 
 /**

@@ -1,12 +1,9 @@
-import { useEffect, useEffectEvent, useId, useMemo, useRef, useState } from "react";
+import { useEffect, useEffectEvent, useId, useRef, useState } from "react";
 import type { WorkspaceState } from "@ownbase/client-core";
 import type { ID } from "@ownbase/protocol";
-import { useClient, usePlatform, useWorkspace } from "../context.js";
-import {
-  readWorkspaceStorage,
-  workspaceStorageKey,
-  writeWorkspaceStorage,
-} from "@ownbase/client-core";
+import { usePlatform, useWorkspace } from "../context.js";
+import { writeWorkspaceStorage } from "@ownbase/client-core";
+import { useAccountKey, useAccountRead } from "../lib/accountStorage.js";
 import { buttonClass } from "./Button.js";
 import { Icon } from "./Icon.js";
 import { Tooltip } from "./Tooltip.js";
@@ -23,6 +20,9 @@ interface Saved {
  * then come back when the sidebar is drawn again, so the page remembers too.
  */
 const closedHere = new Set<string>();
+
+const savedOf = (value: unknown): Saved =>
+  value && typeof value === "object" ? (value as Saved) : {};
 
 /**
  * Whether the replica holds a message this account wrote. Only the server's
@@ -44,42 +44,18 @@ export function KeepAccountOffer(props: {
   onKeep: () => void;
 }) {
   const platform = usePlatform();
-  const client = useClient();
   const self = useWorkspace((s) => s.self);
-  const workspaceId = useWorkspace((s) => s.workspaceId);
   const guest = self?.role === "guest";
   const selfId = self?.id;
-  const key = useMemo(() => {
-    if (!guest) return null;
-    const scoped = workspaceStorageKey(client.baseUrl, workspaceId, selfId, "keep-account-offer");
-    return scoped && { key: scoped.key };
-  }, [guest, client.baseUrl, workspaceId, selfId]);
-  // What this device has for the account; "unreadable" when storage failed.
-  const [saved, setSaved] = useState<{ key: string; value: Saved | "unreadable" } | null>(null);
-  const current = key && saved?.key === key.key ? saved.value : null;
+  const accountKey = useAccountKey("keep-account-offer");
+  const key = guest ? accountKey : null;
+  // Whether it was put away already cannot be told from an unreadable store,
+  // so it is not offered then: the menus still have Create an account.
+  const read = useAccountRead<Saved | "unreadable">(key, savedOf, "unreadable");
+  const [saved, setSaved] = useState<{ key: string; value: Saved } | null>(null);
+  const current = key ? (saved?.key === key.key ? saved.value : (read ?? null)) : null;
   const section = useRef<HTMLElement>(null);
   const titleId = useId();
-
-  useEffect(() => {
-    if (!key) return;
-    let alive = true;
-    const read = async (): Promise<Saved | "unreadable"> => {
-      try {
-        const value = await readWorkspaceStorage<Saved>(platform, key);
-        return value && typeof value === "object" ? value : {};
-      } catch {
-        // Whether it was put away already cannot be told, so it is not offered:
-        // the menus still have Create an account.
-        return "unreadable";
-      }
-    };
-    void read().then((value) => {
-      if (alive) setSaved({ key: key.key, value });
-    });
-    return () => {
-      alive = false;
-    };
-  }, [platform, key]);
 
   const known = current !== null && current !== "unreadable" ? current : null;
   const open = !!key && !!known && !known.closed && !closedHere.has(key.key);

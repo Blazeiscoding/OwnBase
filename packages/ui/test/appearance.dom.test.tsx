@@ -6,6 +6,8 @@ import { WorkspaceClient } from "@ownbase/client-core";
 import type { User } from "@ownbase/protocol";
 import { ClientContext, PlatformContext } from "../src/context.js";
 import { AccountDialog } from "../src/components/AccountDialog.js";
+import { paletteCommands, useActionContext } from "../src/lib/actions.js";
+import { renderPart } from "./workspaceParts.js";
 import { FIRST_PAINT_KEY, useApplyAppearance } from "../src/lib/appearance.js";
 import type { Platform } from "../src/platform.js";
 import { accessibilityProblems } from "./accessibility.js";
@@ -26,6 +28,7 @@ const sam: User = {
 
 afterEach(() => {
   vi.restoreAllMocks();
+  vi.unstubAllGlobals();
   delete document.documentElement.dataset.theme;
   delete document.documentElement.dataset.density;
   localStorage.removeItem(FIRST_PAINT_KEY);
@@ -142,6 +145,59 @@ describe("how OwnBase looks on this device", () => {
     );
     expect(root().theme).toBe("dark");
     expect(within(panel).getByRole("radio", { name: /^Onyx/ })).toBeChecked();
+  });
+});
+
+describe("following the device", () => {
+  /** What Ctrl+K offers for the theme. */
+  function ThemeCommand() {
+    const command = paletteCommands(useActionContext()).find((c) => c.id === "theme");
+    return <p data-testid="theme-command">{command?.label}</p>;
+  }
+
+  /** A device whose only colour-scheme answer is `prefers`, or none at all. */
+  function device(prefers: "light" | "dark" | null) {
+    vi.stubGlobal("matchMedia", (query: string) => ({
+      matches: prefers !== null && query === `(prefers-color-scheme: ${prefers})`,
+      media: query,
+      addEventListener: () => {},
+      removeEventListener: () => {},
+    }));
+    const bar = document.createElement("meta");
+    bar.name = "theme-color";
+    document.head.append(bar);
+    const client = new WorkspaceClient("http://127.0.0.1:9", "test-token-not-a-credential");
+    client.store.setState({ self: sam, users: { [sam.id]: sam }, status: "online" });
+    renderPart(
+      client,
+      <>
+        <Applied />
+        <ThemeCommand />
+      </>,
+    );
+    return { bar, command: screen.getByTestId("theme-command") };
+  }
+
+  // theme.css paints "system" as Onyx unless the device asks for light.
+  it("shows Onyx when the device states no preference, and Ctrl+K offers White", async () => {
+    const { bar, command } = device(null);
+    await waitFor(() => expect(root().theme).toBe("system"));
+    expect(command).toHaveTextContent("Switch to the White theme");
+    expect(bar.content).toBe("#111115");
+  });
+
+  it("shows White when the device asks for light, and Ctrl+K offers Onyx", async () => {
+    const { bar, command } = device("light");
+    await waitFor(() => expect(root().theme).toBe("system"));
+    expect(command).toHaveTextContent("Switch to the Onyx theme");
+    expect(bar.content).toBe("#e9e9ec");
+  });
+
+  it("shows Onyx when the device asks for dark, and Ctrl+K offers White", async () => {
+    const { bar, command } = device("dark");
+    await waitFor(() => expect(root().theme).toBe("system"));
+    expect(command).toHaveTextContent("Switch to the White theme");
+    expect(bar.content).toBe("#111115");
   });
 });
 

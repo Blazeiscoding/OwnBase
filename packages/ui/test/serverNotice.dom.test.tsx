@@ -4,7 +4,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { WorkspaceClient } from "@ownbase/client-core";
 import type { Channel, MemberNotice, ServerNotice, User } from "@ownbase/protocol";
 import { ClientContext, PlatformContext } from "../src/context.js";
-import { SERVER_NOTICE_SNOOZE_MS } from "../src/components/ServerNotice.js";
+import { NOTICE_SNOOZE_MS } from "../src/lib/noticeSnooze.js";
 import { WorkspaceScreen } from "../src/screens/WorkspaceScreen.js";
 import { writeRoute } from "../src/lib/route.js";
 import type { Platform } from "../src/platform.js";
@@ -172,7 +172,7 @@ describe("a server notice", () => {
 
     workspace("admin", [ending], {
       saved: {
-        "serverNoticeSnoozedAt:W_EE:license:lic-acme:ending": NOW - SERVER_NOTICE_SNOOZE_MS - 1,
+        "serverNoticeSnoozedAt:W_EE:license:lic-acme:ending": NOW - NOTICE_SNOOZE_MS - 1,
       },
     });
     expect(await screen.findByText(ending.text)).toBeVisible();

@@ -2,10 +2,8 @@ import { useEffect, useLayoutEffect, useState } from "react";
 import type { ServerNotice } from "@ownbase/protocol";
 import { selfIsAdministrator } from "@ownbase/client-core";
 import { usePlatform, useWorkspace } from "../context.js";
+import { keepSnoozed, snoozedUnder } from "../lib/noticeSnooze.js";
 import { Banner, BannerAction } from "./Banner.js";
-
-/** How long "Not now" keeps a notice that is only news away, on this device. */
-export const SERVER_NOTICE_SNOOZE_MS = 14 * 24 * 60 * 60 * 1000;
 
 const NONE: ServerNotice[] = [];
 
@@ -37,8 +35,7 @@ export function ServerNoticeBanner({
     void Promise.all(
       notices.map(async (notice) => {
         if (notice.tone === "alert") return null;
-        const at = await platform.storage.get<number>(prefix + notice.id).catch(() => null);
-        return typeof at === "number" && now() - at < SERVER_NOTICE_SNOOZE_MS ? notice.id : null;
+        return (await snoozedUnder(platform.storage, prefix + notice.id, now)) ? notice.id : null;
       }),
     ).then((ids) => {
       if (alive) setSnoozed(new Set(ids.filter((id): id is string => id !== null)));
@@ -65,8 +62,7 @@ export function ServerNoticeBanner({
       return;
     }
     setSnoozed((ids) => new Set([...(ids ?? []), current.id]));
-    // Remembering is a courtesy: if it cannot be saved, the notice is still gone.
-    platform.storage.set(prefix + current.id, now()).catch(() => {});
+    keepSnoozed(platform.storage, prefix + current.id, now);
   }
 
   return (

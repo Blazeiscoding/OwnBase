@@ -1,4 +1,11 @@
 import { useEffect } from "react";
+import { isApple } from "./shortcuts.js";
+
+/** Back and Forward from the keyboard, as the shortcut sheet shows them. */
+export const HISTORY_KEYS = [
+  { key: "ArrowLeft", keys: [isApple() ? "⌥" : "Alt", "←"], describe: "Go back" },
+  { key: "ArrowRight", keys: [isApple() ? "⌥" : "Alt", "→"], describe: "Go forward" },
+] as const;
 
 /**
  * Alt+Left and Alt+Right, and a mouse's side buttons, go Back and Forward.
@@ -10,8 +17,8 @@ export function useHistoryKeys(enabled: boolean): void {
     if (!enabled) return;
     const onKey = (e: KeyboardEvent) => {
       if (e.defaultPrevented || !e.altKey || e.ctrlKey || e.metaKey || e.shiftKey) return;
-      if (e.key === "ArrowLeft") window.history.back();
-      else if (e.key === "ArrowRight") window.history.forward();
+      if (e.key === HISTORY_KEYS[0].key) window.history.back();
+      else if (e.key === HISTORY_KEYS[1].key) window.history.forward();
       else return;
       e.preventDefault();
     };

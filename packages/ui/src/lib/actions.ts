@@ -1,4 +1,3 @@
-import { useStore } from "zustand";
 import {
   selfIsAdministrator,
   type WorkspaceClient,
@@ -10,8 +9,7 @@ import type { MenuItem } from "../components/Menu.js";
 import type { PaletteCommand } from "../components/QuickSwitcher.js";
 import { useToast, type ToastRequest } from "../components/Toast.js";
 import { useConfirm, type ConfirmRequest } from "../components/Confirm.js";
-import { useAppearance } from "./appearance.js";
-import { useMediaQuery } from "./useMediaQuery.js";
+import { useAppearance, useShownTheme } from "./appearance.js";
 import { failureText } from "./failure.js";
 import { markEverythingRead, unreadEverywhere, unreadSummary } from "./readAll.js";
 import { collapsedSections, neighbourConversation } from "./sidebarLayout.js";
@@ -39,8 +37,8 @@ export interface Action {
   icon: IconName | ((ctx: ActionContext) => IconName);
   /** Other words someone might type for it in Ctrl+K. */
   keywords?: string | ((ctx: ActionContext) => string);
-  /** Ctrl+K's own words and icon, where they differ from the menus'. */
-  palette?: { label?: string; icon?: IconName };
+  /** Ctrl+K's own words and icon, where they differ from the menus'; false keeps it out of Ctrl+K. */
+  palette?: false | { label?: string; icon?: IconName };
   /** Whether this account may do it, here and now. */
   available: (ctx: ActionContext) => boolean;
   run: (ctx: ActionContext) => void;
@@ -110,7 +108,7 @@ async function markAllRead(ctx: ActionContext) {
   ctx.toast({ message: `Marked ${summary} as read.`, kind: "success" });
 }
 
-/** Every workspace-wide action, each declared once. */
+/** Every workspace-wide action, each declared once, in the order Ctrl+K lists them. */
 export const ACTIONS = [
   {
     id: "new-message",
@@ -263,6 +261,7 @@ export const ACTIONS = [
     id: "diagnostics",
     label: "Diagnostics",
     icon: "gauge",
+    palette: false,
     available: always,
     run: (ctx) => ctx.nav.navigate({ to: "dialog", dialog: { kind: "diagnostics" } }),
   },
@@ -270,6 +269,7 @@ export const ACTIONS = [
     id: "away",
     label: (ctx) => (ctx.state.self?.away ? "Set yourself active" : "Set yourself away"),
     icon: (ctx) => (ctx.state.self?.away ? "sun" : "moon"),
+    palette: false,
     available: (ctx) => !!ctx.state.self,
     run: (ctx) => {
       void ctx.client.setAway(!ctx.state.self?.away).then((error) => {
@@ -285,6 +285,7 @@ export const ACTIONS = [
     id: "sign-out",
     label: "Sign out",
     icon: "leave",
+    palette: false,
     available: always,
     run: (ctx) => void signOut(ctx),
   },
@@ -302,32 +303,6 @@ const text = (value: string | ((ctx: ActionContext) => string), ctx: ActionConte
   typeof value === "function" ? value(ctx) : value;
 const iconOf = (value: IconName | ((ctx: ActionContext) => IconName), ctx: ActionContext) =>
   typeof value === "function" ? value(ctx) : value;
-
-/** Ctrl+K's actions, in its order: every sidebar destination and the common tasks. */
-export const PALETTE: readonly ActionId[] = [
-  "new-message",
-  "new-channel",
-  "browse",
-  "activity",
-  "threads",
-  "saved",
-  "drafts",
-  "files",
-  "invite",
-  "scheduled",
-  "search",
-  "profile",
-  "theme",
-  "account-settings",
-  "people",
-  "reports",
-  "apps",
-  "workspace-settings",
-  "create-account",
-  "hosting",
-  "hosting-internet",
-  "shortcuts",
-];
 
 /** One entry of a menu made from actions. */
 export interface MenuPlace {
@@ -392,16 +367,17 @@ export function menuItems(places: readonly MenuPlace[], ctx: ActionContext): Men
   return items;
 }
 
-/** Ctrl+K's actions this account may use now. */
+/** Ctrl+K's actions this account may use now: every sidebar destination and the common tasks. */
 export function paletteCommands(ctx: ActionContext): PaletteCommand[] {
-  return PALETTE.map(action)
-    .filter((a) => a.available(ctx))
+  return [...BY_ID.values()]
+    .filter((a) => a.palette !== false && a.available(ctx))
     .map((a) => {
       const binding = KEY_BINDINGS.find((b) => b.action === a.id);
+      const own = a.palette || {};
       return {
         id: a.id,
-        label: a.palette?.label ?? text(a.label, ctx),
-        icon: a.palette?.icon ?? iconOf(a.icon, ctx),
+        label: own.label ?? text(a.label, ctx),
+        icon: own.icon ?? iconOf(a.icon, ctx),
         keywords: a.keywords && text(a.keywords, ctx),
         ...(binding?.combo ? { shortcut: shortcutLabel(binding.combo) } : {}),
         run: () => a.run(ctx),
@@ -588,6 +564,22 @@ export const KEY_BINDINGS: readonly KeyBinding[] = [
   },
 ];
 
+/**
+ * What the menus and Ctrl+K show from the workspace: each action's
+ * availability, words and icon, and each menu place's. Drawn again when it
+ * changes, whatever an action reads.
+ */
+function shownWith(ctx: ActionContext): string {
+  const actions = [...BY_ID.values()].map((a) => [
+    a.available(ctx),
+    text(a.label, ctx),
+    iconOf(a.icon, ctx),
+    a.keywords && text(a.keywords, ctx),
+  ]);
+  const places = [...WORKSPACE_MENU, ...ACCOUNT_MENU].map((p) => [p.when?.(ctx), p.hint?.(ctx)]);
+  return JSON.stringify([actions, places]);
+}
+
 /** The context actions run in, for the workspace on screen. */
 export function useActionContext(): ActionContext {
   const client = useClient();
@@ -596,23 +588,20 @@ export function useActionContext(): ActionContext {
   const toast = useToast();
   const confirm = useConfirm();
   const appearance = useAppearance();
-  const prefersDark = useMediaQuery("(prefers-color-scheme: dark)");
-  // What `available` and the labels read, so a change to it draws the menus again.
-  useWorkspace((s) => s.self);
-  useWorkspace((s) => s.openReports);
-  useStore(nav.store, (s) => s.channelId);
-  return {
+  const shown = useShownTheme();
+  const base = {
     client,
-    state: client.state,
     nav,
     shell,
     toast,
     confirm,
     theme: {
-      dark: appearance.theme === "dark" || (appearance.theme === "system" && prefersDark),
-      set: (theme) => void appearance.set({ theme }),
+      dark: shown === "dark",
+      set: (theme: "light" | "dark") => void appearance.set({ theme }),
     },
   };
+  useWorkspace((state) => shownWith({ ...base, state }));
+  return { ...base, state: client.state };
 }
 
 /** Runs an action by id, if this account may. */

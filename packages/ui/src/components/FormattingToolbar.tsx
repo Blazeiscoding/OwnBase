@@ -3,17 +3,65 @@ import { ErrorBoundary } from "./ErrorBoundary.js";
 import { Icon } from "./Icon.js";
 import { Tooltip } from "./Tooltip.js";
 import { shortcutLabel } from "../lib/shortcuts.js";
+import { preloadable } from "../lib/preloadable.js";
 
 // Every emoji is far too much for the first download; the workspace fetches it as it opens.
+const emojiPicker = preloadable(() => import("./EmojiPicker.js"));
 const EmojiPicker = lazy(() =>
-  import("./EmojiPicker.js").then((module) => ({ default: module.EmojiPicker })),
+  emojiPicker.load().then((module) => ({ default: module.EmojiPicker })),
 );
 
-/** The marker Ctrl/Cmd with this key puts round the selection: B, I and E, and Shift+X for strikethrough as in Slack. */
+/**
+ * What the toolbar's buttons and Ctrl/Cmd keys put round the selection, as in
+ * Slack: B, I and E, and Shift+X for strikethrough. The shortcut sheet lists them.
+ */
+export const TEXT_FORMATS = [
+  {
+    label: "Bold",
+    symbol: "B",
+    marker: "*",
+    style: "font-bold",
+    combo: "Mod+B",
+    sheet: "Bold selected text",
+  },
+  {
+    label: "Italic",
+    symbol: "I",
+    marker: "_",
+    style: "italic",
+    combo: "Mod+I",
+    sheet: "Italic selected text",
+  },
+  {
+    label: "Strikethrough",
+    symbol: "S",
+    marker: "~",
+    style: "line-through",
+    combo: "Mod+Shift+X",
+    sheet: "Strikethrough selected text",
+  },
+  {
+    label: "Inline code",
+    symbol: "</>",
+    marker: "`",
+    style: "font-mono text-xs",
+    combo: "Mod+E",
+    sheet: "Inline code",
+  },
+] as const;
+
+/** The key of a combo, past Mod and Shift, and whether it needs Shift. */
+const keyOf = (combo: string) => ({
+  key: combo.split("+").at(-1)!.toLowerCase(),
+  shift: combo.includes("+Shift+"),
+});
+
+/** The marker Ctrl/Cmd with this key puts round the selection. */
 export const formattingShortcut = (key: string, shift = false) =>
-  shift
-    ? ({ x: "~" } as Record<string, string>)[key.toLowerCase()]
-    : ({ b: "*", i: "_", e: "`" } as Record<string, string>)[key.toLowerCase()];
+  TEXT_FORMATS.find((format) => {
+    const wanted = keyOf(format.combo);
+    return wanted.key === key.toLowerCase() && wanted.shift === shift;
+  })?.marker;
 
 /** A bulleted list ("- ") or a numbered one ("1. "), as Mrkdwn draws them. */
 export type ListKind = "bullets" | "numbers";
@@ -22,9 +70,14 @@ export type ListKind = "bullets" | "numbers";
  * Ctrl/Cmd+Shift+8 for a bulleted list and +7 for a numbered one, as in Slack.
  * Read from the key's place, since Shift changes what the key types.
  */
+export const LIST_FORMATS = [
+  { kind: "bullets", label: "Bulleted list", combo: "Mod+Shift+8", code: "Digit8" },
+  { kind: "numbers", label: "Numbered list", combo: "Mod+Shift+7", code: "Digit7" },
+] as const;
+
 export function listShortcut(event: { code: string; shiftKey: boolean }): ListKind | undefined {
   if (!event.shiftKey) return undefined;
-  return event.code === "Digit8" ? "bullets" : event.code === "Digit7" ? "numbers" : undefined;
+  return LIST_FORMATS.find((list) => list.code === event.code)?.kind;
 }
 
 /** The marker an item starts with, of each kind; the space after it is the composer's to type. */
@@ -182,37 +235,8 @@ export function FormattingToolbar({
           className="formatting-buttons flex items-center gap-0.5"
           data-expanded={expanded || undefined}
         >
-          {[
-            {
-              label: "Bold",
-              symbol: "B",
-              marker: "*",
-              style: "font-bold",
-              keys: shortcutLabel("Mod+B"),
-            },
-            {
-              label: "Italic",
-              symbol: "I",
-              marker: "_",
-              style: "italic",
-              keys: shortcutLabel("Mod+I"),
-            },
-            {
-              label: "Strikethrough",
-              symbol: "S",
-              marker: "~",
-              style: "line-through",
-              keys: shortcutLabel("Mod+Shift+X"),
-            },
-            {
-              label: "Inline code",
-              symbol: "</>",
-              marker: "`",
-              style: "font-mono text-xs",
-              keys: shortcutLabel("Mod+E"),
-            },
-          ].map((item) => (
-            <Tooltip key={item.label} label={item.label} keys={item.keys}>
+          {TEXT_FORMATS.map((item) => (
+            <Tooltip key={item.label} label={item.label} keys={shortcutLabel(item.combo)}>
               <button
                 type="button"
                 aria-label={item.label}
@@ -235,13 +259,8 @@ export function FormattingToolbar({
               {"{ }"}
             </button>
           </Tooltip>
-          {(
-            [
-              { kind: "bullets", label: "Bulleted list", keys: shortcutLabel("Mod+Shift+8") },
-              { kind: "numbers", label: "Numbered list", keys: shortcutLabel("Mod+Shift+7") },
-            ] as const
-          ).map((item) => (
-            <Tooltip key={item.kind} label={item.label} keys={item.keys}>
+          {LIST_FORMATS.map((item) => (
+            <Tooltip key={item.kind} label={item.label} keys={shortcutLabel(item.combo)}>
               <button
                 type="button"
                 aria-label={item.label}

@@ -49,6 +49,31 @@ describe("the keyboard shortcut sheet", () => {
     expect(rows()).toContain("Enter → New line");
     expect(rows()).not.toContain("Enter → Send");
   });
+
+  it("lists the formatting keys the toolbar's buttons show", async () => {
+    const { rows } = sheet(true);
+    await waitFor(() => expect(rows()).toContain("Enter → Send"));
+    expect(rows()).toEqual(
+      expect.arrayContaining([
+        "Ctrl B → Bold selected text",
+        "Ctrl I → Italic selected text",
+        "Ctrl Shift X → Strikethrough selected text",
+        "Ctrl E → Inline code",
+        "Ctrl Shift 8 → Bulleted list",
+        "Ctrl Shift 7 → Numbered list",
+      ]),
+    );
+  });
+
+  it("lists Back and Forward, which the desktop window has no buttons for", () => {
+    sheet(true);
+    const around = screen.getByRole("heading", { name: "Getting around" }).closest("section")!;
+    const rows = within(around)
+      .getAllByRole("listitem")
+      .map((row) => row.textContent);
+    expect(rows).toContain("Go backAlt←");
+    expect(rows).toContain("Go forwardAlt→");
+  });
 });
 
 describe("finding a shortcut", () => {

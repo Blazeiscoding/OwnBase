@@ -2,6 +2,7 @@ import { useState, type RefObject } from "react";
 import { Dialog } from "./Dialog.js";
 import { EmojiPicker } from "./EmojiPicker.js";
 import { Popover } from "./Popover.js";
+import { TOUCH_QUERY, screenMatches } from "../lib/layout.js";
 
 /**
  * Any emoji as a reaction, not only the three the message toolbar offers.
@@ -20,7 +21,7 @@ export function ReactionPicker(props: {
   /** Which edge of the anchor it lines up with; a message's end by default. */
   align?: "start" | "end";
 }) {
-  const [touch] = useState(() => window.matchMedia?.("(hover: none)").matches ?? false);
+  const [touch] = useState(() => screenMatches(TOUCH_QUERY));
   const title = props.title ?? "Add a reaction";
   function pick(emoji: string) {
     props.onClose();
