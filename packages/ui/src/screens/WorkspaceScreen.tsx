@@ -59,13 +59,11 @@ import { useMessageAnnouncer } from "../components/MessageAnnouncer.js";
 import { WorkspaceStorageGate } from "../components/WorkspaceStorageGate.js";
 import { ShareableServerProvider } from "../components/ShareableServer.js";
 import { hasOpenModal } from "../components/Modal.js";
-import { loadTooltipBubble } from "../components/Tooltip.js";
 import { useLastConversation } from "../lib/lastConversation.js";
 import { useRecentConversations } from "../lib/recentConversations.js";
 import { useRememberWorkspaceIcon } from "../lib/workspaceIcon.js";
 import { useMediaQuery } from "../lib/useMediaQuery.js";
 import { NARROW_QUERY, WIDE_QUERY } from "../lib/layout.js";
-import { loadEmoji } from "../lib/emoji.js";
 import { useHistoryKeys } from "../lib/historyKeys.js";
 import { useIdleReport } from "../lib/idle.js";
 import { PartnerTime } from "../components/PartnerTime.js";
@@ -89,13 +87,8 @@ import {
 } from "../lib/workspaceShell.js";
 import { action, runAction, useActionContext, useGlobalKeys } from "../lib/actions.js";
 import { startNotifications } from "../lib/notifications.js";
-import {
-  OpenDialog,
-  SidePanel,
-  loadQuickSwitcher,
-  loadSearchDialog,
-  loadThreadPanel,
-} from "./workspaceViews.js";
+import { OpenDialog, SidePanel } from "./workspaceViews.js";
+import { preloadAll } from "../lib/preloadable.js";
 
 // Asked once per device, and only by a browser that has not answered yet.
 const NotificationBanner = lazy(() =>
@@ -431,15 +424,7 @@ function WorkspaceLayout(props: { restore: boolean; banner?: ReactNode }) {
     if (nav.state.cover.call) setHuddleView("chat");
   }, [channelId, nav, setHuddleView]);
 
-  useEffect(() => {
-    // Failing here is not final: opening the palette, search, a thread, a hint or an emoji picker fetches it again.
-    loadQuickSwitcher().catch(() => undefined);
-    loadSearchDialog().catch(() => undefined);
-    loadThreadPanel().catch(() => undefined);
-    loadTooltipBubble().catch(() => undefined);
-    loadEmoji().catch(() => undefined);
-    import("../components/EmojiPicker.js").catch(() => undefined);
-  }, []);
+  useEffect(preloadAll, []);
 
   const activeChannel = channelId ? channels[channelId] : undefined;
   const title = activeChannel ? channelTitle(activeChannel, users, self?.id) : "";

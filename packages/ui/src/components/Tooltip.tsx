@@ -12,6 +12,7 @@ import {
   type Ref,
   type RefCallback,
 } from "react";
+import { preloadable } from "../lib/preloadable.js";
 
 interface TriggerProps {
   ref?: Ref<HTMLElement>;
@@ -90,19 +91,10 @@ type Bubble = (typeof import("./TooltipBubble.js"))["TooltipBubble"];
  * workspace opens, or when a hint is first wanted, and drawn directly from
  * then on; a hover waits longer than it takes to arrive.
  */
-let LoadedBubble: Bubble | null = null;
-let loadingBubble: Promise<Bubble> | null = null;
-export function loadTooltipBubble(): Promise<Bubble> {
-  loadingBubble ??= import("./TooltipBubble.js").then(
-    (module) => (LoadedBubble = module.TooltipBubble),
-    (error: unknown) => {
-      // Asked again later, it tries again.
-      loadingBubble = null;
-      throw error;
-    },
-  );
-  return loadingBubble;
-}
+const hintText = preloadable<Bubble>(() =>
+  import("./TooltipBubble.js").then((module) => module.TooltipBubble),
+);
+export const loadTooltipBubble = hintText.load;
 
 /**
  * A short hint for compact controls. It never moves focus or makes the page
@@ -172,7 +164,7 @@ export function Tooltip({
   }, [hide]);
   const show = useCallback(
     (delay: number) => {
-      if (!LoadedBubble) loadTooltipBubble().catch(() => undefined);
+      if (!hintText.loaded()) loadTooltipBubble().catch(() => undefined);
       clearOpenTimer();
       clearCloseTimer();
       if (delay === 0) reveal();
@@ -218,7 +210,7 @@ export function Tooltip({
 
   // Open before its text has arrived: draw it once it has.
   useEffect(() => {
-    if (!open || LoadedBubble) return;
+    if (!open || hintText.loaded()) return;
     let alive = true;
     loadTooltipBubble().then(
       () => alive && bubbleArrived((version) => version + 1),
@@ -265,6 +257,7 @@ export function Tooltip({
     }),
   });
 
+  const LoadedBubble = hintText.loaded();
   return (
     <>
       {child}

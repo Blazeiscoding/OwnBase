@@ -495,7 +495,7 @@
       "details": [
         "Adding a panel or dialog is its entry here (and its kind in navigation.ts). An entry says what it needs (an open conversation), whether this account may open it (allowed), and draws it in its loading frame.",
         "A dialog this account may not open is never drawn, and one an address names closes once the account is known; one taken away while open, by another admin, says why it closed.",
-        "The Ctrl+K palette, search and the thread panel load as the workspace opens and are then drawn directly, so what is typed straight after Ctrl+K never meets a loading state."
+        "The Ctrl+K palette, search and the thread panel are preloadable (lib/preloadable.ts): they load as the workspace opens and are then drawn directly, so what is typed straight after Ctrl+K never meets a loading state."
       ],
       "concepts": ["navigation", "dialogs"]
     },
@@ -1331,7 +1331,7 @@
       "plain": "Fetches the full set of emoji the first time something needs it, and tells whether a message is only a few emoji, so they can be shown large.",
       "summary": "Lazily loads the emoji table, search and preferences, and detects emoji-only messages.",
       "details": [
-        "loadEmoji imports emojiSet.ts and emojiPreferences.ts once, about 46 kB compressed, and forgets a failed attempt so the next one tries again. The workspace calls it as it opens; useEmoji gives a component the kit once it has arrived.",
+        "loadEmoji imports emojiSet.ts and emojiPreferences.ts once, about 46 kB compressed, and forgets a failed attempt so the next one tries again (lib/preloadable.ts). The workspace fetches it as it opens; useEmoji gives a component the kit once it has arrived.",
         "onlyEmoji is true for a message of at most 64 characters made only of pictographs, flag letters, skin tones, keycaps and the joiners between them. MessageItem shows such a message at 32 px, as Slack and Discord do."
       ],
       "concepts": ["lazy loading", "emoji", "jumbo emoji"]
@@ -1531,6 +1531,16 @@
         "A notice's way out (Toast) and a dialog's copy (Modal) end when their animations have played, not after a timer that guesses their length."
       ],
       "concepts": ["responsive UI", "motion tokens"]
+    },
+    {
+      "path": "packages/ui/src/lib/preloadable.ts",
+      "plain": "Fetches the parts of the app left out of the first download as soon as a workspace opens, so they are usually there before they are wanted.",
+      "summary": "preloadable(fetch) gives load() and loaded(); preloadAll() fetches every one, from WorkspaceScreen as it opens.",
+      "details": [
+        "Made with it: the Ctrl+K palette, search and the thread panel (workspaceViews.tsx), a hint's floating text (Tooltip.tsx), the emoji kit (emoji.ts) and the emoji picker (FormattingToolbar.tsx). Making one adds it to what preloadAll fetches, so there is no second list to keep in step.",
+        "load() fetches once and forgets a failure, so wanting the part later tries again; loaded() gives it once it has arrived, for a view to draw it directly rather than through a loading state."
+      ],
+      "concepts": ["code splitting", "preloading"]
     },
     {
       "path": "packages/ui/src/lib/onScreenKeyboard.ts",

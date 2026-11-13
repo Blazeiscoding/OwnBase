@@ -3,10 +3,12 @@ import { ErrorBoundary } from "./ErrorBoundary.js";
 import { Icon } from "./Icon.js";
 import { Tooltip } from "./Tooltip.js";
 import { shortcutLabel } from "../lib/shortcuts.js";
+import { preloadable } from "../lib/preloadable.js";
 
 // Every emoji is far too much for the first download; the workspace fetches it as it opens.
+const emojiPicker = preloadable(() => import("./EmojiPicker.js"));
 const EmojiPicker = lazy(() =>
-  import("./EmojiPicker.js").then((module) => ({ default: module.EmojiPicker })),
+  emojiPicker.load().then((module) => ({ default: module.EmojiPicker })),
 );
 
 /**
