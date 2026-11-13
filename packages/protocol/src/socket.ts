@@ -1,4 +1,4 @@
-import { z } from "zod";
+import { z } from "./zod.js";
 import { callReport, huddleSignal } from "./huddle.js";
 
 /** An id a client names, over the socket or in a request. */

@@ -861,6 +861,16 @@
       "concepts": ["runtime validation", "WebSocket", "bounded payload"]
     },
     {
+      "path": "packages/protocol/src/zod.ts",
+      "plain": "The one copy of the checking library every shared description uses, set so a browser never has to run generated code.",
+      "summary": "Re-exports zod's z with jitless on wherever there is a document, before any schema is built.",
+      "details": [
+        "Zod compiles a fast parser for each object schema with new Function and probes for that as the first schema is built. The client's content security policy refuses eval, so the probe only failed, and Firefox logged a policy violation each time the forms' checks loaded.",
+        "package.json lists this file as having side effects; otherwise the bundler follows the re-export straight to zod and drops the setting. The server keeps the compiled parsers."
+      ],
+      "concepts": ["runtime validation", "content security policy", "bundling"]
+    },
+    {
       "path": "packages/server/src/storageBudget.ts",
       "plain": "Keeps track of how much space uploaded files use and stops uploads before they go over the host's limit.",
       "summary": "Accounts for stored blobs and reserves upload bytes before concurrent writes.",
