@@ -2692,7 +2692,7 @@
       "details": [
         "Microphone, speaker (where setSinkId exists) and camera pickers with the system default first; a chosen device that is unplugged stays listed as such. Changes apply to a huddle in progress through chooseDevices and are kept for every workspace on this device.",
         "Noise suppression as Strong, Standard or Off (Discord's choice; Strong unless chosen otherwise, and Off for anyone who had turned suppression off), echo cancellation and automatic volume switches, a microphone test with playback, a two-tone speaker test, a mirrored camera preview, and join-muted. When the browser keeps device names back it offers to ask for the microphone once.",
-        "In Account settings it leaves out its own heading (titled={false}), since the window already names the section, and reports kept device and join-muted choices through savedNote."
+        "It has no heading of its own: Account settings, its one place, already names the section. It reports kept device and join-muted choices through savedNote."
       ],
       "concepts": ["device settings", "local media tests"]
     },
@@ -2712,7 +2712,7 @@
       "summary": "Asks once, before a first huddle, which microphone and camera to use.",
       "details": [
         "callPreferences.joinHuddle asks when this device has not been asked (devicesChecked), nothing is chosen, and the browser lists more than one microphone or camera; a browser that keeps names back lists none, so it is asked on the first join after it gives them. Choosing a microphone or camera in settings counts as an answer.",
-        "The dialog, loaded on first use from WorkspaceScreen, listens through MicrophoneCheck and shows the camera through CameraPreview at once. Join huddle keeps the choice and joins with it; Cancel, or the workspace closing, joins nothing and asks again next time. Only a dialog that went without an answer calls the waiting join off."
+        "The dialog, loaded on first use from WorkspaceScreen, listens through MicrophoneCheck and shows the camera through CameraPreview at once. Join huddle keeps the choice and joins with it; Cancel, or the workspace closing, joins nothing and asks again next time. The workspace screen mounts useDeviceCheckEndsWithScreen, so its going calls the waiting join off."
       ],
       "concepts": ["device settings", "first-call device check"]
     },
