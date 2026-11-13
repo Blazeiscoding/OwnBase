@@ -10,6 +10,7 @@ import { trustedLicenseKeys } from "./keys.js";
 import { LICENSE_ENV } from "./licenseEnv.js";
 import { featuresOn, readLicense, type LicenseClaims, type LicenseState } from "./license.js";
 import { compliance } from "./compliance.js";
+import { samlSignOn } from "./saml.js";
 import { provisioning } from "./scim.js";
 import { singleSignOn } from "./sso.js";
 import { eeEndpoints } from "./endpoints.js";
@@ -141,6 +142,11 @@ export function enterprise(opts: {
     now,
     ...(opts.fetch ? { fetch: opts.fetch } : {}),
   });
+  const saml = samlSignOn({
+    licensed: () => featuresOn(license()).has("sso"),
+    provisioned: scim.accountFor,
+    now,
+  });
   return {
     name: "enterprise",
     license,
@@ -168,15 +174,17 @@ export function enterprise(opts: {
         };
       });
       sso.register(context);
+      saml.register(context);
       scim.register(context);
       records.register(context);
     },
     status: () => words(license(), members(), now()).status,
     notice: () => words(license(), members(), now()).notice,
-    signInMethods: sso.signInMethods,
-    requiresSingleSignOn: sso.requiresSingleSignOn,
+    signInMethods: () => [...sso.signInMethods(), ...saml.signInMethods()],
+    requiresSingleSignOn: () => sso.requiresSingleSignOn() || saml.requiresSingleSignOn(),
     settingsPanels: () => [
       ...sso.settingsPanels(),
+      ...saml.settingsPanels(),
       ...scim.settingsPanels(),
       ...records.settingsPanels(),
     ],

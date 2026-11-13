@@ -63,7 +63,8 @@ export const randomToken = (): string => randomBytes(32).toString("base64url");
 export const s256 = (value: string): string =>
   createHash("sha256").update(value).digest("base64url");
 
-const isLoopback = (hostname: string) =>
+/** This computer, where http is allowed for a test or local provider. */
+export const isLoopback = (hostname: string) =>
   hostname === "localhost" || hostname === "127.0.0.1" || hostname === "[::1]";
 
 /** An address the provider gave: https, or http to this computer, where a test or local provider runs. */
