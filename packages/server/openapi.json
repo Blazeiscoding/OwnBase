@@ -68,6 +68,10 @@
       "description": "One message: edits, reactions, pins, saves, polls, reminders, reports, buttons."
     },
     {
+      "name": "push",
+      "description": "Notifications to a browser while OwnBase is closed: the server's key and this session's subscription."
+    },
+    {
       "name": "reminders",
       "description": "The signed-in account's reminders."
     },
@@ -5476,6 +5480,89 @@
         }
       }
     },
+    "/api/push/key": {
+      "get": {
+        "operationId": "getPushKey",
+        "tags": [
+          "push"
+        ],
+        "summary": "The server's public key, which a browser subscribes to pushes with.",
+        "description": "The server's public key, which a browser subscribes to pushes with.\n\nNeeds a signed-in account. Guests may call it too.",
+        "x-access": "member",
+        "x-guests": true,
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Done."
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    },
+    "/api/push/subscription": {
+      "put": {
+        "operationId": "putPushSubscription",
+        "tags": [
+          "push"
+        ],
+        "summary": "Keeps this session's browser push subscription, replacing any it had.",
+        "description": "Keeps this session's browser push subscription, replacing any it had. It goes when the session ends. `preview` is how much a push may say.\n\nNeeds a signed-in account. Guests may call it too.",
+        "x-access": "member",
+        "x-guests": true,
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PushSubscriptionBody"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Done."
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      },
+      "delete": {
+        "operationId": "deletePushSubscription",
+        "tags": [
+          "push"
+        ],
+        "summary": "Stops pushes to this session's browser.",
+        "description": "Stops pushes to this session's browser.\n\nNeeds a signed-in account. Guests may call it too.",
+        "x-access": "member",
+        "x-guests": true,
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Done."
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    },
     "/api/admin/extension-settings": {
       "get": {
         "operationId": "getAdminExtensionSettings",
@@ -6571,6 +6658,45 @@
         },
         "required": [
           "ids"
+        ]
+      },
+      "PushSubscriptionBody": {
+        "type": "object",
+        "properties": {
+          "endpoint": {
+            "type": "string",
+            "maxLength": 2000
+          },
+          "keys": {
+            "type": "object",
+            "properties": {
+              "p256dh": {
+                "type": "string",
+                "maxLength": 200
+              },
+              "auth": {
+                "type": "string",
+                "maxLength": 100
+              }
+            },
+            "required": [
+              "p256dh",
+              "auth"
+            ]
+          },
+          "preview": {
+            "type": "string",
+            "enum": [
+              "full",
+              "sender",
+              "none"
+            ]
+          }
+        },
+        "required": [
+          "endpoint",
+          "keys",
+          "preview"
         ]
       }
     },
