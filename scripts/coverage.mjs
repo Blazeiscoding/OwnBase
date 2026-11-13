@@ -82,7 +82,7 @@ for (const dir of dirs) {
   const name = JSON.parse(readFileSync(join(cwd, "package.json"), "utf8")).name;
   const reports = join(ROOT, "coverage", dir.replaceAll("/", "-"));
   rmSync(reports, { recursive: true, force: true });
-  // Vitest 4 reports only the files a test loaded unless told where source
+  // Vitest reports only the files a test loaded unless told where source
   // is, and the files nothing loads are the ones this is for. Every package's
   // source is listed so a run also says what it reached elsewhere.
   const include = all.map(

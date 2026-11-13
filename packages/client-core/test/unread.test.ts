@@ -207,8 +207,15 @@ describe("mark unread", () => {
   it("goes back to the mark the server took when a later one fails", async () => {
     const first = await incoming("Kept unread from here");
     const second = await incoming("Not from here");
+    const read = vi.spyOn(client.api, "markRead");
     client.markRead(channelId, second.seq);
-    await expect.poll(lastRead).toBe(second.seq);
+    await read.mock.results[0]!.value;
+    // The server also tells this socket the read moved to `second`. Landing
+    // after the later mark fails, when nothing holds the cursor down, that
+    // would raise it back. The socket brings what the server sends in order,
+    // so a message posted after the read arriving means the read's word is in.
+    await incoming("Posted after the read");
+    expect(lastRead()).toBe(second.seq);
 
     const answers = heldMarks();
     client.markUnread(channelId, first.seq);
