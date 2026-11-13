@@ -493,17 +493,25 @@ export function provisioning(opts: { licensed: () => boolean; now?: () => number
         throw new ScimError(404, "This server offers Users alone, at /scim/v2/Users.");
       });
 
-    route(eeEndpoints.scimMakeToken, async () => {
+    route(eeEndpoints.scimMakeToken, async ({ user }) => {
       if (!opts.licensed())
         throw new HttpError(
           403,
           "license_required",
           "Provisioning needs an Enterprise license with SCIM.",
         );
+      const replaced = !!token();
       const value = TOKEN_PREFIX + randomToken();
       store().set("scim:token", JSON.stringify({ hash: s256(value), madeAt: now() }));
       store().delete("scim:used");
       usedAt = null;
+      given.audit.record({
+        actorId: user.id,
+        did: replaced
+          ? "made a new SCIM token, and the one before stopped working"
+          : "turned on provisioning with SCIM and made its token",
+        details: { method: "scim" },
+      });
       return {
         reveal: {
           label: "SCIM token",
@@ -513,7 +521,13 @@ export function provisioning(opts: { licensed: () => boolean; now?: () => number
       };
     });
 
-    route(eeEndpoints.scimTurnOff, async () => {
+    route(eeEndpoints.scimTurnOff, async ({ user }) => {
+      if (token())
+        given.audit.record({
+          actorId: user.id,
+          did: "turned off provisioning with SCIM",
+          details: { method: "scim" },
+        });
       store().delete("scim:token");
       store().delete("scim:used");
       usedAt = null;
