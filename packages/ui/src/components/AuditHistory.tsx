@@ -17,10 +17,17 @@ export function describeAuditEntry(
 ): string {
   const name = (id: string | null | undefined, fallback: string) =>
     !id ? fallback : id === selfId ? "you" : (users[id]?.displayName ?? fallback);
-  const actor = entry.actorId === null ? "The host" : capitalise(name(entry.actorId, "Someone"));
+  const d = entry.details;
+  // An entry nobody signed in made: the host's, or a part of the server that
+  // names itself, such as SCIM provisioning (P10).
+  const actor =
+    entry.actorId !== null
+      ? capitalise(name(entry.actorId, "Someone"))
+      : typeof d.by === "string" && d.by
+        ? capitalise(d.by)
+        : "The host";
   const target = name(entry.targetId, "an account");
   const app = typeof entry.details.name === "string" ? entry.details.name : "an app";
-  const d = entry.details;
   // Each detail read defensively: an entry written by a newer server, or one
   // missing a field, should read as a shorter sentence rather than "undefined".
   const has = (key: string) => typeof d[key] === "string" || typeof d[key] === "number";

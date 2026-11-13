@@ -9,6 +9,7 @@ import {
 import { trustedLicenseKeys } from "./keys.js";
 import { LICENSE_ENV } from "./licenseEnv.js";
 import { featuresOn, readLicense, type LicenseClaims, type LicenseState } from "./license.js";
+import { provisioning } from "./scim.js";
 import { singleSignOn } from "./sso.js";
 import { eeEndpoints } from "./endpoints.js";
 
@@ -131,8 +132,10 @@ export function enterprise(opts: {
   const trusted = opts.trusted ?? trustedLicenseKeys();
   const license = () => readLicense(opts.license, trusted, now());
   let members = () => 0;
+  const scim = provisioning({ licensed: () => featuresOn(license()).has("scim"), now });
   const sso = singleSignOn({
     licensed: () => featuresOn(license()).has("sso"),
+    provisioned: scim.accountFor,
     now,
     ...(opts.fetch ? { fetch: opts.fetch } : {}),
   });
@@ -163,12 +166,13 @@ export function enterprise(opts: {
         };
       });
       sso.register(context);
+      scim.register(context);
     },
     status: () => words(license(), members(), now()).status,
     notice: () => words(license(), members(), now()).notice,
     signInMethods: sso.signInMethods,
     requiresSingleSignOn: sso.requiresSingleSignOn,
-    settingsPanels: sso.settingsPanels,
+    settingsPanels: () => [...sso.settingsPanels(), ...scim.settingsPanels()],
   };
 }
 
