@@ -2496,7 +2496,17 @@
       "plain": "The button at the top of a conversation that starts a huddle, joins one in progress or shows you are in it.",
       "summary": "Header control that starts a huddle, joins the running one, or says you are in it.",
       "details": [
-        "Names the action by the room's state (Start a huddle, Join the huddle (n), In huddle) and joins through the same preference-aware path as other entry points. The In huddle dot is still: an animation that never ends had the whole call drawn sixty times a second for as long as it lasted (E13b)."
+        "Names the action by the room's state (Start a huddle, Join the huddle (n), In huddle) and joins through useStartHuddle, as every other entry point does. The In huddle dot is still: an animation that never ends had the whole call drawn sixty times a second for as long as it lasted (E13b)."
+      ],
+      "concepts": ["huddle entry point"]
+    },
+    {
+      "path": "packages/ui/src/lib/startHuddle.ts",
+      "plain": "What every Join or Start a huddle button does: asks before leaving a huddle elsewhere, then joins with your call settings.",
+      "summary": "useStartHuddle and confirmHuddleSwitch: one way into a huddle for the header button, a ring's Join, a missed call's Call back and Getting started.",
+      "details": [
+        "Asks \"Switch huddles?\" when joining would leave a huddle in another conversation, naming it and any screen being shared there.",
+        "Joins through the call preferences (the first device check included), dropping the join when the part that asked has gone, or when its caller says it is no longer wanted; gives back the failure for the caller to word."
       ],
       "concepts": ["huddle entry point"]
     },
@@ -3027,7 +3037,7 @@
     {
       "path": "packages/ui/src/lib/audioRunning.ts",
       "plain": "Waits for sound to start playing, and gives up rather than send silence.",
-      "summary": "Shared check that an AudioContext reached running within three seconds, used by the strong noise filter and the system microphone.",
+      "summary": "Shared check that an AudioContext reached running within a deadline: three seconds for the strong noise filter and the system microphone, half a second for a call's playback, which then asks for a click.",
       "details": [
         "resume() can stay pending on a page the browser has not let play sound, so it races a three-second timer and then checks state; anything but running rejects, and the caller falls back to the browser's own microphone."
       ],

@@ -7,13 +7,12 @@ import { Avatar } from "./Avatar.js";
 import { Icon } from "./Icon.js";
 import { buttonClass } from "./Button.js";
 import { useToast } from "./Toast.js";
-import { useCallPreferences } from "../lib/callPreferences.js";
+import { useStartHuddle } from "../lib/startHuddle.js";
+import { failureMessage } from "../platform.js";
 import { channelTitle } from "../lib/format.js";
 import { ringContent, type NotificationPreview } from "../lib/notificationPreview.js";
 import { startRingTone } from "../lib/ringTone.js";
 import { focusedElsewhere, inOneWindow } from "../lib/focusedView.js";
-import { confirmHuddleSwitch } from "./HuddleButton.js";
-import { useConfirm } from "./Confirm.js";
 
 /**
  * A direct message's huddle ringing this account (E10): who is calling, with
@@ -98,44 +97,31 @@ export function IncomingCall(props: {
 
 function RingCard({ ring, onOpen }: { ring: HuddleRing; onOpen: (channelId: ID) => void }) {
   const client = useClient();
-  const calls = useCallPreferences();
   const toast = useToast();
   const caller = useWorkspace((s) => s.users[ring.callerId]);
   const group = useWorkspace((s) => {
     const channel = s.channels[ring.channelId];
     return channel?.type === "group_dm" ? channelTitle(channel, s.users, s.self?.id) : null;
   });
-  const [joining, setJoining] = useState(false);
-  const mounted = useRef(true);
-  useEffect(() => {
-    mounted.current = true;
-    return () => {
-      mounted.current = false;
-    };
-  }, []);
-  const confirm = useConfirm();
+  const huddle = useStartHuddle();
   const titleId = useId();
   const name = caller?.displayName ?? "Someone";
 
   async function join() {
-    if (joining) return;
-    if (!(await confirmHuddleSwitch(client, confirm, ring.channelId))) return;
-    setJoining(true);
-    onOpen(ring.channelId);
-    try {
+    if (huddle.starting) return;
+    const failed = await huddle.start(ring.channelId, {
       // Answered on purpose: a ring that runs out meanwhile does not take it back.
-      await calls.joinHuddle(client, ring.channelId, () => true);
-    } catch (err) {
-      toast({
-        message:
-          err instanceof Error
-            ? `Could not join the huddle: ${err.message}`
-            : "Could not join the huddle. Check your connection and try again.",
-        kind: "error",
-      });
-    } finally {
-      if (mounted.current) setJoining(false);
-    }
+      stillWanted: () => true,
+      onAgreed: () => onOpen(ring.channelId),
+    });
+    if (!failed) return;
+    const why = failureMessage(failed.error, "");
+    toast({
+      message: why
+        ? `Could not join the huddle: ${why}`
+        : "Could not join the huddle. Check your connection and try again.",
+      kind: "error",
+    });
   }
 
   return (
@@ -171,11 +157,11 @@ function RingCard({ ring, onOpen }: { ring: HuddleRing; onOpen: (channelId: ID) 
         <button
           type="button"
           onClick={() => void join()}
-          aria-disabled={joining || undefined}
+          aria-disabled={huddle.starting || undefined}
           className={buttonClass("primary", "px-3 aria-disabled:opacity-60 max-sm:flex-1")}
         >
           <Icon name="headphones" size={16} />
-          {joining ? "Joining…" : "Join"}
+          {huddle.starting ? "Joining…" : "Join"}
         </button>
       </div>
     </section>

@@ -20,7 +20,7 @@ import {
   waitsForAttention,
 } from "@ownbase/client-core";
 import { ClientContext, OpenMessageContext, useClient, useWorkspace } from "../context.js";
-import type { Platform } from "../platform.js";
+import { failureMessage, type Platform } from "../platform.js";
 import { channelTitle } from "../lib/format.js";
 import {
   HostingStatus,
@@ -37,6 +37,7 @@ import { GettingStarted } from "../components/GettingStarted.js";
 import { useHuddleView } from "../lib/huddleView.js";
 import { useHuddleEndedNotice } from "../lib/huddleEnded.js";
 import { useCallPreferences } from "../lib/callPreferences.js";
+import { useStartHuddle } from "../lib/startHuddle.js";
 import { previewAccount, previewFor, useNotificationPreviews } from "../lib/notificationPreview.js";
 import { focusOrigin } from "../lib/opener.js";
 import { useFocusedView } from "../lib/focusedView.js";
@@ -381,6 +382,7 @@ function WorkspaceLayout(props: { restore: boolean; banner?: ReactNode }) {
   // Every device of an account idle makes it away (E9).
   useIdleReport(client);
   const calls = useCallPreferences();
+  const huddle = useStartHuddle();
   const channelId = useNavigationState((s) => s.channelId);
   const panel = useNavigationState((s) => s.panel);
   const drawer = useNavigationState((s) => s.drawer);
@@ -562,16 +564,16 @@ function WorkspaceLayout(props: { restore: boolean; banner?: ReactNode }) {
                   if (!channelId) return;
                   const ticket = nav.moves;
                   if (nav.state.drawer) nav.closeDrawer();
-                  calls
-                    .joinHuddle(
-                      client,
-                      channelId,
-                      () => nav.current(ticket) && huddleRoom.current === channelId,
-                    )
-                    .catch((err: unknown) => {
+                  void huddle
+                    .start(channelId, {
+                      stillWanted: () => nav.current(ticket) && huddleRoom.current === channelId,
+                    })
+                    .then((failed) => {
+                      if (!failed) return;
+                      const why = failureMessage(failed.error, "");
                       nav.showError(
-                        err instanceof Error
-                          ? `Could not start a huddle: ${err.message}`
+                        why
+                          ? `Could not start a huddle: ${why}`
                           : "Could not start a huddle. Check your connection and try again.",
                       );
                     });

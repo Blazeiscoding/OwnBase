@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { act, cleanup, screen, within } from "@testing-library/react";
+import { act, cleanup, screen, waitFor, within } from "@testing-library/react";
 import { render } from "./render.js";
 import userEvent from "@testing-library/user-event";
 import { WorkspaceClient, type HuddleState } from "@ownbase/client-core";
@@ -280,6 +280,24 @@ describe("a missed huddle's note", () => {
     act(() => client.store.setState({ huddle: { channelId: "C_DM" } as HuddleState }));
     expect(screen.queryByRole("button")).toBeNull();
     expect(await accessibilityProblems(container)).toEqual([]);
+  });
+
+  // Before, Call back left a huddle in another conversation without asking.
+  it("asks before leaving a huddle in another conversation to call back", async () => {
+    const { client, shown, user } = workspace({});
+    client.store.setState({ huddle: { channelId: "C_GROUP" } as HuddleState });
+    shown(<CallNote message={note("U_MAYA")} />);
+    await user.click(screen.getByRole("button", { name: "Call back" }));
+    const ask = await screen.findByRole("dialog", { name: "Switch huddles?" });
+    await user.click(within(ask).getByRole("button", { name: "Cancel" }));
+    expect(joinHuddle).not.toHaveBeenCalled();
+
+    await user.click(screen.getByRole("button", { name: "Call back" }));
+    const again = await screen.findByRole("dialog", { name: "Switch huddles?" });
+    await user.click(within(again).getByRole("button", { name: "Switch" }));
+    await waitFor(() =>
+      expect(joinHuddle).toHaveBeenCalledWith(client, "C_DM", expect.any(Function)),
+    );
   });
 
   it("tells the caller nobody answered, with nothing to press and no way to edit it", () => {
