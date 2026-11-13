@@ -6,6 +6,7 @@ import {
   isAdministrator,
   isDirect,
   isRoom,
+  namesUser,
   roleMayCall,
   userMentionsIn,
 } from "../src/index.js";
@@ -46,6 +47,15 @@ describe("shared rules", () => {
     expect(canDeleteMessage({ id: "U2", role: "member" }, theirs)).toBe(false);
     expect(canDeleteMessage({ id: "U2", role: "admin" }, theirs)).toBe(true);
     expect(canDeleteMessage(null, theirs)).toBe(false);
+  });
+
+  it("says a message names someone by a mention or a reply that notifies them", () => {
+    const reply = (ping: boolean) => ({ userId: "U1", ping }) as never;
+    expect(namesUser({ text: "hi <@U1>" }, "U1")).toBe(true);
+    expect(namesUser({ text: "hi <@U12>" }, "U1")).toBe(false);
+    expect(namesUser({ text: "ok", replyTo: reply(true) }, "U1")).toBe(true);
+    expect(namesUser({ text: "ok", replyTo: reply(false) }, "U1")).toBe(false);
+    expect(namesUser({ text: "ok", replyTo: reply(true) }, "U2")).toBe(false);
   });
 
   it("tells rooms from direct messages, and a missing conversation from both", () => {

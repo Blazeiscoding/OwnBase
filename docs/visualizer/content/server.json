@@ -1136,11 +1136,12 @@
     },
     {
       "path": "packages/protocol/src/messageRules.ts",
-      "plain": "Decides who may edit or delete a message, with the same rule in the app and on the server.",
+      "plain": "Decides who may edit or delete a message, and whom a message names, with the same rule in the app and on the server.",
       "summary": "The edit and delete rules the server enforces and the message menu offers.",
       "details": [
         "editRefusal names why someone may not edit a message: not theirs, a poll, or a note about a call. The server answers with that code; the UI offers Edit only when there is none.",
-        "canDeleteMessage: their own message, or anyone's for the owner or an admin."
+        "canDeleteMessage: their own message, or anyone's for the owner or an admin.",
+        "namesUser: a mention of someone, or a reply that notifies the author it answers. Notifications and the row's highlight both read it."
       ],
       "concepts": ["authorization", "shared policy"]
     },

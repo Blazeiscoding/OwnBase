@@ -15,6 +15,7 @@ import { browserLink } from "../lib/deeplink.js";
 import {
   canDeleteMessage,
   editRefusal,
+  namesUser,
   type FileMeta,
   type ID,
   type Message,
@@ -213,11 +214,7 @@ const MessageRow = memo(function MessageRow({
   const editable = editRefusal(selfId, message) === null;
   // The Drafts list asks for this to finish an unsaved edit.
   useEditRequest(message.id, editable, () => setEditing(true));
-  // Named in it, or answered by it with a notification, as Discord marks both.
-  const mentionsMe = selfId
-    ? message.text.includes(`<@${selfId}>`) ||
-      (message.replyTo?.ping === true && message.replyTo.userId === selfId)
-    : false;
+  const mentionsMe = !!selfId && namesUser(message, selfId);
   const toast = useToast();
   const openMessage = useContext(OpenMessageContext);
   // Answered in place in the conversation it is shown in: the channel, or

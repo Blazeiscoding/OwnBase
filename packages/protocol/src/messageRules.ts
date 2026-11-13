@@ -1,4 +1,5 @@
 import type { ID, Message, User } from "./entities.js";
+import { userMentionsIn } from "./format.js";
 import { isAdministrator } from "./permissions.js";
 
 /** Why a message cannot be edited by someone, as the server's refusal names it. */
@@ -25,4 +26,15 @@ export function canDeleteMessage(
   message: Pick<Message, "userId">,
 ): boolean {
   return !!actor && (message.userId === actor.id || isAdministrator(actor.role));
+}
+
+/**
+ * Whether a message names someone: a mention of them, or a reply that chose
+ * to notify the author of what it answers, as Discord marks both.
+ */
+export function namesUser(message: Pick<Message, "text" | "replyTo">, userId: ID): boolean {
+  return (
+    userMentionsIn(message.text).has(userId) ||
+    (message.replyTo?.ping === true && message.replyTo.userId === userId)
+  );
 }

@@ -2,8 +2,8 @@ import {
   broadcastsIn,
   effectiveNotifyLevel,
   isDirect,
+  namesUser,
   plainText,
-  userMentionsIn,
   type ID,
   type Message,
 } from "@ownbase/protocol";
@@ -62,10 +62,7 @@ export function decideNotification(
   const level = effectiveNotifyLevel(prefs, state.notifyDefault);
   if (level === "nothing") return { notify: false, reason: "level" };
 
-  // A reply that chose to notify the author of what it answers names them.
-  const named =
-    userMentionsIn(message.text).has(self.id) ||
-    (message.replyTo?.ping === true && message.replyTo.userId === self.id);
+  const named = namesUser(message, self.id);
   const broadcasts = broadcastsIn(message.text);
   // A room-wide mention only reaches a room: in a DM it is just words.
   const isDm = isDirect(channel.type);
