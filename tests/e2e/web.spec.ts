@@ -1000,9 +1000,15 @@ test("the microphone and speaker can be changed in a call, from the call and fro
     await expect(noise("Standard")).not.toBeChecked();
     await expect(noise("Off")).not.toBeChecked();
     await alice.screenshot({ path: test.info().outputPath("voice-video-settings-top.png") });
-    await panel
-      .getByRole("combobox", { name: "Speaker", exact: true })
-      .selectOption({ label: "Fake Audio Output 1" });
+    const speaker = panel.getByRole("combobox", { name: "Speaker", exact: true });
+    const outputOne = await speaker
+      .locator("option")
+      .filter({ hasText: /^Fake Audio Output 1$/ })
+      .getAttribute("value");
+    await speaker.selectOption({ label: "Fake Audio Output 1" });
+    // The box shows what is saved, so until the choice is kept it shows the
+    // one before: read the choice from its option, not from the box.
+    await expect(speaker).toHaveValue(outputOne!);
     // The call's sound moves to that speaker.
     await expect
       .poll(() =>
@@ -1012,7 +1018,7 @@ test("the microphone and speaker can be changed in a call, from the call and fro
             all.map((el) => (el as HTMLAudioElement & { sinkId: string }).sinkId),
           ),
       )
-      .toContain(await panel.getByRole("combobox", { name: "Speaker", exact: true }).inputValue());
+      .toContain(outputOne);
     await microphone.selectOption({ label: "Fake Audio Input 1" });
     await expect.poll(aliceSends).toEqual(sending("Fake Audio Input 1"));
 
