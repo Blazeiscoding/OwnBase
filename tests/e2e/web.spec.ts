@@ -241,50 +241,15 @@ async function skipDeviceCheck(page: Page) {
 
 /**
  * A browser context with a microphone and a camera a call can use, in each
- * engine. Chromium's come from its launch flags (the chromium project), and
- * only Chromium takes them as granted permissions. Firefox's come from the
- * preferences in its project. WebKit has no fake devices, so the page's
- * getUserMedia hands out a canvas drawn on a timer and a quiet tone instead.
+ * engine. Chromium's come from its launch flags (the chromium project) and
+ * Firefox's from the preferences in its project. Playwright's WebKit has mock
+ * devices of its own behind the same permissions as Chromium's. On Windows
+ * it is built without WebRTC, and the call scenarios skip there.
  */
-async function mediaContext(browser: Browser, browserName: string) {
-  const context = await browser.newContext(
-    browserName === "chromium" ? { permissions: ["microphone", "camera"] } : {},
+function mediaContext(browser: Browser, browserName: string) {
+  return browser.newContext(
+    browserName === "firefox" ? {} : { permissions: ["microphone", "camera"] },
   );
-  if (browserName === "webkit") {
-    await context.addInitScript(() => {
-      const media = navigator.mediaDevices;
-      // A WebKit built without WebRTC, as Playwright's is on Windows, has none
-      // of this, and the app says calls are unsupported.
-      if (!media || typeof AudioContext === "undefined") return;
-      media.getUserMedia = async (constraints) => {
-        const tracks: MediaStreamTrack[] = [];
-        if (constraints?.audio) {
-          const audio = new AudioContext();
-          const tone = audio.createOscillator();
-          const quiet = audio.createGain();
-          quiet.gain.value = 0.1;
-          const out = audio.createMediaStreamDestination();
-          tone.connect(quiet).connect(out);
-          tone.start();
-          tracks.push(...out.stream.getAudioTracks());
-        }
-        if (constraints?.video) {
-          const canvas = document.createElement("canvas");
-          canvas.width = 320;
-          canvas.height = 240;
-          const pen = canvas.getContext("2d")!;
-          let frame = 0;
-          setInterval(() => {
-            pen.fillStyle = `hsl(${(frame += 7) % 360} 60% 50%)`;
-            pen.fillRect(0, 0, 320, 240);
-          }, 66);
-          tracks.push(...canvas.captureStream(15).getVideoTracks());
-        }
-        return new MediaStream(tracks);
-      };
-    });
-  }
-  return context;
 }
 
 /**
