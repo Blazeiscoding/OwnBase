@@ -1,23 +1,38 @@
 name: Atlas
-# Rebuilds the project atlas, docs/PROJECT-VISUALIZER.html, after every push to
-# main and commits it there when it changed, so the copy in the repository
-# follows the code and a pull request need not rebuild it. The page embeds
-# every tracked file, so any change can change it.
+# Rebuilds the two pages generated from the repository after every push to
+# main, and commits each to main when it changed, so the copies there follow
+# the sources and a pull request need not rebuild them:
+#
+# - the project atlas, docs/PROJECT-VISUALIZER.html. It embeds every tracked
+#   file, so any change can change it.
+# - the docs at ownbase.site/docs, apps/site/docs, from docs/DEPLOYMENT.md and
+#   docs/INTEGRATIONS.md by scripts/generate-docs-site.mjs. They change with
+#   the guides, the generator, and the site's style sheets and script.
 #
 # A file of app code nobody has written an explanation for yet is explained
 # from its own comments, and the page says so; the checks job names the ones a
 # pull request adds. A broken atlas input, such as an explanation of a file
-# that no longer exists, fails the pull request's checks before it gets here.
+# that no longer exists, fails the pull request's checks before it gets here,
+# as does Markdown the docs generator cannot show.
 #
-# Its commit is pushed with the workflow's own token, which starts no other
-# workflow, and [skip ci] keeps Cloudflare Pages from redeploying the
-# unchanged landing page for it.
+# One job does both, one after the other, and pushes once. Two workflows would
+# race to push to main, and the one that lost would leave its page stale: it
+# expects the run for the newer commit to rebuild it, but a commit pushed with
+# the workflow's own token starts no workflow.
+#
+# That token is also why the docs commit cannot loop: it starts no run of this
+# or any other workflow. It carries no [skip ci], because Cloudflare Pages
+# skips deploying a push whose newest commit says [skip ci], and the docs must
+# deploy. The atlas commit says [skip ci] so the unchanged landing page is not
+# redeployed for it, and goes first, so that when both change the docs commit
+# is the newest and Pages deploys it. The atlas leaves out apps/site/docs, so
+# committing the docs after it leaves it current.
 on:
   push:
     branches: [main]
   workflow_dispatch:
 concurrency:
-  # Only the newest commit's atlas matters; a run for an older one stops.
+  # Only the newest commit's pages matter; a run for an older one stops.
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 permissions:
@@ -36,33 +51,55 @@ jobs:
         with:
           node-version: 24
           cache: pnpm
-      # The generator parses with TypeScript and embeds the web app's fonts.
+      # The atlas generator parses with TypeScript and embeds the web app's
+      # fonts. The docs generator needs nothing installed.
       - run: pnpm install --frozen-lockfile
         env:
           ELECTRON_SKIP_BINARY_DOWNLOAD: 1
       - name: Check whether the atlas follows this commit
-        id: check
+        id: atlas
         run: |
           if pnpm --silent visualizer:check; then
             echo "stale=false" >> "$GITHUB_OUTPUT"
           else
             echo "stale=true" >> "$GITHUB_OUTPUT"
           fi
+      - name: Check whether the docs pages follow this commit
+        id: docs
+        run: |
+          if pnpm --silent docs:check; then
+            echo "stale=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "stale=true" >> "$GITHUB_OUTPUT"
+          fi
       - name: Rebuild the atlas
-        if: steps.check.outputs.stale == 'true'
+        if: steps.atlas.outputs.stale == 'true'
         run: pnpm --silent visualizer:build | tee -a "$GITHUB_STEP_SUMMARY"
-      - name: Commit it to ${{ github.ref_name }}
-        if: steps.check.outputs.stale == 'true'
+      - name: Rebuild the docs pages
+        if: steps.docs.outputs.stale == 'true'
+        run: pnpm --silent docs:build | tee -a "$GITHUB_STEP_SUMMARY"
+      - name: Commit them to ${{ github.ref_name }}
+        if: steps.atlas.outputs.stale == 'true' || steps.docs.outputs.stale == 'true'
+        env:
+          ATLAS_STALE: ${{ steps.atlas.outputs.stale }}
+          DOCS_STALE: ${{ steps.docs.outputs.stale }}
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898283+github-actions[bot]@users.noreply.github.com"
-          git add docs/PROJECT-VISUALIZER.html
-          git commit --quiet -m "docs(atlas): rebuild for ${GITHUB_SHA::7} [skip ci]"
+          if [ "$ATLAS_STALE" = "true" ]; then
+            git add docs/PROJECT-VISUALIZER.html
+            git commit --quiet -m "docs(atlas): rebuild for ${GITHUB_SHA::7} [skip ci]"
+          fi
+          if [ "$DOCS_STALE" = "true" ]; then
+            # -A: a section renamed or removed leaves a page to delete.
+            git add -A apps/site/docs
+            git commit --quiet -m "docs(site): rebuild the docs pages for ${GITHUB_SHA::7}"
+          fi
           if git push origin "HEAD:$GITHUB_REF_NAME"; then exit 0; fi
-          # A newer commit landed while this ran: its own run rebuilds the atlas.
+          # A newer commit landed while this ran: its own run rebuilds both.
           git fetch --quiet origin "$GITHUB_REF_NAME"
           if [ "$(git rev-parse FETCH_HEAD)" != "$GITHUB_SHA" ]; then
-            echo "::notice::$GITHUB_REF_NAME moved on while this ran; the run for its newest commit rebuilds the atlas."
+            echo "::notice::$GITHUB_REF_NAME moved on while this ran; the run for its newest commit rebuilds the pages."
             exit 0
           fi
           exit 1
