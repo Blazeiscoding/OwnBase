@@ -571,7 +571,7 @@ export const KEY_BINDINGS: readonly KeyBinding[] = [
 
 /**
  * What the menus and Ctrl+K show from the workspace: each action's
- * availability, words and icon, and each menu place's. Drawn again when it
+ * availability, words and icon, and each menu place's hint. Drawn again when it
  * changes, whatever an action reads.
  */
 function shownWith(ctx: ActionContext): string {
@@ -581,7 +581,7 @@ function shownWith(ctx: ActionContext): string {
     iconOf(a.icon, ctx),
     a.keywords && text(a.keywords, ctx),
   ]);
-  const places = [...WORKSPACE_MENU, ...ACCOUNT_MENU].map((p) => [p.when?.(ctx), p.hint?.(ctx)]);
+  const places = [...WORKSPACE_MENU, ...ACCOUNT_MENU].map((p) => p.hint?.(ctx));
   return JSON.stringify([actions, places]);
 }
 
