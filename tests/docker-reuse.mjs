@@ -5,12 +5,29 @@ import { spawnSync } from "node:child_process";
 import { readFileSync, writeFileSync } from "node:fs";
 import assert from "node:assert/strict";
 
+// BuildKit applies SOURCE_DATE_EPOCH to every stage, so it is part of each
+// step's cache key. CI dates the image by its commit; these builds pass the
+// same value, or nothing the earlier build cached would match.
+const epoch = process.env.SOURCE_DATE_EPOCH
+  ? ["--build-arg", `SOURCE_DATE_EPOCH=${process.env.SOURCE_DATE_EPOCH}`]
+  : [];
+
 /** Builds `target` and says whether `pnpm fetch` came from the cache, and how long it took. */
 function build(target) {
   const began = Date.now();
   const run = spawnSync(
     "docker",
-    ["buildx", "build", "-f", "docker/Dockerfile", "--target", target, "--progress=plain", "."],
+    [
+      "buildx",
+      "build",
+      "-f",
+      "docker/Dockerfile",
+      "--target",
+      target,
+      ...epoch,
+      "--progress=plain",
+      ".",
+    ],
     { encoding: "utf8", maxBuffer: 64 * 1024 * 1024 },
   );
   const log = `${run.stdout}\n${run.stderr}`;
@@ -19,7 +36,9 @@ function build(target) {
     0,
     `docker buildx build --target ${target} failed:\n${log.slice(-4000)}`,
   );
-  const step = log.match(/^(#\d+) \[deps \d+\/\d+\] RUN pnpm fetch$/m)?.[1];
+  // BuildKit may name the stage with its platform (`[linux/amd64 deps 3/4]`),
+  // since the stage runs on the build machine's own.
+  const step = log.match(/^(#\d+) \[(?:\S+ )?deps \d+\/\d+\] RUN pnpm fetch$/m)?.[1];
   assert(step, `no "RUN pnpm fetch" step in the build output:\n${log.slice(-4000)}`);
   return {
     fetchCached: log.split("\n").some((line) => line.trim() === `${step} CACHED`),

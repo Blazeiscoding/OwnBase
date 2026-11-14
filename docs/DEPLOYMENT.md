@@ -490,7 +490,29 @@ and restore it before using its named-tunnel configuration again.
 
 ## Docker and VPS
 
-Run `docker compose -f docker/docker-compose.yml up -d --build` from the repo.
+Every release publishes an image for linux/amd64 and linux/arm64 to
+`ghcr.io/blazeiscoding/ownbase`. The release run builds it from the release's
+commit, runs the container tests against it, and pushes that same image under
+the release's version without its `v` (`0.2.0-alpha.5`); `latest` follows the
+newest release, as the website's downloads do. The release notes give its digest.
+Run it with no clone:
+
+```sh
+docker run -d --name ownbase -p 8543:8543 -v ownbase-data:/data ghcr.io/blazeiscoding/ownbase
+```
+
+The server prints the claim code the first person to sign up needs
+(`docker logs ownbase`). For the compose file, which names the workspace, makes
+it invite-only, restarts the server and drops its privileges, fetch it on its own:
+
+```sh
+curl -fsSLO https://raw.githubusercontent.com/Blazeiscoding/OwnBase/main/docker/docker-compose.yml
+docker compose up -d
+```
+
+`OWNBASE_VERSION` in the environment or a `.env` beside the file pins a release.
+To build from source, run `docker compose -f docker/docker-compose.yml up -d --build`
+from a clone.
 Data lives in a named volume at `/data`; the server runs as a non-root user.
 The compose file's `--name` and `--invite-only` set up a new workspace; once it
 has an owner, its name and who may join are changed in **Workspace settings**,
@@ -979,7 +1001,7 @@ log rotation.
 By default no third-party ICE server is contacted. LAN peers connect directly.
 For people on different networks, provide your own STUN/TURN configuration through
 `OWNBASE_ICE_SERVERS`. Compose reads it
-from the environment or `docker/.env`:
+from the environment or a `.env` file beside the compose file:
 
 ```dotenv
 OWNBASE_ICE_SERVERS=[{"urls":"stun:turn.example.org:3478"},{"urls":"turn:turn.example.org:3478","username":"workspace","credential":"replace-with-a-strong-secret"}]
@@ -1089,7 +1111,7 @@ sudo systemctl enable coturn
 
 Then give OwnBase the relay's addresses, separated by commas, and the same
 secret. For the systemd service they go in `/etc/ownbase/ownbase.env`; for
-Compose, in `docker/.env`; for the Windows service, in NSSM's
+Compose, in a `.env` beside the compose file; for the Windows service, in NSSM's
 `AppEnvironmentExtra`:
 
 ```dotenv
