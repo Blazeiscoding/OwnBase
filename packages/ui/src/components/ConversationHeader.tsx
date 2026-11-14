@@ -74,7 +74,9 @@ export function MemberStack(props: { channelId: ID; pressed: boolean; onToggle: 
     <Tooltip label="Members">
       <button
         onClick={props.onToggle}
-        aria-label={ids ? `Members (${count})` : "Members"}
+        // The count shows on the button, so the name says it as a word: label-in-name
+        // checks (WCAG 2.5.3) leave out what is in brackets.
+        aria-label={ids ? `Members, ${count}` : "Members"}
         aria-pressed={props.pressed}
         className={`flex h-8 shrink-0 items-center gap-1.5 rounded-full pl-1.5 pr-2.5 text-[13px] font-medium transition-colors ${
           props.pressed
@@ -230,6 +232,8 @@ export function PinnedBar(props: { channelId: ID; open: boolean; onToggle: () =>
     >
       <Icon name="pin" size={14} className="shrink-0 text-ink-faint" />
       <span className="tabular shrink-0 font-medium">{count}</span>
+      {/* Between flex items a space draws nothing, but keeps "pinned" and the
+          preview two words for voice control, which reads the text as written. */}{" "}
       {preview && <span className="min-w-0 truncate text-ink-faint">{preview}</span>}
     </button>
   );

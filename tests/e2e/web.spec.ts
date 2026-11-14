@@ -1431,7 +1431,7 @@ test("OwnBase keeps a capped live timeline pinned and supports keyboard and narr
   const { channel } = await response.json();
   await page.getByRole("navigation").getByRole("button", { name: "design-studio" }).click();
   // Other scenarios share the server, so the count is compared, not known.
-  const membersToggle = page.getByRole("button", { name: /^Members \(\d+\)$/ });
+  const membersToggle = page.getByRole("button", { name: /^Members, \d+$/ });
   const memberCount = async () =>
     Number((await membersToggle.getAttribute("aria-label"))?.match(/\d+/)?.[0]);
   await expect(membersToggle).toBeVisible();

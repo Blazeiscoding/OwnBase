@@ -1176,6 +1176,8 @@ export function AccountMenu(props: {
               <span className="block truncate text-[13px] font-semibold">
                 {self?.displayName ?? "…"}
               </span>
+              {/* Between lines a space draws nothing, but keeps the name and the
+                  status apart for voice control, which reads the text as written. */}{" "}
               <span className="block truncate text-[12px] text-ink-faint">{status}</span>
             </span>
           </>
