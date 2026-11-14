@@ -73,14 +73,13 @@ Dependabot (`.github/dependabot.yml`) runs every Monday at 06:00 IST and opens a
 It leaves out:
 
 - Majors, for every package. They change behaviour and come one at a time, by hand (`pnpm outdated -r` lists them). A major that is not in a group would get a pull request of its own each week, which is why the ignore rule covers all packages rather than a list.
-- React and react-dom minors. React 19.3 puts the desktop entry past its 700 kB budget. Patches still come. Remove the rule when the entry has room.
 
 Its pull requests run Checks like any other, with a read-only token and no secrets, as a fork's would. The `clean-up` job then cannot delete artifacts and prints a warning; the next run of ours deletes them.
 
 ### Handling a bot pull request
 
 - Green: read the lockfile diff and the changelogs of anything that looks risky, then merge. Merging publishes the next release, since the lockfile changed, which is why updates are grouped.
-- Red because of one package: find it in the failing job's log. Either fix our code on the bot's branch (Dependabot stops updating a branch someone else has pushed to, so merge it soon), or hold that package back with an `ignore` entry in `.github/dependabot.yml` and a comment saying why and what would let it go, as React's has. Comment `@dependabot recreate` on the pull request to rebuild it without the package.
+- Red because of one package: find it in the failing job's log. Either fix our code on the bot's branch (Dependabot stops updating a branch someone else has pushed to, so merge it soon), or hold that package back with an `ignore` entry in `.github/dependabot.yml` and a comment saying why and what would let it go. Comment `@dependabot recreate` on the pull request to rebuild it without the package.
 - Out of date with main: comment `@dependabot rebase`.
 
 ### What the audit step fails on

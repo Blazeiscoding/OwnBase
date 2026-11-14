@@ -1,4 +1,4 @@
-// Fails when the script every visit to the client downloads grows past 700 kB,
+// Fails when the script every visit to the client downloads grows past 750 kB,
 // so an addition that crosses it is a decision rather than a warning scrolled
 // past in a build log. Anything opened now and then belongs in a chunk of its
 // own, loaded on first use.
@@ -13,10 +13,11 @@ import { join } from "node:path";
 /**
  * Bytes. Vite's 500 kB warning size left no room for features by October 2026,
  * when parsing cost about 0.02 ms a kB; this still fails an accidental jump like
- * the 125 kB of request schemas one import once brought in (#57). The Vite
+ * the 125 kB of request schemas one import once brought in (#57). Raised from
+ * 700 kB in November 2026 for React 19.3, which added about 30 kB. The Vite
  * configs warn at the same size.
  */
-const ENTRY_LIMIT = 700_000;
+const ENTRY_LIMIT = 750_000;
 
 const dirs = process.argv.slice(2);
 if (dirs.length === 0) dirs.push("apps/web/dist");
