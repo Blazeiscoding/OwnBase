@@ -1,5 +1,10 @@
 import { defineConfig } from "@playwright/test";
 
+// Workspaces these tests start, as child processes or inside the packaged
+// app, inherit this: they sign in many times, and the real password cost
+// takes about a fifth of a second and 64 MiB each.
+process.env.OWNBASE_PASSWORD_COST ??= "ln=4,r=8,p=1";
+
 /**
  * The visual check (UX-15): tests/visual/visual.spec.ts. Its pictures are
  * taken on GitHub's Linux runners by the "Visual baselines" workflow, and

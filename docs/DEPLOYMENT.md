@@ -2138,6 +2138,24 @@ Bulk imports and seeding scripts are the usual reason to want it; prefer running
 those against a server started with the flag rather than raising the limits for
 everybody.
 
+## Password hashing
+
+Passwords are hashed with scrypt at N=2^16, r=8, p=2, one of the settings the
+OWASP password storage cheat sheet lists as its minimum. Each sign-in, password
+change or new account takes about a quarter of a second of one core and 64 MiB
+of memory while it runs. At most two run at once; a third is refused with
+"The workspace is handling other sign-ins" and the person tries again a moment
+later. On a 512 MB machine, leave 128 MiB on top of what the workspace
+otherwise uses for those two.
+
+The stored hash names the settings that made it, so they can be changed without
+anyone resetting a password. Set `OWNBASE_PASSWORD_COST` (for example
+`ln=17,r=8,p=1`, where N is 2^ln) and restart: new passwords use it, and each
+existing one is hashed again the next time its owner signs in. The server
+refuses to start with settings that need more than 256 MiB. Hashes made before
+November 2026 carry no settings; they were made at Node's defaults, still work,
+and move to the current settings the same way.
+
 ## Changing a workspace address and keeping local work
 
 Updated clients store drafts, queued sends, scheduling recovery and recent
