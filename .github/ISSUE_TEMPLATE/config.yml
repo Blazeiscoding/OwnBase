@@ -1,0 +1,5 @@
+blank_issues_enabled: true
+contact_links:
+  - name: Report a security problem privately
+    url: https://github.com/Blazeiscoding/OwnBase/security/advisories/new
+    about: Only the maintainer sees this form. Do not open a public issue about a vulnerability.
