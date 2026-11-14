@@ -20,7 +20,7 @@
     <link rel="stylesheet" href="/docs.css?v=30dafeac35" />
     <script src="/docs.js?v=123540c9d0" defer></script>
   </head>
-  <body class="docs-body" data-search="/docs/search.json?v=9a763a41ac" data-guide="hosting">
+  <body class="docs-body" data-search="/docs/search.json?v=89160ea3de" data-guide="hosting">
     <a class="skip" href="#main">Skip to content</a>
 
     <header class="guide-head">
@@ -124,9 +124,12 @@ Its notes name the commit it was built and tested from, which Diagnostics in the
 app and <code>/api/server-info</code> on a server also report. Release installers are not
 code-signed yet.</p>
 <p>Every change to the app merged to <code>main</code> is built, tested and published as the
-next alpha (<code>v0.2.0-alpha.4</code> after <code>v0.2.0-alpha.3</code>) by the Release workflow, and
-the download buttons on the website offer the newest published release. A run by
-hand, or from a pushed version tag, still leaves a draft to look over first.
+next alpha (<code>v0.2.0-alpha.4</code> after <code>v0.2.0-alpha.3</code>) by the Release workflow.
+It is published as a normal release, not a pre-release, and marked Latest on
+GitHub, so GitHub, the download buttons on the website and the desktop app&#39;s
+updates all name the same newest version. A run by hand, or from a pushed
+version tag, still leaves a draft to look over first, marked as a pre-release
+when its tag has a hyphen.
 Publishing that draft creates its tag, and a tag whose release is already out
 builds nothing, so no second draft appears.</p>
 <p>Releases were betas (<code>v0.1.0-beta.1</code> to <code>v0.1.0-beta.39</code>) until November 2026,
