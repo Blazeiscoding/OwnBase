@@ -1,6 +1,13 @@
 {
   "$schema": "https://turbo.build/schema.json",
-  "globalDependencies": ["tsconfig.base.json", "pnpm-workspace.yaml", ".npmrc", ".pnpmfile.cjs"],
+  "globalDependencies": [
+    "package.json",
+    "pnpm-lock.yaml",
+    "tsconfig.base.json",
+    "pnpm-workspace.yaml",
+    ".npmrc",
+    ".pnpmfile.cjs"
+  ],
   "globalEnv": ["CI", "NODE_ENV"],
   "cacheMaxAge": "7d",
   "cacheMaxSize": "100MB",

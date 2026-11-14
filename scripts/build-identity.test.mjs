@@ -142,6 +142,19 @@ test("every input Turbo rebuilds for, and this script, makes an older build stal
   }
 });
 
+test("every input that makes an older build stale also makes Turbo build again", () => {
+  // Otherwise CI's Turbo cache replays a build that the freshness check then
+  // refuses: on 2026-11-14 three new scripts in the root package.json left
+  // every browser job of a pull request testing nothing.
+  const turbo = JSON.parse(readFileSync(join(ROOT, "turbo.json"), "utf8"));
+  const buildInputs = turbo.tasks.build.inputs;
+  for (const path of SHARED_INPUTS)
+    assert.ok(
+      turbo.globalDependencies.includes(path) || buildInputs.includes(`$TURBO_ROOT$/${path}`),
+      `${path} is a build input here but not to Turbo`,
+    );
+});
+
 test("a binary file is hashed byte for byte, and text by its committed line endings (F05)", () => {
   const { root, put } = checkout();
   try {
