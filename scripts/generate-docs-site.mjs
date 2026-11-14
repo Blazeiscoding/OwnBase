@@ -52,15 +52,28 @@ export const GUIDES = [
 const ENTITIES = { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" };
 export const escapeHtml = (text) => text.replace(/[&<>"']/g, (c) => ENTITIES[c]);
 const DECODE = { amp: "&", lt: "<", gt: ">", quot: '"', "#39": "'" };
+const ESCAPE = /^&(amp|lt|gt|quot|#39);/;
 /**
  * The plain text of HTML this script wrote, for anchors, titles and the
  * search index: its tags dropped, its escapes undone. Not a sanitizer. The
  * result is text, and everything that writes it into a page escapes it
- * again. Tags and escapes go in one pass, read left to right, so text an
- * escape stands for is never read again as a tag or an escape.
+ * again. Read once, left to right, so text an escape stands for is never
+ * read again as a tag or an escape. A "<" with no ">" after it stays.
  */
-const textOf = (html) =>
-  html.replace(/<[^>]*>|&(amp|lt|gt|quot|#39);/g, (_, e) => (e ? DECODE[e] : ""));
+function textOf(html) {
+  let text = "";
+  for (let at = 0; at < html.length; at++) {
+    const char = html[at];
+    const close = char === "<" ? html.indexOf(">", at) : -1;
+    const escape = char === "&" ? ESCAPE.exec(html.slice(at, at + 6)) : null;
+    if (close !== -1) at = close;
+    else if (escape) {
+      text += DECODE[escape[1]];
+      at += escape[0].length - 1;
+    } else text += char;
+  }
+  return text;
+}
 
 /** GitHub's anchor for a heading (github-slugger), before duplicates are numbered. */
 export function githubSlug(text) {
@@ -346,7 +359,7 @@ function parseBlocks(lines, ctx) {
       // Skipped whole, so it must end on its own line: anything after a
       // close, or a comment left open, is refused rather than guessed at.
       const rest = t.trimEnd();
-      if (!rest.endsWith("-->") || rest.indexOf("-->") !== rest.length - 3)
+      if (!rest.endsWith("-->") || rest.slice(0, -3).includes("-->"))
         fail("an HTML comment must open and close on one line");
       i++;
       continue;
