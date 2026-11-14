@@ -41,8 +41,8 @@ import { Icon, type IconName } from "./Icon.js";
 import { Tooltip } from "./Tooltip.js";
 import { Menu, type MenuItem } from "./Menu.js";
 import { CountBadge, Swap, useChanges } from "./Motion.js";
-import { KeepAccountOffer } from "./KeepAccountOffer.js";
 import { WorkspaceIcon } from "./WorkspaceIcon.js";
+import { ErrorBoundary } from "./ErrorBoundary.js";
 import { useToast } from "./Toast.js";
 import { failureText } from "../lib/failure.js";
 import { useConfirm } from "./Confirm.js";
@@ -62,6 +62,10 @@ import {
 // Naming a section is now and then, so its window loads on first use (E8).
 const SectionNameDialog = lazy(() =>
   import("./SectionNameDialog.js").then((module) => ({ default: module.SectionNameDialog })),
+);
+// Guests alone are offered an account of their own.
+const KeepAccountOffer = lazy(() =>
+  import("./KeepAccountOffer.js").then((module) => ({ default: module.KeepAccountOffer })),
 );
 
 /** What a dragged conversation row carries. */
@@ -840,7 +844,13 @@ export function Sidebar(props: {
           />
         </Suspense>
       )}
-      {guest && <KeepAccountOffer onKeep={() => runAction(actions, "create-account")} />}
+      {guest && (
+        <ErrorBoundary fallback={null}>
+          <Suspense fallback={null}>
+            <KeepAccountOffer onKeep={() => runAction(actions, "create-account")} />
+          </Suspense>
+        </ErrorBoundary>
+      )}
       {/* Discord's floating panel: you, across the foot of the rail and the list. */}
       <footer className="user-panel m-2 mt-0 shrink-0 rounded-xl border border-edge bg-raised p-1.5 shadow-[0_8px_24px_-12px_rgb(0_0_0/0.5)]">
         {snoozed && <SnoozedNotice until={dndUntil!} />}

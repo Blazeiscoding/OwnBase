@@ -127,8 +127,9 @@ const settle = () => act(() => new Promise((resolve) => setTimeout(resolve, 0)))
 describe("offering a guest to keep their account", () => {
   it("waits for the guest's first message to reach the server, then offers it without taking focus", async () => {
     const { client, get, values, workspaceId } = sidebar();
+    // The offer loads on first use, then reads what this device remembers.
+    await waitFor(() => expect(get).toHaveBeenCalledWith(slot(workspaceId), { strict: true }));
     await settle();
-    expect(get).toHaveBeenCalledWith(slot(workspaceId), { strict: true });
     expect(screen.queryByRole("region", OFFER)).toBeNull();
 
     // Still sending: the server has not taken it yet.
