@@ -27,6 +27,8 @@ import {
 } from "../core/ownership.js";
 import { metaRows, WORKSPACE_DATABASE, WORKSPACE_NAME_ROW } from "../core/workspaceFile.js";
 import { SERVER_VERSION } from "../version.js";
+import type { BackupEncryption } from "./encryption.js";
+import { sealBackup } from "./sealed.js";
 
 /** What a backup directory contains, and what it must still look like on restore. */
 export interface BackupManifest {
@@ -196,6 +198,13 @@ async function discardInterruptedCaptures(parent: string, dataDir: string): Prom
   }
 }
 
+/** An encrypted backup is a new file, so nothing may be at its name yet. */
+function freeFileName(out: string): false {
+  if (existsSync(out))
+    throw new Error(`${out} already exists. Choose a new file name for the encrypted backup.`);
+  return false;
+}
+
 async function emptyDestination(out: string): Promise<boolean> {
   if (!existsSync(out)) return false;
   const info = await lstat(out);
@@ -213,23 +222,30 @@ async function emptyDestination(out: string): Promise<boolean> {
  * afterwards using the snapshot's file inventory. Concurrent deletion can make
  * a referenced blob unavailable; that fails the backup instead of certifying
  * an incomplete copy. Stop the server to guarantee a complete capture.
+ *
+ * With `encryption`, `out` is a new file instead of a folder: the backup is
+ * captured and verified as usual beside it, sealed (`sealed.ts`), read back,
+ * and only then published. The plain capture is removed with the rest of
+ * the operation.
  */
 export async function backupWorkspace(opts: {
   dataDir: string;
   out: string;
+  encryption?: BackupEncryption;
 }): Promise<BackupManifest> {
   const dataDir = resolve(opts.dataDir);
   const out = resolve(opts.out);
   await separateDirectories(dataDir, out);
   const source = join(dataDir, DATABASE);
   if (!existsSync(source)) throw new Error(`No workspace database at ${source}`);
-  await emptyDestination(out);
+  const destination = opts.encryption ? freeFileName : emptyDestination;
+  await destination(out);
   const parent = await canonical(dirname(out));
   await mkdir(parent, { recursive: true });
   const canonicalSource = await canonical(dataDir);
   await discardInterruptedCaptures(parent, canonicalSource);
   // Reconciliation may have restored the original empty destination.
-  const preserveEmpty = await emptyDestination(out);
+  const preserveEmpty = await destination(out);
   const id = randomUUID();
   const operation = join(parent, `${CAPTURE_PREFIX}${id}`);
   const staged = join(operation, "capture");
@@ -253,6 +269,11 @@ export async function backupWorkspace(opts: {
       { flag: "wx" },
     );
     const manifest = await captureWorkspace(dataDir, staged);
+    let ready = staged;
+    if (opts.encryption) {
+      ready = join(operation, "sealed");
+      await sealBackup(staged, ready, manifest.createdAt, opts.encryption);
+    }
     // Publication happens only after all bytes and references have passed verification.
     if (preserveEmpty) {
       await rmdir(out); // Refuses a directory someone populated while the copy ran.
@@ -260,7 +281,7 @@ export async function backupWorkspace(opts: {
     } else if (existsSync(out)) {
       throw new Error(`${out} already exists. Choose a new directory for the backup.`);
     }
-    await rename(staged, out);
+    await rename(ready, out);
     published = true;
     return manifest;
   } catch (error) {

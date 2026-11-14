@@ -1,6 +1,7 @@
 import type { AccessPolicy, MemberNotice } from "@ownbase/protocol";
 import type { BackupManifest } from "./backups/backup.js";
 import type { ScheduledBackups } from "./backups/backupSchedule.js";
+import type { BackupEncryption } from "./backups/encryption.js";
 import type { ServerExtension } from "./extensions.js";
 import type { Limits } from "./limits.js";
 import type { FetchedPreview } from "./linkPreview.js";
@@ -122,9 +123,15 @@ export interface ServerOptions {
   /**
    * Takes one backup into `out`, for scheduled backups and the owner's copies.
    * In this process when omitted; the command line passes one that uses a
-   * child process, so the copy never holds up chat.
+   * child process, so the copy never holds up chat. With `encryption`, `out`
+   * is the encrypted file to write; scheduled backups pass it when they have
+   * a passphrase, the owner's copies never do.
    */
-  takeBackup?: (out: string, signal: AbortSignal) => Promise<BackupManifest>;
+  takeBackup?: (
+    out: string,
+    signal: AbortSignal,
+    encryption?: BackupEncryption,
+  ) => Promise<BackupManifest>;
   /**
    * Where the owner's downloadable copies are made (P4). By default a
    * `.copies` folder in the scheduled backups' directory when there is one,

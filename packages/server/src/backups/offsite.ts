@@ -1,6 +1,9 @@
 import { createHash, createHmac } from "node:crypto";
+import { createReadStream } from "node:fs";
+import { stat } from "node:fs/promises";
 import type { Readable } from "node:stream";
-import { backupFolderTime } from "./backupSchedule.js";
+import { backupFolderTime, scheduledBackupTime } from "./backupSchedule.js";
+import { ENCRYPTED_SUFFIX } from "./sealed.js";
 import { ConfigError } from "../config.js";
 import { backupZipEntries } from "./workspaceCopy.js";
 import { zipArchive } from "./zip.js";
@@ -12,7 +15,9 @@ import { zipArchive } from "./zip.js";
  * this was tried against.
  *
  * The zip is the same one a downloaded workspace copy is, so restoring is
- * downloading it and running `restore --from <zip>`. Each backup is one
+ * downloading it and running `restore --from <zip>`. An encrypted backup
+ * goes as the file it already is, `<name>.encrypted`, so the bucket only
+ * ever holds what the passphrase opens. Each backup is one
  * object, which keeps the requests a bucket bills for to a handful a day.
  * Requests are signed here (AWS Signature Version 4) with node:crypto, so no
  * SDK comes along.
@@ -36,8 +41,11 @@ export interface OffsiteUploader {
   /** Where they go, without credentials, for the log and the start-up lines. */
   readonly where: string;
   readonly keep: number;
-  /** Sends the backup folder `dir`, named `name`, as `<prefix><name>.zip`. */
-  upload(dir: string, name: string, signal?: AbortSignal): Promise<{ key: string; bytes: number }>;
+  /**
+   * Sends the backup folder `path`, named `name`, as `<prefix><name>.zip`,
+   * or the encrypted backup file `<name>.encrypted` as `<prefix><name>.encrypted`.
+   */
+  upload(path: string, name: string, signal?: AbortSignal): Promise<{ key: string; bytes: number }>;
   /** Removes this schedule's oldest copies past `keep`, returning their keys. */
   prune(signal?: AbortSignal): Promise<string[]>;
 }
@@ -201,23 +209,32 @@ export class OffsiteBackups implements OffsiteUploader {
     this.retryDelaysMs = opts.retryDelaysMs ?? RETRY_DELAYS_MS;
   }
 
-  async upload(dir: string, name: string, signal?: AbortSignal) {
-    const key = `${this.target.prefix}${name}.zip`;
-    const zip = zipArchive(await backupZipEntries(dir), backupFolderTime(name) ?? undefined);
+  async upload(path: string, name: string, signal?: AbortSignal) {
+    const sealed = name.endsWith(ENCRYPTED_SUFFIX);
+    const key = `${this.target.prefix}${name}${sealed ? "" : ".zip"}`;
+    const contentType = sealed ? "application/octet-stream" : "application/zip";
+    const zip = sealed
+      ? { length: (await stat(path)).size, open: () => createReadStream(path) }
+      : zipArchive(await backupZipEntries(path), backupFolderTime(name) ?? undefined);
     if (zip.length <= this.partBytes) {
       let body: Buffer = Buffer.alloc(0);
       for await (const piece of pieces(zip.open(), this.partBytes)) body = piece;
-      await this.request("PUT", key, {}, body, signal, { "content-type": "application/zip" });
+      // A file that changed length since it was measured is not sent as whole.
+      if (body.length !== zip.length)
+        throw new Error(`Offsite copy: ${name} changed while it was sent.`);
+      await this.request("PUT", key, {}, body, signal, { "content-type": contentType });
       return { key, bytes: zip.length };
     }
     const started = await this.request("POST", key, { uploads: "" }, Buffer.alloc(0), signal, {
-      "content-type": "application/zip",
+      "content-type": contentType,
     });
     const uploadId = tag(started.text, "UploadId");
     if (!uploadId) throw new Error("Offsite copy: the bucket did not start a multipart upload.");
     try {
       const etags: string[] = [];
+      let sentBytes = 0;
       for await (const part of pieces(zip.open(), this.partBytes)) {
+        sentBytes += part.length;
         const sent = await this.request(
           "PUT",
           key,
@@ -229,6 +246,8 @@ export class OffsiteBackups implements OffsiteUploader {
         if (!etag) throw new Error("Offsite copy: the bucket did not acknowledge a part.");
         etags.push(etag);
       }
+      if (sentBytes !== zip.length)
+        throw new Error(`Offsite copy: ${name} changed while it was sent.`);
       const body = Buffer.from(
         `<CompleteMultipartUpload>${etags
           .map(
@@ -268,7 +287,11 @@ export class OffsiteBackups implements OffsiteUploader {
     const ours = keys
       .map((key) => {
         const name = key.slice(this.target.prefix.length);
-        const at = name.endsWith(".zip") ? backupFolderTime(name.slice(0, -4)) : null;
+        const at = name.endsWith(".zip")
+          ? backupFolderTime(name.slice(0, -4))
+          : name.endsWith(ENCRYPTED_SUFFIX)
+            ? scheduledBackupTime(name)
+            : null;
         return { key, at };
       })
       .filter((entry): entry is { key: string; at: number } => entry.at !== null)
