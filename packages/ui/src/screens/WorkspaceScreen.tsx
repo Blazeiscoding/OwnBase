@@ -43,9 +43,7 @@ import { focusOrigin } from "../lib/opener.js";
 import { useFocusedView } from "../lib/focusedView.js";
 import { HuddleButton } from "../components/HuddleButton.js";
 import { Banner, BannerAction, BannerQueue } from "../components/Banner.js";
-import { MemberNoticeBanner } from "../components/MemberNotice.js";
-import { ServerNoticeBanner } from "../components/ServerNotice.js";
-import { UpdateBanner, useReportCall } from "../components/Updates.js";
+import { useReportCall } from "../lib/reportCall.js";
 import {
   ConversationMenu,
   ConversationSearch,
@@ -96,6 +94,30 @@ const NotificationBanner = lazy(() =>
     default: module.NotificationBanner,
   })),
 );
+// Notices most sessions never show: an extension's word to admins, a new
+// version of the desktop app, a change to this account's membership.
+const ServerNoticeBanner = lazy(() =>
+  import("../components/ServerNotice.js").then((module) => ({
+    default: module.ServerNoticeBanner,
+  })),
+);
+const UpdateBanner = lazy(() =>
+  import("../components/Updates.js").then((module) => ({ default: module.UpdateBanner })),
+);
+const MemberNoticeBanner = lazy(() =>
+  import("../components/MemberNotice.js").then((module) => ({
+    default: module.MemberNoticeBanner,
+  })),
+);
+
+/** A banner that waits on a download: if it cannot load, the workspace carries on without it. */
+function Courtesy({ children }: { children: ReactNode }) {
+  return (
+    <ErrorBoundary fallback={<span hidden />}>
+      <Suspense fallback={null}>{children}</Suspense>
+    </ErrorBoundary>
+  );
+}
 /** Which microphone and camera to use, asked once before a first huddle. */
 const DeviceCheckDialog = lazy(() =>
   import("../components/DeviceCheckDialog.js").then((module) => ({
@@ -684,17 +706,26 @@ function WorkspaceLayout(props: { restore: boolean; banner?: ReactNode }) {
               platform.kind !== "desktop" &&
                 typeof Notification !== "undefined" &&
                 ((onShowing) => (
-                  // The ask is a courtesy: if it cannot load, the workspace carries on without it.
-                  <ErrorBoundary fallback={<span hidden />}>
-                    <Suspense fallback={null}>
-                      <NotificationBanner storage={platform.storage} onShowing={onShowing} />
-                    </Suspense>
-                  </ErrorBoundary>
+                  <Courtesy>
+                    <NotificationBanner storage={platform.storage} onShowing={onShowing} />
+                  </Courtesy>
                 )),
               navigating && <Banner tone="status">Opening message…</Banner>,
-              (onShowing) => <ServerNoticeBanner onShowing={onShowing} />,
-              (onShowing) => <UpdateBanner onShowing={onShowing} />,
-              (onShowing) => <MemberNoticeBanner onShowing={onShowing} />,
+              (onShowing) => (
+                <Courtesy>
+                  <ServerNoticeBanner onShowing={onShowing} />
+                </Courtesy>
+              ),
+              (onShowing) => (
+                <Courtesy>
+                  <UpdateBanner onShowing={onShowing} />
+                </Courtesy>
+              ),
+              (onShowing) => (
+                <Courtesy>
+                  <MemberNoticeBanner onShowing={onShowing} />
+                </Courtesy>
+              ),
             ]}
           />
 

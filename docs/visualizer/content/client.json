@@ -2553,13 +2553,22 @@
     {
       "path": "packages/ui/src/components/Updates.tsx",
       "plain": "Tells people a new version of the desktop app is ready, and lets them restart into it or turn automatic updates off.",
-      "summary": "UpdateBanner, UpdateSettings and useReportCall: the window's side of the desktop app's own updates (G06).",
+      "summary": "UpdateBanner, TrayRestart and UpdateSettings: the window's side of the desktop app's own updates (G06).",
       "details": [
         "The banner shows when the main process offers a version, at most once a day: Restart to update on Windows, Get it on the Mac, which opens the download page. A refused restart says why in the banner.",
         "Account settings gets an Updates section in the desktop app only: this version, where updates have got, Check now, and Update automatically.",
-        "The workspace screen reports whether a call is on, so a restart is never started in the middle of one."
+        "None of it is in the first download: the workspace screen and App load the banner and the tray's restart on first use (H05)."
       ],
       "concepts": ["banner place", "updates", "desktop bridge"]
+    },
+    {
+      "path": "packages/ui/src/lib/reportCall.ts",
+      "plain": "Keeps an update from restarting the desktop app in the middle of a call.",
+      "summary": "useReportCall: tells the main process whether a call is on.",
+      "details": [
+        "WorkspaceScreen reports whether a call is on, so a restart is never started in the middle of one. It lives apart from Updates.tsx so the first download need not carry the update banner (H05)."
+      ],
+      "concepts": ["updates", "huddles", "desktop bridge"]
     },
     {
       "path": "packages/ui/src/components/MessageAnnouncer.tsx",

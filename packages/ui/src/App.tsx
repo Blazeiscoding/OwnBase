@@ -25,10 +25,14 @@ const JoinScreen = lazy(() =>
 const HostDialog = lazy(() =>
   import("./components/HostDialog.js").then((module) => ({ default: module.HostDialog })),
 );
+
+// Only the desktop app updates itself, so the tray's "Restart to update" loads there alone.
+const TrayRestart = lazy(() =>
+  import("./components/Updates.js").then((module) => ({ default: module.TrayRestart })),
+);
 import { ErrorBoundary } from "./components/ErrorBoundary.js";
 import { ConfirmProvider } from "./components/Confirm.js";
 import { ToastProvider } from "./components/Toast.js";
-import { TrayRestart } from "./components/Updates.js";
 import { WindowDialogs } from "./components/WindowDialogs.js";
 import {
   changeSavedServers,
@@ -504,7 +508,13 @@ export function App({ platform }: { platform: Platform }) {
     <PlatformContext.Provider value={platform}>
       <Appearance />
       <AppBoundary>
-        <TrayRestart />
+        {platform.updates && (
+          <ErrorBoundary fallback={null}>
+            <Suspense fallback={null}>
+              <TrayRestart />
+            </Suspense>
+          </ErrorBoundary>
+        )}
         <WindowDialogs />
         <div className="flex h-full flex-col">
           {platform.kind === "desktop" &&
