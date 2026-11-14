@@ -34,12 +34,6 @@ updates:
       # fails on a high advisory that only a major fixes.
       - dependency-name: "*"
         update-types: [version-update:semver-major]
-      # React 19.3 puts the desktop entry past its 700 kB budget (G01,
-      # 2026-11-13). Patches still come. Remove when the entry has room.
-      - dependency-name: react
-        update-types: [version-update:semver-minor]
-      - dependency-name: react-dom
-        update-types: [version-update:semver-minor]
 
   # The workflows and the composite action in .github/actions. Actions are
   # pinned to major tags, so every update here is a major: one group for all.
