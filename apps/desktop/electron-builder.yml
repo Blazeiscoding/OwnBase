@@ -50,6 +50,10 @@ nsis:
 publish:
   provider: generic
   url: https://dl.ownbase.site/
+  # Always latest.yml. Without it a generic provider names the feed file after
+  # the version's pre-release part (alpha.yml for 0.2.0-alpha.24), which
+  # GitHub's provider never did and the app does not look for.
+  channel: latest
 mac:
   icon: build/icon-mac.png
   # One disk image for Apple silicon and Intel: a browser cannot tell a
