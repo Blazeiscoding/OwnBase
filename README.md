@@ -56,7 +56,14 @@ since macOS lets only an app with a Developer ID signature replace itself. Turn
 either off under Account settings → Updates. Builds made on your own computer
 never look for updates.
 
-**With Docker.** `docker compose -f docker/docker-compose.yml up -d --build`.
+**With Docker.** No clone needed:
+
+```sh
+docker run -d --name ownbase -p 8543:8543 -v ownbase-data:/data ghcr.io/blazeiscoding/ownbase
+```
+
+Open http://localhost:8543 and sign up with the claim code from
+`docker logs ownbase`. [Docker](#docker) has the compose file and building from source.
 
 A new workspace is empty. To have a team to look at, run this in another
 terminal before anyone signs up:
@@ -179,8 +186,31 @@ A script ran every command in both recipes, as written, on a fresh machine.
 
 ### Docker
 
+Every release publishes an image for linux/amd64 and linux/arm64 to
+`ghcr.io/blazeiscoding/ownbase`, tested before it was pushed. One command runs it:
+
 ```sh
-docker compose -f docker/docker-compose.yml up -d
+docker run -d --name ownbase -p 8543:8543 -v ownbase-data:/data ghcr.io/blazeiscoding/ownbase
+```
+
+The first person to sign up claims the workspace with the claim code the server
+prints: `docker logs ownbase`. The tags are `latest`, the newest release, and
+each release's version without its `v` (`0.2.0-alpha.5`). The release notes give
+each image's digest.
+
+With Compose, fetch the compose file on its own, no clone, and start it:
+
+```sh
+curl -fsSLO https://raw.githubusercontent.com/Blazeiscoding/OwnBase/main/docker/docker-compose.yml
+docker compose up -d
+```
+
+It names the workspace and makes it invite-only, restarts the server, and drops
+its privileges. `OWNBASE_VERSION=0.2.0-alpha.5` in the environment or a `.env`
+file beside it pins a release. To build the image from source instead, from a clone:
+
+```sh
+docker compose -f docker/docker-compose.yml up -d --build
 ```
 
 Data persists in the `ownbase-data` volume. On the public internet, put Caddy
