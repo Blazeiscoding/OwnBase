@@ -52,9 +52,15 @@ export const GUIDES = [
 const ENTITIES = { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" };
 export const escapeHtml = (text) => text.replace(/[&<>"']/g, (c) => ENTITIES[c]);
 const DECODE = { amp: "&", lt: "<", gt: ">", quot: '"', "#39": "'" };
-/** The text of HTML this script wrote: its tags dropped, its escapes undone. */
+/**
+ * The plain text of HTML this script wrote, for anchors, titles and the
+ * search index: its tags dropped, its escapes undone. Not a sanitizer. The
+ * result is text, and everything that writes it into a page escapes it
+ * again. Tags and escapes go in one pass, read left to right, so text an
+ * escape stands for is never read again as a tag or an escape.
+ */
 const textOf = (html) =>
-  html.replace(/<[^>]*>/g, "").replace(/&(amp|lt|gt|quot|#39);/g, (_, e) => DECODE[e]);
+  html.replace(/<[^>]*>|&(amp|lt|gt|quot|#39);/g, (_, e) => (e ? DECODE[e] : ""));
 
 /** GitHub's anchor for a heading (github-slugger), before duplicates are numbered. */
 export function githubSlug(text) {
@@ -337,7 +343,11 @@ function parseBlocks(lines, ctx) {
       continue;
     }
     if (t.startsWith("<!--")) {
-      if (!/^<!--.*-->\s*$/.test(t)) fail("an HTML comment must open and close on one line");
+      // Skipped whole, so it must end on its own line: anything after a
+      // close, or a comment left open, is refused rather than guessed at.
+      const rest = t.trimEnd();
+      if (!rest.endsWith("-->") || rest.indexOf("-->") !== rest.length - 3)
+        fail("an HTML comment must open and close on one line");
       i++;
       continue;
     }

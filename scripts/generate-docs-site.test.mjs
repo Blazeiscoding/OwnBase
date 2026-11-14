@@ -18,7 +18,8 @@ const pages = [...site].filter(([path]) => path.endsWith(".html"));
 const urlOf = (path) => `/docs/${path.replace(/(^|\/)index\.html$/, "$1").replace(/\.html$/, "")}`;
 const byUrl = new Map(pages.map(([path, html]) => [urlOf(path), html]));
 const idsOf = (html) => new Set([...html.matchAll(/ id="([^"]+)"/g)].map((m) => m[1]));
-const decode = (text) => text.replace(/&amp;/g, "&").replace(/&quot;/g, '"');
+// One pass, so "&amp;quot;" comes back as "&quot;", not as a quote.
+const decode = (text) => text.replace(/&(amp|quot);/g, (_, e) => (e === "amp" ? "&" : '"'));
 
 test("renders what the guides use", () => {
   const html = renderMarkdown(
