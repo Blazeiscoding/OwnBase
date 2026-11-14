@@ -20,7 +20,7 @@ Salesforce.
 - [Integration API contract](docs/INTEGRATIONS.md)
 - [Project atlas](docs/PROJECT-VISUALIZER.html), an offline, interactive guide to
   the code
-- [Contributing](CONTRIBUTING.md) and [security](SECURITY.md)
+- [Contributing](CONTRIBUTING.md), [security](SECURITY.md) and the [code of conduct](CODE_OF_CONDUCT.md)
 
 The name OwnBase has not been trademark-cleared yet.
 
