@@ -490,7 +490,29 @@ and restore it before using its named-tunnel configuration again.
 
 ## Docker and VPS
 
-Run `docker compose -f docker/docker-compose.yml up -d --build` from the repo.
+Every release publishes an image for linux/amd64 and linux/arm64 to
+`ghcr.io/blazeiscoding/ownbase`. The release run builds it from the release's
+commit, runs the container tests against it, and pushes that same image under
+the release's version without its `v` (`0.2.0-alpha.5`); `latest` follows the
+newest release, as the website's downloads do. The release notes give its digest.
+Run it with no clone:
+
+```sh
+docker run -d --name ownbase -p 8543:8543 -v ownbase-data:/data ghcr.io/blazeiscoding/ownbase
+```
+
+The server prints the claim code the first person to sign up needs
+(`docker logs ownbase`). For the compose file, which names the workspace, makes
+it invite-only, restarts the server and drops its privileges, fetch it on its own:
+
+```sh
+curl -fsSLO https://raw.githubusercontent.com/Blazeiscoding/OwnBase/main/docker/docker-compose.yml
+docker compose up -d
+```
+
+`OWNBASE_VERSION` in the environment or a `.env` beside the file pins a release.
+To build from source, run `docker compose -f docker/docker-compose.yml up -d --build`
+from a clone.
 Data lives in a named volume at `/data`; the server runs as a non-root user.
 The compose file's `--name` and `--invite-only` set up a new workspace; once it
 has an owner, its name and who may join are changed in **Workspace settings**,
@@ -979,7 +1001,7 @@ log rotation.
 By default no third-party ICE server is contacted. LAN peers connect directly.
 For people on different networks, provide your own STUN/TURN configuration through
 `OWNBASE_ICE_SERVERS`. Compose reads it
-from the environment or `docker/.env`:
+from the environment or a `.env` file beside the compose file:
 
 ```dotenv
 OWNBASE_ICE_SERVERS=[{"urls":"stun:turn.example.org:3478"},{"urls":"turn:turn.example.org:3478","username":"workspace","credential":"replace-with-a-strong-secret"}]
@@ -1089,7 +1111,7 @@ sudo systemctl enable coturn
 
 Then give OwnBase the relay's addresses, separated by commas, and the same
 secret. For the systemd service they go in `/etc/ownbase/ownbase.env`; for
-Compose, in `docker/.env`; for the Windows service, in NSSM's
+Compose, in a `.env` beside the compose file; for the Windows service, in NSSM's
 `AppEnvironmentExtra`:
 
 ```dotenv
@@ -1567,6 +1589,81 @@ times the size of a backup. A lifecycle rule that aborts unfinished multipart
 uploads after a day keeps a send cut short from being stored. R2 has no spending
 cap, so set a usage alert under **Notifications → Usage Based Billing** as well.
 
+### Encrypted backups
+
+A backup holds every message and file, and the secrets the workspace keeps as
+plain values: two-step sign-in secrets, app signing secrets and push keys. Give
+the server a backup passphrase and every backup taken from then on is one
+encrypted file that nobody can read without it, wherever it ends up:
+
+```sh
+export OWNBASE_BACKUP_PASSPHRASE='several unrelated words you will not forget'
+ownbase-server --data ./data --backup-dir ./backups --backup-offsite https://...
+```
+
+Or put the passphrase alone in a file that only the server's account can read
+and pass `--backup-passphrase-file /etc/ownbase/backup-passphrase` (or
+`OWNBASE_BACKUP_PASSPHRASE_FILE`). A last line break in the file is ignored;
+everything else, spaces included, is the passphrase. It is never taken as a
+command-line value, which anyone on the machine can see in a process list. It
+must be at least 12 characters. The server refuses to start, and the commands
+refuse to run, when the passphrase is empty, too short, given both ways, or the
+file cannot be read. The server never logs it.
+
+**If you lose the passphrase, you lose those backups.** Nobody can open them
+without it, OwnBase included, and there is no way round that. Keep it somewhere
+apart from the server, such as a password manager, and somewhere a second person
+can reach it.
+
+With a passphrase set:
+
+- Scheduled backups are files named like the folders were, ending in
+  `.encrypted`, such as `backup-2026-11-14T03-00-00Z.encrypted`. Each is
+  captured and verified as usual, encrypted, then read back in full and checked
+  before it is kept. `--backup-keep` counts plain folders and encrypted files
+  together, so the plain backups from before a passphrase was set are pruned in
+  their turn.
+- The copy sent with `--backup-offsite` is that same file, as
+  `acme/backup-2026-11-14T03-00-00Z.encrypted`. The bucket never holds
+  anything readable. `--backup-offsite-keep` counts `.zip` and `.encrypted`
+  copies together.
+- `backup --out ./backups/2026-11-14` writes `./backups/2026-11-14.encrypted`, a
+  file rather than a folder. The name must not exist yet.
+- `restore` and `verify-backup` read encrypted and plain backups both. An
+  encrypted one needs the same passphrase, set the same way. They say so when
+  none is given, say when the passphrase is wrong, and say when the file is
+  damaged or cut short, all before anything is restored. The file is decrypted
+  into a folder beside itself while they work, every part checked first, and
+  that folder is removed afterwards, so that disk needs room for the workspace
+  twice.
+
+To check a backup by hand, and to restore one taken offsite:
+
+```sh
+export OWNBASE_BACKUP_PASSPHRASE='...'
+cf r2 buckets objects get acme/backup-2026-11-14T03-00-00Z.encrypted --bucket-name ownbase-backups > backup.encrypted
+ownbase-server verify-backup --from backup.encrypted
+ownbase-server restore --from backup.encrypted --data ./restore-check
+ownbase-server --data ./restore-check --isolated --port 8600
+```
+
+Changing the passphrase applies to backups taken afterwards; older ones still
+need the passphrase they were taken with, so keep it until they have been pruned.
+Unsetting it goes back to plain backups.
+
+Not covered: the copy the owner downloads from Workspace settings stays a plain
+zip, since the owner may not hold the host's passphrase and can read everything
+in it already; the desktop app's backups; and the copy of the database the
+server takes before an upgrade, which stays inside the data directory beside
+the live database it copies. The live database itself is not encrypted: a key
+kept beside it would protect nothing.
+
+The file starts with the words `OwnBase encrypted backup`, then the scrypt salt
+and cost the key was derived with, then the backup's zip encrypted with
+AES-256-GCM in 64 KiB parts (the STREAM construction, as age uses). Each part is
+bound to its position and to whether it is the last, so a part changed, moved,
+dropped or cut off fails the check.
+
 ### A copy for the owner to download
 
 The workspace's owner can download the whole workspace from **Workspace settings →
@@ -1599,9 +1696,10 @@ owner signed in on the device that asked for it. Making and downloading a copy
 both go in the administrative record.
 
 The copy holds every message, file and account, the secrets apps use, and the
-sign-ins in use when it was made. Keep it as safe as the server.
+sign-ins in use when it was made. Keep it as safe as the server. It is not
+encrypted, even when a backup passphrase is set.
 
-Store backups away from the host, encrypted. For Docker, run the same commands
+Store backups away from the host, encrypted (see "Encrypted backups"). For Docker, run the same commands
 inside the container against the mounted volume, or set `OWNBASE_BACKUP_DIR` to a
 second volume.
 
@@ -2046,6 +2144,24 @@ everyone is already trusted and unreasonable anywhere reachable from outside it.
 Bulk imports and seeding scripts are the usual reason to want it; prefer running
 those against a server started with the flag rather than raising the limits for
 everybody.
+
+## Password hashing
+
+Passwords are hashed with scrypt at N=2^16, r=8, p=2, one of the settings the
+OWASP password storage cheat sheet lists as its minimum. Each sign-in, password
+change or new account takes about a quarter of a second of one core and 64 MiB
+of memory while it runs. At most two run at once; a third is refused with
+"The workspace is handling other sign-ins" and the person tries again a moment
+later. On a 512 MB machine, leave 128 MiB on top of what the workspace
+otherwise uses for those two.
+
+The stored hash names the settings that made it, so they can be changed without
+anyone resetting a password. Set `OWNBASE_PASSWORD_COST` (for example
+`ln=17,r=8,p=1`, where N is 2^ln) and restart: new passwords use it, and each
+existing one is hashed again the next time its owner signs in. The server
+refuses to start with settings that need more than 256 MiB. Hashes made before
+November 2026 carry no settings; they were made at Node's defaults, still work,
+and move to the current settings the same way.
 
 ## Changing a workspace address and keeping local work
 

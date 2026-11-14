@@ -32,10 +32,15 @@ function graph(entry: string): { modules: string[]; packages: string[] } {
 }
 
 describe("what a backup job loads", () => {
-  it("is the backup module, the schema, the ownership lock and the database file, with zod", () => {
+  // Sealing a backup (H04) needs the zip writer and node:crypto, nothing networked.
+  it("is the backup module, sealing, the schema, the ownership lock and the database file, with zod", () => {
     expect(graph("backups/backup.ts")).toEqual({
       modules: [
         "backups/backup.ts",
+        "backups/encryption.ts",
+        "backups/sealed.ts",
+        "backups/workspaceCopy.ts",
+        "backups/zip.ts",
         "core/ownership.ts",
         "core/workspaceFile.ts",
         "db.ts",

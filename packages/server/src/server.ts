@@ -9,6 +9,7 @@ import { randomUUID } from "node:crypto";
 import { registerAccounts } from "./accounts/feature.js";
 import { registerApps } from "./apps/feature.js";
 import { registerAdmin } from "./admin/feature.js";
+import { passwordCost } from "./auth.js";
 import { checkWorkspaceOptions, createWorkspace, type WorkspaceChange } from "./admin/workspace.js";
 import { registerBackups, scheduledBackupsOf } from "./backups/feature.js";
 import { type BackupScheduleStatus } from "./backups/backupSchedule.js";
@@ -173,6 +174,8 @@ async function startWorkspaceServer(
 ): Promise<WorkspaceServer> {
   const instanceId = randomUUID();
   const extensions = opts.extensions ?? [];
+  // Refuses a bad OWNBASE_PASSWORD_COST before anyone tries to sign in.
+  passwordCost();
   if (
     opts.maxStorageBytes !== undefined &&
     (!Number.isSafeInteger(opts.maxStorageBytes) || opts.maxStorageBytes < 0)

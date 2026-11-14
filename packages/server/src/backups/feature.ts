@@ -10,6 +10,7 @@ import { HttpError } from "../httpError.js";
 import type { ServerOptions } from "../options.js";
 import { backupWorkspace, separateDirectories } from "./backup.js";
 import { BackupSchedule, type ScheduledBackups } from "./backupSchedule.js";
+import type { BackupEncryption } from "./encryption.js";
 import { WorkspaceCopies } from "./workspaceCopy.js";
 
 /** Room left beyond a copy, so making one never fills the disk the workspace writes to. */
@@ -144,11 +145,15 @@ export function registerBackups(
   // Starts the schedule and clears copies a previous run left.
   ctx.lifecycle.onStart(async () => {
     const takeBackup =
-      opts.takeBackup ?? ((out: string) => backupWorkspace({ dataDir: opts.dataDir, out }));
+      opts.takeBackup ??
+      ((out: string, _signal: AbortSignal, encryption?: BackupEncryption) =>
+        backupWorkspace({ dataDir: opts.dataDir, out, encryption }));
     backups = scheduled
       ? new BackupSchedule({
           ...scheduled,
-          run: files.holdingRemovals(scheduled.run ?? takeBackup),
+          run: files.holdingRemovals(
+            scheduled.run ?? ((out, signal) => takeBackup(out, signal, scheduled.encryption)),
+          ),
           log: ctx.log,
         })
       : null;
@@ -164,7 +169,9 @@ export function registerBackups(
               "ownbase-copies",
               createHash("sha256").update(resolve(opts.dataDir)).digest("hex").slice(0, 16),
             )),
-      take: files.holdingRemovals(takeBackup),
+      // The owner downloads a plain copy: they may see everything in it
+      // already, and may not hold the host's passphrase. DEPLOYMENT.md says so.
+      take: files.holdingRemovals((out, signal) => takeBackup(out, signal)),
       log: ctx.log,
     });
     await copies.start().catch((err: unknown) => {

@@ -1,5 +1,10 @@
+# `docker compose up -d` runs the published image; this file works on its own,
+# with no copy of the repository. From a clone, `docker compose up -d --build`
+# builds the image from source instead. OWNBASE_VERSION pins a release
+# (0.2.0-alpha.5); unset, it is the newest.
 services:
   ownbase:
+    image: ghcr.io/blazeiscoding/ownbase:${OWNBASE_VERSION:-latest}
     build:
       context: ..
       dockerfile: docker/Dockerfile

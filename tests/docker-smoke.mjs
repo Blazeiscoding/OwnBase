@@ -122,6 +122,18 @@ try {
   // The image says which source it was built from (IMP-08).
   const info = await (await fetch(base + "/api/server-info")).json();
   assert.match(info.build?.revision ?? "", /^([0-9a-f]{40}|unknown)$/);
+  // A release names the commit it tests, and the image has to be built from it.
+  if (process.env.OWNBASE_EXPECT_REVISION)
+    assert.equal(info.build?.revision, process.env.OWNBASE_EXPECT_REVISION);
+  // The source label is what links the package on GitHub to the repository.
+  const labels = JSON.parse(
+    docker("image", "inspect", "ownbase:local", "--format", "{{json .Config.Labels}}"),
+  );
+  assert.equal(
+    labels["org.opencontainers.image.source"],
+    "https://github.com/Blazeiscoding/OwnBase",
+  );
+  assert.equal(labels["org.opencontainers.image.revision"], info.build?.revision);
   const page = await (await fetch(base)).text();
   assert.match(page, /<div id="root">/);
   // The image keeps the client's compressed copies (REV-13): the entry script

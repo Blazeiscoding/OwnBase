@@ -1,5 +1,5 @@
 import { strict as assert } from "node:assert";
-import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { spawnSync } from "node:child_process";
@@ -63,15 +63,34 @@ const feedFor = (installer, hash, version = "0.2.0") =>
   ].join("\n");
 const DISK_IMAGE = "OwnBase-0.2.0-universal.dmg";
 const ARCHIVE = "ownbase-server-0.2.0.tar.gz";
+const DIGEST = `sha256:${"ab".repeat(32)}`;
+
+/** What the image job stages: the image's digest and the server identity inside it. */
+const imageFor = (over = {}) => ({
+  name: "ghcr.io/blazeiscoding/ownbase",
+  digest: DIGEST,
+  platforms: ["linux/amd64", "linux/arm64"],
+  // A container build has no git to ask whether its source changed.
+  build: identity({ dirty: null }),
+  ...over,
+});
 
 /**
  * A release directory as the jobs stage it: identities for the server, the
  * Windows app and the Mac app, the server archive carrying its identity, the
  * installer and the disk image, each listed with its SHA-256 by the job that
- * tested it.
+ * tested it, and the container image's digest and identity.
  */
-function release(identities = { server: identity(), desktop: identity(), mac: identity() }) {
+function release(
+  identities = { server: identity(), desktop: identity(), mac: identity() },
+  image = imageFor(),
+) {
   const dir = mkdtempSync(join(tmpdir(), "release-manifest-"));
+  if (image) writeFileSync(join(dir, "image.json"), JSON.stringify(image));
+  // The archive the image job hands to publish sits in a folder of its own,
+  // and is pushed to the registry, not attached to the release.
+  mkdirSync(join(dir, "container"));
+  writeFileSync(join(dir, "container", "ownbase.oci.tar"), "image archive bytes");
   for (const [name, value] of Object.entries(identities))
     writeFileSync(join(dir, `${name}.build.json`), JSON.stringify(value));
   writeFileSync(join(dir, INSTALLER), "installer bytes");
@@ -107,6 +126,10 @@ test("every published file is hashed, and the notes name the tested revision", (
     assert.match(notes, /\| desktop \| 0\.2\.0 \| `0123456789ab` \|/);
     assert.match(notes, /\| mac \| 0\.2\.0 \| `0123456789ab` \|/);
     assert.match(notes, /\| server \| 0\.2\.0 \| `0123456789ab` \|/);
+    assert.match(notes, /\| image \| 0\.2\.0 \| `0123456789ab` \| `0a1344b673e188e8` \|/);
+    assert.match(notes, /ghcr\.io\/blazeiscoding\/ownbase:0\.2\.0/);
+    assert.match(notes, new RegExp(`ghcr\\.io/blazeiscoding/ownbase@${DIGEST}`));
+    assert.match(notes, /linux\/amd64 and linux\/arm64/);
     // Signing status is stated as it is.
     assert.match(notes, /not code-signed/);
     assert.match(notes, /Mac app is signed ad hoc[\s\S]*Open Anyway/);
@@ -331,6 +354,41 @@ test("refuses an update feed that does not name the installer beside it", () => 
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }
+});
+
+test("refuses a release without the tested container image, or with another one", () => {
+  const refused = (image, problem) => {
+    const dir = release(undefined, image);
+    try {
+      assert.throws(() => prepareRelease({ dir, revision: REVISION, tag: "v0.2.0" }), problem);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  };
+  refused(null, /no container image was staged \(image\.json\)/);
+  refused(imageFor({ digest: "latest" }), /image\.json has no digest/);
+  refused(imageFor({ name: "ghcr.io/Blazeiscoding/ownbase" }), /names ghcr\.io\/Blazeiscoding/);
+  refused(
+    imageFor({ platforms: ["linux/amd64"] }),
+    /image is for linux\/amd64, not linux\/amd64, linux\/arm64/,
+  );
+  refused(
+    imageFor({ build: identity({ dirty: null, revision: OTHER }) }),
+    /image was built from fedcba987654/,
+  );
+  refused(
+    imageFor({ build: identity({ dirty: null, version: "0.1.0" }) }),
+    /image is version 0\.1\.0/,
+  );
+  refused(
+    imageFor({ build: { revision: REVISION } }),
+    /image's build\.json names no source inputs/,
+  );
+  // With no git in a container build, the server archive's inputs vouch for its source.
+  refused(
+    imageFor({ build: identity({ dirty: null, inputs: "ffffffffffffffff" }) }),
+    /image's server was built from other source than the server archive/,
+  );
 });
 
 test("reads one file out of a server archive", () => {
