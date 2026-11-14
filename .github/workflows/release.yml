@@ -4,9 +4,9 @@ name: Release
 # (IMP-08). It runs on a version tag, or by hand with the tag to create,
 # and leaves a draft for someone to publish. Every change to the app merged
 # to main is released too, as the next alpha of package.json's version
-# (v0.2.0-alpha.4 after v0.2.0-alpha.3), and published at once, so the
-# website's download buttons, which offer the newest published release,
-# offer it within minutes.
+# (v0.2.0-alpha.4 after v0.2.0-alpha.3), published at once as a normal
+# release and GitHub's Latest, so the website's download buttons and
+# installed apps offer it within minutes.
 # Published files are release assets, not Actions artifacts, so the checks'
 # artifact clean-up (ci.yml) cannot delete them; the artifacts carrying them
 # between these jobs are named release-*, which the clean-up leaves alone.
@@ -482,8 +482,11 @@ jobs:
           done
           echo "Copied $TAG to https://dl.ownbase.site/$TAG/"
       # From main, published at once: that creates the tag at this commit and
-      # puts the files on the website. By hand or from a tag, a draft that
-      # someone looks over and publishes, which creates the tag for a run by hand.
+      # puts the files on the website. It is a normal release and GitHub's
+      # Latest though its tag says alpha: releases are one line, and GitHub,
+      # the website and installed apps all name its newest. By hand or from a
+      # tag, a draft that someone looks over and publishes, which creates the
+      # tag for a run by hand; a hyphen in its tag makes it a pre-release.
       - name: Create the release
         env:
           GH_TOKEN: ${{ github.token }}
@@ -492,14 +495,17 @@ jobs:
           # Exactly what the manifest checked and summed, and the sums.
           mapfile -t files < <(sed -E 's/^[0-9a-f]{64}  /release\//' release/SHA256SUMS)
           files+=(release/SHA256SUMS)
-          prerelease=()
-          if [[ "$TAG" == *-* ]]; then prerelease=(--prerelease); fi
-          draft=(--draft)
-          if [ "$GITHUB_EVENT_NAME" = "push" ] && [ "$GITHUB_REF_TYPE" = "branch" ]; then draft=(); fi
-          gh release create "$TAG" --repo "$GITHUB_REPOSITORY" "${draft[@]}" "${prerelease[@]}" \
+          if [ "$GITHUB_EVENT_NAME" = "push" ] && [ "$GITHUB_REF_TYPE" = "branch" ]; then
+            kind=(--latest)
+          else
+            kind=(--draft)
+            if [[ "$TAG" == *-* ]]; then kind+=(--prerelease); fi
+          fi
+          gh release create "$TAG" --repo "$GITHUB_REPOSITORY" "${kind[@]}" \
             --target "$GITHUB_SHA" --title "OwnBase $TAG" --notes-file release/notes.md "${files[@]}"
-      # `latest` is the newest published release, as on the website, which
-      # offers it whether it is an alpha or not. A draft leaves it alone.
+      # `latest` is the newest release from main: the one GitHub shows as
+      # Latest, the website offers and installed apps take. A draft leaves it
+      # alone.
       - name: Point latest at the image
         if: github.event_name == 'push' && github.ref_type == 'branch'
         run: |

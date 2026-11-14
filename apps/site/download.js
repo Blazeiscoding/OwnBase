@@ -51,9 +51,11 @@
 
   /**
    * The newest published release's files, `{ none: true }` when there is no
-   * release, or null when GitHub did not answer. A stable release wins; while
-   * OwnBase is in alpha there may only be pre-releases (v0.2.0-alpha.1), which
-   * GitHub's "latest release" leaves out, so the list is read instead.
+   * release, or null when GitHub did not answer. Releases from main, alphas
+   * included (v0.2.0-alpha.30), are normal releases, so the newest that is not
+   * a pre-release wins: a pre-release can only be a draft published by hand.
+   * Releases before mid-November 2026 were all pre-releases, which is why the
+   * list is read, with the newest of anything as the fallback.
    */
   async function latestRelease() {
     const known = remembered();
