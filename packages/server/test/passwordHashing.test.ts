@@ -176,6 +176,36 @@ describe("a hash that names its cost", () => {
   });
 });
 
+describe("a sign-in for a handle without a password", () => {
+  it.each([
+    ["a handle nobody has", () => "nobody"],
+    [
+      "a guest's handle",
+      () => {
+        server.store.db.prepare("UPDATE users SET role = 'guest' WHERE id = ?").run(owner.user.id);
+        return "owner";
+      },
+    ],
+  ])("hashes as a real one does, so its timing gives nothing away: %s", async (_, handle) => {
+    const name = handle();
+    // With both derivation slots taken, a sign-in that hashes is refused as
+    // busy. They hash at the real cost (about a quarter of a second), so they
+    // are still running when the request arrives over HTTP.
+    const slow = auth.DEFAULT_PASSWORD_COST;
+    const running = [
+      auth.hashPassword("first-password", slow),
+      auth.hashPassword("second-password", slow),
+    ];
+    const busy = await login(name);
+    await Promise.all(running);
+    expect(busy).toMatchObject({ status: 429, body: { error: "auth_busy" } });
+    expect(await login(name)).toMatchObject({
+      status: 401,
+      body: { error: "invalid_credentials" },
+    });
+  });
+});
+
 describe("a stored value that makes no sense", () => {
   const key = "c".repeat(128);
   it.each([

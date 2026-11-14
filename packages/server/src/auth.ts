@@ -143,6 +143,17 @@ export async function verifyPassword(
   return actual.length === stored.key.length && timingSafeEqual(actual, stored.key);
 }
 
+/**
+ * A failed check that costs what a real one does: one derivation at today's
+ * cost against a fresh salt. A sign-in for a handle that does not exist, or
+ * for a guest, which has no password, runs this, so how long the answer
+ * takes does not say which handles have a password behind them.
+ */
+export async function verifyNoPassword(password: string): Promise<false> {
+  await derive(password, randomBytes(16).toString("hex"), passwordCost());
+  return false;
+}
+
 /** Whether a stored hash was made at a cost other than today's, so is worth making again. */
 export function needsRehash(storedHash: string): boolean {
   const stored = parseStored(storedHash);

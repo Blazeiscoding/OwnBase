@@ -8,7 +8,14 @@ import {
   type User,
 } from "@ownbase/protocol";
 import type { FastifyRequest } from "fastify";
-import { hashPassword, hashToken, needsRehash, newSessionToken, verifyPassword } from "../auth.js";
+import {
+  hashPassword,
+  hashToken,
+  needsRehash,
+  newSessionToken,
+  verifyNoPassword,
+  verifyPassword,
+} from "../auth.js";
 import { type Channels } from "../channels/feature.js";
 import type { RecordEvent } from "../core/commit.js";
 import { type ServerContext } from "../core/context.js";
@@ -250,11 +257,13 @@ export function registerAccounts(
     ration("authByAddress", network.callerAddress(req));
     ration("authByHandle", body.handle.toLowerCase());
     const auth = store.people.authByHandle(body.handle);
+    // A guest has no password: it resumes its session or joins again. Without
+    // an account with a password, the same work is done anyway, so the time
+    // the refusal takes does not say whether the handle exists.
     const valid =
-      !!auth &&
-      // A guest has no password: it resumes its session or joins again.
-      auth.role !== "guest" &&
-      (await verifyPassword(body.password, auth.salt, auth.passwordHash));
+      auth && auth.role !== "guest"
+        ? await verifyPassword(body.password, auth.salt, auth.passwordHash)
+        : await verifyNoPassword(body.password);
     // Before the check below, which then also catches a change made while it hashed.
     const proven = auth && valid ? await upgradeHash(auth.id, auth, body.password) : null;
     const latest = auth ? store.people.authByHandle(auth.handle) : null;
