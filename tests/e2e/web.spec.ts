@@ -4920,7 +4920,10 @@ test("reading a thread on a phone leaves an unseen mention in its channel unread
     const mention = nav.getByLabel("1 unread mention in general", { exact: true });
     await openNavigation.click();
     await expect(mention).toBeVisible();
-    await expect(nav.getByLabel("Threads with unread replies", { exact: true })).toHaveText("1");
+    // The count is drawn by CSS, so it is not the badge's text.
+    await expect(
+      nav.getByLabel("Threads with unread replies", { exact: true }).locator("[data-drawn-text]"),
+    ).toHaveAttribute("data-drawn-text", "1");
     await nav.getByRole("button", { name: /^Threads\b/ }).click();
     const threads = page.getByRole("complementary", { name: "Threads", exact: true });
     await threads.getByRole("button", { name: "1 reply", exact: true }).click();
