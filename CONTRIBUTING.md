@@ -1,5 +1,9 @@
 # Contributing
 
+Report a bug or ask for a feature with the issue forms (Issues → New issue). A
+security problem goes to the private form instead, as [SECURITY.md](SECURITY.md)
+says.
+
 Develop each improvement on a branch and open a pull request against `main`.
 Describe the user-visible change, validation performed, and any remaining limits.
 Review the complete diff, resolve known issues within the PR's scope, and wait for
@@ -23,6 +27,9 @@ packaged Windows app, whose minutes count twice, ran on every pull request. So:
   (below) or start it by hand: `gh workflow run desktop.yml --ref <branch>`.
 - `container.yml` (the Docker image) runs when the server, the image's files or
   the lockfile change.
+- `codeql.yml` (code scanning) runs when a pull request changes a source file
+  or a workflow, after every push to `main` and once a week. Its findings show
+  on the pull request and in the Security tab.
 - `caches.yml` runs on `main` only when the lockfile changes. It refills the
   pnpm store and Chromium caches that pull requests restore, since a pull
   request can only use caches made on `main`.
