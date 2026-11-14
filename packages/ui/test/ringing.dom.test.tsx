@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { act, cleanup, screen, within } from "@testing-library/react";
+import { act, cleanup, screen, waitFor, within } from "@testing-library/react";
 import { render } from "./render.js";
 import userEvent from "@testing-library/user-event";
 import { WorkspaceClient, type HuddleState } from "@ownbase/client-core";
@@ -282,6 +282,24 @@ describe("a missed huddle's note", () => {
     expect(await accessibilityProblems(container)).toEqual([]);
   });
 
+  // Before, Call back left a huddle in another conversation without asking.
+  it("asks before leaving a huddle in another conversation to call back", async () => {
+    const { client, shown, user } = workspace({});
+    client.store.setState({ huddle: { channelId: "C_GROUP" } as HuddleState });
+    shown(<CallNote message={note("U_MAYA")} />);
+    await user.click(screen.getByRole("button", { name: "Call back" }));
+    const ask = await screen.findByRole("dialog", { name: "Switch huddles?" });
+    await user.click(within(ask).getByRole("button", { name: "Cancel" }));
+    expect(joinHuddle).not.toHaveBeenCalled();
+
+    await user.click(screen.getByRole("button", { name: "Call back" }));
+    const again = await screen.findByRole("dialog", { name: "Switch huddles?" });
+    await user.click(within(again).getByRole("button", { name: "Switch" }));
+    await waitFor(() =>
+      expect(joinHuddle).toHaveBeenCalledWith(client, "C_DM", expect.any(Function)),
+    );
+  });
+
   it("tells the caller nobody answered, with nothing to press and no way to edit it", () => {
     const { shown } = workspace({});
     shown(<MessageItem message={note("U_SAM")} compact={false} onOpenThread={vi.fn()} />);
@@ -312,7 +330,7 @@ describe("the caller", () => {
       C_GROUP: ring({ channelId: "C_GROUP", callerId: "U_SAM", ringing: ["U_MAYA", "U_LEE"] }),
     });
     inCall(client);
-    shown(<HuddleBar />);
+    shown(<HuddleBar onOpenSettings={() => {}} />);
     expect(screen.getByRole("status")).toHaveTextContent("Ringing Maya Chen and Lee Park…");
     act(() => {
       inCall(client, [
@@ -345,7 +363,7 @@ describe("the caller", () => {
   it("reads who declined, or that nobody answered, while alone in the call it rang for", () => {
     const { client, shown } = workspace({});
     inCall(client);
-    shown(<HuddleBar />);
+    shown(<HuddleBar onOpenSettings={() => {}} />);
     expect(screen.getByRole("status")).toHaveTextContent("Waiting for someone to join…");
     // How another conversation's ring went says nothing here.
     act(() =>
@@ -365,7 +383,7 @@ describe("the caller", () => {
       C_GROUP: ring({ channelId: "C_GROUP", callerId: "U_SAM", ringing: ["U_MAYA"] }),
     });
     inCall(client);
-    shown(<HuddleStage onHide={vi.fn()} />);
+    shown(<HuddleStage onOpenSettings={() => {}} onHide={vi.fn()} />);
     const call = screen.getByRole("region", { name: "Huddle call" });
     expect(within(call).getByText("Ringing Maya Chen…")).toBeInTheDocument();
     act(() =>
@@ -407,7 +425,7 @@ describe("someone in a call a ring still rings for", () => {
         ],
       },
     });
-    shown(<HuddleStage onHide={vi.fn()} />);
+    shown(<HuddleStage onOpenSettings={() => {}} onHide={vi.fn()} />);
     const call = screen.getByRole("region", { name: "Huddle call" });
     expect(within(call).getByText("Ringing Lee Park…")).toBeInTheDocument();
     // With someone there, how a ring went is no longer the call's news.

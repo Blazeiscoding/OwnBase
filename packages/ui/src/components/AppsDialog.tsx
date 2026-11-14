@@ -20,6 +20,7 @@ import {
   APP_SCOPES,
   DEFAULT_APP_SCOPES,
   eventScopes,
+  isRoom,
   type AppEventType,
   type AppScope,
   type Channel,
@@ -165,9 +166,7 @@ export function AppsDialog({ onClose }: { onClose: () => void }) {
     return () => clearInterval(timer);
   }, [hasPendingDeliveries, load]);
 
-  const rooms = Object.values(channels).filter(
-    (c) => (c.type === "public" || c.type === "private") && !c.archived,
-  );
+  const rooms = Object.values(channels).filter((c) => isRoom(c.type) && !c.archived);
 
   /**
    * Makes an app and shows it. A bot token is returned only once, so its row

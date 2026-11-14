@@ -2,7 +2,7 @@ import { useState } from "react";
 import type { ID } from "@ownbase/protocol";
 import { selfIsAdministrator } from "@ownbase/client-core";
 import { useClient, useWorkspace } from "../context.js";
-import { settingMark } from "../lib/settingsSearch.js";
+import { settingMark } from "../lib/accountSections.js";
 import { Avatar } from "./Avatar.js";
 import { Icon } from "./Icon.js";
 import { buttonClass } from "./Button.js";

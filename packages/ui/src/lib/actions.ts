@@ -1,5 +1,8 @@
 import {
+  markEverythingRead,
   selfIsAdministrator,
+  selfMay,
+  unreadEverywhere,
   type WorkspaceClient,
   type WorkspaceState,
 } from "@ownbase/client-core";
@@ -11,7 +14,7 @@ import { useToast, type ToastRequest } from "../components/Toast.js";
 import { useConfirm, type ConfirmRequest } from "../components/Confirm.js";
 import { useAppearance, useShownTheme } from "./appearance.js";
 import { failureText } from "./failure.js";
-import { markEverythingRead, unreadEverywhere, unreadSummary } from "./readAll.js";
+import { unreadSummary } from "./readAll.js";
 import { collapsedSections, neighbourConversation } from "./sidebarLayout.js";
 import { railTarget } from "./workspaceRail.js";
 import { isApple, modKey, shortcutLabel } from "./shortcuts.js";
@@ -46,10 +49,14 @@ export interface Action {
 
 /** Owners and admins always may invite; a member when an admin allowed it; a guest never. */
 export function mayInvite(self: WorkspaceState["self"]): boolean {
-  return self?.role !== "guest" && self?.canInvite === true;
+  return selfMay({ self }, "createInvite") && self?.canInvite === true;
 }
 
 const guest = (ctx: ActionContext) => ctx.state.self?.role === "guest";
+/**
+ * A guest has no profile or settings of its own here: its picture, password,
+ * devices and storage are an account's.
+ */
 const member = (ctx: ActionContext) => !guest(ctx);
 const always = () => true;
 const admin = (ctx: ActionContext) => selfIsAdministrator(ctx.state);
@@ -89,13 +96,13 @@ async function signOut(ctx: ActionContext) {
 
 /** Everything read, after asking when it is more than a couple of places. */
 async function markAllRead(ctx: ActionContext) {
-  const { channels, threads } = unreadEverywhere(ctx.client.state);
-  const count = channels.length + threads.length;
+  const unread = unreadEverywhere(ctx.client.state);
+  const count = unread.channels.length + unread.threads.length + unread.removals.length;
   if (count === 0) {
     ctx.toast({ message: "Nothing unread.", kind: "info" });
     return;
   }
-  const summary = unreadSummary(channels.length, threads.length);
+  const summary = unreadSummary(unread);
   if (count > 2) {
     const go = await ctx.confirm({
       title: "Mark everything as read?",
@@ -104,8 +111,12 @@ async function markAllRead(ctx: ActionContext) {
     });
     if (!go) return;
   }
-  markEverythingRead(ctx.client);
-  ctx.toast({ message: `Marked ${summary} as read.`, kind: "success" });
+  const error = await markEverythingRead(ctx.client);
+  ctx.toast(
+    error
+      ? { message: failureText("Could not mark everything read.", error), kind: "error" }
+      : { message: `Marked ${summary} as read.`, kind: "success" },
+  );
 }
 
 /** Every workspace-wide action, each declared once, in the order Ctrl+K lists them. */
@@ -115,7 +126,7 @@ export const ACTIONS = [
     label: "New message",
     icon: "edit",
     keywords: "dm direct conversation write",
-    available: member,
+    available: (ctx) => selfMay(ctx.state, "createChannel"),
     run: (ctx) => ctx.nav.navigate({ to: "dialog", dialog: { kind: "new-dm" } }),
   },
   {
@@ -124,7 +135,7 @@ export const ACTIONS = [
     icon: "plus",
     keywords: "new add room",
     palette: { label: "Create a channel" },
-    available: member,
+    available: (ctx) => selfMay(ctx.state, "createChannel"),
     run: (ctx) => ctx.nav.navigate({ to: "dialog", dialog: { kind: "new-channel" } }),
   },
   {
@@ -150,7 +161,7 @@ export const ACTIONS = [
   },
   {
     ...panel("scheduled", "Scheduled messages", "clock", "send later", "scheduled"),
-    available: member,
+    available: (ctx) => selfMay(ctx.state, "scheduleMessage"),
   },
   {
     id: "search",
@@ -166,7 +177,7 @@ export const ACTIONS = [
     icon: "user",
     keywords: "profile name away busy",
     palette: { label: "Set a status" },
-    available: always,
+    available: member,
     run: (ctx) =>
       ctx.nav.navigate({ to: "dialog", dialog: { kind: "account", section: "profile" } }),
   },
@@ -183,7 +194,7 @@ export const ACTIONS = [
     label: "Account settings",
     icon: "settings",
     keywords: "preferences notifications password",
-    available: always,
+    available: member,
     run: (ctx) => ctx.nav.navigate({ to: "dialog", dialog: { kind: "account" } }),
   },
   {
@@ -200,8 +211,7 @@ export const ACTIONS = [
     label: "Reported messages",
     icon: "flag",
     keywords: "reports moderation abuse spam queue",
-    // A server that takes reports gives admins a count of those waiting (E12).
-    available: (ctx) => admin(ctx) && ctx.state.openReports !== null,
+    available: admin,
     run: (ctx) => ctx.nav.navigate({ to: "dialog", dialog: { kind: "reports" } }),
   },
   {
@@ -226,7 +236,7 @@ export const ACTIONS = [
     icon: "userPlus",
     keywords: "sign up keep",
     palette: { icon: "user" },
-    available: guest,
+    available: (ctx) => guest(ctx) && !!ctx.shell.onAccountCreated,
     run: (ctx) => ctx.nav.navigate({ to: "dialog", dialog: { kind: "guest-account" } }),
   },
   // This computer's hosting, in the desktop app: for a member or a guest alike.
@@ -309,8 +319,6 @@ export interface MenuPlace {
   id: ActionId;
   /** Starts a group of its own, with a line above it. */
   section?: true;
-  /** Where this menu shows it more narrowly than the action allows. */
-  when?: (ctx: ActionContext) => boolean;
   hint?: (ctx: ActionContext) => string | undefined;
 }
 
@@ -330,15 +338,12 @@ export const WORKSPACE_MENU: readonly MenuPlace[] = [
   { id: "hosting" },
 ];
 
-/**
- * The account menu, after the status presets: what concerns only you. A
- * guest has no profile, settings or schedule of its own here.
- */
+/** The account menu, after the status presets: what concerns only you. */
 export const ACCOUNT_MENU: readonly MenuPlace[] = [
   { id: "away", section: true },
   { id: "create-account" },
-  { id: "profile", section: true, when: member },
-  { id: "account-settings", when: member },
+  { id: "profile", section: true },
+  { id: "account-settings" },
   { id: "scheduled" },
   // Help: the shortcut sheet opened only with Ctrl+/, and nothing said so.
   { id: "shortcuts", section: true },
@@ -352,7 +357,7 @@ export function menuItems(places: readonly MenuPlace[], ctx: ActionContext): Men
   const items: MenuItem[] = [];
   for (const place of places) {
     const a = action(place.id);
-    if (!a.available(ctx) || (place.when && !place.when(ctx))) continue;
+    if (!a.available(ctx)) continue;
     const binding = KEY_BINDINGS.find((b) => b.action === place.id);
     items.push({
       id: a.id,
@@ -566,7 +571,7 @@ export const KEY_BINDINGS: readonly KeyBinding[] = [
 
 /**
  * What the menus and Ctrl+K show from the workspace: each action's
- * availability, words and icon, and each menu place's. Drawn again when it
+ * availability, words and icon, and each menu place's hint. Drawn again when it
  * changes, whatever an action reads.
  */
 function shownWith(ctx: ActionContext): string {
@@ -576,7 +581,7 @@ function shownWith(ctx: ActionContext): string {
     iconOf(a.icon, ctx),
     a.keywords && text(a.keywords, ctx),
   ]);
-  const places = [...WORKSPACE_MENU, ...ACCOUNT_MENU].map((p) => [p.when?.(ctx), p.hint?.(ctx)]);
+  const places = [...WORKSPACE_MENU, ...ACCOUNT_MENU].map((p) => p.hint?.(ctx));
   return JSON.stringify([actions, places]);
 }
 
@@ -604,10 +609,19 @@ export function useActionContext(): ActionContext {
   return { ...base, state: client.state };
 }
 
+/** An action's name, as its menus show it now. */
+export function actionLabel(ctx: ActionContext, id: ActionId): string {
+  return text(action(id).label, ctx);
+}
+
+/** Whether this account may use an action now: what a control that runs it is shown by. */
+export function offered(ctx: ActionContext, id: ActionId): boolean {
+  return action(id).available({ ...ctx, state: ctx.client.state });
+}
+
 /** Runs an action by id, if this account may. */
 export function runAction(ctx: ActionContext, id: ActionId): void {
-  const a = action(id);
-  if (a.available({ ...ctx, state: ctx.client.state })) a.run(ctx);
+  if (offered(ctx, id)) action(id).run(ctx);
 }
 
 /** The workspace's global keys, as `KEY_BINDINGS` lists them. */

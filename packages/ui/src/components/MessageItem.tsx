@@ -12,8 +12,21 @@ import {
 } from "react";
 import { writeClipboard } from "../lib/useCopy.js";
 import { browserLink } from "../lib/deeplink.js";
-import type { FileMeta, ID, Message } from "@ownbase/protocol";
-import { ApiError, draftKey, forwardSource, type ForwardSource } from "@ownbase/client-core";
+import {
+  canDeleteMessage,
+  editRefusal,
+  namesUser,
+  type FileMeta,
+  type ID,
+  type Message,
+} from "@ownbase/protocol";
+import {
+  ApiError,
+  draftKey,
+  forwardSource,
+  selfMay,
+  type ForwardSource,
+} from "@ownbase/client-core";
 import { failureText } from "../lib/failure.js";
 import { OpenMessageContext, useClient, useWorkspace } from "../context.js";
 import { onlyEmoji } from "../lib/emoji.js";
@@ -142,7 +155,8 @@ const MessageRow = memo(function MessageRow({
   // render it again; your own role decides what you may do to it.
   const { users, channels } = useMessageReferences(message);
   const selfId = useWorkspace((s) => s.self?.id);
-  const selfRole = useWorkspace((s) => s.self?.role);
+  const canDelete = useWorkspace((s) => canDeleteMessage(s.self, message));
+  const mayPin = useWorkspace((s) => selfMay(s, "pinMessage"));
   const [editing, setEditing] = useState(false);
   const [picking, setPicking] = useState(false);
   // What the dialog passes on, as it was when Forward was chosen.
@@ -197,16 +211,10 @@ const MessageRow = memo(function MessageRow({
   const author = users[message.userId];
   const profileLabel = author ? `View ${author.displayName}'s profile` : "View profile";
   const mine = message.userId === selfId;
-  // A poll's question was voted on as it was; a call's note says what happened.
-  const editable = mine && !message.poll && !message.call;
+  const editable = editRefusal(selfId, message) === null;
   // The Drafts list asks for this to finish an unsaved edit.
   useEditRequest(message.id, editable, () => setEditing(true));
-  const canDelete = mine || selfRole === "owner" || selfRole === "admin";
-  // Named in it, or answered by it with a notification, as Discord marks both.
-  const mentionsMe = selfId
-    ? message.text.includes(`<@${selfId}>`) ||
-      (message.replyTo?.ping === true && message.replyTo.userId === selfId)
-    : false;
+  const mentionsMe = !!selfId && namesUser(message, selfId);
   const toast = useToast();
   const openMessage = useContext(OpenMessageContext);
   // Answered in place in the conversation it is shown in: the channel, or
@@ -366,7 +374,7 @@ const MessageRow = memo(function MessageRow({
     editable,
     canReply,
     canDelete,
-    canPin: selfRole !== "guest",
+    canPin: mayPin,
     canForward: !!forwarded,
     saved: isSaved,
     threadMuted,

@@ -1,11 +1,11 @@
 import { useCallback, useEffect, useId, useRef, useState } from "react";
 import { useDismissGuard } from "../lib/dismissGuard.js";
-import { ApiError } from "@ownbase/client-core";
+import { ApiError, selfMay } from "@ownbase/client-core";
 import { useClient, useWorkspace } from "../context.js";
 import { accountError } from "../lib/account.js";
 import { useCopy } from "../lib/useCopy.js";
 import { saveText } from "../lib/download.js";
-import { settingMark } from "../lib/settingsSearch.js";
+import { settingMark } from "../lib/accountSections.js";
 import { inputCls } from "./TextField.js";
 import { QrCode } from "./QrCode.js";
 import { Swap } from "./Motion.js";
@@ -53,7 +53,7 @@ export function TwoStepSettings() {
   const codesPanel = useRef<HTMLDivElement>(null);
   const clipboard = useCopy();
   // Guests have no password, so none of this either.
-  const owned = !!self && self.role !== "guest";
+  const owned = !!self && selfMay({ self }, "twoStep");
 
   const load = useCallback(async () => {
     const status = await client.account.twoStep();

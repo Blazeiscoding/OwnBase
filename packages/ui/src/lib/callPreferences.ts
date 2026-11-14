@@ -2,6 +2,7 @@ import { useEffect } from "react";
 import { useStore } from "zustand";
 import { createStore, type StoreApi } from "zustand/vanilla";
 import {
+  isSignedOut,
   SCREEN_SHARE_QUALITY,
   type MicrophoneSettings,
   type ScreenShareQuality,
@@ -236,10 +237,7 @@ function createPreferences(platform: Platform) {
         });
       }
       const gone = () =>
-        !stillWanted() ||
-        client.state.status === "closed" ||
-        client.state.status === "auth_failed" ||
-        client.state.status === "password_change_required";
+        !stillWanted() || client.state.status === "closed" || isSignedOut(client.state.status);
       if (gone()) return;
       const choice = (await needsDeviceCheck()) ? await askForDevices() : {};
       // Listing the devices and the answer both take a while.

@@ -41,7 +41,7 @@ import { forgetCachedIcon, useCachedWorkspaceIcons } from "./lib/workspaceIcon.j
 import type { SignedOutFrom, SignedOutHow } from "./lib/signOut.js";
 import { railOrder } from "./lib/workspaceRail.js";
 import { useOtherWorkspacesUnread } from "./lib/otherUnread.js";
-import { navigationOf } from "./lib/navigation.js";
+import type { Navigation } from "./lib/navigation.js";
 
 type Session =
   | { view: "loading" }
@@ -111,6 +111,11 @@ export function App({ platform }: { platform: Platform }) {
   const [savedServers, setSavedServers] = useState<SavedServer[]>([]);
   const savedServersRef = useRef<SavedServer[]>([]);
   const [session, setSession] = useState<Session>({ view: "loading" });
+  /** Where the workspace on screen is, for Manage hosting's Invite people. */
+  const workspaceNavigation = useRef<Navigation | null>(null);
+  const keepNavigation = useCallback((navigation: Navigation | null) => {
+    workspaceNavigation.current = navigation;
+  }, []);
   const [hostDialogOpen, setHostDialogOpen] = useState(false);
   /** The tab Manage hosting opens on, when something asked for one. */
   const [hostSection, setHostSection] = useState<"internet" | undefined>(undefined);
@@ -623,6 +628,7 @@ export function App({ platform }: { platform: Platform }) {
                 initialTarget={session.target ?? null}
                 welcome={session.welcome}
                 onLeaveWorkspace={() => leaveWorkspace()}
+                onNavigation={keepNavigation}
                 onSignedOut={(how) => endSession(session.server, session.client, how)}
                 onAccountCreated={(token, handle) =>
                   // The same person, now with an account: open it again with
@@ -669,7 +675,7 @@ export function App({ platform }: { platform: Platform }) {
                   onInvite={() => {
                     setHostDialogOpen(false);
                     if (session.view === "workspace")
-                      navigationOf(session.client)?.navigate({
+                      workspaceNavigation.current?.navigate({
                         to: "dialog",
                         dialog: { kind: "invite" },
                       });

@@ -83,14 +83,18 @@ export type { SendAnswer } from "./workspace.js";
 export {
   blockedPartner,
   deactivatedPartner,
+  isSignedOut,
   isSnoozed,
   snoozedUntil,
   isThreadUnread,
   isUnread,
   mentionsElsewhere,
   selfIsAdministrator,
+  selfMay,
   waitsForAttention,
 } from "./selectors.js";
+export { anythingUnread, markEverythingRead, unreadEverywhere } from "./readAll.js";
+export type { Unread } from "./readAll.js";
 export { threadReplies, threadRootMessage, timelineMessages } from "./messageCache.js";
 export type { ChannelTimeline, ThreadPage } from "./messageCache.js";
 export type {

@@ -199,7 +199,7 @@ export function HuddleBar({
   /** Opens the call log, for someone who cannot connect to know why. */
   onShowCallLog?: () => void;
   /** Opens Voice & video settings. */
-  onOpenSettings?: () => void;
+  onOpenSettings: () => void;
 }) {
   const huddle = useWorkspace((s) => s.huddle);
   const users = useWorkspace((s) => s.users);

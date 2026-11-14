@@ -2,7 +2,7 @@ import { lazy, Suspense, useEffect, useRef, useState } from "react";
 import { ApiError, notificationBody } from "@ownbase/client-core";
 import type { ID, ReminderItem } from "@ownbase/protocol";
 import { useClient, useWorkspace } from "../context.js";
-import { channelTitle } from "../lib/format.js";
+import { conversationName } from "../lib/format.js";
 import { formatReminderTime, formatScheduleShort, reminderPresets } from "../lib/schedule.js";
 import { dropRepeatClick } from "../lib/repeatClick.js";
 import { Avatar } from "./Avatar.js";
@@ -84,10 +84,7 @@ export function RemindersList({ onJump }: { onJump: (channelId: ID, messageId: I
   const row = (item: ReminderItem) => {
     const { message, reminder } = item;
     const channel = channels[message.channelId]!;
-    const place =
-      channel.type === "public" || channel.type === "private"
-        ? `#${channel.name}`
-        : channelTitle(channel, users, selfId);
+    const place = conversationName(channel, users, selfId);
     return (
       <ReminderRow
         key={reminder.id}

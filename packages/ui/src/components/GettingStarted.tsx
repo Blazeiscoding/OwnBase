@@ -1,5 +1,5 @@
 import { useEffect, useEffectEvent, useId, useMemo, useState } from "react";
-import { DEFAULT_WORKSPACE_NAME } from "@ownbase/protocol";
+import { DEFAULT_WORKSPACE_NAME, isRoom } from "@ownbase/protocol";
 import { useToast } from "./Toast.js";
 import { usePlatform, useWorkspace } from "../context.js";
 import { writeWorkspaceStorage } from "@ownbase/client-core";
@@ -130,9 +130,7 @@ export function GettingStarted(props: {
   }, []);
 
   if (self?.role !== "owner" || !current || current.dismissed) return null;
-  const rooms = Object.values(channels).filter(
-    (c) => (c.type === "public" || c.type === "private") && !c.archived,
-  );
+  const rooms = Object.values(channels).filter((c) => isRoom(c.type) && !c.archived);
   const others = Object.values(users).filter((u) => u.id !== self.id && !u.isBot && !u.deactivated);
   // Asked only while it still has the name it started with: one started
   // with its own name, or since named, has nothing to tick off. First, as an

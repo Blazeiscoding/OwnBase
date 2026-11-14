@@ -94,6 +94,7 @@ describe("the workspace menu", () => {
     expect(items).toEqual([
       "Invite people",
       "People",
+      "Reported messages",
       "Apps and integrations",
       "Workspace settings",
       "Add or join a workspace…",
@@ -126,6 +127,7 @@ describe("the workspace menu", () => {
     expect(items).toEqual([
       "Invite people",
       "People",
+      "Reported messages",
       "Apps and integrations",
       "Workspace settings",
       "Manage hosting",

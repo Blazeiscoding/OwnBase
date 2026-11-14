@@ -14,7 +14,7 @@ import { writeRoute } from "../src/lib/route.js";
 import type { HostingStatus, Platform } from "../src/platform.js";
 import { hostingStub } from "./hostingStub.js";
 import { accessibilityProblems } from "./accessibility.js";
-import { navigationOf } from "../src/lib/navigation.js";
+import type { Navigation } from "../src/lib/navigation.js";
 import { AppNotices } from "./workspaceParts.js";
 
 /**
@@ -170,6 +170,7 @@ function ownersWorkspace() {
   vi.spyOn(client, "loadTimeline").mockResolvedValue();
   vi.spyOn(client.api, "listInvites").mockResolvedValue({ invites: [] });
   const create = vi.spyOn(client.api, "createInvite").mockResolvedValue({ invite: madeInvite });
+  let navigation: Navigation | null = null;
   const screenOf = (props: { welcome?: boolean; hostingEntry?: HostingEntry }) => (
     <ConfirmProvider>
       <PlatformContext.Provider value={webPlatform}>
@@ -179,6 +180,7 @@ function ownersWorkspace() {
               client={client}
               platform={webPlatform}
               {...props}
+              onNavigation={(now) => (navigation = now)}
               onLeaveWorkspace={() => {}}
               onSignedOut={() => {}}
             />
@@ -187,7 +189,7 @@ function ownersWorkspace() {
       </PlatformContext.Provider>
     </ConfirmProvider>
   );
-  return { client, create, screenOf };
+  return { client, create, screenOf, navigation: () => navigation };
 }
 
 describe("the workspace a founder opens", () => {
@@ -208,9 +210,9 @@ describe("the workspace a founder opens", () => {
 
 describe("Invite people, asked for by Manage hosting", () => {
   it("opens each time it is asked for", async () => {
-    const { client, screenOf } = ownersWorkspace();
+    const { navigation, screenOf } = ownersWorkspace();
     const ask = () =>
-      act(() => navigationOf(client)?.navigate({ to: "dialog", dialog: { kind: "invite" } }));
+      act(() => navigation()?.navigate({ to: "dialog", dialog: { kind: "invite" } }));
     render(screenOf({}));
     await screen.findByRole("textbox", { name: /Message/ });
     expect(screen.queryByRole("dialog", { name: "Invite people" })).toBeNull();

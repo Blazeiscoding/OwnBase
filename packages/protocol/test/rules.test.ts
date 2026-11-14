@@ -1,10 +1,61 @@
 import { describe, expect, it } from "vitest";
-import { errorCodeOf, isAdministrator, isDirect, isRoom, userMentionsIn } from "../src/index.js";
+import {
+  canDeleteMessage,
+  editRefusal,
+  errorCodeOf,
+  isAdministrator,
+  isDirect,
+  isRoom,
+  namesUser,
+  roleMayCall,
+  userMentionsIn,
+} from "../src/index.js";
 
 describe("shared rules", () => {
   it("counts owners and admins as running the workspace, and nobody else", () => {
     const roles = ["owner", "admin", "member", "guest", undefined] as const;
     expect(roles.map((role) => isAdministrator(role))).toEqual([true, true, false, false, false]);
+  });
+
+  it("lets each role call the routes its access names, and nobody signed out but public ones", () => {
+    const roles = ["owner", "admin", "member", "guest", undefined] as const;
+    const table = (["public", "guest", "member", "admin", "owner", "bot"] as const).map((access) =>
+      roles.map((role) => roleMayCall(access, role)),
+    );
+    expect(table).toEqual([
+      [true, true, true, true, true],
+      [true, true, true, true, false],
+      [true, true, true, false, false],
+      [true, true, false, false, false],
+      [true, false, false, false, false],
+      [false, false, false, false, false],
+    ]);
+  });
+
+  it("lets only the author edit, and not a poll or a call's note", () => {
+    const own = { userId: "U1" };
+    expect(editRefusal("U1", own)).toBeNull();
+    expect(editRefusal("U2", own)).toBe("not_your_message");
+    expect(editRefusal(undefined, own)).toBe("not_your_message");
+    expect(editRefusal("U1", { ...own, poll: {} as never })).toBe("poll_not_editable");
+    expect(editRefusal("U1", { ...own, call: {} as never })).toBe("call_not_editable");
+  });
+
+  it("lets the author delete, and the owner and admins anyone's", () => {
+    const theirs = { userId: "U1" };
+    expect(canDeleteMessage({ id: "U1", role: "guest" }, theirs)).toBe(true);
+    expect(canDeleteMessage({ id: "U2", role: "member" }, theirs)).toBe(false);
+    expect(canDeleteMessage({ id: "U2", role: "admin" }, theirs)).toBe(true);
+    expect(canDeleteMessage(null, theirs)).toBe(false);
+  });
+
+  it("says a message names someone by a mention or a reply that notifies them", () => {
+    const reply = (ping: boolean) => ({ userId: "U1", ping }) as never;
+    expect(namesUser({ text: "hi <@U1>" }, "U1")).toBe(true);
+    expect(namesUser({ text: "hi <@U12>" }, "U1")).toBe(false);
+    expect(namesUser({ text: "ok", replyTo: reply(true) }, "U1")).toBe(true);
+    expect(namesUser({ text: "ok", replyTo: reply(false) }, "U1")).toBe(false);
+    expect(namesUser({ text: "ok", replyTo: reply(true) }, "U2")).toBe(false);
   });
 
   it("tells rooms from direct messages, and a missing conversation from both", () => {

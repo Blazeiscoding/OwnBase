@@ -7,6 +7,7 @@ import { protocolMismatch } from "../lib/connection.js";
 import { signedOutHow, type SignedOutHow } from "../lib/signOut.js";
 import {
   checkWorkspaceAddress,
+  isSignedOut,
   trustWorkspaceAddress,
   type WorkspaceAddressAccess,
 } from "@ownbase/client-core";
@@ -62,8 +63,9 @@ export function WorkspaceStorageGate({
   const approve = useRef<(() => void) | null>(null);
 
   useEffect(() => {
-    if (status === "auth_failed" || status === "password_change_required")
-      onSignedOut(signedOutHow(client, status));
+    // Signing out is what leads back to the screen that can replace a password:
+    // signing in again lands on it, holding the password it needs to replace.
+    if (isSignedOut(status)) onSignedOut(signedOutHow(client, status));
   }, [status, onSignedOut, client]);
 
   useEffect(() => {
@@ -110,7 +112,7 @@ export function WorkspaceStorageGate({
   }, [platform, scope]);
 
   const current = check?.scope === scope ? check : null;
-  const signedOut = status === "auth_failed" || status === "password_change_required";
+  const signedOut = isSignedOut(status);
   if (!signedOut && userId && (!workspaceId || current?.phase === "allowed")) return children;
 
   const access = current?.access;

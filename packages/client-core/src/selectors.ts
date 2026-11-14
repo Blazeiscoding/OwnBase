@@ -1,11 +1,13 @@
 import {
+  endpoints,
   isAdministrator,
+  roleMayCall,
   type Channel,
   type ID,
   type ThreadFollow,
   type User,
 } from "@ownbase/protocol";
-import type { WorkspaceState } from "./workspace.js";
+import type { ConnectionStatus, WorkspaceState } from "./workspace.js";
 
 type ReadState = Pick<WorkspaceState, "memberships" | "channelLastSeq">;
 
@@ -90,6 +92,26 @@ export function isSnoozed(dndUntil: number | null | undefined, now = Date.now())
   return snoozedUntil(dndUntil, now) !== null;
 }
 
+/**
+ * Whether the server has ended this session: signed out, or refusing the
+ * account until its password is replaced.
+ */
+export function isSignedOut(status: ConnectionStatus): boolean {
+  return status === "auth_failed" || status === "password_change_required";
+}
+
 export function selfIsAdministrator(state: Pick<WorkspaceState, "self">): boolean {
   return isAdministrator(state.self?.role);
+}
+
+/**
+ * Whether this account may call the endpoint `name`, by the access the
+ * endpoint table gives it: the server's own rule, so what the UI offers and
+ * what the server lets through cannot drift apart.
+ */
+export function selfMay(
+  state: Pick<WorkspaceState, "self">,
+  name: keyof typeof endpoints,
+): boolean {
+  return roleMayCall(endpoints[name].access, state.self?.role);
 }

@@ -1,6 +1,6 @@
 import { useId, type ReactNode } from "react";
 import { isDirect, isRoom } from "@ownbase/protocol";
-import { isSnoozed, mentionsElsewhere, waitsForAttention } from "@ownbase/client-core";
+import { isSnoozed, mentionsElsewhere, selfMay, waitsForAttention } from "@ownbase/client-core";
 import { dueReminderCount, unreadRemovalCount, unreadThreadCount } from "@ownbase/client-core";
 import { useWorkspace } from "../context.js";
 import { useMediaQuery } from "../lib/useMediaQuery.js";
@@ -60,7 +60,7 @@ function BottomBar() {
   const activeChannelId = useNavigationState((s) => s.channelId);
   const openPanel = useNavigationState((s) => s.panel.kind);
   const drawerOpen = useNavigationState((s) => s.drawer);
-  const guest = useWorkspace((s) => s.self?.role === "guest");
+  const messaging = useWorkspace((s) => selfMay(s, "latestDirectMessages"));
   const self = useWorkspace((s) => s.self);
   const snoozed = isSnoozed(useWorkspace((s) => s.self?.dndUntil));
   const unreadRooms = useWorkspace((s) =>
@@ -104,7 +104,7 @@ function BottomBar() {
           dot={unreadRooms}
           waiting={unreadRooms ? "Unread messages in channels" : undefined}
         />
-        {!guest && (
+        {messaging && (
           <BarItem
             icon="messages"
             label="DMs"

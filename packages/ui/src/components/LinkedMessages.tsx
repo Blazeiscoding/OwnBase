@@ -1,11 +1,12 @@
 import { useContext, useEffect, useMemo, useState } from "react";
 import { ApiError, type WorkspaceClient } from "@ownbase/client-core";
-import type { FileMeta, ID, Message } from "@ownbase/protocol";
+import { isRoom, type FileMeta, type ID, type Message } from "@ownbase/protocol";
 import { OpenMessageContext, useClient, useWorkspace } from "../context.js";
 import { formatWhen } from "../lib/format.js";
 import { linkedMessages, type LinkedMessage } from "../lib/linkedMessages.js";
 import { useMessageReferences } from "../lib/messageReferences.js";
-import { QuotedMessage, conversationName } from "./ForwardCard.js";
+import { QuotedMessage } from "./ForwardCard.js";
+import { conversationName } from "../lib/format.js";
 import { Icon } from "./Icon.js";
 import { useOwnAddress } from "./ShareableServer.js";
 
@@ -69,9 +70,7 @@ function Card(props: {
     const channel = s.channels[message.channelId];
     if (!channel) return null;
     const name = conversationName(channel, s.users, s.self?.id);
-    return channel.type === "public" || channel.type === "private"
-      ? name
-      : `a direct message with ${name}`;
+    return isRoom(channel.type) ? name : `a direct message with ${name}`;
   });
   return (
     <div className="mt-1.5 max-w-xl rounded-lg border border-edge border-l-2 border-l-ink-faint bg-ink/[0.025] px-3 py-2">

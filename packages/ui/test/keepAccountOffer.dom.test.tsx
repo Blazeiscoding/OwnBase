@@ -113,7 +113,7 @@ function sidebar(
   const onCreateAccount = vi.fn();
   const view = renderPart(client, <Sidebar />, {
     channelId: general.id,
-    shell: { platform: stored.platform },
+    shell: { platform: stored.platform, onAccountCreated: () => {} },
   });
   view.navigation.store.subscribe((s) => {
     if (s.dialog.kind === "guest-account") onCreateAccount();

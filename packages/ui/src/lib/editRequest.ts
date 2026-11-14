@@ -1,5 +1,5 @@
 import { useEffect, useRef } from "react";
-import type { ID } from "@ownbase/protocol";
+import { editRefusal, type ID, type Message } from "@ownbase/protocol";
 
 /** How long a request waits for its message's row to appear. */
 export const EDIT_REQUEST_MS = 10_000;
@@ -43,18 +43,17 @@ export function useEditRequest(messageId: ID, enabled: boolean, open: () => void
 }
 
 /**
- * The newest message someone can still edit in a list, oldest first: their
- * own, and not a poll or a call's note. Up in an empty box edits it, as Slack
- * and Discord do.
+ * The newest message someone can still edit in a list, oldest first. Up in an
+ * empty box edits it, as Slack and Discord do.
  */
-export function lastEditable<M extends { userId: ID; poll?: unknown; call?: unknown }>(
+export function lastEditable<M extends Pick<Message, "userId" | "poll" | "call">>(
   items: readonly M[] | undefined,
   selfId: ID | undefined,
 ): M | undefined {
   if (!items || !selfId) return undefined;
   for (let i = items.length - 1; i >= 0; i--) {
     const item = items[i]!;
-    if (item.userId === selfId && !item.poll && !item.call) return item;
+    if (editRefusal(selfId, item) === null) return item;
   }
   return undefined;
 }

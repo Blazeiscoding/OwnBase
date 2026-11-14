@@ -7,7 +7,8 @@ import {
   type Message,
   type NotifyLevel,
 } from "./entities.js";
-import { broadcastsIn, plainText, userMentionsIn, type MentionLabels } from "./format.js";
+import { broadcastsIn, plainText, type MentionLabels } from "./format.js";
+import { namesUser } from "./messageRules.js";
 
 export type NotifyDecision =
   | {
@@ -67,10 +68,7 @@ export function notifyDecision(inputs: NotifyInputs): NotifyDecision {
   const level = effectiveNotifyLevel(prefs, inputs.notifyDefault);
   if (level === "nothing") return { notify: false, reason: "level" };
 
-  // A reply that chose to notify the author of what it answers names them.
-  const named =
-    userMentionsIn(message.text).has(selfId) ||
-    (message.replyTo?.ping === true && message.replyTo.userId === selfId);
+  const named = namesUser(message, selfId);
   const broadcasts = broadcastsIn(message.text);
   // A room-wide mention only reaches a room: in a DM it is just words.
   const isDm = isDirect(inputs.channelType);

@@ -11,13 +11,12 @@ import {
   previewFor,
   useNotificationPreviews,
 } from "../lib/notificationPreview.js";
-import { ACCOUNT_SECTIONS, type AccountSection } from "../lib/accountSections.js";
+import { ACCOUNT_SECTIONS, settingMark, type AccountSection } from "../lib/accountSections.js";
 import { SavedContext, useSaved, useSavedNote } from "../lib/savedNote.js";
 import { NOTIFY_LEVELS } from "../lib/notifyLevels.js";
 import {
   SECTION_LABELS,
   findSettings,
-  settingMark,
   settingOnPage,
   type Setting,
 } from "../lib/settingsSearch.js";

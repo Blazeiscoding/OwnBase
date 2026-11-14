@@ -16,6 +16,7 @@ import { connectionFailure, host, incompatibleWorkspace } from "../lib/connectio
 import { useHostedIcon, useWorkspaceIconUrl } from "../lib/workspaceIcon.js";
 import { WorkspaceIcon } from "../components/WorkspaceIcon.js";
 import { resumeTarget } from "../lib/resume.js";
+import { normalizeServerUrlSafe } from "../lib/deeplinkHelpers.js";
 import { buttonClass } from "../components/Button.js";
 import { inputClass } from "../components/TextField.js";
 import { useTabs } from "../lib/useTabs.js";
@@ -167,7 +168,7 @@ export function JoinScreen({
   // again only if they no longer work — reopening your own hosted workspace
   // should not mean typing the password each time.
   const reconnect = useEffectEvent((address: string) => {
-    const saved = savedServers.find((s) => s.url === normalizeSafe(address));
+    const saved = savedServers.find((s) => s.url === normalizeServerUrlSafe(address));
     // A sign-in just made with single sign-on is used, not the one saved before.
     if (saved && !ssoCode) void openSaved(saved);
     else void probe(address);
@@ -448,14 +449,16 @@ function BrowseCard(props: {
     () =>
       props.lanServers.filter(
         (l) =>
-          !props.savedServers.some((s) => s.url === normalizeSafe(hostWithPort(l.host, l.port))),
+          !props.savedServers.some(
+            (s) => s.url === normalizeServerUrlSafe(hostWithPort(l.host, l.port)),
+          ),
       ),
     [props.lanServers, props.savedServers],
   );
   // Signed in there already, it is listed once, with the account, under Your workspaces.
   const selfServed =
     props.selfServed &&
-    !props.savedServers.some((s) => s.url === normalizeSafe(props.selfServed!.url))
+    !props.savedServers.some((s) => s.url === normalizeServerUrlSafe(props.selfServed!.url))
       ? props.selfServed
       : null;
 
@@ -587,7 +590,7 @@ function BrowseCard(props: {
             if (props.probing !== null) return;
             const problem = !address.trim()
               ? "Type the workspace's address, such as 192.168.1.42:8543."
-              : !normalizeSafe(address)
+              : !normalizeServerUrlSafe(address)
                 ? "That doesn't look like a workspace address."
                 : null;
             setAddressError(problem);
@@ -719,14 +722,6 @@ function HostCard(props: { onClick: () => void }) {
   );
 }
 
-function normalizeSafe(input: string): string {
-  try {
-    return normalizeServerUrl(input);
-  } catch {
-    return "";
-  }
-}
-
 function SectionLabel({ children }: { children: React.ReactNode }) {
   return <h2 className="mb-2 px-1 text-[12px] font-medium text-ink-faint">{children}</h2>;
 }
@@ -791,7 +786,7 @@ function FoundServerRow(props: {
   busy: boolean;
   onClick: () => void;
 }) {
-  const icon = useWorkspaceIconUrl(normalizeSafe(props.address) || null, props.server.iconVersion);
+  const icon = useWorkspaceIconUrl(normalizeServerUrlSafe(props.address), props.server.iconVersion);
   return (
     <ServerRow
       title={props.server.name}

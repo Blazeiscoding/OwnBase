@@ -1,4 +1,4 @@
-import type { AccountSection } from "./accountSections.js";
+import type { AccountSection, SettingId } from "./accountSections.js";
 
 /** What each section of Account settings is called, in its list and its search results. */
 export const SECTION_LABELS: Record<AccountSection, string> = {
@@ -13,29 +13,6 @@ export const SECTION_LABELS: Record<AccountSection, string> = {
   updates: "Updates",
 };
 
-export type SettingId =
-  | "display-name"
-  | "status"
-  | "device-notifications"
-  | "pause-notifications"
-  | "notification-previews"
-  | "theme"
-  | "density"
-  | "enter-key"
-  | "microphone"
-  | "speaker"
-  | "noise-suppression"
-  | "voice-processing"
-  | "camera"
-  | "join-muted"
-  | "password"
-  | "two-step"
-  | "blocked-people"
-  | "sign-out"
-  | "devices"
-  | "storage"
-  | "updates";
-
 /** A setting someone may look for. */
 export interface Setting {
   /** The mark on the part of its section that holds it: see `settingMark`. */
@@ -46,12 +23,6 @@ export interface Setting {
   /** Other words people use for it. */
   words?: string;
 }
-
-/**
- * Marks the part of a section that holds a setting: the search scrolls to
- * it, puts focus on its first control and flashes it.
- */
-export const settingMark = (id: SettingId) => ({ "data-setting": id });
 
 /** The part of a page marked as holding a setting. */
 export const settingOnPage = (page: ParentNode, id: SettingId) =>

@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import type { ID, Message } from "@ownbase/protocol";
-import type { PagedList, PagedListState } from "@ownbase/client-core";
+import { selfMay, type PagedList, type PagedListState } from "@ownbase/client-core";
 import { failureText } from "../lib/failure.js";
 import { useClient, useWorkspace } from "../context.js";
 import { channelTitle, formatFull } from "../lib/format.js";
@@ -225,8 +225,7 @@ export function PinsPanel(props: {
 }) {
   const client = useClient();
   const toast = useToast();
-  // Pinning changes the channel for everyone, which a guest may not.
-  const guest = useWorkspace((s) => s.self?.role === "guest");
+  const unpins = useWorkspace((s) => selfMay(s, "unpinMessage"));
   /** Unpinned from here, so gone at once rather than when the list is next read. */
   const [unpinned, setUnpinned] = useState<ReadonlySet<ID>>(() => new Set());
 
@@ -271,9 +270,9 @@ export function PinsPanel(props: {
       state={state}
       keep={(m) => !unpinned.has(m.id)}
       remove={
-        guest
-          ? undefined
-          : { label: "Unpin from channel", icon: "pin", run: (m) => setPinned(m, false) }
+        unpins
+          ? { label: "Unpin from channel", icon: "pin", run: (m) => setPinned(m, false) }
+          : undefined
       }
       onClose={props.onClose}
       onJump={props.onJump}
