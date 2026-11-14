@@ -16,12 +16,13 @@ on:
   push:
     tags: ["v*"]
     branches: [main]
-    # What is in the installer, the disk image or the server. GitHub does not
+    # What is in the installer, the disk image, the server or its image. GitHub does not
     # read paths for a tag, so a version tag still releases whatever changed.
     paths:
       - "apps/desktop/**"
       - "apps/server-cli/**"
       - "apps/web/**"
+      - "docker/Dockerfile"
       - "packages/**"
       - "package.json"
       - "pnpm-lock.yaml"
@@ -48,6 +49,9 @@ concurrency:
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 permissions:
   contents: read
+env:
+  # Lower case: registries refuse the capital in the owner's name.
+  IMAGE: ghcr.io/blazeiscoding/ownbase
 jobs:
   # Publishing a draft by hand creates its tag, and a version tag starts this
   # workflow, which would build the same release again and leave a second
@@ -130,6 +134,42 @@ jobs:
       - uses: actions/upload-artifact@v7
         with:
           name: release-server
+          path: release/
+          retention-days: 1
+
+  # The container image for linux/amd64 and linux/arm64, built and tested as
+  # container.yml does it, at this release's version. It goes to publish as an
+  # OCI archive, so the image pushed is the one tested here, not a rebuild.
+  image:
+    needs: [plan]
+    if: needs.plan.outputs.build == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+      - id: image
+        uses: ./.github/actions/container-image
+        with:
+          version: ${{ needs.plan.outputs.version }}
+          archive: release/container/ownbase.oci.tar
+      # The server identity inside the image, which the manifest compares with
+      # the server archive's, and the digest the release notes give.
+      - name: Collect the image
+        env:
+          DIGEST: ${{ steps.image.outputs.digest }}
+        run: |
+          docker run --rm --entrypoint cat ownbase:local build.json | node -e '
+            const build = JSON.parse(require("node:fs").readFileSync(0, "utf8"));
+            const platforms = ["linux/amd64", "linux/arm64"];
+            const image = { name: process.env.IMAGE, digest: process.env.DIGEST, platforms, build };
+            console.log(JSON.stringify(image, null, 2));
+          ' > release/image.json
+          cat release/image.json
+      - uses: actions/upload-artifact@v7
+        with:
+          name: release-image
           path: release/
           retention-days: 1
 
@@ -339,7 +379,7 @@ jobs:
   # Checks every file was built from this commit and writes the hashes and
   # notes; on a pull request it stops here.
   manifest:
-    needs: [plan, server, unit, browser, windows, mac]
+    needs: [plan, server, image, unit, browser, windows, mac]
     runs-on: ubuntu-latest
     outputs:
       tag: ${{ needs.plan.outputs.tag }}
@@ -366,14 +406,44 @@ jobs:
     needs: [manifest]
     if: github.event_name != 'pull_request'
     runs-on: ubuntu-latest
+    # Only this job pushes the image, so only it may write packages.
     permissions:
       contents: write
+      packages: write
     steps:
       - uses: actions/download-artifact@v8
         with:
           pattern: release-*
           path: release
           merge-multiple: true
+      # The image goes up under its version before the release exists, and
+      # `latest` moves only after it, so a failure leaves a version tag no
+      # release names yet, never a release without its image or a `latest`
+      # ahead of the releases. Copying with the digests kept makes a rerun for
+      # the same tag the same push, and is checked against the digest the
+      # notes give. A draft's image is pushed too: publishing a draft by hand
+      # builds nothing (plan), so its image has to be there already.
+      - name: Push the image under its version
+        env:
+          TOKEN: ${{ github.token }}
+          TAG: ${{ needs.manifest.outputs.tag }}
+        run: |
+          archive=release/container/ownbase.oci.tar
+          digest=$(node -p 'JSON.parse(require("node:fs").readFileSync("release/image.json", "utf8")).digest')
+          inside=$(tar -xOf "$archive" index.json | node -p 'JSON.parse(require("node:fs").readFileSync(0, "utf8")).manifests[0].digest')
+          if [ "$inside" != "$digest" ]; then
+            echo "::error::The image archive holds $inside, not the tested $digest."
+            exit 1
+          fi
+          command -v skopeo >/dev/null || { sudo apt-get update -q && sudo apt-get install -y -q skopeo; }
+          echo "$TOKEN" | skopeo login ghcr.io --username "$GITHUB_ACTOR" --password-stdin
+          skopeo copy --all --preserve-digests --retry-times 3 "oci-archive:$archive" "docker://$IMAGE:${TAG#v}"
+          pushed="sha256:$(skopeo inspect --raw "docker://$IMAGE:${TAG#v}" | sha256sum | cut -d' ' -f1)"
+          if [ "$pushed" != "$digest" ]; then
+            echo "::error::$IMAGE:${TAG#v} is $pushed, not the tested $digest."
+            exit 1
+          fi
+          echo "Pushed $IMAGE:${TAG#v} ($digest)"
       # From main, published at once: that creates the tag at this commit and
       # puts the files on the website. By hand or from a tag, a draft that
       # someone looks over and publishes, which creates the tag for a run by hand.
@@ -391,6 +461,14 @@ jobs:
           if [ "$GITHUB_EVENT_NAME" = "push" ] && [ "$GITHUB_REF_TYPE" = "branch" ]; then draft=(); fi
           gh release create "$TAG" --repo "$GITHUB_REPOSITORY" "${draft[@]}" "${prerelease[@]}" \
             --target "$GITHUB_SHA" --title "OwnBase $TAG" --notes-file release/notes.md "${files[@]}"
+      # `latest` is the newest published release, as on the website, which
+      # offers it whether it is an alpha or not. A draft leaves it alone.
+      - name: Point latest at the image
+        if: github.event_name == 'push' && github.ref_type == 'branch'
+        run: |
+          skopeo copy --all --preserve-digests --retry-times 3 \
+            "oci-archive:release/container/ownbase.oci.tar" "docker://$IMAGE:latest"
+          echo "$IMAGE:latest is now $(skopeo inspect --raw "docker://$IMAGE:latest" | sha256sum | cut -d' ' -f1)"
       # The same files on Cloudflare R2 behind dl.ownbase.site, which the
       # website offers instead of GitHub's copy, several times faster in some
       # places (GitHub gave ~480 KB/s in India). Only a release published from
