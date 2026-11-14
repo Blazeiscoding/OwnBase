@@ -139,6 +139,27 @@ describe("an old hash, stored without its cost", () => {
   });
 });
 
+describe("OWNBASE_PASSWORD_COST", () => {
+  afterEach(() => vi.unstubAllEnvs());
+
+  it("sets the cost new hashes are made at", async () => {
+    vi.stubEnv("OWNBASE_PASSWORD_COST", "ln=5,r=4,p=1");
+    expect((await auth.hashPassword("password123")).hash.startsWith("$scrypt$ln=5,r=4,p=1$")).toBe(
+      true,
+    );
+  });
+
+  it.each(["ln=21,r=8,p=1", "ln=16,r=8", "N=65536,r=8,p=2"])(
+    "stops the server starting when it makes no sense: %s",
+    async (value) => {
+      vi.stubEnv("OWNBASE_PASSWORD_COST", value);
+      await expect(
+        createWorkspaceServer({ dataDir: ":memory:", host: "127.0.0.1", port: 0, mdns: false }),
+      ).rejects.toThrow(/OWNBASE_PASSWORD_COST/);
+    },
+  );
+});
+
 describe("a hash that names its cost", () => {
   it("verifies at that cost, not today's", async () => {
     const cheaper = { ln: 5, r: 4, p: 1 };

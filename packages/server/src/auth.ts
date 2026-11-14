@@ -53,24 +53,20 @@ function parseCost(text: string): PasswordCost | null {
 
 const formatCost = ({ ln, r, p }: PasswordCost) => `ln=${ln},r=${r},p=${p}`;
 
-let configured: PasswordCost | undefined;
-
 /**
  * The cost new hashes are made at. OWNBASE_PASSWORD_COST (`ln=17,r=8,p=1`)
  * replaces the default for the whole process: a host raises it, and test
- * runs lower it so that thousands of sign-ins stay quick.
+ * runs lower it so that thousands of sign-ins stay quick. The server checks
+ * it at start, so a bad value never reaches a sign-in.
  */
 export function passwordCost(): PasswordCost {
-  if (!configured) {
-    const text = process.env.OWNBASE_PASSWORD_COST;
-    const parsed = text ? parseCost(text) : DEFAULT_PASSWORD_COST;
-    if (!parsed)
-      throw new Error(
-        "OWNBASE_PASSWORD_COST must look like ln=16,r=8,p=2, with N=2^ln at most 2^20 and memory at most 256 MiB.",
-      );
-    configured = parsed;
-  }
-  return configured;
+  const text = process.env.OWNBASE_PASSWORD_COST;
+  const parsed = text ? parseCost(text) : DEFAULT_PASSWORD_COST;
+  if (!parsed)
+    throw new Error(
+      "OWNBASE_PASSWORD_COST must look like ln=16,r=8,p=2, with N=2^ln at most 2^20 and memory at most 256 MiB.",
+    );
+  return parsed;
 }
 
 /** The cost and key a stored value names, or null for one nothing can match. */
