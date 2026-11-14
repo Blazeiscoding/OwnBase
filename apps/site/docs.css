@@ -1,0 +1,448 @@
+/*
+ * The docs at /docs, on top of site.css. scripts/generate-docs-site.mjs writes
+ * the pages from docs/DEPLOYMENT.md and docs/INTEGRATIONS.md. Sections on the
+ * left, the page in the middle, its headings on the right; narrower, the
+ * headings go above the page, and on a phone the sections fold away.
+ */
+
+.docs-body {
+  --link: #a8430b;
+}
+
+.docs-body .guide-head .nav {
+  height: 72px;
+}
+.nav-links a[aria-current="page"] {
+  color: #fff;
+  background: rgb(255 255 255 / 0.12);
+}
+
+.docs {
+  display: grid;
+  grid-template-columns: 250px minmax(0, 1fr) 220px;
+  grid-template-areas: "side main toc";
+  gap: 48px;
+  align-items: start;
+  padding-block: 40px var(--section);
+}
+.docs-side {
+  grid-area: side;
+  position: sticky;
+  top: 20px;
+}
+.docs-main {
+  grid-area: main;
+  min-width: 0;
+  max-width: 780px;
+}
+.docs-toc {
+  grid-area: toc;
+  position: sticky;
+  top: 20px;
+  max-height: calc(100vh - 40px);
+  overflow-y: auto;
+  font-size: 14px;
+}
+
+/* Search. Results open over the page, wider than the column they start in. */
+.docs-search {
+  position: relative;
+  margin-bottom: 20px;
+}
+.docs-search input {
+  width: 100%;
+  height: 44px;
+  padding: 0 14px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #fff;
+  color: var(--ink);
+  font: inherit;
+  font-size: 15px;
+}
+.docs-search input:focus-visible {
+  outline-offset: 0;
+}
+.docs-status:empty {
+  display: none;
+}
+.docs-status {
+  margin-top: 8px;
+  color: var(--ink-3);
+  font-size: 14px;
+  line-height: 1.4;
+}
+.docs-results {
+  position: absolute;
+  z-index: 5;
+  top: 52px;
+  left: 0;
+  width: min(560px, calc(100vw - 2 * var(--gutter)));
+  max-height: min(70vh, 640px);
+  overflow-y: auto;
+  padding: 8px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: #fff;
+  box-shadow: 0 18px 48px rgb(29 27 51 / 0.18);
+}
+.docs-hit-page + .docs-hit-page {
+  margin-top: 6px;
+  padding-top: 6px;
+  border-top: 1px solid var(--line);
+}
+.docs-hit-title {
+  padding: 6px 10px 2px;
+  color: var(--ink-3);
+  font-size: 13px;
+  font-weight: 600;
+}
+.docs-results a {
+  display: block;
+  padding: 8px 10px;
+  border-radius: 6px;
+  text-decoration: none;
+}
+.docs-results a:hover,
+.docs-results a:focus-visible {
+  background: var(--fog);
+}
+.docs-hit-heading {
+  display: block;
+  font-size: 15px;
+  font-weight: 600;
+  line-height: 1.35;
+}
+.docs-snippet {
+  display: block;
+  margin-top: 2px;
+  color: var(--ink-2);
+  font-size: 14px;
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+}
+.docs-snippet mark {
+  background: rgb(255 210 122 / 0.6);
+  color: inherit;
+}
+
+/* The sections. On a phone they fold under their summary. */
+.docs-nav > summary {
+  display: none;
+}
+.docs-nav nav {
+  max-height: calc(100vh - 110px);
+  overflow-y: auto;
+  padding-right: 4px;
+}
+.docs-group {
+  margin: 0 0 6px 10px;
+  color: var(--ink-3);
+  font-size: 13px;
+  font-weight: 650;
+}
+.docs-nav ul + .docs-group {
+  margin-top: 24px;
+}
+.docs-nav a,
+.docs-toc a {
+  display: block;
+  padding: 5px 10px;
+  border-radius: 6px;
+  color: var(--ink-2);
+  font-size: 15px;
+  line-height: 1.35;
+  text-decoration: none;
+}
+.docs-nav a:hover,
+.docs-toc a:hover {
+  color: var(--ink);
+  background: rgb(29 27 51 / 0.06);
+}
+.docs-nav a[aria-current="page"] {
+  background: #fff;
+  color: var(--ink);
+  font-weight: 600;
+  box-shadow: inset 3px 0 0 var(--host);
+}
+.docs-toc-title {
+  margin: 0 0 6px 10px;
+  color: var(--ink-3);
+  font-size: 13px;
+  font-weight: 650;
+}
+.docs-toc a {
+  font-size: 14px;
+}
+.docs-toc .toc-4 a {
+  padding-left: 22px;
+}
+
+/* The page. */
+.docs-crumb {
+  margin-bottom: 12px;
+  color: var(--ink-3);
+  font-size: 14px;
+}
+.docs-crumb a {
+  color: inherit;
+  text-underline-offset: 3px;
+}
+.doc {
+  color: var(--ink-2);
+  font-size: 16.5px;
+  line-height: 1.65;
+}
+.doc :where(h1, h2, h3, h4, h5) {
+  margin: 0;
+  color: var(--ink);
+  font-weight: 650;
+  line-height: 1.2;
+  letter-spacing: -0.02em;
+  scroll-margin-top: 16px;
+  text-wrap: balance;
+}
+.doc h1 {
+  font-size: clamp(32px, 4vw, 44px);
+  letter-spacing: -0.035em;
+}
+.doc h2 {
+  margin-top: 48px;
+  font-size: clamp(23px, 2.2vw, 28px);
+}
+.doc h3 {
+  margin-top: 36px;
+  font-size: 20px;
+}
+.doc :where(h4, h5) {
+  margin-top: 28px;
+  font-size: 17px;
+}
+.doc-anchor {
+  margin-left: 0.35em;
+  color: var(--ink-3);
+  font-weight: 500;
+  text-decoration: none;
+  opacity: 0;
+}
+:where(h1, h2, h3, h4, h5):hover > .doc-anchor,
+.doc-anchor:focus-visible {
+  opacity: 1;
+}
+.doc :where(p, ul, ol, pre, blockquote, .doc-table) {
+  margin: 16px 0 0;
+}
+.docs-lede {
+  color: var(--ink-2);
+  font-size: 18px;
+}
+.doc a {
+  color: var(--link);
+  text-underline-offset: 3px;
+}
+.doc strong {
+  color: var(--ink);
+  font-weight: 620;
+}
+.doc :where(ul, ol) {
+  padding-left: 1.4em;
+}
+.doc ul {
+  list-style: disc;
+}
+.doc ol {
+  list-style: decimal;
+}
+.doc li + li {
+  margin-top: 6px;
+}
+.doc li > :where(p, ul, ol, pre, .doc-table):first-child {
+  margin-top: 0;
+}
+.doc li::marker {
+  color: var(--ink-3);
+}
+/*
+ * Unlike the landing page's short commands, these can be long: let them wrap,
+ * inside a word only when nothing else fits, so table columns do not shrink
+ * to break --storage-limit-mb after its dashes.
+ */
+.doc :where(p, li, td, th, h1, h2, h3, h4) code {
+  white-space: normal;
+  overflow-wrap: break-word;
+}
+.doc :where(h1, h2, h3, h4, td, th) code {
+  font-size: 0.86em;
+  padding: 0.12em 0.38em;
+  border-radius: 4px;
+  background: rgb(29 27 51 / 0.07);
+}
+.doc pre {
+  overflow-x: auto;
+  padding: 16px 18px;
+  border-radius: 8px;
+  background: var(--deep);
+  color: #e9e8f2;
+  font-size: 14px;
+  line-height: 1.6;
+  tab-size: 2;
+}
+.doc blockquote {
+  margin-left: 0;
+  padding-left: 16px;
+  border-left: 3px solid var(--line);
+}
+.doc-table {
+  overflow-x: auto;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--paper);
+}
+.doc table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 15px;
+  line-height: 1.5;
+}
+.doc :where(th, td) {
+  /* Narrow columns would stack a word to a line; the box scrolls instead. */
+  min-width: 14ch;
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--line);
+  text-align: left;
+  vertical-align: top;
+}
+.doc th {
+  color: var(--ink);
+  font-weight: 620;
+  background: #fff;
+}
+.doc tr:last-child td {
+  border-bottom: 0;
+}
+.doc .align-right {
+  text-align: right;
+}
+.doc .align-center {
+  text-align: center;
+}
+.docs-list {
+  columns: 2 260px;
+  column-gap: 32px;
+}
+.docs-guides {
+  display: grid;
+  gap: 40px;
+  margin-top: 8px;
+}
+.docs-guide h2 a {
+  color: var(--ink);
+  text-decoration: none;
+}
+.docs-guide h2 a:hover {
+  text-decoration: underline;
+}
+
+.docs-pager {
+  display: flex;
+  gap: 16px;
+  margin-top: 56px;
+}
+.docs-pager a {
+  flex: 1 1 0;
+  min-width: 0;
+  padding: 14px 16px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--paper);
+  color: var(--ink);
+  font-weight: 600;
+  line-height: 1.35;
+  text-decoration: none;
+}
+.docs-pager a:hover {
+  border-color: var(--ink-3);
+}
+.docs-pager span {
+  display: block;
+  margin-bottom: 2px;
+  color: var(--ink-3);
+  font-size: 13px;
+  font-weight: 500;
+}
+.docs-next {
+  margin-left: auto;
+  text-align: right;
+}
+.docs-source {
+  margin-top: 24px;
+  color: var(--ink-3);
+  font-size: 14px;
+}
+.docs-source a {
+  color: inherit;
+  text-underline-offset: 3px;
+}
+
+/* Headings above the page once there is no room beside it. */
+@media (max-width: 1200px) {
+  .docs {
+    grid-template-columns: 240px minmax(0, 1fr);
+    grid-template-areas:
+      "side toc"
+      "side main";
+    gap: 0 40px;
+  }
+  .docs-side {
+    grid-row: 1 / span 2;
+  }
+  .docs-toc {
+    position: static;
+    max-height: none;
+    max-width: 780px;
+    margin-bottom: 32px;
+    padding: 14px 8px;
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    background: var(--paper);
+  }
+  .docs-toc ul {
+    columns: 2 220px;
+  }
+}
+
+@media (max-width: 860px) {
+  .docs {
+    display: block;
+    padding-top: 20px;
+  }
+  .docs-side {
+    position: static;
+    margin-bottom: 28px;
+  }
+  .docs-nav {
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    background: var(--paper);
+  }
+  .docs-nav > summary {
+    display: list-item;
+    padding: 10px 14px;
+    color: var(--ink);
+    font-weight: 600;
+    cursor: pointer;
+  }
+  .docs-nav nav {
+    max-height: none;
+    padding: 0 4px 12px;
+  }
+  .docs-results {
+    width: 100%;
+  }
+  .docs-pager {
+    flex-direction: column;
+  }
+  .docs-next {
+    margin-left: 0;
+  }
+}
