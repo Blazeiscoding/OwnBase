@@ -1,6 +1,6 @@
 // The image's dependency stage is reused by a source-only edit and redone by a
-// lockfile edit (REV-08). Run after a build in the same buildx builder, from
-// the repository root; the files it edits are put back however it ends.
+// lockfile edit (REV-08). Run from the repository root, in the buildx builder
+// that built the image; the files it edits are put back however it ends.
 import { spawnSync } from "node:child_process";
 import { readFileSync, writeFileSync } from "node:fs";
 import assert from "node:assert/strict";
@@ -56,6 +56,13 @@ function edited(path, change, work) {
     writeFileSync(path, original);
   }
 }
+
+// The build before this one may have taken every step from the Actions cache,
+// which a rerun of the same commit does: BuildKit then never pulls the
+// dependency stage onto this machine, and these builds, which do not read that
+// cache, would fetch it whatever the edit. Building the stage unedited first
+// puts it here, so the edits below test only what they change.
+build("deps");
 
 const sourceEdit = edited(
   "packages/server/src/version.ts",
