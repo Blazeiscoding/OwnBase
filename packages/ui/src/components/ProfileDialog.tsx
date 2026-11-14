@@ -16,7 +16,7 @@ import { buttonClass } from "./Button.js";
 import { useConfirm } from "./Confirm.js";
 import { useToast } from "./Toast.js";
 import { failureText } from "../lib/failure.js";
-import { settingMark } from "../lib/settingsSearch.js";
+import { settingMark } from "../lib/accountSections.js";
 import { ErrorBoundary } from "./ErrorBoundary.js";
 import {
   CLEAR_AFTER,

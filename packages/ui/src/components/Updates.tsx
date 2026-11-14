@@ -3,7 +3,7 @@ import type { UpdateStatus } from "../platform.js";
 import { usePlatform } from "../context.js";
 import { formatDay, formatTime, sameDay } from "../lib/format.js";
 import { useSaved } from "../lib/savedNote.js";
-import { settingMark } from "../lib/settingsSearch.js";
+import { settingMark } from "../lib/accountSections.js";
 import { Banner, BannerAction } from "./Banner.js";
 import { buttonClass } from "./Button.js";
 import { useConfirm } from "./Confirm.js";

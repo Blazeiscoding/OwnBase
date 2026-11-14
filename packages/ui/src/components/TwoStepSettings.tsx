@@ -5,7 +5,7 @@ import { useClient, useWorkspace } from "../context.js";
 import { accountError } from "../lib/account.js";
 import { useCopy } from "../lib/useCopy.js";
 import { saveText } from "../lib/download.js";
-import { settingMark } from "../lib/settingsSearch.js";
+import { settingMark } from "../lib/accountSections.js";
 import { inputCls } from "./TextField.js";
 import { QrCode } from "./QrCode.js";
 import { Swap } from "./Motion.js";
