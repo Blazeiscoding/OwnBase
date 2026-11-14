@@ -2,7 +2,8 @@ name: Container
 # Building the image and starting it took half a minute of every check run,
 # and it includes both the server and web client. Run it when either artifact,
 # their shared dependencies, or the image's own inputs change. The smoke test
-# needs Docker and Node only.
+# needs Docker and Node only. It builds for linux/amd64 and linux/arm64 as a
+# release does (.github/actions/container-image), and pushes nothing.
 on:
   pull_request:
     paths:
@@ -23,6 +24,7 @@ on:
       - "tests/docker-smoke.mjs"
       - "tests/docker-reuse.mjs"
       - "scripts/build-identity.mjs"
+      - ".github/actions/container-image/**"
       - ".github/workflows/container.yml"
       - "!**/*.md"
   workflow_dispatch:
@@ -39,22 +41,4 @@ jobs:
       - uses: actions/setup-node@v7
         with:
           node-version: 24
-      - uses: docker/setup-buildx-action@v4
-      # Layers, the dependency stage among them, are kept in this repository's
-      # Actions cache under one scope, so a run whose lockfile is unchanged
-      # reuses them (REV-08). GitHub evicts the oldest past the repository's
-      # cache limit, and a new lockfile replaces the stage rather than adding
-      # to it.
-      - uses: docker/build-push-action@v7
-        with:
-          context: .
-          file: docker/Dockerfile
-          build-args: GITHUB_SHA=${{ github.sha }}
-          tags: ownbase:local
-          load: true
-          cache-from: type=gha,scope=container-image
-          cache-to: type=gha,scope=container-image,mode=max
-      - run: node tests/docker-smoke.mjs
-      - run: node tests/docker-reuse.mjs
-      - name: Build cache size
-        run: docker buildx du | tail -n 3
+      - uses: ./.github/actions/container-image

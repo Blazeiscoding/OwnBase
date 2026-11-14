@@ -1,0 +1,103 @@
+name: Container image
+description: >-
+  Builds the image for linux/amd64 and linux/arm64, tests the amd64 one, and
+  writes both to an OCI archive. It pushes nothing; a release pushes the
+  archive. Used by container.yml and release.yml, so both build it one way.
+inputs:
+  version:
+    description: The version the image carries; empty for package.json's.
+    required: false
+    default: ""
+  archive:
+    description: Where to write the OCI archive, outside the build context; the runner's temporary folder if empty.
+    required: false
+    default: ""
+outputs:
+  archive:
+    description: The OCI archive's path.
+    value: ${{ steps.where.outputs.archive }}
+  digest:
+    description: The digest of the image index in the archive, both architectures together.
+    value: ${{ steps.check.outputs.digest }}
+runs:
+  using: composite
+  steps:
+    # Only the last stage runs per architecture (docker/Dockerfile), so
+    # emulating arm64 costs two small RUN steps, not the build.
+    - uses: docker/setup-qemu-action@v4
+      with:
+        platforms: arm64
+    - uses: docker/setup-buildx-action@v4
+    # Timestamps from the commit, not the clock, so the second build below
+    # makes the very amd64 image the first one tested.
+    - name: Date the image by its commit
+      id: epoch
+      shell: bash
+      run: echo "epoch=$(git log -1 --format=%ct)" >> "$GITHUB_OUTPUT"
+    # Layers, the dependency stage among them, are kept in this repository's
+    # Actions cache under one scope, so a run whose lockfile is unchanged
+    # reuses them (REV-08). GitHub evicts the oldest past the repository's
+    # cache limit, and a new lockfile replaces the stage rather than adding
+    # to it.
+    - name: Build for linux/amd64 and load it to test
+      uses: docker/build-push-action@v7
+      with:
+        context: .
+        file: docker/Dockerfile
+        platforms: linux/amd64
+        build-args: |
+          GITHUB_SHA=${{ github.sha }}
+          OWNBASE_VERSION=${{ inputs.version }}
+          SOURCE_DATE_EPOCH=${{ steps.epoch.outputs.epoch }}
+        # Attestations would add "unknown/unknown" entries beside the two
+        # platforms, and their timestamps would change the digest every build.
+        provenance: false
+        sbom: false
+        tags: ownbase:local
+        load: true
+        cache-from: type=gha,scope=container-image
+        cache-to: type=gha,scope=container-image,mode=max
+    - name: Smoke test
+      shell: bash
+      run: node tests/docker-smoke.mjs
+      env:
+        OWNBASE_EXPECT_REVISION: ${{ github.sha }}
+    - name: Dependency layer reuse
+      shell: bash
+      run: node tests/docker-reuse.mjs
+    - name: Choose where the archive goes
+      id: where
+      shell: bash
+      run: |
+        archive="${ARCHIVE:-$RUNNER_TEMP/ownbase.oci.tar}"
+        mkdir -p "$(dirname "$archive")"
+        echo "archive=$archive" >> "$GITHUB_OUTPUT"
+      env:
+        ARCHIVE: ${{ inputs.archive }}
+    - name: Build for linux/amd64 and linux/arm64
+      uses: docker/build-push-action@v7
+      with:
+        context: .
+        file: docker/Dockerfile
+        platforms: linux/amd64,linux/arm64
+        build-args: |
+          GITHUB_SHA=${{ github.sha }}
+          OWNBASE_VERSION=${{ inputs.version }}
+          SOURCE_DATE_EPOCH=${{ steps.epoch.outputs.epoch }}
+        provenance: false
+        sbom: false
+        outputs: type=oci,dest=${{ steps.where.outputs.archive }}
+        cache-from: type=gha,scope=container-image
+        cache-to: type=gha,scope=container-image,mode=max
+    - name: Check the archive holds the tested image
+      id: check
+      shell: bash
+      run: |
+        digest=$(node "$GITHUB_ACTION_PATH/check-archive.mjs" "$ARCHIVE" ownbase:local linux/amd64 linux/arm64)
+        echo "digest=$digest" >> "$GITHUB_OUTPUT"
+        ls -l "$ARCHIVE"
+      env:
+        ARCHIVE: ${{ steps.where.outputs.archive }}
+    - name: Build cache size
+      shell: bash
+      run: docker buildx du | tail -n 3
