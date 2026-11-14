@@ -312,6 +312,26 @@ export class AccountStore {
       .run(passwordHash, salt, mustChange ? 1 : 0, userId);
   }
 
+  /**
+   * The same password hashed again, stored only if the hash is still `old`,
+   * so a change or reset made meanwhile wins. Whether it was stored.
+   */
+  rehashPassword(
+    userId: ID,
+    old: { passwordHash: string; salt: string },
+    next: { hash: string; salt: string },
+  ): boolean {
+    return (
+      Number(
+        this.db
+          .prepare(
+            "UPDATE users SET password_hash = ?, salt = ? WHERE id = ? AND password_hash = ? AND salt = ?",
+          )
+          .run(next.hash, next.salt, userId, old.passwordHash, old.salt).changes,
+      ) > 0
+    );
+  }
+
   mustChangePassword(userId: ID): boolean {
     const row = mustChangeRow.get(
       this.db.prepare("SELECT must_change_password FROM users WHERE id = ?"),
