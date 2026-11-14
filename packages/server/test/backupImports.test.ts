@@ -39,6 +39,7 @@ describe("what a backup job loads", () => {
         "core/ownership.ts",
         "core/workspaceFile.ts",
         "db.ts",
+        "search/words.ts",
         "version.ts",
       ],
       packages: ["zod"],
