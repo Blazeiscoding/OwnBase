@@ -9,7 +9,7 @@ import {
   Updates,
   checkDue,
   compareVersions,
-  newerRelease,
+  isOffered,
   offerDue,
   restartAnswer,
   type UpdateDeps,
@@ -119,35 +119,21 @@ describe("versions", () => {
     expect(compareVersions("not one", "0.1.0")).toBeNull();
   });
 
-  it("finds the newest published release, whatever order GitHub lists them in", () => {
-    const list = [
-      { tag_name: "v0.1.0-beta.9", draft: false, prerelease: true },
-      { tag_name: "v0.1.0-beta.11", draft: true, prerelease: true },
-      { tag_name: "v0.1.0-beta.10", draft: false, prerelease: true },
-      { tag_name: "v0.1.0-check", draft: false, prerelease: true },
-      { tag_name: "nightly", draft: false },
-    ];
-    expect(newerRelease(list, "0.1.0-beta.8")).toBe("0.1.0-check");
-    expect(newerRelease(list.slice(0, 3), "0.1.0-beta.8")).toBe("0.1.0-beta.10");
-    expect(newerRelease(list.slice(0, 3), "0.1.0-beta.10")).toBeNull();
-    expect(newerRelease("rate limited", "0.1.0-beta.8")).toBeNull();
+  it("offers only a newer version", () => {
+    expect(isOffered("0.1.0-beta.10", "0.1.0-beta.8")).toBe(true);
+    expect(isOffered("0.1.0-beta.10", "0.1.0-beta.10")).toBe(false);
+    expect(isOffered("0.1.0-beta.9", "0.1.0-beta.10")).toBe(false);
+    expect(isOffered("nightly", "0.1.0-beta.8")).toBe(false);
   });
 
   it("offers a pre-release only to a copy that is one", () => {
-    const list = [
-      { tag_name: "v0.2.0-beta.1", draft: false },
-      { tag_name: "v0.1.1", draft: false },
-    ];
-    expect(newerRelease(list, "0.1.0")).toBe("0.1.1");
-    expect(newerRelease(list, "0.1.0-beta.5")).toBe("0.2.0-beta.1");
+    expect(isOffered("0.1.1", "0.1.0")).toBe(true);
+    expect(isOffered("0.2.0-beta.1", "0.1.0")).toBe(false);
+    expect(isOffered("0.2.0-beta.1", "0.1.0-beta.5")).toBe(true);
   });
 
   it("offers the 0.2.0 alphas to a 0.1.0 beta", () => {
-    const list = [
-      { tag_name: "v0.2.0-alpha.1", draft: false, prerelease: true },
-      { tag_name: "v0.1.0-beta.39", draft: false, prerelease: true },
-    ];
-    expect(newerRelease(list, "0.1.0-beta.39")).toBe("0.2.0-alpha.1");
+    expect(isOffered("0.2.0-alpha.1", "0.1.0-beta.39")).toBe(true);
   });
 });
 

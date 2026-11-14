@@ -40,14 +40,16 @@ nsis:
   # No spaces: GitHub turns a space in an uploaded file's name into a dot, and
   # the feed file (latest.yml) must name the installer as it is published.
   artifactName: ${productName}-Setup-${version}.${ext}
-# Where the installed app looks for new versions (src/main/updateFeed.ts).
-# electron-builder writes the feed file, latest.yml, and the installer's
-# blockmap beside the installer, but publishes nothing (`--publish never` in
-# the Release workflow): the workflow's own `gh release create` does.
+# Where the installed app looks for new versions: R2, never GitHub. With a
+# provider set, electron-builder writes the feed file (latest.yml) and the
+# installer's blockmap beside the installer, and app-update.yml into the app,
+# which electron-updater still reads for its download folder. It publishes
+# nothing (`--publish never` in the Release workflow): the workflow uploads to
+# GitHub and to R2 itself. The app points the updater at the newest release's
+# folder, https://dl.ownbase.site/<tag>/, on each look (src/main/updateFeed.ts).
 publish:
-  provider: github
-  owner: Blazeiscoding
-  repo: OwnBase
+  provider: generic
+  url: https://dl.ownbase.site/
 mac:
   icon: build/icon-mac.png
   # One disk image for Apple silicon and Intel: a browser cannot tell a

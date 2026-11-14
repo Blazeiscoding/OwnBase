@@ -90,7 +90,7 @@ import { appMenuTemplate } from "./appMenu.js";
 import { readerLocale, systemHourCycle } from "./regionalFormat.js";
 import { DOWNLOAD_PAGE, HOUR_MS, Updates } from "./updates.js";
 import { WindowQuestions } from "./windowQuestions.js";
-import { latestRelease, updateLog, windowsFeed } from "./updateFeed.js";
+import { latestOnR2, updateLog, windowsFeed } from "./updateFeed.js";
 
 /** Set when the Release workflow built this copy (electron.vite.config.ts). */
 declare const __OWNBASE_RELEASE__: boolean | undefined;
@@ -465,29 +465,29 @@ const hosting = createHostingService({
 
 /**
  * Only a copy the Release workflow built looks for new versions: one built
- * anywhere else is not the version it would replace. Tests and the installer
- * gates never do, unless a test names a feed of its own with
- * OWNBASE_UPDATE_FEED. Windows installs new versions; the Mac app, signed ad
- * hoc, cannot be replaced by Squirrel, so it says one is out (updates.ts).
+ * anywhere else is not the version it would replace, and tests and the
+ * installer gates never do. Both read dl.ownbase.site (updateFeed.ts).
+ * Windows installs new versions; the Mac app, signed ad hoc, cannot be
+ * replaced by Squirrel, so it says one is out (updates.ts).
  */
-const updateFeedUrl = appEnv("UPDATE_FEED");
 const updateMode: UpdateMode = (() => {
   const release = typeof __OWNBASE_RELEASE__ !== "undefined" && __OWNBASE_RELEASE__;
-  if (!app.isPackaged || !release || appEnv("RELEASE_GATE_REPORT")) return "none";
-  if (isTest && !updateFeedUrl) return "none";
+  if (!app.isPackaged || !release || appEnv("RELEASE_GATE_REPORT") || isTest) return "none";
   if (process.platform === "win32") return "install";
   if (process.platform === "darwin") return "notify";
   return "none";
 })();
 const logUpdates = updateLog(join(app.getPath("userData"), "updates.log"));
-const installer = updateMode === "install" ? windowsFeed(logUpdates, updateFeedUrl) : null;
+const fetchUpdates = (url: string, init: RequestInit) => net.fetch(url, init);
+const installer =
+  updateMode === "install" ? windowsFeed(logUpdates, fetchUpdates, app.getVersion()) : null;
 const updates = new Updates({
   mode: updateMode,
   version: app.getVersion(),
   now: Date.now,
   settings: ownSettings,
   ...(installer ? { feed: installer } : {}),
-  latest: () => latestRelease((url, init) => net.fetch(url, init), app.getVersion(), updateFeedUrl),
+  latest: () => latestOnR2(fetchUpdates, app.getVersion()),
   hosting: () => {
     const status = hosting.status();
     return {

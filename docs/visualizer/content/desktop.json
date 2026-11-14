@@ -270,17 +270,17 @@
         "Only a build the Release workflow made looks at all: at start, then every four hours, and a day after a version is downloaded. With Update automatically off it makes no request unless the person presses Check now.",
         "At most one version is offered a day; Later puts it off until the next day.",
         "Restart to update is refused during a call, and asks first while a workspace is hosted here. Nothing ever restarts on its own: a downloaded version installs when OwnBase next quits.",
-        "Windows downloads and installs through an injected feed; the Mac, signed ad hoc, only compares GitHub's list of releases with its own version."
+        "Windows downloads and installs through an injected feed; the Mac, signed ad hoc, only compares the version dl.ownbase.site/latest.json names with its own. isOffered keeps pre-releases for copies that are pre-releases."
       ],
       "concepts": ["updates", "release gates", "calls"]
     },
     {
       "path": "apps/desktop/src/main/updateFeed.ts",
-      "plain": "Connects the update rules to electron-updater on Windows and to GitHub's list of releases on the Mac, and keeps a short update log.",
-      "summary": "windowsFeed (electron-updater's NsisUpdater, loaded on first use), latestRelease, and updates.log.",
+      "plain": "Connects the update rules to the release copies on dl.ownbase.site (Cloudflare R2): electron-updater on Windows, a version check on the Mac. Keeps a short update log.",
+      "summary": "readLatest and newerOnR2 (latest.json, checked), windowsFeed (NsisUpdater pointed at the tag's folder on R2, loaded on first use), latestOnR2, and updates.log.",
       "details": [
-        "The installer is not code signed, so a download is checked against the SHA-512 in the release's latest.yml, fetched over HTTPS from GitHub.",
-        "OWNBASE_UPDATE_FEED points the updater at another feed, for a test; with OWNBASE_TEST set it is the only way updates run at all.",
+        "latest.json is written by the Release workflow after every file is on R2, so a version it names can be downloaded. It is untrusted input: the tag must be a version and every file in that tag's folder on https://dl.ownbase.site. Nothing falls back to GitHub; when R2 cannot be reached there is no update that time.",
+        "The installer is not code signed, so a download is checked against the SHA-512 in the release's latest.yml, fetched over HTTPS from dl.ownbase.site.",
         "updates.log in the profile says which version replaced which, and why a look failed."
       ],
       "concepts": ["updates", "release assets"]
