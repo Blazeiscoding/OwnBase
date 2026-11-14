@@ -207,14 +207,7 @@ async function look(page: Page, name: string) {
           ) => Promise<{ violations: { id: string; nodes: { target: string[] }[] }[] }>;
         };
       }
-    ).axe.run(document, {
-      resultTypes: ["violations"],
-      // axe-core 4.14 turned this rule on (WCAG 2.5.3, the visible text must be
-      // part of the accessible name). Avatar buttons that show initials and the
-      // phone tabs fail it; renaming them is its own UI change, so it stays off
-      // until then, as it was before 4.14.
-      rules: { "label-content-name-mismatch": { enabled: false } },
-    });
+    ).axe.run(document, { resultTypes: ["violations"] });
     return violations.map(
       ({ id, nodes }) => `${id}: ${nodes.map((node) => node.target.join(" ")).join(", ")}`,
     );
