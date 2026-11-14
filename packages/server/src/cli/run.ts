@@ -2,7 +2,7 @@ import { parseArgs } from "node:util";
 import { envName, envSetting, flagOrEnv, flagsHelp, parseArgsOptions } from "./flags.js";
 import { networkInterfaces } from "node:os";
 import { dirname, join, resolve } from "node:path";
-import { existsSync, readdirSync } from "node:fs";
+import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { ACCESS_POLICIES, isAccessPolicy, type MemberNotice } from "@ownbase/protocol";
 import { createWorkspaceServer, SERVER_VERSION } from "../server.js";
 import {
@@ -12,8 +12,9 @@ import {
   verifyBackup,
 } from "../backups/backup.js";
 import { backupInChildProcess, type ScheduledBackups } from "../backups/backupSchedule.js";
+import type { BackupEncryption } from "../backups/encryption.js";
 import { OffsiteBackups, parseOffsiteUrl } from "../backups/offsite.js";
-import { withBackupFolder } from "../backups/workspaceCopy.js";
+import { ENCRYPTED_SUFFIX, withAnyBackupFolder } from "../backups/sealed.js";
 import type { CommandLineExtension, ServerExtension } from "../extensions.js";
 import { exportWorkspace } from "../import/slackExport.js";
 import { importSlack } from "../import/slackImport.js";
@@ -25,6 +26,7 @@ import {
   describeStartupError,
   keptSettingsNotes,
   parseClaimCode,
+  parseBackupPassphrase,
   parseMemberNotice,
   parsePort,
   parsePublicUrl,
@@ -78,6 +80,21 @@ export async function runServerCli({ extensions = [], script }: CliOptions): Pro
     }
   })();
 
+  /** The backup passphrase, if one is set, or a refusal saying what is wrong with it. */
+  function backupEncryption(): BackupEncryption | undefined {
+    try {
+      const passphrase = parseBackupPassphrase({
+        direct: envSetting("BACKUP_PASSPHRASE"),
+        file: flagOrEnv(values, "backup-passphrase-file", envSetting),
+        readFile: (path) => readFileSync(resolve(path), "utf8"),
+      });
+      return passphrase === undefined ? undefined : { passphrase };
+    } catch (err) {
+      if (!(err instanceof ConfigError)) throw err;
+      return refuse(err.message);
+    }
+  }
+
   if (values.help) {
     console.log(`ownbase-server v${SERVER_VERSION}
 
@@ -116,8 +133,22 @@ Backups
                   anything, restore it into a new directory and start that
                   with --isolated.
 
-  Both take a backup folder or a copy the owner downloaded from Workspace
-  settings, which is a zip of one; it is unpacked beside itself while used.
+  Both take a backup folder, a copy the owner downloaded from Workspace
+  settings, which is a zip of one, or an encrypted backup; it is unpacked
+  beside itself while used.
+
+Encrypted backups
+
+  Set OWNBASE_BACKUP_PASSPHRASE, or --backup-passphrase-file <file>, and
+  every backup taken from then on is one encrypted file ending in .encrypted:
+  scheduled ones, the copies sent with --backup-offsite, and the backup
+  command's (its --out is then that file). restore and verify-backup need
+  the same passphrase to read one, and say when it is wrong or the file is
+  damaged. Backups taken before stay as they were.
+
+  If the passphrase is lost, so are those backups. Nobody can open them
+  without it, OwnBase included, and there is no way round that. Keep it
+  somewhere apart from the server, such as a password manager.
 
 Recovery
 
@@ -169,15 +200,24 @@ ${extensions.map((extension) => `\n${extension.help.replace(/\n+$/, "")}\n`).joi
       console.error("backup needs --out <dir>, an empty directory to write into");
       process.exit(1);
     }
+    const encryption = backupEncryption();
+    // An encrypted backup is one file, named so it says what it is.
+    const out =
+      encryption && !values.out.endsWith(ENCRYPTED_SUFFIX)
+        ? resolve(values.out + ENCRYPTED_SUFFIX)
+        : resolve(values.out);
     const manifest = await backupWorkspace({
       dataDir: resolve(values.data),
-      out: resolve(values.out),
+      out,
+      encryption,
     }).catch((err: unknown) => refuse(err instanceof Error ? err.message : String(err)));
     const totals = Object.entries(manifest.counts)
       .map(([table, n]) => `${n} ${table.replace(/_/g, " ")}`)
       .join(", ");
     console.log(`
-  Backed up "${manifest.workspaceName}" to ${resolve(values.out)}`);
+  Backed up "${manifest.workspaceName}" to ${out}`);
+    if (encryption)
+      console.log("  Encrypted with the backup passphrase. Without it, nobody can restore it.");
     console.log(`  Schema v${manifest.schemaVersion}, ${manifest.files.length} attachments`);
     console.log(`  ${totals}
 `);
@@ -189,44 +229,51 @@ ${extensions.map((extension) => `\n${extension.help.replace(/\n+$/, "")}\n`).joi
       console.error(`${command} needs --from <dir or .zip>, the backup or a downloaded copy`);
       process.exit(1);
     }
+    const encryption = backupEncryption();
     try {
-      // A downloaded copy is a zip of a backup, unpacked beside it while it is used.
-      await withBackupFolder(resolve(values.from), async (from) => {
-        if (command === "verify-backup") {
-          const manifest = await verifyBackup(from);
-          const when = new Date(manifest.createdAt).toISOString();
-          console.log(`
-  Backup of "${manifest.workspaceName}" is intact`);
-          console.log(`  Taken ${when} by server v${manifest.serverVersion}, schema v${manifest.schemaVersion}
+      // A downloaded copy is a zip of a backup, and an encrypted backup one
+      // sealed; either is unpacked beside itself while it is used.
+      await withAnyBackupFolder(
+        resolve(values.from),
+        encryption?.passphrase,
+        async (from, info) => {
+          if (command === "verify-backup") {
+            const manifest = await verifyBackup(from);
+            const when = new Date(manifest.createdAt).toISOString();
+            console.log(`
+  Backup of "${manifest.workspaceName}" is intact${info.encrypted ? ", and the passphrase opens it" : ""}`);
+            console.log(`  Taken ${when} by server v${manifest.serverVersion}, schema v${manifest.schemaVersion}
 `);
-          const found = inventoryBackup(from);
-          const count = (n: number, one: string, many: string) => `${n} ${n === 1 ? one : many}`;
-          console.log("  Starting it would reach outside the backup:");
-          if (found.appAddresses.length === 0) console.log("    No app addresses.");
-          else {
-            console.log(`    ${count(found.appAddresses.length, "app address", "app addresses")}:`);
-            for (const { origin, uses } of found.appAddresses) {
-              console.log(`      ${origin} (${uses.join(", ")})`);
+            const found = inventoryBackup(from);
+            const count = (n: number, one: string, many: string) => `${n} ${n === 1 ? one : many}`;
+            console.log("  Starting it would reach outside the backup:");
+            if (found.appAddresses.length === 0) console.log("    No app addresses.");
+            else {
+              console.log(
+                `    ${count(found.appAddresses.length, "app address", "app addresses")}:`,
+              );
+              for (const { origin, uses } of found.appAddresses) {
+                console.log(`      ${origin} (${uses.join(", ")})`);
+              }
+              console.log("    Their signing secrets are in the backup, so a copy calls them");
+              console.log("    as this workspace.");
             }
-            console.log("    Their signing secrets are in the backup, so a copy calls them");
-            console.log("    as this workspace.");
-          }
-          const { waiting, earliestAt } = found.scheduled;
-          if (waiting > 0) {
+            const { waiting, earliestAt } = found.scheduled;
+            if (waiting > 0) {
+              console.log(
+                `    ${count(waiting, "scheduled message waits", "scheduled messages wait")} to be posted, the earliest at ${new Date(earliestAt!).toISOString()}.`,
+              );
+              console.log("    Any already due are posted as soon as it starts.");
+            }
+            if (found.undeliveredEvents > 0) {
+              console.log(
+                `    ${count(found.undeliveredEvents, "app event waits", "app events wait")} to be delivered.`,
+              );
+            }
             console.log(
-              `    ${count(waiting, "scheduled message waits", "scheduled messages wait")} to be posted, the earliest at ${new Date(earliestAt!).toISOString()}.`,
+              `    ${count(found.sessions, "sign-in", "sign-ins")} still valid, including any ended since it was taken.`,
             );
-            console.log("    Any already due are posted as soon as it starts.");
-          }
-          if (found.undeliveredEvents > 0) {
-            console.log(
-              `    ${count(found.undeliveredEvents, "app event waits", "app events wait")} to be delivered.`,
-            );
-          }
-          console.log(
-            `    ${count(found.sessions, "sign-in", "sign-ins")} still valid, including any ended since it was taken.`,
-          );
-          console.log(`
+            console.log(`
   Not in any backup, so set them again where it is restored: --public-url,
   --retention-days, --storage-limit-mb, --allow-private-hooks, --trust-proxy,
   OWNBASE_ICE_SERVERS, the call relay, and any proxy or certificate in front
@@ -236,18 +283,19 @@ ${extensions.map((extension) => `\n${extension.help.replace(/\n+$/, "")}\n`).joi
   with --isolated. Its apps and scheduled messages wait until it is started
   without it.
 `);
-        } else {
-          const { manifest, supersededDir } = await restoreWorkspace({
-            backupDir: from,
-            dataDir: resolve(values.data),
-          });
-          console.log(`
+          } else {
+            const { manifest, supersededDir } = await restoreWorkspace({
+              backupDir: from,
+              dataDir: resolve(values.data),
+            });
+            console.log(`
   Restored "${manifest.workspaceName}" into ${resolve(values.data)}`);
-          if (supersededDir)
-            console.log(`  The previous data directory is kept at ${supersededDir}`);
-          console.log("");
-        }
-      });
+            if (supersededDir)
+              console.log(`  The previous data directory is kept at ${supersededDir}`);
+            console.log("");
+          }
+        },
+      );
     } catch (err) {
       console.error(`
   ${err instanceof Error ? err.message : String(err)}
@@ -511,6 +559,7 @@ ${extensions.map((extension) => `\n${extension.help.replace(/\n+$/, "")}\n`).joi
       everyMs: everyHours * 3600_000,
       keep,
       offsite: offsiteOption(offsiteRaw, offsiteKeepRaw, keep),
+      encryption: backupEncryption(),
     };
   }
 
@@ -629,6 +678,11 @@ ${extensions.map((extension) => `\n${extension.help.replace(/\n+$/, "")}\n`).joi
       `  Backups: every ${scheduledBackups.everyMs / 3600_000} h to ${scheduledBackups.dir}, keeping ${scheduledBackups.keep}`,
     );
     if (status?.nextAt) console.log(`  Next backup: ${new Date(status.nextAt).toISOString()}`);
+    console.log(
+      scheduledBackups.encryption
+        ? "  Encrypted: each backup is sealed with the backup passphrase. Without it, nobody can restore them."
+        : "  Not encrypted: set OWNBASE_BACKUP_PASSPHRASE to seal them",
+    );
     if (scheduledBackups.offsite) {
       console.log(
         `  Offsite: each backup also goes to ${scheduledBackups.offsite.where}, keeping ${scheduledBackups.offsite.keep}`,

@@ -1589,6 +1589,81 @@ times the size of a backup. A lifecycle rule that aborts unfinished multipart
 uploads after a day keeps a send cut short from being stored. R2 has no spending
 cap, so set a usage alert under **Notifications → Usage Based Billing** as well.
 
+### Encrypted backups
+
+A backup holds every message and file, and the secrets the workspace keeps as
+plain values: two-step sign-in secrets, app signing secrets and push keys. Give
+the server a backup passphrase and every backup taken from then on is one
+encrypted file that nobody can read without it, wherever it ends up:
+
+```sh
+export OWNBASE_BACKUP_PASSPHRASE='several unrelated words you will not forget'
+ownbase-server --data ./data --backup-dir ./backups --backup-offsite https://...
+```
+
+Or put the passphrase alone in a file that only the server's account can read
+and pass `--backup-passphrase-file /etc/ownbase/backup-passphrase` (or
+`OWNBASE_BACKUP_PASSPHRASE_FILE`). A last line break in the file is ignored;
+everything else, spaces included, is the passphrase. It is never taken as a
+command-line value, which anyone on the machine can see in a process list. It
+must be at least 12 characters. The server refuses to start, and the commands
+refuse to run, when the passphrase is empty, too short, given both ways, or the
+file cannot be read. The server never logs it.
+
+**If you lose the passphrase, you lose those backups.** Nobody can open them
+without it, OwnBase included, and there is no way round that. Keep it somewhere
+apart from the server, such as a password manager, and somewhere a second person
+can reach it.
+
+With a passphrase set:
+
+- Scheduled backups are files named like the folders were, ending in
+  `.encrypted`, such as `backup-2026-11-14T03-00-00Z.encrypted`. Each is
+  captured and verified as usual, encrypted, then read back in full and checked
+  before it is kept. `--backup-keep` counts plain folders and encrypted files
+  together, so the plain backups from before a passphrase was set are pruned in
+  their turn.
+- The copy sent with `--backup-offsite` is that same file, as
+  `acme/backup-2026-11-14T03-00-00Z.encrypted`. The bucket never holds
+  anything readable. `--backup-offsite-keep` counts `.zip` and `.encrypted`
+  copies together.
+- `backup --out ./backups/2026-11-14` writes `./backups/2026-11-14.encrypted`, a
+  file rather than a folder. The name must not exist yet.
+- `restore` and `verify-backup` read encrypted and plain backups both. An
+  encrypted one needs the same passphrase, set the same way. They say so when
+  none is given, say when the passphrase is wrong, and say when the file is
+  damaged or cut short, all before anything is restored. The file is decrypted
+  into a folder beside itself while they work, every part checked first, and
+  that folder is removed afterwards, so that disk needs room for the workspace
+  twice.
+
+To check a backup by hand, and to restore one taken offsite:
+
+```sh
+export OWNBASE_BACKUP_PASSPHRASE='...'
+cf r2 buckets objects get acme/backup-2026-11-14T03-00-00Z.encrypted --bucket-name ownbase-backups > backup.encrypted
+ownbase-server verify-backup --from backup.encrypted
+ownbase-server restore --from backup.encrypted --data ./restore-check
+ownbase-server --data ./restore-check --isolated --port 8600
+```
+
+Changing the passphrase applies to backups taken afterwards; older ones still
+need the passphrase they were taken with, so keep it until they have been pruned.
+Unsetting it goes back to plain backups.
+
+Not covered: the copy the owner downloads from Workspace settings stays a plain
+zip, since the owner may not hold the host's passphrase and can read everything
+in it already; the desktop app's backups; and the copy of the database the
+server takes before an upgrade, which stays inside the data directory beside
+the live database it copies. The live database itself is not encrypted: a key
+kept beside it would protect nothing.
+
+The file starts with the words `OwnBase encrypted backup`, then the scrypt salt
+and cost the key was derived with, then the backup's zip encrypted with
+AES-256-GCM in 64 KiB parts (the STREAM construction, as age uses). Each part is
+bound to its position and to whether it is the last, so a part changed, moved,
+dropped or cut off fails the check.
+
 ### A copy for the owner to download
 
 The workspace's owner can download the whole workspace from **Workspace settings →
@@ -1621,9 +1696,10 @@ owner signed in on the device that asked for it. Making and downloading a copy
 both go in the administrative record.
 
 The copy holds every message, file and account, the secrets apps use, and the
-sign-ins in use when it was made. Keep it as safe as the server.
+sign-ins in use when it was made. Keep it as safe as the server. It is not
+encrypted, even when a backup passphrase is set.
 
-Store backups away from the host, encrypted. For Docker, run the same commands
+Store backups away from the host, encrypted (see "Encrypted backups"). For Docker, run the same commands
 inside the container against the mounted volume, or set `OWNBASE_BACKUP_DIR` to a
 second volume.
 

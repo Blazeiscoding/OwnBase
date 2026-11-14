@@ -2,16 +2,18 @@ import { spawn } from "node:child_process";
 import { readdir, readFile, rm } from "node:fs/promises";
 import { join, resolve } from "node:path";
 import type { BackupManifest } from "./backup.js";
+import type { BackupEncryption } from "./encryption.js";
 import type { OffsiteUploader } from "./offsite.js";
+import { ENCRYPTED_SUFFIX, readSealedManifest } from "./sealed.js";
 
 /**
  * Backups the server takes by itself on a timer (P3), into dated folders in
  * one directory, keeping the newest few.
  *
  * Each one is an ordinary backup (`backupWorkspace`), so it is verified before
- * it is published and restores with `restore --from`. Only folders named the
- * way this writes them are ever counted or removed, so a directory shared with
- * anything else loses nothing else.
+ * it is published and restores with `restore --from`. Only folders and
+ * encrypted files named the way this writes them are ever counted or removed,
+ * so a directory shared with anything else loses nothing else.
  */
 export interface ScheduledBackups {
   /** Where the dated backups go. Must be outside the workspace folder. */
@@ -30,6 +32,11 @@ export interface ScheduledBackups {
   run?: (out: string, signal: AbortSignal) => Promise<BackupManifest>;
   /** Also sends each backup elsewhere, such as an R2 bucket, keeping the newest few there. */
   offsite?: OffsiteUploader;
+  /**
+   * Seals each backup with a passphrase: a file named like the folder would
+   * be, ending in `.encrypted`. The offsite copy is that file.
+   */
+  encryption?: BackupEncryption;
 }
 
 /** How scheduled backups are going, for the owner and admins. */
@@ -66,7 +73,22 @@ export function backupFolderTime(name: string): number | null {
   return backupFolderName(at) === name ? at : null;
 }
 
-/** This schedule's backups in `dir`, oldest first. */
+/**
+ * When a scheduled backup named `name` was started: a folder named by
+ * `backupFolderName`, or an encrypted file named the same with
+ * `.encrypted` after it. Null for any other name.
+ */
+export function scheduledBackupTime(name: string): number | null {
+  return backupFolderTime(
+    name.endsWith(ENCRYPTED_SUFFIX) ? name.slice(0, -ENCRYPTED_SUFFIX.length) : name,
+  );
+}
+
+/**
+ * This schedule's backups in `dir`, oldest first: plain folders and
+ * encrypted files both, so turning a passphrase on or off keeps counting the
+ * ones from before, and prunes them in their turn.
+ */
 export async function listScheduledBackups(dir: string): Promise<{ name: string; at: number }[]> {
   let entries;
   try {
@@ -76,8 +98,14 @@ export async function listScheduledBackups(dir: string): Promise<{ name: string;
     throw error;
   }
   return entries
-    .filter((entry) => entry.isDirectory())
-    .map((entry) => ({ name: entry.name, at: backupFolderTime(entry.name) }))
+    .map((entry) => ({
+      name: entry.name,
+      at: entry.isDirectory()
+        ? backupFolderTime(entry.name)
+        : entry.isFile() && entry.name.endsWith(ENCRYPTED_SUFFIX)
+          ? scheduledBackupTime(entry.name)
+          : null,
+    }))
     .filter((entry): entry is { name: string; at: number } => entry.at !== null)
     .sort((a, b) => a.at - b.at);
 }
@@ -101,9 +129,17 @@ export function backupInChildProcess(opts: {
   script: string;
   dataDir: string;
   execArgv?: string[];
-}): (out: string, signal: AbortSignal) => Promise<BackupManifest> {
-  return (out, signal) =>
+}): (out: string, signal: AbortSignal, encryption?: BackupEncryption) => Promise<BackupManifest> {
+  return (out, signal, encryption) =>
     new Promise((resolvePromise, reject) => {
+      // The child seals only what it is told to: the owner's copy is taken
+      // the same way and must stay a plain folder, whatever this process's
+      // environment holds. The passphrase goes in the environment, never in
+      // the arguments, which anyone on the machine can list.
+      const env = { ...process.env };
+      delete env.OWNBASE_BACKUP_PASSPHRASE;
+      delete env.OWNBASE_BACKUP_PASSPHRASE_FILE;
+      if (encryption) env.OWNBASE_BACKUP_PASSPHRASE = encryption.passphrase;
       const child = spawn(
         process.execPath,
         [
@@ -115,7 +151,7 @@ export function backupInChildProcess(opts: {
           "--out",
           out,
         ],
-        { stdio: ["ignore", "ignore", "pipe"], windowsHide: true, signal },
+        { stdio: ["ignore", "ignore", "pipe"], windowsHide: true, signal, env },
       );
       let errors = "";
       child.stderr!.on("data", (chunk) => {
@@ -127,9 +163,14 @@ export function backupInChildProcess(opts: {
           reject(new Error(errors.trim() || `The backup process ended with code ${code}.`));
           return;
         }
-        // Verified by the child before it published the folder.
-        readFile(join(out, "manifest.json"), "utf8")
-          .then((text) => resolvePromise(JSON.parse(text) as BackupManifest))
+        // Verified by the child before it published it.
+        (encryption
+          ? readSealedManifest(out, encryption.passphrase)
+          : readFile(join(out, "manifest.json"), "utf8").then(
+              (text) => JSON.parse(text) as BackupManifest,
+            )
+        )
+          .then(resolvePromise)
           .catch(reject);
       });
     });
@@ -231,7 +272,7 @@ export class BackupSchedule {
     // A second apart at least, so two backups never ask for one folder name.
     const started = Math.max(this.now(), this.lastStarted + 1000);
     this.lastStarted = started;
-    const name = backupFolderName(started);
+    const name = backupFolderName(started) + (this.opts.encryption ? ENCRYPTED_SUFFIX : "");
     this.state.running = true;
     try {
       const manifest = await this.opts.run(join(this.dir, name), this.abort.signal);
@@ -277,7 +318,7 @@ export class BackupSchedule {
       const sent = await offsite.upload(join(this.dir, name), name, this.abort.signal);
       const removed = await offsite.prune(this.abort.signal);
       if (this.offsitePending === name) this.offsitePending = null;
-      state.lastSuccessAt = backupFolderTime(name);
+      state.lastSuccessAt = scheduledBackupTime(name);
       state.lastError = null;
       state.failures = 0;
       this.opts.log.info(

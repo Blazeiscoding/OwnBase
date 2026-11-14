@@ -197,6 +197,23 @@ export const FLAGS = {
       ],
     },
   },
+  "backup-passphrase-file": {
+    type: "string",
+    env: "BACKUP_PASSPHRASE_FILE",
+    help: {
+      usage: "--backup-passphrase-file <file>",
+      lines: [
+        "Encrypt every backup from now on, scheduled and offsite",
+        "ones and the backup command's, with the passphrase in",
+        "<file>, and read encrypted ones with it. Or set the",
+        "passphrase itself in OWNBASE_BACKUP_PASSPHRASE. At least",
+        "12 characters. Keep it somewhere apart from the server:",
+        "without it nobody can restore these backups, OwnBase",
+        "included. The owner's downloaded copy stays plain. Also",
+        "settable with OWNBASE_BACKUP_PASSPHRASE_FILE",
+      ],
+    },
+  },
   "member-notice": {
     type: "string",
     env: "MEMBER_NOTICE",
@@ -421,6 +438,8 @@ export const ENV_SETTINGS = {
   BACKUP_OFFSITE_ACCESS_KEY_ID: { cloud: true },
   BACKUP_OFFSITE_SECRET_ACCESS_KEY: { cloud: true },
   BACKUP_OFFSITE_REGION: { cloud: true },
+  /** The backup passphrase itself; --backup-passphrase-file names a file holding it instead. */
+  BACKUP_PASSPHRASE: { cloud: true },
 } satisfies Record<string, { cloud?: true }>;
 
 /** Every environment variable the server reads, without its `OWNBASE_` prefix. */
