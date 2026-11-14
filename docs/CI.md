@@ -102,3 +102,20 @@ An advisory published upstream turns every open pull request red at once. That i
    ```
 
    Every entry needs a comment with the date, the package, and what would let it be removed. Review the list when Dependabot's pull requests come in.
+
+## Code scanning
+
+`.github/workflows/codeql.yml` runs GitHub's CodeQL on the TypeScript and JavaScript sources and on the workflows, as two jobs, `analyze (javascript-typescript)` and `analyze (actions)`. It runs on a pull request that changes a source file, a workflow or the composite actions, on every push to `main` and every Monday morning, so a new CodeQL query reaches code nobody has touched. Nothing is built: both languages are read from the source (`build-mode: none`). `.github/codeql/config.yml` leaves out generated files, the atlas page above all, which embeds every source file and would report each finding twice.
+
+Findings appear on the pull request, as annotations and a `CodeQL` check that fails when the pull request adds an alert (by default a high or critical security alert, or an error), and in the Security tab under Code scanning. Fix a finding, or dismiss it in the Security tab with the reason. Dependabot's actions updates run it too: their token is read-only by default, and the job's `permissions` raises it to `security-events: write` to upload.
+
+## Repository settings
+
+These are on in the repository's settings rather than in a file, so they are listed here:
+
+- **Dependabot alerts.** GitHub reports a known advisory in the lockfile in the Security tab, beside the audit step in Checks, which fails a pull request on a high or critical one.
+- **Secret scanning with push protection.** A push that contains something shaped like a known provider's key is refused. If a test needs a secret, build it from plain words (`"test-secret-" + "a".repeat(8)`); GitGuardian also scans every pull request.
+- **Private vulnerability reporting.** Security reports come in through the Security tab's "Report a vulnerability" form, which `SECURITY.md` and the issue forms point to.
+- **A rule on `main`** that refuses force-pushes and deleting the branch. Ordinary pushes, such as the Atlas workflow's commit, still go through.
+
+Issue forms live in `.github/ISSUE_TEMPLATE/`: a bug report and a feature request. Blank issues are still allowed, and the chooser links the private security form.
