@@ -444,6 +444,43 @@ jobs:
             exit 1
           fi
           echo "Pushed $IMAGE:${TAG#v} ($digest)"
+      # The same files on Cloudflare R2 behind dl.ownbase.site, which the
+      # website offers instead of GitHub's copy, several times faster in some
+      # places (GitHub gave ~480 KB/s in India), and which the desktop app
+      # takes its updates from (apps/desktop/src/main/updateFeed.ts). Only a
+      # release published from main. Copied before the release exists, so a
+      # failed copy fails the run with nothing published, and `gh run rerun`
+      # builds the same tag again. Without the bucket's keys, as on a fork,
+      # it is skipped with a notice.
+      - name: Copy the files to dl.ownbase.site
+        if: github.event_name == 'push' && github.ref_type == 'branch'
+        env:
+          TAG: ${{ needs.manifest.outputs.tag }}
+          AWS_ACCESS_KEY_ID: ${{ secrets.R2_DOWNLOADS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.R2_DOWNLOADS_SECRET_ACCESS_KEY }}
+          AWS_DEFAULT_REGION: auto
+          # R2 does not take the newer CLI's default checksums.
+          AWS_REQUEST_CHECKSUM_CALCULATION: when_required
+          AWS_RESPONSE_CHECKSUM_VALIDATION: when_required
+          ENDPOINT: https://35d320dcda363c47cabe859d44e84243.r2.cloudflarestorage.com
+          BUCKET: ownbase-downloads
+        run: |
+          if [ -z "$AWS_ACCESS_KEY_ID" ]; then
+            echo "::notice::No R2 keys, so the files are on GitHub only, and installed apps do not see this release."
+            exit 0
+          fi
+          s3() { aws s3 --endpoint-url "$ENDPOINT" "$@"; }
+          mapfile -t names < <(sed -E 's/^[0-9a-f]{64}  //' release/SHA256SUMS)
+          names+=(SHA256SUMS)
+          # Each under the name GitHub gives it, which has dots for spaces
+          # ("OwnBase Setup 0.1.0.exe" is OwnBase.Setup.0.1.0.exe there), since
+          # the website matches the copies to GitHub's files by name.
+          for name in "${names[@]}"; do
+            s3 cp "release/$name" "s3://$BUCKET/$TAG/${name// /.}" --only-show-errors \
+              --content-disposition "attachment; filename=\"${name// /.}\"" \
+              --cache-control "public, max-age=31536000, immutable"
+          done
+          echo "Copied $TAG to https://dl.ownbase.site/$TAG/"
       # From main, published at once: that creates the tag at this commit and
       # puts the files on the website. By hand or from a tag, a draft that
       # someone looks over and publishes, which creates the tag for a run by hand.
@@ -469,21 +506,18 @@ jobs:
           skopeo copy --all --preserve-digests --retry-times 3 \
             "oci-archive:release/container/ownbase.oci.tar" "docker://$IMAGE:latest"
           echo "$IMAGE:latest is now $(skopeo inspect --raw "docker://$IMAGE:latest" | sha256sum | cut -d' ' -f1)"
-      # The same files on Cloudflare R2 behind dl.ownbase.site, which the
-      # website offers instead of GitHub's copy, several times faster in some
-      # places (GitHub gave ~480 KB/s in India). Only a release published from
-      # main, and only with the bucket's keys; latest.json goes last, so the
-      # website never names a file that is not there yet. The release is out
-      # by now, so a failure here leaves the website on GitHub's copy.
-      - name: Copy the files to dl.ownbase.site
+      # latest.json names the release to the website and to installed apps,
+      # so it is written last, once every file is on R2 and the release is
+      # out: neither ever names a file that is not there yet. If this fails,
+      # the release is on GitHub but installed apps keep the one before
+      # until the next release, which writes latest.json again.
+      - name: Name the release in dl.ownbase.site/latest.json
         if: github.event_name == 'push' && github.ref_type == 'branch'
-        continue-on-error: true
         env:
           TAG: ${{ needs.manifest.outputs.tag }}
           AWS_ACCESS_KEY_ID: ${{ secrets.R2_DOWNLOADS_ACCESS_KEY_ID }}
           AWS_SECRET_ACCESS_KEY: ${{ secrets.R2_DOWNLOADS_SECRET_ACCESS_KEY }}
           AWS_DEFAULT_REGION: auto
-          # R2 does not take the newer CLI's default checksums.
           AWS_REQUEST_CHECKSUM_CALCULATION: when_required
           AWS_RESPONSE_CHECKSUM_VALIDATION: when_required
           ENDPOINT: https://35d320dcda363c47cabe859d44e84243.r2.cloudflarestorage.com
@@ -491,20 +525,12 @@ jobs:
           KEEP: 3
         run: |
           if [ -z "$AWS_ACCESS_KEY_ID" ]; then
-            echo "::notice::No R2 keys, so the files are on GitHub only."
+            echo "::notice::No R2 keys, so latest.json still names the release before."
             exit 0
           fi
           s3() { aws s3 --endpoint-url "$ENDPOINT" "$@"; }
           mapfile -t names < <(sed -E 's/^[0-9a-f]{64}  //' release/SHA256SUMS)
           names+=(SHA256SUMS)
-          # Each under the name GitHub gives it, which has dots for spaces
-          # ("OwnBase Setup 0.1.0.exe" is OwnBase.Setup.0.1.0.exe there), since
-          # the website matches the copies to GitHub's files by name.
-          for name in "${names[@]}"; do
-            s3 cp "release/$name" "s3://$BUCKET/$TAG/${name// /.}" --only-show-errors \
-              --content-disposition "attachment; filename=\"${name// /.}\"" \
-              --cache-control "public, max-age=31536000, immutable"
-          done
           node -e '
             const fs = require("node:fs");
             const tag = process.env.TAG;
@@ -524,7 +550,7 @@ jobs:
           s3 ls "s3://$BUCKET/" | awk '$1 == "PRE" { sub("/$", "", $2); print $2 }' \
             | grep -E '^v[0-9]' | sort -V | head -n -"$KEEP" \
             | while read -r old; do s3 rm "s3://$BUCKET/$old/" --recursive --only-show-errors; done
-          echo "Copied $TAG to https://dl.ownbase.site/$TAG/"
+          echo "https://dl.ownbase.site/latest.json names $TAG"
 
   # The installer and the Mac disk image together are near 300 MB of a
   # half-gigabyte storage allowance, and ci.yml's clean-up leaves release-*

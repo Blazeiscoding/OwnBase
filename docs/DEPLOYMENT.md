@@ -1747,11 +1747,18 @@ up to date by a function the server adds to its own database connection, so the
 
 ### Updating the desktop app
 
-The Windows app from a release updates itself from GitHub Releases. It looks
-when it starts and every four hours after, downloads in the background, and
-installs when you restart or quit, never during a call. It checks the download
-against the SHA-512 in the release's `latest.yml`. The Mac app, signed ad hoc,
-only says a new release is out and links to the download. With **Update
+The Windows app from a release updates itself from `dl.ownbase.site`, the
+Release workflow's copy of each release on Cloudflare R2, not from GitHub. It
+reads `https://dl.ownbase.site/latest.json`, which the workflow writes only
+after every file of a release is there, and takes the release it names when
+that is newer. It looks when it starts and every four hours after, downloads in
+the background, and installs when you restart or quit, never during a call. It
+checks the download against the SHA-512 in that release's `latest.yml`. When
+`dl.ownbase.site` cannot be reached there is no update that time; the app tries
+again a few hours later. Builds released before 15 November 2026 still look on
+GitHub, so they take one last update from there (or install from ownbase.site),
+and update from R2 after that. The Mac app, signed ad hoc, only says a new release is out,
+from the same `latest.json`, and links to the download. With **Update
 automatically** off, under Account settings → Updates, the app looks only when
 you ask it to. Builds made anywhere but the Release workflow never look.
 `updates.log` in the app's data folder (`%APPDATA%\OwnBase` on Windows) says

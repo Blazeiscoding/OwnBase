@@ -141,31 +141,15 @@ export function compareVersions(a: string, b: string): number | null {
   return 0;
 }
 
-/** A release as GitHub's list of releases gives it. */
-export interface ListedRelease {
-  tag_name?: unknown;
-  draft?: unknown;
-  prerelease?: unknown;
-}
-
 /**
- * The newest version in GitHub's list of releases that is newer than
- * `current`, or null. Drafts are not out yet. A pre-release counts only for a
- * copy that is itself one, as electron-updater decides on Windows.
+ * Whether a copy running `current` may take `version`: only a newer one, and
+ * a pre-release only for a copy that is itself one.
  */
-export function newerRelease(list: unknown, current: string): string | null {
-  if (!Array.isArray(list)) return null;
-  const takesPre = (parseVersion(current)?.pre.length ?? 0) > 0;
-  let best: string | null = null;
-  for (const release of list as ListedRelease[]) {
-    if (release?.draft !== false || typeof release.tag_name !== "string") continue;
-    const version = release.tag_name.replace(/^v/, "");
-    const parsed = parseVersion(version);
-    if (!parsed || (parsed.pre.length > 0 && !takesPre)) continue;
-    if ((compareVersions(version, current) ?? 0) <= 0) continue;
-    if (best === null || (compareVersions(version, best) ?? 0) > 0) best = version;
-  }
-  return best;
+export function isOffered(version: string, current: string): boolean {
+  const parsed = parseVersion(version);
+  if (!parsed) return false;
+  if (parsed.pre.length > 0 && (parseVersion(current)?.pre.length ?? 0) === 0) return false;
+  return (compareVersions(version, current) ?? 0) > 0;
 }
 
 /** What is kept between runs. */
@@ -211,7 +195,7 @@ export interface UpdateDeps {
   };
   /** Windows: the feed that downloads and installs. */
   feed?: InstallFeed;
-  /** The Mac: the newest released version newer than this one, or null. */
+  /** The Mac: the newest version on dl.ownbase.site, when newer than this one, or null. */
   latest?: () => Promise<string | null>;
   hosting: () => HostingNow;
   /** Saves everything, stops hosting, and installs and opens the new version. */
