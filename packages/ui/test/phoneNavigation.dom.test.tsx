@@ -18,7 +18,7 @@ import { DirectMessagesPanel } from "../src/components/DirectMessagesPanel.js";
 import { useOnScreenKeyboard } from "../src/lib/onScreenKeyboard.js";
 import { writeRoute } from "../src/lib/route.js";
 import type { Platform } from "../src/platform.js";
-import { accessibilityProblems } from "./accessibility.js";
+import { accessibilityProblems, labelInName } from "./accessibility.js";
 import { AppNotices } from "./workspaceParts.js";
 
 /**
@@ -130,6 +130,10 @@ describe("the phone's bottom bar", () => {
     expect(item("Activity")).not.toHaveAttribute("aria-current");
     // Each is labelled in words under its icon, not by the icon alone.
     expect(item("DMs")).toHaveTextContent("DMs");
+    // And called by those words, which is what voice control is told to press.
+    // You shows your picture too, whose initials are drawn, not written.
+    for (const name of ["Home", "DMs", "Activity", "You"])
+      expect(labelInName(item(name)), name).toMatchObject({ holds: true });
     expect(await accessibilityProblems(bar())).toEqual([]);
     // The drawer holds the workspace's heading, so with it closed the name is
     // still the page's heading, in its banner.
@@ -209,7 +213,11 @@ describe("the phone's bottom bar", () => {
       }),
     );
     await waitFor(() => expect(item("DMs")).toHaveAccessibleDescription("1 unread conversation"));
-    expect(item("DMs")).toHaveTextContent(/^1/);
+    // The counts are drawn on the icons, not written: each tab is still called
+    // only what it says under its icon (WCAG 2.5.3).
+    expect(item("DMs").querySelector("[data-drawn-text]")).toHaveAttribute("data-drawn-text", "1");
+    expect(labelInName(item("DMs"))).toMatchObject({ holds: true });
+    expect(labelInName(item("Activity"))).toMatchObject({ holds: true });
     expect(item("Activity")).toHaveAccessibleDescription("2 mentions");
     expect(item("Home")).toHaveAccessibleDescription("Unread messages in channels");
 

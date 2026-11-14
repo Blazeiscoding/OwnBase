@@ -111,7 +111,7 @@ describe("a profile picture", () => {
     );
     await waitFor(() => expect(container.querySelector("img")).toHaveAttribute("src", "blob:maya"));
     expect(client.avatars.load).toHaveBeenCalledWith("U_MAYA", "a1b2c3d4e5f6a7b8");
-    expect(container).toHaveTextContent("SR");
+    expect(container.querySelector("[data-drawn-text]")).toHaveAttribute("data-drawn-text", "SR");
     expect(container.querySelectorAll("img")).toHaveLength(1);
   });
 });

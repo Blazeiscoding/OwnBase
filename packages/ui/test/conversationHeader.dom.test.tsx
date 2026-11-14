@@ -7,6 +7,7 @@ import { ClientContext, PlatformContext } from "../src/context.js";
 import { WorkspaceScreen } from "../src/screens/WorkspaceScreen.js";
 import { writeRoute } from "../src/lib/route.js";
 import type { Platform } from "../src/platform.js";
+import { labelInName } from "./accessibility.js";
 import { AppNotices } from "./workspaceParts.js";
 
 /**
@@ -133,7 +134,7 @@ async function workspace(
 describe("the conversation's header", () => {
   it("has the name, a search field and three controls: who is here, Huddle and a menu", async () => {
     const { header } = await workspace();
-    await within(header).findByRole("button", { name: "Members (2)" });
+    await within(header).findByRole("button", { name: "Members, 2" });
     const names = within(header)
       .getAllByRole("button")
       .map((button) => button.getAttribute("aria-label") ?? button.textContent);
@@ -142,7 +143,7 @@ describe("the conversation's header", () => {
       "Open navigation",
       "#general",
       "Search #general",
-      "Members (2)",
+      "Members, 2",
       "Start a huddle",
       "Conversation options",
     ]);
@@ -151,7 +152,7 @@ describe("the conversation's header", () => {
   it("opens the member list from the faces, and both count again when someone joins", async () => {
     const user = userEvent.setup();
     const { client, header, members } = await workspace();
-    const button = await within(header).findByRole("button", { name: "Members (2)" });
+    const button = await within(header).findByRole("button", { name: "Members, 2" });
     await user.click(button);
     const panel = await screen.findByRole("complementary", { name: "Members" });
     await within(panel).findByText("Maya");
@@ -161,7 +162,7 @@ describe("the conversation's header", () => {
     act(() =>
       client.store.setState((s) => ({ memberChanges: { ...s.memberChanges, [general.id]: 9 } })),
     );
-    expect(await within(header).findByRole("button", { name: "Members (3)" })).toBeInTheDocument();
+    expect(await within(header).findByRole("button", { name: "Members, 3" })).toBeInTheDocument();
     expect(await within(panel).findByText("Omar")).toBeInTheDocument();
   });
 
@@ -253,5 +254,23 @@ describe("the pinned line", () => {
     const { pins } = await workspace();
     await waitFor(() => expect(pins).toHaveBeenCalled());
     expect(screen.queryByRole("button", { name: /pinned/i })).toBeNull();
+  });
+});
+
+describe("what the controls are called", () => {
+  it("holds what each shows (WCAG 2.5.3): the faces' count, your account, the pinned line", async () => {
+    await workspace({ pins: [pinned], total: 2 });
+    await screen.findByRole("button", { name: /pinned:/ });
+    const controls = [...document.querySelectorAll("[aria-label]")].filter((element) =>
+      element.matches("button, a, [role=button], [role=tab], [role=menuitem]"),
+    );
+    expect(controls.map((control) => control.getAttribute("aria-label"))).toEqual(
+      expect.arrayContaining([
+        "Members, 2",
+        "Owner, Set a status, your account",
+        "2 pinned: Standup moves to 10:30",
+      ]),
+    );
+    expect(controls.map(labelInName).filter((control) => !control.holds)).toEqual([]);
   });
 });

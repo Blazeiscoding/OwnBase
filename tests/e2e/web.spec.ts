@@ -1431,7 +1431,7 @@ test("OwnBase keeps a capped live timeline pinned and supports keyboard and narr
   const { channel } = await response.json();
   await page.getByRole("navigation").getByRole("button", { name: "design-studio" }).click();
   // Other scenarios share the server, so the count is compared, not known.
-  const membersToggle = page.getByRole("button", { name: /^Members \(\d+\)$/ });
+  const membersToggle = page.getByRole("button", { name: /^Members, \d+$/ });
   const memberCount = async () =>
     Number((await membersToggle.getAttribute("aria-label"))?.match(/\d+/)?.[0]);
   await expect(membersToggle).toBeVisible();
@@ -4920,7 +4920,10 @@ test("reading a thread on a phone leaves an unseen mention in its channel unread
     const mention = nav.getByLabel("1 unread mention in general", { exact: true });
     await openNavigation.click();
     await expect(mention).toBeVisible();
-    await expect(nav.getByLabel("Threads with unread replies", { exact: true })).toHaveText("1");
+    // The count is drawn by CSS, so it is not the badge's text.
+    await expect(
+      nav.getByLabel("Threads with unread replies", { exact: true }).locator("[data-drawn-text]"),
+    ).toHaveAttribute("data-drawn-text", "1");
     await nav.getByRole("button", { name: /^Threads\b/ }).click();
     const threads = page.getByRole("complementary", { name: "Threads", exact: true });
     await threads.getByRole("button", { name: "1 reply", exact: true }).click();
@@ -5688,7 +5691,8 @@ test("an admin uploads the workspace's icon, everyone signed in sees it, and so 
     const bobbysRail = bobby
       .getByRole("group", { name: "Workspaces", exact: true })
       .getByRole("button", { name: "Product Test", exact: true });
-    await expect(bobbysRail).toHaveText("PT");
+    // The initials are drawn by CSS, so they are not the button's text.
+    await expect(bobbysRail.locator("[data-drawn-text]")).toHaveAttribute("data-drawn-text", "PT");
     await expect(bobbysRail.locator("img")).toHaveCount(0);
 
     await signIn(page, "alice");

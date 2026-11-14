@@ -14,7 +14,7 @@ import { listDrafts } from "../src/lib/drafts.js";
 import { EDIT_REQUEST_MS, requestEdit } from "../src/lib/editRequest.js";
 import { writeRoute } from "../src/lib/route.js";
 import type { Platform } from "../src/platform.js";
-import { accessibilityProblems } from "./accessibility.js";
+import { accessibilityProblems, drawnText } from "./accessibility.js";
 import { held } from "./heldMessages.js";
 import { AppNotices } from "./workspaceParts.js";
 
@@ -305,7 +305,7 @@ describe("opening a draft from the Drafts panel", () => {
   }
   async function openDrafts(user: ReturnType<typeof userEvent.setup>) {
     const row = await screen.findByRole("button", { name: /^Drafts/ });
-    expect(within(row).getByRole("img", { name: "Unsent drafts" })).toHaveTextContent("4");
+    expect(drawnText(within(row).getByRole("img", { name: "Unsent drafts" }))).toBe("4");
     await user.click(row);
     return screen.findByRole("complementary", { name: "Drafts" });
   }

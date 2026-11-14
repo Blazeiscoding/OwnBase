@@ -15,7 +15,7 @@ import { Select } from "../src/components/Select.js";
 import { Sheet, sheetCard } from "../src/components/Sheet.js";
 import { SHEET_QUERY } from "../src/lib/layout.js";
 import { TextField, inputClass, inputCls } from "../src/components/TextField.js";
-import { accessibilityProblems } from "./accessibility.js";
+import { accessibilityProblems, drawnText } from "./accessibility.js";
 
 afterEach(() => {
   // Unmounted before the stubs go, since vitest runs these hooks in reverse.
@@ -287,7 +287,7 @@ describe("a badge", () => {
       </>,
     );
     const mentions = screen.getByRole("img", { name: "2 unread mentions in general" });
-    expect(mentions).toHaveTextContent("2");
+    expect(drawnText(mentions)).toBe("2");
     expect(screen.getByRole("button", { name: /2 unread mentions in general$/ })).toContainElement(
       mentions,
     );
@@ -312,9 +312,9 @@ describe("a badge", () => {
 
   it("caps its number where it has a most, and a dot can be told by true or false", () => {
     const view = render(<Badge size="small" max={99} count={120} label="120 mentions" />);
-    expect(screen.getByRole("img", { name: "120 mentions" })).toHaveTextContent(/^99\+$/);
+    expect(drawnText(screen.getByRole("img", { name: "120 mentions" }))).toBe("99+");
     view.rerender(<Badge size="small" max={99} count={99} label="99 mentions" />);
-    expect(screen.getByRole("img", { name: "99 mentions" })).toHaveTextContent(/^99$/);
+    expect(drawnText(screen.getByRole("img", { name: "99 mentions" }))).toBe("99");
     view.rerender(<Badge dot tone="quiet" count={false} label="Unread" />);
     expect(screen.queryByRole("img")).toBeNull();
     view.rerender(<Badge dot tone="quiet" count label="Unread" />);

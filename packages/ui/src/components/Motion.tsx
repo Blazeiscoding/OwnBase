@@ -31,11 +31,21 @@ export function CountBadge({
   const appeared = useChanges(count > 0);
   const changed = useChanges(count);
   if (count <= 0) return null;
+  const number = max !== undefined && count > max ? `${max}+` : String(count);
+  // A count hidden from screen readers, or named in place, is drawn by CSS:
+  // text inside a button counts as part of its name for voice control, and
+  // "3" is not part of "DMs". A reaction's count is part of its name, so it
+  // stays text.
+  const drawn = !!span["aria-hidden"] || !!span["aria-label"];
   return (
     <span {...span} className={`${className ?? ""} ${appeared ? "animate-badge-in" : ""}`}>
       {!dot && (
-        <span key={changed} className={changed ? "inline-block animate-count-in" : undefined}>
-          {max !== undefined && count > max ? `${max}+` : count}
+        <span
+          key={changed}
+          data-drawn-text={drawn ? number : undefined}
+          className={changed ? "inline-block animate-count-in" : undefined}
+        >
+          {drawn ? null : number}
         </span>
       )}
     </span>

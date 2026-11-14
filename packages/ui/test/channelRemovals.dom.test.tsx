@@ -10,7 +10,7 @@ import { ConfirmProvider } from "../src/components/Confirm.js";
 import { WorkspaceScreen } from "../src/screens/WorkspaceScreen.js";
 import { writeRoute } from "../src/lib/route.js";
 import type { Platform } from "../src/platform.js";
-import { accessibilityProblems } from "./accessibility.js";
+import { accessibilityProblems, drawnText } from "./accessibility.js";
 import { AppNotices } from "./workspaceParts.js";
 import { KEY_BINDINGS, type ActionContext } from "../src/lib/actions.js";
 import { Navigation } from "../src/lib/navigation.js";
@@ -303,8 +303,8 @@ describe("Activity's badge", () => {
     expect(screen.queryByRole("img", { name: "Channels you were removed from" })).toBeNull();
     act(() => client.store.setState({ channelRemovals: { [fromDesign.id]: fromDesign } }));
     expect(
-      await screen.findByRole("img", { name: "Channels you were removed from" }),
-    ).toHaveTextContent("1");
+      drawnText(await screen.findByRole("img", { name: "Channels you were removed from" })),
+    ).toBe("1");
 
     // Opened from Activity, it is read, and the channel's preview opens.
     const user = userEvent.setup();

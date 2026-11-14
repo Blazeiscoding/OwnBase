@@ -38,12 +38,12 @@ export function WorkspaceIcon(props: {
   const letter =
     props.letters === 2 ? initials(props.name) : (Array.from(props.name.trim())[0] ?? "?");
   return (
+    // The letters are drawn by CSS, as an avatar's initials are (Avatar.tsx).
     <span
       aria-hidden="true"
+      data-drawn-text={letter.toUpperCase()}
       className={`flex shrink-0 select-none items-center justify-center font-semibold text-white ${props.className ?? ""}`}
       style={{ ...box, background: workspaceGradient(props.name) }}
-    >
-      {letter.toUpperCase()}
-    </span>
+    />
   );
 }
