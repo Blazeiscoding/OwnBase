@@ -5,6 +5,7 @@
 name: OwnBase CodeQL config
 paths-ignore:
   - docs/PROJECT-VISUALIZER.html
+  - apps/site/docs
   - packages/ui/src/lib/emojiData.json
   - packages/ui/src/emoji.css
   - packages/server/src/import/slackEmoji.json
