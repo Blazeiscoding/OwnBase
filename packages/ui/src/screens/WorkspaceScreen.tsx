@@ -11,7 +11,6 @@ import {
 } from "react";
 import { isRoom, type ID } from "@ownbase/protocol";
 import { TITLE_BAR_HEIGHT } from "@ownbase/protocol/desktop";
-import { BlockedComposer, DeactivatedComposer } from "../components/Blocking.js";
 import {
   WorkspaceClient,
   blockedPartner,
@@ -88,6 +87,15 @@ import { startNotifications } from "../lib/notifications.js";
 import { OpenDialog, SidePanel } from "./workspaceViews.js";
 import { preloadAll } from "../lib/preloadable.js";
 
+// What stands in for the composer in a conversation with someone blocked or
+// deactivated, which few conversations are.
+const BlockedComposer = lazy(() =>
+  import("../components/Blocking.js").then((module) => ({ default: module.BlockedComposer })),
+);
+const DeactivatedComposer = lazy(() =>
+  import("../components/Blocking.js").then((module) => ({ default: module.DeactivatedComposer })),
+);
+
 // Asked once per device, and only by a browser that has not answered yet.
 const NotificationBanner = lazy(() =>
   import("../components/NotificationBanner.js").then((module) => ({
@@ -110,7 +118,7 @@ const MemberNoticeBanner = lazy(() =>
   })),
 );
 
-/** A banner that waits on a download: if it cannot load, the workspace carries on without it. */
+/** Something few sessions show, on first use: if it cannot load, the workspace carries on without it. */
 function Courtesy({ children }: { children: ReactNode }) {
   return (
     <ErrorBoundary fallback={<span hidden />}>
@@ -806,9 +814,13 @@ function WorkspaceLayout(props: { restore: boolean; banner?: ReactNode }) {
                 <div hidden={chatCovered} className="contents">
                   <JumpToLatestBar channelId={channelId} onJump={() => nav.clearHighlight()} />
                   {blockedHere ? (
-                    <BlockedComposer userId={blockedHere} />
+                    <Courtesy>
+                      <BlockedComposer userId={blockedHere} />
+                    </Courtesy>
                   ) : deactivatedHere ? (
-                    <DeactivatedComposer userId={deactivatedHere} />
+                    <Courtesy>
+                      <DeactivatedComposer userId={deactivatedHere} />
+                    </Courtesy>
                   ) : (
                     <Composer
                       channelId={channelId}
