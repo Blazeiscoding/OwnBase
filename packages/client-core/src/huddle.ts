@@ -906,6 +906,7 @@ export class HuddleSession {
       screenSoundOn: false,
       micMuted: false,
       pendingIce: [],
+      heldIce: null,
       everConnected: false,
       initiating,
       startedAt: Date.now(),
@@ -944,19 +945,13 @@ export class HuddleSession {
       // the first says it, and the counts come later.
       if (firstOf(peer.logged, `here ${kind} ${protocol}`))
         this.note(`Found a route here: ${kind} over ${protocol}.`, userId);
-      this.transport.send({
-        type: "huddle.signal",
-        channelId: this.channelId,
-        to: userId,
-        signal: {
-          kind: "ice",
-          candidate: {
-            candidate: e.candidate.candidate,
-            sdpMid: e.candidate.sdpMid,
-            sdpMLineIndex: e.candidate.sdpMLineIndex,
-          },
-        },
-      });
+      const candidate = {
+        candidate: e.candidate.candidate,
+        sdpMid: e.candidate.sdpMid,
+        sdpMLineIndex: e.candidate.sdpMLineIndex,
+      };
+      if (peer.heldIce) peer.heldIce.push(candidate);
+      else this.sendIce(userId, candidate);
     };
 
     pc.ontrack = (e) => {
@@ -999,7 +994,7 @@ export class HuddleSession {
     if (initiating)
       void this.attachLocalTracks(peer)
         .then(() => {
-          if (!this.destroyed && this.peers.get(userId) === peer) return this.offer(userId, pc);
+          if (!this.destroyed && this.peers.get(userId) === peer) return this.offer(userId, peer);
         })
         .catch((err) =>
           this.note(`Could not start the call setup: ${describeError(err)}.`, userId),
@@ -1078,7 +1073,7 @@ export class HuddleSession {
       }
       if (peer.initiating) {
         this.note(`Trying again (${peer.retries} of ${MAX_RETRIES}) with fresh routes.`, userId);
-        await this.offer(userId, peer.pc, true);
+        await this.offer(userId, peer, true);
       } else {
         this.note("Waiting for them to try again; their side starts the call setup.", userId);
       }
@@ -1142,7 +1137,20 @@ export class HuddleSession {
     ]);
   }
 
-  private async offer(userId: ID, pc: RTCPeerConnection, iceRestart = false): Promise<void> {
+  /**
+   * Sends the call setup. This side's routes wait for their answer. Sent
+   * with the offer, they let the other side check them and finish the
+   * encryption handshake while this side is still taking in the answer.
+   * WebKit then keeps this side's connectionState at "connecting" for good,
+   * though its ICE and DTLS transports say connected and sound arrives
+   * (Playwright's WebKit 27.2 on CI: about one call in six), so the call
+   * shows "Connecting…" and is restarted as stalled. Their routes come with
+   * the answer, so this side starts checking the moment it has it.
+   */
+  private async offer(userId: ID, peer: Peer, iceRestart = false): Promise<void> {
+    const pc = peer.pc;
+    // Routes of an offer never answered belong to it, not to this one.
+    peer.heldIce = [];
     const offer = await pc.createOffer(iceRestart ? { iceRestart: true } : undefined);
     await pc.setLocalDescription(offer);
     this.sizeSenders();
@@ -1201,6 +1209,8 @@ export class HuddleSession {
       }
       await pc.setRemoteDescription({ type: "answer", sdp: withStereoScreenSound(signal.sdp) });
       this.note("Received their answer.", from);
+      for (const candidate of peer.heldIce?.splice(0) ?? []) this.sendIce(from, candidate);
+      peer.heldIce = null;
       await this.flushIce(peer);
     } else if (signal.kind === "media") {
       peer.cameraOn = signal.camera;
@@ -1229,6 +1239,15 @@ export class HuddleSession {
         // survivable, so never let it break the call.
       }
     }
+  }
+
+  private sendIce(to: ID, candidate: SignalledCandidate): void {
+    this.transport.send({
+      type: "huddle.signal",
+      channelId: this.channelId,
+      to,
+      signal: { kind: "ice", candidate },
+    });
   }
 
   private async flushIce(peer: Peer): Promise<void> {
@@ -1572,6 +1591,11 @@ export class HuddleSession {
 /** One connection and its fixed media slots. */
 interface Peer {
   pendingIce: RTCIceCandidateInit[];
+  /**
+   * This side's routes, kept back while its offer waits for their answer;
+   * null when they go out as found. See `offer`.
+   */
+  heldIce: SignalledCandidate[] | null;
   /** The connection has carried media at least once. */
   everConnected: boolean;
   /** This side sends the offers, by id (`shouldInitiateOffer`). */
@@ -1611,6 +1635,9 @@ interface Peer {
   /** Sizing the senders, one change at a time. */
   sizing: Promise<void>;
 }
+
+/** A route as the signal carries it. */
+type SignalledCandidate = Extract<HuddleSignal, { kind: "ice" }>["candidate"];
 
 const noCandidates = (): CandidateCounts => ({ host: 0, srflx: 0, prflx: 0, relay: 0 });
 

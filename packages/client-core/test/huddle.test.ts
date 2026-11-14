@@ -230,6 +230,54 @@ describe("HuddleSession", () => {
     session.destroy();
   });
 
+  it("keeps its routes back until the answer is in, so nothing connects before both sides have the setup", async () => {
+    vi.useFakeTimers();
+    try {
+      const { session, sent } = makeSession("A");
+      session.syncParticipants(["A", "B"]);
+      await vi.advanceTimersByTimeAsync(0);
+      const pc = FakePeerConnection.instances[0]!;
+      pc.signalingState = "have-local-offer";
+      const route = (n: number) => ({ candidate: `candidate:${n}`, sdpMid: "0", sdpMLineIndex: 0 });
+      pc.onicecandidate?.({ candidate: route(1) });
+      pc.onicecandidate?.({ candidate: route(2) });
+      const ice = () => sent.filter((s) => s.signal.kind === "ice").map((s) => s.signal);
+      expect(sent.map((s) => s.signal.kind)).toContain("offer");
+      expect(ice()).toEqual([]);
+
+      await session.handleSignal("B", { kind: "answer", sdp: "answer" });
+      expect(ice()).toEqual([
+        { kind: "ice", candidate: route(1) },
+        { kind: "ice", candidate: route(2) },
+      ]);
+      // Found after the answer, a route goes at once.
+      pc.onicecandidate?.({ candidate: route(3) });
+      expect(ice()).toHaveLength(3);
+
+      // A new offer, the retry after a stall, holds its own routes again
+      // and drops none it already sent.
+      await vi.advanceTimersByTimeAsync(STALL_MS);
+      pc.signalingState = "have-local-offer";
+      pc.onicecandidate?.({ candidate: route(4) });
+      expect(ice()).toHaveLength(3);
+      await session.handleSignal("B", { kind: "answer", sdp: "answer again" });
+      expect(ice().at(-1)).toEqual({ kind: "ice", candidate: route(4) });
+      session.destroy();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("sends the routes of a side that answers as it finds them", async () => {
+    const { session, sent } = makeSession("Z");
+    await session.handleSignal("B", { kind: "offer", sdp: "offer" });
+    const pc = FakePeerConnection.instances[0]!;
+    const route = { candidate: "candidate:1", sdpMid: "0", sdpMLineIndex: 0 };
+    pc.onicecandidate?.({ candidate: route });
+    expect(sent.at(-1)?.signal).toEqual({ kind: "ice", candidate: route });
+    session.destroy();
+  });
+
   it.each(["audio", "camera", "screen"])(
     "releases %s permission results after leaving",
     async (kind) => {
