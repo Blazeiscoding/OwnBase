@@ -20,7 +20,7 @@
     <link rel="stylesheet" href="/docs.css?v=30dafeac35" />
     <script src="/docs.js?v=123540c9d0" defer></script>
   </head>
-  <body class="docs-body" data-search="/docs/search.json?v=c49ebd883a" data-guide="hosting">
+  <body class="docs-body" data-search="/docs/search.json?v=9a763a41ac" data-guide="hosting">
     <a class="skip" href="#main">Skip to content</a>
 
     <header class="guide-head">
@@ -363,11 +363,18 @@ messages and 5 seconds for a million on a desktop PC. From v58 the index is kept
 up to date by a function the server adds to its own database connection, so the
 <code>sqlite3</code> shell can read messages but cannot change their words or add new ones.</p>
 <h2 id="updating-the-desktop-app">Updating the desktop app<a class="doc-anchor" href="#updating-the-desktop-app" aria-label="Link to Updating the desktop app">#</a></h2>
-<p>The Windows app from a release updates itself from GitHub Releases. It looks
-when it starts and every four hours after, downloads in the background, and
-installs when you restart or quit, never during a call. It checks the download
-against the SHA-512 in the release&#39;s <code>latest.yml</code>. The Mac app, signed ad hoc,
-only says a new release is out and links to the download. With <strong>Update
+<p>The Windows app from a release updates itself from <code>dl.ownbase.site</code>, the
+Release workflow&#39;s copy of each release on Cloudflare R2, not from GitHub. It
+reads <code>https://dl.ownbase.site/latest.json</code>, which the workflow writes only
+after every file of a release is there, and takes the release it names when
+that is newer. It looks when it starts and every four hours after, downloads in
+the background, and installs when you restart or quit, never during a call. It
+checks the download against the SHA-512 in that release&#39;s <code>latest.yml</code>. When
+<code>dl.ownbase.site</code> cannot be reached there is no update that time; the app tries
+again a few hours later. Builds released before 15 November 2026 still look on
+GitHub, so they take one last update from there (or install from ownbase.site),
+and update from R2 after that. The Mac app, signed ad hoc, only says a new release is out,
+from the same <code>latest.json</code>, and links to the download. With <strong>Update
 automatically</strong> off, under Account settings → Updates, the app looks only when
 you ask it to. Builds made anywhere but the Release workflow never look.
 <code>updates.log</code> in the app&#39;s data folder (<code>%APPDATA%\OwnBase</code> on Windows) says
