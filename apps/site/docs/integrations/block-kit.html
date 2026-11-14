@@ -1,0 +1,155 @@
+<!doctype html>
+<!-- Written by scripts/generate-docs-site.mjs from docs/INTEGRATIONS.md. Edit that, not this. -->
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Block Kit · Integration API contract · OwnBase docs</title>
+    <meta name="description" content="Blocks are flattened to text rather than rendered, so a message written for Slack still reads sensibly: header becomes bold text; section contributes its…" />
+    <link rel="canonical" href="https://ownbase.site/docs/integrations/block-kit" />
+    <meta property="og:title" content="Block Kit · Integration API contract · OwnBase docs" />
+    <meta property="og:description" content="Blocks are flattened to text rather than rendered, so a message written for Slack still reads sensibly: header becomes bold text; section contributes its…" />
+    <meta property="og:type" content="article" />
+    <meta property="og:url" content="https://ownbase.site/docs/integrations/block-kit" />
+    <meta property="og:site_name" content="OwnBase" />
+    <meta property="og:image" content="https://ownbase.site/og.png?v=2" />
+    <meta name="theme-color" content="#0b0a20" />
+    <link rel="preload" href="/fonts/onest-latin-wght-normal.woff2" as="font" type="font/woff2" crossorigin />
+    <link rel="icon" href="/ownbase.svg?v=2" type="image/svg+xml" />
+    <link rel="stylesheet" href="/site.css?v=7cf174c67f" />
+    <link rel="stylesheet" href="/docs.css?v=30dafeac35" />
+    <script src="/docs.js?v=123540c9d0" defer></script>
+  </head>
+  <body class="docs-body" data-search="/docs/search.json?v=c49ebd883a" data-guide="integrations">
+    <a class="skip" href="#main">Skip to content</a>
+
+    <header class="guide-head">
+      <nav class="nav wrap" aria-label="Main">
+        <a class="brand" href="/">
+          <img src="/ownbase.svg?v=2" alt="" width="32" height="32" />
+          <span>OwnBase</span>
+          <span class="alpha">Alpha</span>
+        </a>
+        <ul class="nav-links">
+          <li><a href="/#host">Hosting</a></li>
+          <li><a href="/host">Guide</a></li>
+          <li><a href="/docs/" aria-current="page">Docs</a></li>
+          <li><a href="/#download">Download</a></li>
+          <li><a href="https://github.com/Blazeiscoding/OwnBase">GitHub</a></li>
+        </ul>
+        <a class="btn btn-small btn-light" href="/#download">Get OwnBase</a>
+      </nav>
+    </header>
+
+    <div class="docs wrap">
+      <aside class="docs-side">
+        <div class="docs-search" role="search" hidden>
+          <label class="sr-only" for="docs-query">Search the docs</label>
+          <input id="docs-query" type="search" placeholder="Search the docs" autocomplete="off" spellcheck="false" />
+          <p class="docs-status" aria-live="polite"></p>
+          <div class="docs-results" hidden></div>
+        </div>
+        <details class="docs-nav" open>
+          <summary>All sections</summary>
+          <nav aria-label="Docs">
+            <p class="docs-group">Hosting OwnBase</p>
+            <ul>
+              <li><a href="/docs/hosting/">Overview</a></li>
+              <li><a href="/docs/hosting/windows-and-lan">Windows and LAN</a></li>
+              <li><a href="/docs/hosting/temporary-internet-sharing-with-cloudflare-tunnel">Temporary internet sharing with Cloudflare Tunnel</a></li>
+              <li><a href="/docs/hosting/docker-and-vps">Docker and VPS</a></li>
+              <li><a href="/docs/hosting/a-linux-server-with-systemd">A Linux server with systemd</a></li>
+              <li><a href="/docs/hosting/a-windows-server-as-a-service">A Windows server, as a service</a></li>
+              <li><a href="/docs/hosting/voice-and-huddles">Voice and huddles</a></li>
+              <li><a href="/docs/hosting/attachment-storage">Attachment storage</a></li>
+              <li><a href="/docs/hosting/backups-restore-updates">Backups, restore, updates</a></li>
+              <li><a href="/docs/hosting/moving-in-from-slack">Moving in from Slack</a></li>
+              <li><a href="/docs/hosting/taking-your-data-out">Taking your data out</a></li>
+              <li><a href="/docs/hosting/deletion-and-retention">Deletion and retention</a></li>
+              <li><a href="/docs/hosting/integration-delivery">Integration delivery</a></li>
+              <li><a href="/docs/hosting/link-previews">Link previews</a></li>
+              <li><a href="/docs/hosting/notifications-while-the-browser-is-closed">Notifications while the browser is closed</a></li>
+              <li><a href="/docs/hosting/behind-a-reverse-proxy">Behind a reverse proxy</a></li>
+              <li><a href="/docs/hosting/request-limits">Request limits</a></li>
+              <li><a href="/docs/hosting/password-hashing">Password hashing</a></li>
+              <li><a href="/docs/hosting/changing-a-workspace-address-and-keeping-local-work">Changing a workspace address and keeping local work</a></li>
+              <li><a href="/docs/hosting/desktop-saved-sign-ins">Desktop saved sign-ins</a></li>
+              <li><a href="/docs/hosting/the-administrative-record">The administrative record</a></li>
+              <li><a href="/docs/hosting/invites">Invites</a></li>
+              <li><a href="/docs/hosting/who-may-join">Who may join</a></li>
+              <li><a href="/docs/hosting/guests">Guests</a></li>
+              <li><a href="/docs/hosting/a-plans-members">A plan&#39;s members</a></li>
+              <li><a href="/docs/hosting/an-enterprise-license">An Enterprise license</a></li>
+              <li><a href="/docs/hosting/hosting-workspaces-for-others">Hosting workspaces for others</a></li>
+              <li><a href="/docs/hosting/current-boundaries">Current boundaries</a></li>
+            </ul>
+            <p class="docs-group">Integration API contract</p>
+            <ul>
+              <li><a href="/docs/integrations/">Overview</a></li>
+              <li><a href="/docs/integrations/setting-up-an-app">Setting up an app</a></li>
+              <li><a href="/docs/integrations/identifiers">Identifiers</a></li>
+              <li><a href="/docs/integrations/verifying-requests-from-this-server">Verifying requests from this server</a></li>
+              <li><a href="/docs/integrations/web-api-methods">Web API methods</a></li>
+              <li><a href="/docs/integrations/incoming-webhooks">Incoming webhooks</a></li>
+              <li><a href="/docs/integrations/slash-commands">Slash commands</a></li>
+              <li><a href="/docs/integrations/interactive-buttons">Interactive buttons</a></li>
+              <li><a href="/docs/integrations/modals">Modals</a></li>
+              <li><a href="/docs/integrations/events">Events</a></li>
+              <li><a href="/docs/integrations/block-kit" aria-current="page">Block Kit</a></li>
+              <li><a href="/docs/integrations/the-native-client-protocol">The native client protocol</a></li>
+            </ul>
+          </nav>
+        </details>
+      </aside>
+
+      <main id="main" class="docs-main">
+        <p class="docs-crumb"><a href="/docs/">Docs</a> / <a href="/docs/integrations/">Integration API contract</a></p>
+        <article class="doc">
+        <h1 id="block-kit">Block Kit</h1>
+        
+<p>Blocks are <strong>flattened to text</strong> rather than rendered, so a message written for
+Slack still reads sensibly:</p>
+<ul>
+<li><code>header</code> becomes bold text;</li>
+<li><code>section</code> contributes its <code>text</code> and each of its <code>fields</code>;</li>
+<li><code>context</code> contributes its text elements, joined; images are dropped;</li>
+<li><code>divider</code> becomes a line;</li>
+<li><code>actions</code> contributes <strong>buttons</strong> — up to 25, with text up to 75 characters and
+<code>value</code> up to 2,000 — and nothing else; selects, date pickers and overflow
+menus are dropped;</li>
+<li>anything else, such as <code>image</code> or <code>rich_text</code>, is dropped.</li>
+</ul>
+<p>Message text is a subset of Slack&#39;s mrkdwn. Drawn as formatting: <code>*bold*</code>,
+<code>_italic_</code>, <code>~strike~</code>, <code>`code`</code>, <code>```</code> code blocks, bare <code>http(s)</code> links,
+<code>&lt;@user id&gt;</code> and <code>&lt;#channel id&gt;</code> mentions, and <code>&lt;!here&gt;</code>, <code>&lt;!channel&gt;</code> and
+<code>&lt;!everyone&gt;</code>. A backslash before a formatting character shows it literally.
+<strong>Not interpreted:</strong> Slack&#39;s <code>&lt;https://…|label&gt;</code> links (the label is not shown
+as link text), <code>&gt;</code> quotes and list markers, which appear as the characters typed,
+and date formatting such as <code>&lt;!date^…&gt;</code>.</p>
+        </article>
+        <nav class="docs-pager" aria-label="Pages"><a class="docs-prev" href="/docs/integrations/events"><span>Previous</span>Events</a><a class="docs-next" href="/docs/integrations/the-native-client-protocol"><span>Next</span>The native client protocol</a></nav>
+        <p class="docs-source">This page is made from <a href="https://github.com/Blazeiscoding/OwnBase/blob/main/docs/INTEGRATIONS.md#block-kit">docs/INTEGRATIONS.md</a>.</p>
+      </main>
+    </div>
+
+    <footer class="end guide-foot">
+      <div class="footer wrap">
+        <a class="brand" href="/">
+          <img src="/ownbase.svg?v=2" alt="" width="24" height="24" />
+          <span>OwnBase</span>
+        </a>
+        <ul class="footer-links">
+          <li><a href="/host">Hosting guide</a></li>
+          <li><a href="/docs/">Docs</a></li>
+          <li><a href="https://github.com/Blazeiscoding/OwnBase">GitHub</a></li>
+          <li><a href="https://github.com/Blazeiscoding/OwnBase/blob/main/SECURITY.md">Security</a></li>
+          <li><a href="https://github.com/Blazeiscoding/OwnBase/blob/main/docs/PLANS.md">Plans</a></li>
+        </ul>
+        <p class="legal">
+          OwnBase is in alpha. MIT licensed, except the Enterprise code in <code>ee/</code>. Not
+          affiliated with Slack or Salesforce.
+        </p>
+      </div>
+    </footer>
+  </body>
+</html>

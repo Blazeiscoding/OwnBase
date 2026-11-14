@@ -1,0 +1,278 @@
+<!doctype html>
+<!-- Written by scripts/generate-docs-site.mjs from docs/DEPLOYMENT.md. Edit that, not this. -->
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>A Linux server with systemd · Hosting OwnBase · OwnBase docs</title>
+    <meta name="description" content="The server runs straight from Node, without Docker, as a systemd service. systemd starts it with the machine, starts it again if it stops, and keeps its…" />
+    <link rel="canonical" href="https://ownbase.site/docs/hosting/a-linux-server-with-systemd" />
+    <meta property="og:title" content="A Linux server with systemd · Hosting OwnBase · OwnBase docs" />
+    <meta property="og:description" content="The server runs straight from Node, without Docker, as a systemd service. systemd starts it with the machine, starts it again if it stops, and keeps its…" />
+    <meta property="og:type" content="article" />
+    <meta property="og:url" content="https://ownbase.site/docs/hosting/a-linux-server-with-systemd" />
+    <meta property="og:site_name" content="OwnBase" />
+    <meta property="og:image" content="https://ownbase.site/og.png?v=2" />
+    <meta name="theme-color" content="#0b0a20" />
+    <link rel="preload" href="/fonts/onest-latin-wght-normal.woff2" as="font" type="font/woff2" crossorigin />
+    <link rel="icon" href="/ownbase.svg?v=2" type="image/svg+xml" />
+    <link rel="stylesheet" href="/site.css?v=7cf174c67f" />
+    <link rel="stylesheet" href="/docs.css?v=30dafeac35" />
+    <script src="/docs.js?v=123540c9d0" defer></script>
+  </head>
+  <body class="docs-body" data-search="/docs/search.json?v=c49ebd883a" data-guide="hosting">
+    <a class="skip" href="#main">Skip to content</a>
+
+    <header class="guide-head">
+      <nav class="nav wrap" aria-label="Main">
+        <a class="brand" href="/">
+          <img src="/ownbase.svg?v=2" alt="" width="32" height="32" />
+          <span>OwnBase</span>
+          <span class="alpha">Alpha</span>
+        </a>
+        <ul class="nav-links">
+          <li><a href="/#host">Hosting</a></li>
+          <li><a href="/host">Guide</a></li>
+          <li><a href="/docs/" aria-current="page">Docs</a></li>
+          <li><a href="/#download">Download</a></li>
+          <li><a href="https://github.com/Blazeiscoding/OwnBase">GitHub</a></li>
+        </ul>
+        <a class="btn btn-small btn-light" href="/#download">Get OwnBase</a>
+      </nav>
+    </header>
+
+    <div class="docs wrap">
+      <aside class="docs-side">
+        <div class="docs-search" role="search" hidden>
+          <label class="sr-only" for="docs-query">Search the docs</label>
+          <input id="docs-query" type="search" placeholder="Search the docs" autocomplete="off" spellcheck="false" />
+          <p class="docs-status" aria-live="polite"></p>
+          <div class="docs-results" hidden></div>
+        </div>
+        <details class="docs-nav" open>
+          <summary>All sections</summary>
+          <nav aria-label="Docs">
+            <p class="docs-group">Hosting OwnBase</p>
+            <ul>
+              <li><a href="/docs/hosting/">Overview</a></li>
+              <li><a href="/docs/hosting/windows-and-lan">Windows and LAN</a></li>
+              <li><a href="/docs/hosting/temporary-internet-sharing-with-cloudflare-tunnel">Temporary internet sharing with Cloudflare Tunnel</a></li>
+              <li><a href="/docs/hosting/docker-and-vps">Docker and VPS</a></li>
+              <li><a href="/docs/hosting/a-linux-server-with-systemd" aria-current="page">A Linux server with systemd</a></li>
+              <li><a href="/docs/hosting/a-windows-server-as-a-service">A Windows server, as a service</a></li>
+              <li><a href="/docs/hosting/voice-and-huddles">Voice and huddles</a></li>
+              <li><a href="/docs/hosting/attachment-storage">Attachment storage</a></li>
+              <li><a href="/docs/hosting/backups-restore-updates">Backups, restore, updates</a></li>
+              <li><a href="/docs/hosting/moving-in-from-slack">Moving in from Slack</a></li>
+              <li><a href="/docs/hosting/taking-your-data-out">Taking your data out</a></li>
+              <li><a href="/docs/hosting/deletion-and-retention">Deletion and retention</a></li>
+              <li><a href="/docs/hosting/integration-delivery">Integration delivery</a></li>
+              <li><a href="/docs/hosting/link-previews">Link previews</a></li>
+              <li><a href="/docs/hosting/notifications-while-the-browser-is-closed">Notifications while the browser is closed</a></li>
+              <li><a href="/docs/hosting/behind-a-reverse-proxy">Behind a reverse proxy</a></li>
+              <li><a href="/docs/hosting/request-limits">Request limits</a></li>
+              <li><a href="/docs/hosting/password-hashing">Password hashing</a></li>
+              <li><a href="/docs/hosting/changing-a-workspace-address-and-keeping-local-work">Changing a workspace address and keeping local work</a></li>
+              <li><a href="/docs/hosting/desktop-saved-sign-ins">Desktop saved sign-ins</a></li>
+              <li><a href="/docs/hosting/the-administrative-record">The administrative record</a></li>
+              <li><a href="/docs/hosting/invites">Invites</a></li>
+              <li><a href="/docs/hosting/who-may-join">Who may join</a></li>
+              <li><a href="/docs/hosting/guests">Guests</a></li>
+              <li><a href="/docs/hosting/a-plans-members">A plan&#39;s members</a></li>
+              <li><a href="/docs/hosting/an-enterprise-license">An Enterprise license</a></li>
+              <li><a href="/docs/hosting/hosting-workspaces-for-others">Hosting workspaces for others</a></li>
+              <li><a href="/docs/hosting/current-boundaries">Current boundaries</a></li>
+            </ul>
+            <p class="docs-group">Integration API contract</p>
+            <ul>
+              <li><a href="/docs/integrations/">Overview</a></li>
+              <li><a href="/docs/integrations/setting-up-an-app">Setting up an app</a></li>
+              <li><a href="/docs/integrations/identifiers">Identifiers</a></li>
+              <li><a href="/docs/integrations/verifying-requests-from-this-server">Verifying requests from this server</a></li>
+              <li><a href="/docs/integrations/web-api-methods">Web API methods</a></li>
+              <li><a href="/docs/integrations/incoming-webhooks">Incoming webhooks</a></li>
+              <li><a href="/docs/integrations/slash-commands">Slash commands</a></li>
+              <li><a href="/docs/integrations/interactive-buttons">Interactive buttons</a></li>
+              <li><a href="/docs/integrations/modals">Modals</a></li>
+              <li><a href="/docs/integrations/events">Events</a></li>
+              <li><a href="/docs/integrations/block-kit">Block Kit</a></li>
+              <li><a href="/docs/integrations/the-native-client-protocol">The native client protocol</a></li>
+            </ul>
+          </nav>
+        </details>
+      </aside>
+
+      <main id="main" class="docs-main">
+        <p class="docs-crumb"><a href="/docs/">Docs</a> / <a href="/docs/hosting/">Hosting OwnBase</a></p>
+        <article class="doc">
+        <h1 id="a-linux-server-with-systemd">A Linux server with systemd</h1>
+        
+<p>The server runs straight from Node, without Docker, as a systemd service. systemd
+starts it with the machine, starts it again if it stops, and keeps its log. These
+steps use Ubuntu 24.04. On another distribution with systemd, install Node 24 its
+way; the rest was only tried on Ubuntu.</p>
+<p><strong>1. Node 24.</strong></p>
+<pre tabindex="0"><code class="language-sh">curl -fsSL https://deb.nodesource.com/setup_24.x | sudo bash -
+sudo apt-get install -y nodejs</code></pre>
+<p><strong>2. The server.</strong> It is one file, <code>ownbase-server.js</code>, with the browser client in
+<code>web/</code> beside it. Build both in a copy of the repository, on any machine with
+Node 24 and pnpm, and pack them the way the release workflow does. The first line
+installs only what the server needs, as the Docker image does, and skips the
+desktop app&#39;s Electron download:</p>
+<pre tabindex="0"><code class="language-sh">ELECTRON_SKIP_BINARY_DOWNLOAD=1 pnpm install --frozen-lockfile --filter &quot;ownbase-server...&quot;
+pnpm --filter @ownbase/web build &amp;&amp; pnpm --filter ownbase-server build
+tar -czf ownbase-server.tar.gz -C apps/server-cli/dist .</code></pre>
+<p>Copy the archive to the machine, unpack it, and add a user for the server that
+cannot sign in:</p>
+<pre tabindex="0"><code class="language-sh">sudo mkdir -p /opt/ownbase
+sudo tar -xzf ownbase-server.tar.gz -C /opt/ownbase
+sudo useradd --system --no-create-home --home-dir /var/lib/ownbase \
+  --shell /usr/sbin/nologin ownbase</code></pre>
+<p>The files in <code>/opt/ownbase</code> stay root&#39;s, so the server cannot change its own code.</p>
+<p><strong>3. Settings.</strong> What the server reads from the environment goes in
+<code>/etc/ownbase/ownbase.env</code>, such as a call relay&#39;s secret (see
+<a href="/docs/hosting/voice-and-huddles#your-own-relay-with-coturn">Your own relay with coturn</a>). systemd reads the
+file before it starts the server, so it can stay readable by root alone:</p>
+<pre tabindex="0"><code class="language-sh">sudo install -d -m 755 /etc/ownbase
+sudo install -m 600 /dev/null /etc/ownbase/ownbase.env</code></pre>
+<p><strong>4. The service.</strong> Save this as <code>/etc/systemd/system/ownbase.service</code>, with your
+own address in <code>--public-url</code>:</p>
+<pre tabindex="0"><code class="language-ini">[Unit]
+Description=OwnBase workspace server
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+User=ownbase
+Group=ownbase
+EnvironmentFile=-/etc/ownbase/ownbase.env
+ExecStart=/usr/bin/node /opt/ownbase/ownbase-server.js \
+  --data /var/lib/ownbase/data --backup-dir /var/lib/ownbase/backups \
+  --name &quot;My Workspace&quot; --invite-only --no-mdns \
+  --host 127.0.0.1 --public-url https://chat.example.org --trust-proxy
+# Asked to stop, the server closes its database first. systemd waits this long.
+TimeoutStopSec=30
+Restart=on-failure
+RestartSec=5
+
+# /var/lib/ownbase, made for the ownbase user and closed to everyone else. It is
+# the only place the server can write.
+StateDirectory=ownbase
+StateDirectoryMode=0700
+WorkingDirectory=/var/lib/ownbase
+UMask=0077
+
+NoNewPrivileges=yes
+CapabilityBoundingSet=
+ProtectSystem=strict
+ProtectHome=yes
+PrivateTmp=yes
+PrivateDevices=yes
+PrivateUsers=yes
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectKernelLogs=yes
+ProtectControlGroups=yes
+ProtectClock=yes
+ProtectHostname=yes
+ProtectProc=invisible
+# AF_NETLINK lists the machine&#39;s addresses, which the server prints on start.
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX AF_NETLINK
+RestrictNamespaces=yes
+RestrictRealtime=yes
+RestrictSUIDSGID=yes
+LockPersonality=yes
+RemoveIPC=yes
+SystemCallArchitectures=native
+SystemCallFilter=@system-service
+SystemCallFilter=~@privileged
+SystemCallErrorNumber=EPERM
+# No MemoryDenyWriteExecute: Node turns JavaScript into machine code as it runs.
+
+[Install]
+WantedBy=multi-user.target</code></pre>
+<p>The workspace lives in <code>/var/lib/ownbase/data</code> and the daily backups in
+<code>/var/lib/ownbase/backups</code> (see <a href="/docs/hosting/backups-restore-updates#backups-on-a-schedule">Backups on a schedule</a>).
+The server listens on <code>127.0.0.1</code> only, for a reverse proxy on the same machine,
+so <code>--trust-proxy</code> is safe: nothing else can reach it to forge the proxy&#39;s
+headers. The Caddy configuration in <a href="/docs/hosting/docker-and-vps#docker-and-vps">Docker and VPS</a> works as it
+is. The lines after <code>UMask</code> take away what a chat server never needs: reading
+other users&#39; files, changing the kernel&#39;s settings, gaining privileges, and the
+system calls ordinary services do not make. <code>systemd-analyze security ownbase</code>
+rates the result and lists each setting it checked.</p>
+<p><strong>5. Start it.</strong></p>
+<pre tabindex="0"><code class="language-sh">sudo systemctl daemon-reload
+sudo systemctl enable --now ownbase
+curl -s --retry 10 --retry-connrefused http://127.0.0.1:8543/api/health</code></pre>
+<p>The server takes a second or two to start listening; <code>--retry-connrefused</code> waits
+for it.</p>
+<p>With <code>--public-url</code> set, creating the first account needs the claim code, which
+the server writes to its log when it starts:</p>
+<pre tabindex="0"><code class="language-sh">sudo journalctl -u ownbase | grep &quot;Claim code&quot;</code></pre>
+<p>Open your address and create the first account with that code. That account owns
+the workspace.</p>
+<p>For a server only your own network uses, leave out <code>--host</code>, <code>--public-url</code>,
+<code>--trust-proxy</code> and <code>--no-mdns</code>. It then listens on every address, and the desktop
+app finds it in its list of servers on the network. From another machine, the
+first account still needs the claim code.</p>
+<p><strong>Day to day.</strong></p>
+<ul>
+<li><code>sudo journalctl -u ownbase -f</code> follows the log.</li>
+<li>After changing the settings file, <code>sudo systemctl restart ownbase</code>. After
+changing the unit, <code>sudo systemctl daemon-reload</code> first.</li>
+<li>To update, unpack the new archive over <code>/opt/ownbase</code> and restart. Before the
+new version changes the database&#39;s layout, it copies the workspace into
+<code>data/pre-upgrade/</code> (see <a href="/docs/hosting/backups-restore-updates#backups-restore-updates">Backups, restore, updates</a>).</li>
+<li>Commands that change the workspace, such as <code>restore</code> and <code>recover</code>, run with the
+service stopped and as the <code>ownbase</code> user, so the files stay its own:</li>
+</ul>
+<pre tabindex="0"><code class="language-sh">sudo systemctl stop ownbase
+sudo -u ownbase node /opt/ownbase/ownbase-server.js recover --data /var/lib/ownbase/data
+sudo systemctl start ownbase</code></pre>
+<p><strong>Tried</strong> on 2026-10-28 on a new GitHub Actions machine with Ubuntu 24.04. A
+script ran each block above as written, with the archive built from this version
+and Node 24.22.1 from NodeSource:</p>
+<ul>
+<li>Step 5&#39;s health check answered within two seconds. The server ran as <code>ownbase</code>
+with no capabilities and <code>NoNewPrivs</code> set. Inside the service, <code>/opt/ownbase</code>
+was read-only even to root, and <code>/home</code> was hidden.</li>
+<li>The first account needed the claim code from the journal; without it the
+server answered 403. A message, an upload, and the owner&#39;s copy, which a child
+process makes, all worked.</li>
+<li>After <code>kill -9</code>, the server answered again 6 seconds later, with its data.</li>
+<li><code>systemctl stop</code> ended with status 0, and the database&#39;s <code>-wal</code> file, 580 KB
+while it ran, was gone: the database closed cleanly.</li>
+<li><code>recover</code> as the <code>ownbase</code> user listed the accounts and left every file the
+user&#39;s own.</li>
+<li><code>systemd-analyze security</code> rated the service 1.2, &quot;OK&quot;.</li>
+<li>Without the four flags, it listened on the machine&#39;s address, printed it, and
+an mDNS lookup like the desktop app&#39;s found &quot;My Workspace (OwnBase)&quot;.</li>
+</ul>
+<p>Not tried: starting at boot. The service is enabled.</p>
+        </article>
+        <nav class="docs-pager" aria-label="Pages"><a class="docs-prev" href="/docs/hosting/docker-and-vps"><span>Previous</span>Docker and VPS</a><a class="docs-next" href="/docs/hosting/a-windows-server-as-a-service"><span>Next</span>A Windows server, as a service</a></nav>
+        <p class="docs-source">This page is made from <a href="https://github.com/Blazeiscoding/OwnBase/blob/main/docs/DEPLOYMENT.md#a-linux-server-with-systemd">docs/DEPLOYMENT.md</a>.</p>
+      </main>
+    </div>
+
+    <footer class="end guide-foot">
+      <div class="footer wrap">
+        <a class="brand" href="/">
+          <img src="/ownbase.svg?v=2" alt="" width="24" height="24" />
+          <span>OwnBase</span>
+        </a>
+        <ul class="footer-links">
+          <li><a href="/host">Hosting guide</a></li>
+          <li><a href="/docs/">Docs</a></li>
+          <li><a href="https://github.com/Blazeiscoding/OwnBase">GitHub</a></li>
+          <li><a href="https://github.com/Blazeiscoding/OwnBase/blob/main/SECURITY.md">Security</a></li>
+          <li><a href="https://github.com/Blazeiscoding/OwnBase/blob/main/docs/PLANS.md">Plans</a></li>
+        </ul>
+        <p class="legal">
+          OwnBase is in alpha. MIT licensed, except the Enterprise code in <code>ee/</code>. Not
+          affiliated with Slack or Salesforce.
+        </p>
+      </div>
+    </footer>
+  </body>
+</html>

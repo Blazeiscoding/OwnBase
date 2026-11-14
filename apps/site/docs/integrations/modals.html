@@ -1,0 +1,218 @@
+<!doctype html>
+<!-- Written by scripts/generate-docs-site.mjs from docs/INTEGRATIONS.md. Edit that, not this. -->
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Modals · Integration API contract · OwnBase docs</title>
+    <meta name="description" content="A view is Slack&#39;s modal reduced to what this server can draw: title, submit, close, callback_id and private_metadata; input blocks, with label, hint and…" />
+    <link rel="canonical" href="https://ownbase.site/docs/integrations/modals" />
+    <meta property="og:title" content="Modals · Integration API contract · OwnBase docs" />
+    <meta property="og:description" content="A view is Slack&#39;s modal reduced to what this server can draw: title, submit, close, callback_id and private_metadata; input blocks, with label, hint and…" />
+    <meta property="og:type" content="article" />
+    <meta property="og:url" content="https://ownbase.site/docs/integrations/modals" />
+    <meta property="og:site_name" content="OwnBase" />
+    <meta property="og:image" content="https://ownbase.site/og.png?v=2" />
+    <meta name="theme-color" content="#0b0a20" />
+    <link rel="preload" href="/fonts/onest-latin-wght-normal.woff2" as="font" type="font/woff2" crossorigin />
+    <link rel="icon" href="/ownbase.svg?v=2" type="image/svg+xml" />
+    <link rel="stylesheet" href="/site.css?v=7cf174c67f" />
+    <link rel="stylesheet" href="/docs.css?v=30dafeac35" />
+    <script src="/docs.js?v=123540c9d0" defer></script>
+  </head>
+  <body class="docs-body" data-search="/docs/search.json?v=c49ebd883a" data-guide="integrations">
+    <a class="skip" href="#main">Skip to content</a>
+
+    <header class="guide-head">
+      <nav class="nav wrap" aria-label="Main">
+        <a class="brand" href="/">
+          <img src="/ownbase.svg?v=2" alt="" width="32" height="32" />
+          <span>OwnBase</span>
+          <span class="alpha">Alpha</span>
+        </a>
+        <ul class="nav-links">
+          <li><a href="/#host">Hosting</a></li>
+          <li><a href="/host">Guide</a></li>
+          <li><a href="/docs/" aria-current="page">Docs</a></li>
+          <li><a href="/#download">Download</a></li>
+          <li><a href="https://github.com/Blazeiscoding/OwnBase">GitHub</a></li>
+        </ul>
+        <a class="btn btn-small btn-light" href="/#download">Get OwnBase</a>
+      </nav>
+    </header>
+
+    <div class="docs wrap">
+      <aside class="docs-side">
+        <div class="docs-search" role="search" hidden>
+          <label class="sr-only" for="docs-query">Search the docs</label>
+          <input id="docs-query" type="search" placeholder="Search the docs" autocomplete="off" spellcheck="false" />
+          <p class="docs-status" aria-live="polite"></p>
+          <div class="docs-results" hidden></div>
+        </div>
+        <details class="docs-nav" open>
+          <summary>All sections</summary>
+          <nav aria-label="Docs">
+            <p class="docs-group">Hosting OwnBase</p>
+            <ul>
+              <li><a href="/docs/hosting/">Overview</a></li>
+              <li><a href="/docs/hosting/windows-and-lan">Windows and LAN</a></li>
+              <li><a href="/docs/hosting/temporary-internet-sharing-with-cloudflare-tunnel">Temporary internet sharing with Cloudflare Tunnel</a></li>
+              <li><a href="/docs/hosting/docker-and-vps">Docker and VPS</a></li>
+              <li><a href="/docs/hosting/a-linux-server-with-systemd">A Linux server with systemd</a></li>
+              <li><a href="/docs/hosting/a-windows-server-as-a-service">A Windows server, as a service</a></li>
+              <li><a href="/docs/hosting/voice-and-huddles">Voice and huddles</a></li>
+              <li><a href="/docs/hosting/attachment-storage">Attachment storage</a></li>
+              <li><a href="/docs/hosting/backups-restore-updates">Backups, restore, updates</a></li>
+              <li><a href="/docs/hosting/moving-in-from-slack">Moving in from Slack</a></li>
+              <li><a href="/docs/hosting/taking-your-data-out">Taking your data out</a></li>
+              <li><a href="/docs/hosting/deletion-and-retention">Deletion and retention</a></li>
+              <li><a href="/docs/hosting/integration-delivery">Integration delivery</a></li>
+              <li><a href="/docs/hosting/link-previews">Link previews</a></li>
+              <li><a href="/docs/hosting/notifications-while-the-browser-is-closed">Notifications while the browser is closed</a></li>
+              <li><a href="/docs/hosting/behind-a-reverse-proxy">Behind a reverse proxy</a></li>
+              <li><a href="/docs/hosting/request-limits">Request limits</a></li>
+              <li><a href="/docs/hosting/password-hashing">Password hashing</a></li>
+              <li><a href="/docs/hosting/changing-a-workspace-address-and-keeping-local-work">Changing a workspace address and keeping local work</a></li>
+              <li><a href="/docs/hosting/desktop-saved-sign-ins">Desktop saved sign-ins</a></li>
+              <li><a href="/docs/hosting/the-administrative-record">The administrative record</a></li>
+              <li><a href="/docs/hosting/invites">Invites</a></li>
+              <li><a href="/docs/hosting/who-may-join">Who may join</a></li>
+              <li><a href="/docs/hosting/guests">Guests</a></li>
+              <li><a href="/docs/hosting/a-plans-members">A plan&#39;s members</a></li>
+              <li><a href="/docs/hosting/an-enterprise-license">An Enterprise license</a></li>
+              <li><a href="/docs/hosting/hosting-workspaces-for-others">Hosting workspaces for others</a></li>
+              <li><a href="/docs/hosting/current-boundaries">Current boundaries</a></li>
+            </ul>
+            <p class="docs-group">Integration API contract</p>
+            <ul>
+              <li><a href="/docs/integrations/">Overview</a></li>
+              <li><a href="/docs/integrations/setting-up-an-app">Setting up an app</a></li>
+              <li><a href="/docs/integrations/identifiers">Identifiers</a></li>
+              <li><a href="/docs/integrations/verifying-requests-from-this-server">Verifying requests from this server</a></li>
+              <li><a href="/docs/integrations/web-api-methods">Web API methods</a></li>
+              <li><a href="/docs/integrations/incoming-webhooks">Incoming webhooks</a></li>
+              <li><a href="/docs/integrations/slash-commands">Slash commands</a></li>
+              <li><a href="/docs/integrations/interactive-buttons">Interactive buttons</a></li>
+              <li><a href="/docs/integrations/modals" aria-current="page">Modals</a></li>
+              <li><a href="/docs/integrations/events">Events</a></li>
+              <li><a href="/docs/integrations/block-kit">Block Kit</a></li>
+              <li><a href="/docs/integrations/the-native-client-protocol">The native client protocol</a></li>
+            </ul>
+          </nav>
+        </details>
+      </aside>
+
+      <main id="main" class="docs-main">
+        <p class="docs-crumb"><a href="/docs/">Docs</a> / <a href="/docs/integrations/">Integration API contract</a></p>
+        <article class="doc">
+        <h1 id="modals">Modals</h1>
+        
+<p>A view is Slack&#39;s <code>modal</code> reduced to what this server can draw:</p>
+<ul>
+<li><code>title</code>, <code>submit</code>, <code>close</code>, <code>callback_id</code> and <code>private_metadata</code>;</li>
+<li><code>input</code> blocks, with <code>label</code>, <code>hint</code> and <code>optional</code>, each holding one of the
+elements below;</li>
+<li><code>header</code>, <code>section</code>, <code>context</code> and <code>divider</code> blocks, shown where they sit
+among the inputs: a header as a heading, a section (with its <code>fields</code> after
+it) as text, a context as small print, and a divider as a line.</li>
+</ul>
+<p>The input elements — <em>checked</em>:</p>
+<div class="doc-table" tabindex="0" role="region" aria-label="Table"><table>
+<thead><tr><th>Element</th><th>Honoured</th><th>Answer in <code>state.values</code></th></tr></thead>
+<tbody>
+<tr><td><code>plain_text_input</code></td><td><code>multiline</code>, <code>placeholder</code>, <code>initial_value</code></td><td><code>value</code></td></tr>
+<tr><td><code>static_select</code></td><td><code>options</code> or <code>option_groups</code>, <code>placeholder</code>, <code>initial_option</code></td><td><code>selected_option</code></td></tr>
+<tr><td><code>multi_static_select</code></td><td>As above, with <code>initial_options</code> and <code>max_selected_items</code></td><td><code>selected_options</code></td></tr>
+<tr><td><code>checkboxes</code></td><td><code>options</code> with <code>description</code>, <code>initial_options</code></td><td><code>selected_options</code></td></tr>
+<tr><td><code>radio_buttons</code></td><td><code>options</code> with <code>description</code>, <code>initial_option</code></td><td><code>selected_option</code></td></tr>
+<tr><td><code>users_select</code></td><td><code>placeholder</code>, <code>initial_user</code></td><td><code>selected_user</code></td></tr>
+<tr><td><code>multi_users_select</code></td><td><code>placeholder</code>, <code>initial_users</code>, <code>max_selected_items</code></td><td><code>selected_users</code></td></tr>
+<tr><td><code>conversations_select</code></td><td><code>placeholder</code>, <code>initial_conversation</code>, <code>default_to_current_conversation</code>, <code>filter.include</code></td><td><code>selected_conversation</code></td></tr>
+<tr><td><code>multi_conversations_select</code></td><td>As above, with <code>initial_conversations</code> and <code>max_selected_items</code></td><td><code>selected_conversations</code></td></tr>
+<tr><td><code>channels_select</code></td><td><code>placeholder</code>, <code>initial_channel</code></td><td><code>selected_channel</code></td></tr>
+<tr><td><code>multi_channels_select</code></td><td><code>placeholder</code>, <code>initial_channels</code>, <code>max_selected_items</code></td><td><code>selected_channels</code></td></tr>
+<tr><td><code>datepicker</code></td><td><code>placeholder</code>, <code>initial_date</code></td><td><code>selected_date</code>, <code>YYYY-MM-DD</code></td></tr>
+<tr><td><code>timepicker</code></td><td><code>initial_time</code></td><td><code>selected_time</code>, <code>HH:mm</code></td></tr>
+</tbody>
+</table></div>
+<ul>
+<li>A select takes up to 100 options, and checkboxes and radio buttons up to 10,
+as on Slack. Option groups are run together into one list. A choice left
+with no usable options is dropped.</li>
+<li>The people pickers offer everyone with an active account except bots. The
+conversation pickers offer what the person filling in the form can open,
+limited by <code>filter.include</code> (<code>public</code>, <code>private</code>, <code>im</code>, <code>mpim</code>). The channel
+pickers offer public channels. Archived conversations are never offered.</li>
+<li><code>default_to_current_conversation</code> starts a conversation picker on the
+conversation where the slash command was run or the button pressed.</li>
+<li>A starting value the person cannot see is left out rather than sent unseen.</li>
+<li>Not honoured: <code>exclude_bot_users</code> and <code>exclude_external_shared_channels</code> in a
+filter, <code>min_length</code> and <code>max_length</code> on text, <code>timezone</code> on a time picker,
+<code>focus_on_load</code>, <code>dispatch_action</code> and <code>response_url_enabled</code>.</li>
+</ul>
+<p>An input of any other kind, such as <code>datetimepicker</code>, <code>number_input</code>,
+<code>email_text_input</code>, <code>file_input</code> or <code>external_select</code>, is <strong>dropped</strong> rather than
+drawn as a control that does nothing. At most 25 inputs are kept.</p>
+<p>Submitting posts a form with a <code>payload</code> field holding Slack&#39;s <code>view_submission</code>:
+<code>team</code>, <code>user</code>, <code>api_app_id</code>, a fresh <code>trigger_id</code>, and <code>view</code> with <code>id</code>,
+<code>callback_id</code>, <code>private_metadata</code>, <code>title</code> and <code>state.values</code>. Each value names
+its element as <code>type</code> and holds its answer under the key in the table, as Slack
+sends it: a chosen option is <code>{&quot;text&quot;: {&quot;type&quot;: &quot;plain_text&quot;, &quot;text&quot;: &quot;…&quot;}, &quot;value&quot;: &quot;…&quot;}</code>, with a <code>description</code> if it had one, and people and
+conversations are ids. An optional input left empty answers <code>&quot;&quot;</code> for text,
+<code>null</code> for one choice and <code>[]</code> for several.</p>
+<p>Before anything reaches the app, the server refuses a submission that leaves a
+required input empty, or chooses something the input never offered: an option
+it did not list, more than <code>max_selected_items</code>, an account that is not active,
+a conversation the person cannot open or the filter leaves out, a channel that
+is not public, or a date or time that does not exist. So an app never has to
+defend against a form its own view forbids.</p>
+<p>The app&#39;s answer:</p>
+<ul>
+<li>anything that is not an error or one of the actions below closes the view,
+including an empty body, and shows the one under it if there is one;</li>
+<li><code>{&quot;response_action&quot;: &quot;errors&quot;, &quot;errors&quot;: {&quot;&lt;block_id&gt;&quot;: &quot;&lt;message&gt;&quot;}}</code> keeps it
+open with each message shown against its input;</li>
+<li><code>{&quot;response_action&quot;: &quot;update&quot;, &quot;view&quot;: {…}}</code> changes the view, as
+<code>views.update</code> would;</li>
+<li><code>{&quot;response_action&quot;: &quot;push&quot;, &quot;view&quot;: {…}}</code> stacks a view on it, as
+<code>views.push</code> would;</li>
+<li><code>{&quot;response_action&quot;: &quot;clear&quot;}</code> closes every view in the stack;</li>
+<li>an answer that starts like JSON but cannot be read keeps it open, and the
+person is told the app&#39;s answer could not be read, as does an <code>update</code> or
+<code>push</code> whose view cannot be shown or would be a fourth;</li>
+<li>an error status, or no answer within four seconds, keeps it open and says so.</li>
+</ul>
+<p>Only the view on top can be submitted. Its <code>view</code> in the payload also carries
+<code>hash</code>, <code>external_id</code>, <code>root_view_id</code> and <code>previous_view_id</code> (null for the
+first). The close button of a stacked view goes back to the one under it; the
+dialog&#39;s own close and Escape close them all. Closing tells the app nothing:
+<code>notify_on_close</code> and <code>view_closed</code> are not supported. A view is open for
+thirty minutes, and is closed without reaching the app if its conversation or
+app goes away in that time.</p>
+        </article>
+        <nav class="docs-pager" aria-label="Pages"><a class="docs-prev" href="/docs/integrations/interactive-buttons"><span>Previous</span>Interactive buttons</a><a class="docs-next" href="/docs/integrations/events"><span>Next</span>Events</a></nav>
+        <p class="docs-source">This page is made from <a href="https://github.com/Blazeiscoding/OwnBase/blob/main/docs/INTEGRATIONS.md#modals">docs/INTEGRATIONS.md</a>.</p>
+      </main>
+    </div>
+
+    <footer class="end guide-foot">
+      <div class="footer wrap">
+        <a class="brand" href="/">
+          <img src="/ownbase.svg?v=2" alt="" width="24" height="24" />
+          <span>OwnBase</span>
+        </a>
+        <ul class="footer-links">
+          <li><a href="/host">Hosting guide</a></li>
+          <li><a href="/docs/">Docs</a></li>
+          <li><a href="https://github.com/Blazeiscoding/OwnBase">GitHub</a></li>
+          <li><a href="https://github.com/Blazeiscoding/OwnBase/blob/main/SECURITY.md">Security</a></li>
+          <li><a href="https://github.com/Blazeiscoding/OwnBase/blob/main/docs/PLANS.md">Plans</a></li>
+        </ul>
+        <p class="legal">
+          OwnBase is in alpha. MIT licensed, except the Enterprise code in <code>ee/</code>. Not
+          affiliated with Slack or Salesforce.
+        </p>
+      </div>
+    </footer>
+  </body>
+</html>

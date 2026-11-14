@@ -1,0 +1,472 @@
+<!doctype html>
+<!-- Written by scripts/generate-docs-site.mjs from docs/DEPLOYMENT.md. Edit that, not this. -->
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Voice and huddles · Hosting OwnBase · OwnBase docs</title>
+    <meta name="description" content="By default no third-party ICE server is contacted. LAN peers connect directly. For people on different networks, provide your own STUN/TURN configuration…" />
+    <link rel="canonical" href="https://ownbase.site/docs/hosting/voice-and-huddles" />
+    <meta property="og:title" content="Voice and huddles · Hosting OwnBase · OwnBase docs" />
+    <meta property="og:description" content="By default no third-party ICE server is contacted. LAN peers connect directly. For people on different networks, provide your own STUN/TURN configuration…" />
+    <meta property="og:type" content="article" />
+    <meta property="og:url" content="https://ownbase.site/docs/hosting/voice-and-huddles" />
+    <meta property="og:site_name" content="OwnBase" />
+    <meta property="og:image" content="https://ownbase.site/og.png?v=2" />
+    <meta name="theme-color" content="#0b0a20" />
+    <link rel="preload" href="/fonts/onest-latin-wght-normal.woff2" as="font" type="font/woff2" crossorigin />
+    <link rel="icon" href="/ownbase.svg?v=2" type="image/svg+xml" />
+    <link rel="stylesheet" href="/site.css?v=7cf174c67f" />
+    <link rel="stylesheet" href="/docs.css?v=30dafeac35" />
+    <script src="/docs.js?v=123540c9d0" defer></script>
+  </head>
+  <body class="docs-body" data-search="/docs/search.json?v=c49ebd883a" data-guide="hosting">
+    <a class="skip" href="#main">Skip to content</a>
+
+    <header class="guide-head">
+      <nav class="nav wrap" aria-label="Main">
+        <a class="brand" href="/">
+          <img src="/ownbase.svg?v=2" alt="" width="32" height="32" />
+          <span>OwnBase</span>
+          <span class="alpha">Alpha</span>
+        </a>
+        <ul class="nav-links">
+          <li><a href="/#host">Hosting</a></li>
+          <li><a href="/host">Guide</a></li>
+          <li><a href="/docs/" aria-current="page">Docs</a></li>
+          <li><a href="/#download">Download</a></li>
+          <li><a href="https://github.com/Blazeiscoding/OwnBase">GitHub</a></li>
+        </ul>
+        <a class="btn btn-small btn-light" href="/#download">Get OwnBase</a>
+      </nav>
+    </header>
+
+    <div class="docs wrap">
+      <aside class="docs-side">
+        <div class="docs-search" role="search" hidden>
+          <label class="sr-only" for="docs-query">Search the docs</label>
+          <input id="docs-query" type="search" placeholder="Search the docs" autocomplete="off" spellcheck="false" />
+          <p class="docs-status" aria-live="polite"></p>
+          <div class="docs-results" hidden></div>
+        </div>
+        <details class="docs-nav" open>
+          <summary>All sections</summary>
+          <nav aria-label="Docs">
+            <p class="docs-group">Hosting OwnBase</p>
+            <ul>
+              <li><a href="/docs/hosting/">Overview</a></li>
+              <li><a href="/docs/hosting/windows-and-lan">Windows and LAN</a></li>
+              <li><a href="/docs/hosting/temporary-internet-sharing-with-cloudflare-tunnel">Temporary internet sharing with Cloudflare Tunnel</a></li>
+              <li><a href="/docs/hosting/docker-and-vps">Docker and VPS</a></li>
+              <li><a href="/docs/hosting/a-linux-server-with-systemd">A Linux server with systemd</a></li>
+              <li><a href="/docs/hosting/a-windows-server-as-a-service">A Windows server, as a service</a></li>
+              <li><a href="/docs/hosting/voice-and-huddles" aria-current="page">Voice and huddles</a></li>
+              <li><a href="/docs/hosting/attachment-storage">Attachment storage</a></li>
+              <li><a href="/docs/hosting/backups-restore-updates">Backups, restore, updates</a></li>
+              <li><a href="/docs/hosting/moving-in-from-slack">Moving in from Slack</a></li>
+              <li><a href="/docs/hosting/taking-your-data-out">Taking your data out</a></li>
+              <li><a href="/docs/hosting/deletion-and-retention">Deletion and retention</a></li>
+              <li><a href="/docs/hosting/integration-delivery">Integration delivery</a></li>
+              <li><a href="/docs/hosting/link-previews">Link previews</a></li>
+              <li><a href="/docs/hosting/notifications-while-the-browser-is-closed">Notifications while the browser is closed</a></li>
+              <li><a href="/docs/hosting/behind-a-reverse-proxy">Behind a reverse proxy</a></li>
+              <li><a href="/docs/hosting/request-limits">Request limits</a></li>
+              <li><a href="/docs/hosting/password-hashing">Password hashing</a></li>
+              <li><a href="/docs/hosting/changing-a-workspace-address-and-keeping-local-work">Changing a workspace address and keeping local work</a></li>
+              <li><a href="/docs/hosting/desktop-saved-sign-ins">Desktop saved sign-ins</a></li>
+              <li><a href="/docs/hosting/the-administrative-record">The administrative record</a></li>
+              <li><a href="/docs/hosting/invites">Invites</a></li>
+              <li><a href="/docs/hosting/who-may-join">Who may join</a></li>
+              <li><a href="/docs/hosting/guests">Guests</a></li>
+              <li><a href="/docs/hosting/a-plans-members">A plan&#39;s members</a></li>
+              <li><a href="/docs/hosting/an-enterprise-license">An Enterprise license</a></li>
+              <li><a href="/docs/hosting/hosting-workspaces-for-others">Hosting workspaces for others</a></li>
+              <li><a href="/docs/hosting/current-boundaries">Current boundaries</a></li>
+            </ul>
+            <p class="docs-group">Integration API contract</p>
+            <ul>
+              <li><a href="/docs/integrations/">Overview</a></li>
+              <li><a href="/docs/integrations/setting-up-an-app">Setting up an app</a></li>
+              <li><a href="/docs/integrations/identifiers">Identifiers</a></li>
+              <li><a href="/docs/integrations/verifying-requests-from-this-server">Verifying requests from this server</a></li>
+              <li><a href="/docs/integrations/web-api-methods">Web API methods</a></li>
+              <li><a href="/docs/integrations/incoming-webhooks">Incoming webhooks</a></li>
+              <li><a href="/docs/integrations/slash-commands">Slash commands</a></li>
+              <li><a href="/docs/integrations/interactive-buttons">Interactive buttons</a></li>
+              <li><a href="/docs/integrations/modals">Modals</a></li>
+              <li><a href="/docs/integrations/events">Events</a></li>
+              <li><a href="/docs/integrations/block-kit">Block Kit</a></li>
+              <li><a href="/docs/integrations/the-native-client-protocol">The native client protocol</a></li>
+            </ul>
+          </nav>
+        </details>
+      </aside>
+
+      <aside class="docs-toc" aria-labelledby="toc-title">
+        <p id="toc-title" class="docs-toc-title">On this page</p>
+        <ul>
+          <li class="toc-3"><a href="#your-own-relay-with-coturn">Your own relay with coturn</a></li>
+          <li class="toc-3"><a href="#when-a-call-will-not-connect">When a call will not connect</a></li>
+          <li class="toc-3"><a href="#how-many-people-a-call-holds">How many people a call holds</a></li>
+          <li class="toc-3"><a href="#what-the-desktop-app-holds-in-memory">What the desktop app holds in memory</a></li>
+        </ul>
+      </aside>
+      <main id="main" class="docs-main">
+        <p class="docs-crumb"><a href="/docs/">Docs</a> / <a href="/docs/hosting/">Hosting OwnBase</a></p>
+        <article class="doc">
+        <h1 id="voice-and-huddles">Voice and huddles</h1>
+        
+<p>By default no third-party ICE server is contacted. LAN peers connect directly.
+For people on different networks, provide your own STUN/TURN configuration through
+<code>OWNBASE_ICE_SERVERS</code>. Compose reads it
+from the environment or a <code>.env</code> file beside the compose file:</p>
+<pre tabindex="0"><code class="language-dotenv">OWNBASE_ICE_SERVERS=[{&quot;urls&quot;:&quot;stun:turn.example.org:3478&quot;},{&quot;urls&quot;:&quot;turn:turn.example.org:3478&quot;,&quot;username&quot;:&quot;workspace&quot;,&quot;credential&quot;:&quot;replace-with-a-strong-secret&quot;}]</code></pre>
+<p>The authenticated <code>/api/rtc-config</code> endpoint supplies it to members. A TURN
+password written there is visible to every member and lasts until you change it.
+A relay of your own that shares a secret with the server avoids that (see
+<a href="#your-own-relay-with-coturn">Your own relay with coturn</a>), and so does
+Cloudflare&#39;s.</p>
+<p>For Cloudflare&#39;s relay, give the server the TURN key instead, and it asks
+Cloudflare for a password that lasts a day whenever calls need one. Members only
+ever receive that password; the API token stays with the server:</p>
+<pre tabindex="0"><code class="language-dotenv">OWNBASE_CLOUDFLARE_TURN_KEY_ID=your-turn-key-id
+OWNBASE_CLOUDFLARE_TURN_API_TOKEN=your-turn-key-api-token</code></pre>
+<p>Set both or neither. They are given to calls after <code>OWNBASE_ICE_SERVERS</code>.</p>
+<h2 id="your-own-relay-with-coturn">Your own relay with coturn<a class="doc-anchor" href="#your-own-relay-with-coturn" aria-label="Link to Your own relay with coturn">#</a></h2>
+<p>coturn is the TURN server most self-hosted calls use. Give it and the OwnBase
+server the same secret, and the server signs each member a password from it as
+they join a call. The password names the member and lasts a day, so nobody holds
+one for good, and coturn counts its quotas per member. coturn checks a password
+when a connection through it starts, so a call already running carries on past
+the day. Someone who leaves the workspace can use their last password until it
+runs out.</p>
+<p>The relay can share a machine with the server or have one of its own. Either
+way it needs a public address and these ports open: 3478 over UDP and TCP, and
+49152 to 65535 over UDP for the calls it carries. On Ubuntu 24.04:</p>
+<pre tabindex="0"><code class="language-sh">sudo apt-get install -y coturn
+openssl rand -hex 32</code></pre>
+<p>The second line makes the secret. Replace <code>/etc/turnserver.conf</code> with this,
+putting in the secret, the relay&#39;s name, and the machine&#39;s own address as
+<code>ip -4 addr</code> shows it:</p>
+<pre tabindex="0"><code class="language-ini">listening-port=3478
+listening-ip=10.0.0.5
+relay-ip=10.0.0.5
+min-port=49152
+max-port=65535
+realm=turn.example.org
+server-name=turn.example.org
+
+use-auth-secret
+static-auth-secret=the-secret-from-openssl
+fingerprint
+stale-nonce=600
+no-cli
+no-software-attribute
+
+# Relayed connections each member may hold, and in all. In a call of 16, a
+# member holds up to 15 for each address in OWNBASE_TURN_URLS, and more on a
+# device with several networks.
+user-quota=100
+total-quota=2000
+
+# Nobody may relay into this machine&#39;s networks, or any other private one: a
+# relay that reaches them lets anyone with a password in.
+no-multicast-peers
+denied-peer-ip=0.0.0.0-0.255.255.255
+denied-peer-ip=10.0.0.0-10.255.255.255
+denied-peer-ip=100.64.0.0-100.127.255.255
+denied-peer-ip=127.0.0.0-127.255.255.255
+denied-peer-ip=169.254.0.0-169.254.255.255
+denied-peer-ip=172.16.0.0-172.31.255.255
+denied-peer-ip=192.0.0.0-192.0.0.255
+denied-peer-ip=192.0.2.0-192.0.2.255
+denied-peer-ip=192.88.99.0-192.88.99.255
+denied-peer-ip=192.168.0.0-192.168.255.255
+denied-peer-ip=198.18.0.0-198.19.255.255
+denied-peer-ip=198.51.100.0-198.51.100.255
+denied-peer-ip=203.0.113.0-203.0.113.255
+denied-peer-ip=240.0.0.0-255.255.255.255
+denied-peer-ip=::1
+denied-peer-ip=64:ff9b::-64:ff9b::ffff:ffff
+denied-peer-ip=::ffff:0.0.0.0-::ffff:255.255.255.255
+denied-peer-ip=100::-100::ffff:ffff:ffff:ffff
+denied-peer-ip=2001::-2001:1ff:ffff:ffff:ffff:ffff:ffff:ffff
+denied-peer-ip=2002::-2002:ffff:ffff:ffff:ffff:ffff:ffff:ffff
+denied-peer-ip=fc00::-fdff:ffff:ffff:ffff:ffff:ffff:ffff:ffff
+denied-peer-ip=fe80::-febf:ffff:ffff:ffff:ffff:ffff:ffff:ffff
+# Except the relay&#39;s own address, where two people who both need it meet.
+allowed-peer-ip=10.0.0.5</code></pre>
+<p>When the machine&#39;s own address is a private one behind NAT, as on most cloud
+servers, also tell coturn the public address that reaches it, public first:
+<code>external-ip=&lt;public address&gt;/10.0.0.5</code>. When the machine has its public address
+itself, use that in <code>listening-ip</code> and <code>relay-ip</code>, and leave out
+<code>allowed-peer-ip</code>.</p>
+<pre tabindex="0"><code class="language-sh">sudo systemctl restart coturn
+sudo systemctl enable coturn</code></pre>
+<p>Then give OwnBase the relay&#39;s addresses, separated by commas, and the same
+secret. For the systemd service they go in <code>/etc/ownbase/ownbase.env</code>; for
+Compose, in a <code>.env</code> beside the compose file; for the Windows service, in NSSM&#39;s
+<code>AppEnvironmentExtra</code>:</p>
+<pre tabindex="0"><code class="language-dotenv">OWNBASE_TURN_URLS=turn:turn.example.org:3478?transport=udp,turn:turn.example.org:3478?transport=tcp
+OWNBASE_TURN_SECRET=the-secret-from-openssl</code></pre>
+<p>Restart the server. It refuses to start with only one of the two, with a secret
+shorter than 16 characters, or with Cloudflare&#39;s key set as well. Members then
+get the relay after <code>OWNBASE_ICE_SERVERS</code>, and <strong>Diagnostics</strong> shows <code>relay</code>
+routes for a call that went through it (see
+<a href="#when-a-call-will-not-connect">When a call will not connect</a>).</p>
+<p>To try the relay on its own, make a password by hand and give the address,
+username and password to the Trickle ICE page of the WebRTC samples
+(<code>https://webrtc.github.io/samples/src/content/peerconnection/trickle-ice/</code>).
+A <code>relay</code> line means coturn took the password:</p>
+<pre tabindex="0"><code class="language-sh">user=&quot;$(( $(date +%s) + 3600 )):check&quot;
+echo &quot;$user&quot;
+printf &#39;%s&#39; &quot;$user&quot; | openssl dgst -sha1 -hmac &#39;the-secret-from-openssl&#39; -binary | base64</code></pre>
+<p>For networks that let only encrypted connections out, coturn can listen with TLS
+too: add <code>tls-listening-port=5349</code>, and <code>cert=</code> and <code>pkey=</code> naming a certificate
+for the relay&#39;s name that the <code>turnserver</code> user can read. Open TCP 5349, add
+<code>turns:turn.example.org:5349?transport=tcp</code> to <code>OWNBASE_TURN_URLS</code>, and restart
+coturn when the certificate is renewed.</p>
+<p><strong>Tried</strong> on 2026-10-28 on the same Ubuntu 24.04 machine as
+<a href="/docs/hosting/a-linux-server-with-systemd#a-linux-server-with-systemd">A Linux server with systemd</a>, with coturn 4.6.1
+from Ubuntu, the configuration above with the machine&#39;s address, which had no
+NAT, and the two settings in <code>/etc/ownbase/ownbase.env</code>:</p>
+<ul>
+<li>In Chrome, two connections allowed only relayed routes, each with a password
+from <code>/api/rtc-config</code>, opened a data channel and passed a message. Both chose
+relay to relay, so the <code>allowed-peer-ip</code> exception works.</li>
+<li>A password signed with another secret, and a correctly signed one that had run
+out a minute earlier, got <code>401 Unauthorized</code> and no relay address.</li>
+<li>The username and password made by hand with the lines above got one.</li>
+<li>coturn&#39;s own test client, <code>turnutils_uclient</code>, was refused with
+<code>403 Forbidden IP</code> when it asked to relay to 127.0.0.1, to 172.17.0.1 (Docker&#39;s
+network on that machine) and to 169.254.169.254, the address cloud machines
+answer their metadata on.</li>
+<li>With the TLS lines added and a self-signed certificate, <code>turnutils_uclient</code>
+relayed between two allocations over port 5349 and lost nothing.</li>
+</ul>
+<p>Not tried: <code>external-ip</code> behind NAT, and a browser over TLS, which would need a
+certificate it trusts.</p>
+<h2 id="when-a-call-will-not-connect">When a call will not connect<a class="doc-anchor" href="#when-a-call-will-not-connect" aria-label="Link to When a call will not connect">#</a></h2>
+<p>Someone who can chat but stays on <strong>Connecting…</strong> in a huddle has a connection
+that never came up. After 15 seconds the huddle bar says <strong>Can&#39;t connect to …</strong>,
+tries again with the call settings read afresh (twice at most), and offers
+<strong>Why? See the call log</strong>, which opens Diagnostics at that device&#39;s call log:
+each step of the setup, the kinds of route each side found (<code>host</code> on its own
+network, <code>srflx</code> its public address via STUN, <code>relay</code> through TURN) and why it
+did not connect. Routes are named by kind only; no address or SDP is recorded.
+The owner and admins also see <strong>Calls on this server</strong> in their own Diagnostics:
+who joined and left, which setups the server passed on or dropped, and each
+side&#39;s report of its connection, so the host can read both sides without asking
+for anyone&#39;s screen. That log is kept in memory, the latest 500 lines, and only
+for conversations the reader can see.</p>
+<p>What the cause means:</p>
+<ul>
+<li><strong>No STUN or TURN server:</strong> the device can reach only its own network. Leave
+and rejoin, or open the workspace to all again, so it reads current settings.</li>
+<li><strong>No public address here / only its own network&#39;s addresses from them:</strong> a
+firewall or network on that side blocks reaching STUN; try another network.</li>
+<li><strong>Public addresses on both sides that do not meet:</strong> one network is too strict
+for a direct connection (often mobile data or a corporate network). Calls
+between them need a TURN relay in <code>OWNBASE_ICE_SERVERS</code>.</li>
+</ul>
+<p>Browser microphone/camera access requires HTTPS (localhost is an exception).
+Use the Electron app for voice on plain HTTP LAN servers. Cameras are asked for
+960 by 540 at 24 frames a second, and at most 1280 by 720 at 30. A shared screen
+goes at up to 1080p and 15 frames a second unless the sharer chooses 720p or a
+smoother rate. These defaults reduce processing and bandwidth but do not
+guarantee a fixed RAM budget.</p>
+<h2 id="how-many-people-a-call-holds">How many people a call holds<a class="doc-anchor" href="#how-many-people-a-call-holds" aria-label="Link to How many people a call holds">#</a></h2>
+<p>A huddle is a mesh. Everyone sends their microphone and camera to everyone else
+on a connection of its own, and each connection has an encoder of its own, so
+every person who joins costs everyone else another encoder and another share of
+their upload. Two limits keep that down, and each connection takes the stricter
+of the two.</p>
+<p>The first is the size of the call:</p>
+<div class="doc-table" tabindex="0" role="region" aria-label="Table"><table>
+<thead><tr><th>People in the call</th><th>What the camera sends each of the others</th></tr></thead>
+<tbody>
+<tr><td>2</td><td>the picture as it comes, about 2 Mbit/s</td></tr>
+<tr><td>3</td><td>full size, up to 24 frames a second and 1.2 Mbit/s</td></tr>
+<tr><td>4</td><td>two thirds of its size, up to 20 frames a second, 800 kbit/s</td></tr>
+<tr><td>5 or 6</td><td>two thirds of its size, up to 15 frames a second, 600 or 480 kbit/s</td></tr>
+<tr><td>7 or more</td><td>half its size, up to 15 frames a second, 400 kbit/s or less</td></tr>
+</tbody>
+</table></div>
+<p>The second is what each person sees. Each app tells the others how tall it draws
+their camera and their share, rounded up to 180, 270, 360, 540, 720 or 1,080
+lines, or 0 when it draws them nowhere. The call hidden behind the chat, a window
+minimised or covered, and the row under a share put away all count as nowhere. A
+camera drawn 180 lines tall or less is sent at that size, at up to 15 frames a
+second and 200 kbit/s. At 270 lines it gets up to 350 kbit/s, and at 360 lines 20
+frames a second and 600 kbit/s. A share is sent no taller than it is drawn.
+Nothing goes to someone who draws neither, and the encoder for them stops. An app
+from before this never says how it draws, and gets what the call&#39;s size allows.</p>
+<p>Both change each connection in place, without setting the call up again, and the
+call log says each change.</p>
+<p>A muted microphone sends nothing at all. It used to send silence, encoded once
+for every connection and decoded by everyone, so in a big call of mostly muted
+people that silence was most of what each person spent on sound. Turning the
+microphone on puts it back on every connection at once, again without setting
+the call up again.</p>
+<p>A call with more than eight cameras on, or more than sixteen people, tells
+everyone in it once, in a notice that goes by itself, that it can stutter and
+what helps: turning cameras off, or muting when not talking. Nothing stops
+anyone joining.</p>
+<p>The call view has nothing that moves forever and blurs nothing over a video.
+Either one made the browser draw the whole call again, every video in it, many
+times a second. In a call of seven, the pulsing &quot;In huddle&quot; dot and the blur
+behind each tile&#39;s name cost each person a third of a core between them.</p>
+<p>These are the measurements behind it, taken on 24 and 25 October 2026 with
+<code>scripts/measure-calls.mts</code>:</p>
+<ul>
+<li><strong>Machine:</strong> Windows 11 desktop, Intel Core i5-12400F (6 cores, 12 threads),
+16 GB, NVIDIA GeForce RTX 3060. Chromium 153, headless and drawing on the
+graphics card as a person&#39;s own browser does. VP8 encoded in software.</li>
+<li><strong>Setup:</strong> one browser per person, all on that machine, in one huddle over
+loopback, each in a 1280 by 800 window showing the call with everyone the same
+size. The camera played a 960 by 540 clip made by the script, someone swaying
+in front of a wall and a bookshelf with a webcam&#39;s grain; Chromium&#39;s own fake
+camera is flat colour and needs a quarter of the bits. Each size settled for
+20 seconds, then ran for a minute.</li>
+<li><strong>CPU per person</strong> is every process of that person&#39;s browser, as a share of
+one core. All of them ran on one machine, so once the machine was busy all the
+time they were fighting each other for it, and the call broke down there
+before it would on separate computers.</li>
+</ul>
+<p>With everyone&#39;s camera on and everyone watching:</p>
+<div class="doc-table" tabindex="0" role="region" aria-label="Table"><table>
+<thead><tr><th>People</th><th>CPU per person</th><th>Machine busy</th><th>Upload per person</th><th>Camera sent as</th><th>Round trip p95</th><th>Audio concealed</th><th>Freezes</th></tr></thead>
+<tbody>
+<tr><td>2</td><td>23%</td><td>11%</td><td>0.4 Mbit/s</td><td>270p, 15 fps</td><td>1 ms</td><td>0%</td><td>0</td></tr>
+<tr><td>3</td><td>33%</td><td>22%</td><td>0.5 Mbit/s</td><td>180p, 15 fps</td><td>1 ms</td><td>0%</td><td>0</td></tr>
+<tr><td>4</td><td>43%</td><td>25%</td><td>0.8 Mbit/s</td><td>180p, 15 fps</td><td>1 ms</td><td>0%</td><td>0</td></tr>
+<tr><td>5</td><td>54%</td><td>31%</td><td>1.0 Mbit/s</td><td>180p, 15 fps</td><td>1 ms</td><td>0%</td><td>0</td></tr>
+<tr><td>6</td><td>69%</td><td>46%</td><td>1.3 Mbit/s</td><td>180p, 15 fps</td><td>3 ms</td><td>0%</td><td>0</td></tr>
+<tr><td>7</td><td>80%</td><td>52%</td><td>1.5 Mbit/s</td><td>180p, 15 fps</td><td>3 ms</td><td>0%</td><td>0</td></tr>
+<tr><td>8</td><td>94%</td><td>74%</td><td>1.8 Mbit/s</td><td>180p, 15 fps</td><td>7 ms</td><td>0.1%</td><td>12</td></tr>
+<tr><td>9</td><td>104%</td><td>93%</td><td>2.0 Mbit/s</td><td>180p, 15 fps</td><td>79 ms</td><td>0.8%</td><td>220</td></tr>
+</tbody>
+</table></div>
+<p>The tiles in that window are small, so the cameras went out small. Someone drawn
+larger, pinned or with the call given the whole window, is sent larger, up to
+what the call&#39;s size allows.</p>
+<p>Ten browsers with every camera on needed more than the machine&#39;s 12 threads. It
+was busy all the time and the call broke down there, with a round trip of 1.7
+seconds. Each person&#39;s own share grew by 10 to 14 points of a core with each
+person who joined, which puts ten at about 115% of a core each on separate
+computers, a fifth of this desktop&#39;s six cores. Ten people did fit with fewer
+cameras:</p>
+<div class="doc-table" tabindex="0" role="region" aria-label="Table"><table>
+<thead><tr><th>Ten people</th><th>CPU per person</th><th>Machine busy</th><th>Upload per person</th><th>Round trip p95</th><th>Audio concealed</th><th>Freezes</th></tr></thead>
+<tbody>
+<tr><td>4 on camera</td><td>94% on camera, 52% off</td><td>63%</td><td>2.3 Mbit/s on camera, 0.4 off</td><td>4 ms</td><td>0%</td><td>0</td></tr>
+<tr><td>Voice only</td><td>28%</td><td>30%</td><td>0.4 Mbit/s</td><td>1 ms</td><td>0%</td><td>0</td></tr>
+</tbody>
+</table></div>
+<p>Bigger calls are mostly people listening. With two cameras on, two people
+talking and everyone else muted:</p>
+<div class="doc-table" tabindex="0" role="region" aria-label="Table"><table>
+<thead><tr><th>People</th><th>CPU per person</th><th>Machine busy</th><th>Upload per person, on average</th><th>Round trip p95</th><th>Audio concealed</th></tr></thead>
+<tbody>
+<tr><td>12</td><td>31%</td><td>38%</td><td>0.5 Mbit/s</td><td>2 ms</td><td>0%</td></tr>
+<tr><td>16</td><td>37%</td><td>70%</td><td>0.5 Mbit/s</td><td>5 ms</td><td>0%</td></tr>
+</tbody>
+</table></div>
+<p>While a muted microphone still sent silence, twelve such people cost 66% of a
+core each with the machine 76% busy, and sixteen could not all get into the
+call. Twenty were not measured. At sixteen the machine was already 70% busy,
+more than the browsers&#39; own share, because every browser&#39;s sound went through
+its one audio engine, which on separate computers each would have to itself.</p>
+<p>Before any of this, with the camera sized to the call alone, seven people with
+every camera on cost 138% of a core each with the machine 96% busy, and eight
+could not all get into the call.</p>
+<p>Most of what is left is the mesh itself. Of each person&#39;s 80% in a call of seven,
+the page took 50%, nearly all of it WebRTC encoding, decoding and sending, and
+3% the page&#39;s own script. Drawing took 17%, the network 6%, and sound and the
+camera 3% each. Voice alone was 20% of the whole. Capturing the camera only as
+big as anyone was sent it saved another 3 points, too few to be worth a softer
+preview of yourself.</p>
+<p>Download is the same as upload, since everyone receives what everyone sends.
+Over loopback the network adds no delay or loss, so round trip and jitter show
+only what the load did to the call. A connection with less upload than the
+table says holds the picture back further by itself.</p>
+<p>Not measured: real networks with delay and loss, calls through a TURN relay,
+slower laptops, the desktop app (the same Chromium engine), and screen sharing in
+a call this size, which goes to each viewer no taller than they draw it and at
+up to 1080p. To measure on your own computers, build the web client and run the
+script. <code>--sizes</code>, <code>--seconds</code>, <code>--camera=off</code>, <code>--cameras</code> (how many turn
+theirs on) and <code>--browser=shell</code> (Playwright&#39;s headless shell, which draws in
+software) change what it measures:</p>
+<pre tabindex="0"><code class="language-sh">pnpm --filter @ownbase/web build
+pnpm --filter @ownbase/server exec tsx ../../scripts/measure-calls.mts --out=calls.json</code></pre>
+<h2 id="what-the-desktop-app-holds-in-memory">What the desktop app holds in memory<a class="doc-anchor" href="#what-the-desktop-app-holds-in-memory" aria-label="Link to What the desktop app holds in memory">#</a></h2>
+<p>Measured on 12 November 2026 with <code>scripts/measure-memory.mts</code>, on the same
+machine: the built desktop app, joined to a workspace with 600 messages and
+eight large pictures in one channel, then in a huddle of four. The figure is
+the private working set of all the app&#39;s processes together, which is what
+Task Manager shows as Memory.</p>
+<div class="doc-table" tabindex="0" role="region" aria-label="Table"><table>
+<thead><tr><th>Stage</th><th>Memory</th></tr></thead>
+<tbody>
+<tr><td>Welcome screen</td><td>118 MiB</td></tr>
+<tr><td>Workspace, just opened</td><td>158 MiB</td></tr>
+<tr><td>Workspace, after reading back a long channel</td><td>203 MiB</td></tr>
+<tr><td>Huddle of four, sound only</td><td>237 MiB</td></tr>
+<tr><td>Huddle of four, every camera on</td><td>268 MiB</td></tr>
+<tr><td>Huddle of four, cameras off again</td><td>254 MiB</td></tr>
+<tr><td>After leaving</td><td>228 MiB</td></tr>
+</tbody>
+</table></div>
+<p>Before the four changes below, the same run read 232 MiB after reading back
+the channel, 281 MiB with sound only, 337 MiB once the cameras were off again,
+and 286 MiB after leaving. Each was found with that script:</p>
+<ul>
+<li>A camera or share that sends someone nothing is set to an eighth of its
+size as well as stopped. The browser keeps a video encoder for every other
+person for the rest of the call once a picture has gone to them, holding
+working pictures at whatever size the sender is set to: 12 MiB each at 640 by
+360 and 28 MiB each at 960 by 540, with the camera off.</li>
+<li>The conversation&#39;s messages are drawn again only for a change to them. A
+call starting or a dialog opening used to draw all of them again, and the
+second copy of each that this leaves cost 14 MiB for a full history.</li>
+<li>Pictures no longer on screen stay held up to 8 MiB, not 32. They are held
+in the app&#39;s main process, which is where the rest went.</li>
+<li>A message&#39;s toolbar is made only while the pointer is on the message or
+focus is in it. Its nine buttons and six icons were two thirds of every row,
+for all 300 of a long conversation: 22 MiB.</li>
+</ul>
+<p>Most of what is left is not the conversation&#39;s. In a call with every camera
+on, the app&#39;s main process, the graphics process and the sound, camera and
+network services hold about 133 MiB between them before the page holds
+anything, and the page holds 52 MiB with a workspace just opened.</p>
+<p>To measure a build of your own, on Windows:</p>
+<pre tabindex="0"><code class="language-sh">pnpm --filter @ownbase/web build
+pnpm --filter @ownbase/desktop build
+pnpm --filter @ownbase/server exec tsx ../../scripts/measure-memory.mts --out=memory.json</code></pre>
+        </article>
+        <nav class="docs-pager" aria-label="Pages"><a class="docs-prev" href="/docs/hosting/a-windows-server-as-a-service"><span>Previous</span>A Windows server, as a service</a><a class="docs-next" href="/docs/hosting/attachment-storage"><span>Next</span>Attachment storage</a></nav>
+        <p class="docs-source">This page is made from <a href="https://github.com/Blazeiscoding/OwnBase/blob/main/docs/DEPLOYMENT.md#voice-and-huddles">docs/DEPLOYMENT.md</a>.</p>
+      </main>
+    </div>
+
+    <footer class="end guide-foot">
+      <div class="footer wrap">
+        <a class="brand" href="/">
+          <img src="/ownbase.svg?v=2" alt="" width="24" height="24" />
+          <span>OwnBase</span>
+        </a>
+        <ul class="footer-links">
+          <li><a href="/host">Hosting guide</a></li>
+          <li><a href="/docs/">Docs</a></li>
+          <li><a href="https://github.com/Blazeiscoding/OwnBase">GitHub</a></li>
+          <li><a href="https://github.com/Blazeiscoding/OwnBase/blob/main/SECURITY.md">Security</a></li>
+          <li><a href="https://github.com/Blazeiscoding/OwnBase/blob/main/docs/PLANS.md">Plans</a></li>
+        </ul>
+        <p class="legal">
+          OwnBase is in alpha. MIT licensed, except the Enterprise code in <code>ee/</code>. Not
+          affiliated with Slack or Salesforce.
+        </p>
+      </div>
+    </footer>
+  </body>
+</html>

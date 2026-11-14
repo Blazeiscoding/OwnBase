@@ -1,0 +1,287 @@
+<!doctype html>
+<!-- Written by scripts/generate-docs-site.mjs from docs/DEPLOYMENT.md. Edit that, not this. -->
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>An Enterprise license · Hosting OwnBase · OwnBase docs</title>
+    <meta name="description" content="The server is the free edition until it is given an Enterprise license, the file OwnBase sends: ownbase-server --data ./data --license ./acme.license…" />
+    <link rel="canonical" href="https://ownbase.site/docs/hosting/an-enterprise-license" />
+    <meta property="og:title" content="An Enterprise license · Hosting OwnBase · OwnBase docs" />
+    <meta property="og:description" content="The server is the free edition until it is given an Enterprise license, the file OwnBase sends: ownbase-server --data ./data --license ./acme.license…" />
+    <meta property="og:type" content="article" />
+    <meta property="og:url" content="https://ownbase.site/docs/hosting/an-enterprise-license" />
+    <meta property="og:site_name" content="OwnBase" />
+    <meta property="og:image" content="https://ownbase.site/og.png?v=2" />
+    <meta name="theme-color" content="#0b0a20" />
+    <link rel="preload" href="/fonts/onest-latin-wght-normal.woff2" as="font" type="font/woff2" crossorigin />
+    <link rel="icon" href="/ownbase.svg?v=2" type="image/svg+xml" />
+    <link rel="stylesheet" href="/site.css?v=7cf174c67f" />
+    <link rel="stylesheet" href="/docs.css?v=30dafeac35" />
+    <script src="/docs.js?v=123540c9d0" defer></script>
+  </head>
+  <body class="docs-body" data-search="/docs/search.json?v=c49ebd883a" data-guide="hosting">
+    <a class="skip" href="#main">Skip to content</a>
+
+    <header class="guide-head">
+      <nav class="nav wrap" aria-label="Main">
+        <a class="brand" href="/">
+          <img src="/ownbase.svg?v=2" alt="" width="32" height="32" />
+          <span>OwnBase</span>
+          <span class="alpha">Alpha</span>
+        </a>
+        <ul class="nav-links">
+          <li><a href="/#host">Hosting</a></li>
+          <li><a href="/host">Guide</a></li>
+          <li><a href="/docs/" aria-current="page">Docs</a></li>
+          <li><a href="/#download">Download</a></li>
+          <li><a href="https://github.com/Blazeiscoding/OwnBase">GitHub</a></li>
+        </ul>
+        <a class="btn btn-small btn-light" href="/#download">Get OwnBase</a>
+      </nav>
+    </header>
+
+    <div class="docs wrap">
+      <aside class="docs-side">
+        <div class="docs-search" role="search" hidden>
+          <label class="sr-only" for="docs-query">Search the docs</label>
+          <input id="docs-query" type="search" placeholder="Search the docs" autocomplete="off" spellcheck="false" />
+          <p class="docs-status" aria-live="polite"></p>
+          <div class="docs-results" hidden></div>
+        </div>
+        <details class="docs-nav" open>
+          <summary>All sections</summary>
+          <nav aria-label="Docs">
+            <p class="docs-group">Hosting OwnBase</p>
+            <ul>
+              <li><a href="/docs/hosting/">Overview</a></li>
+              <li><a href="/docs/hosting/windows-and-lan">Windows and LAN</a></li>
+              <li><a href="/docs/hosting/temporary-internet-sharing-with-cloudflare-tunnel">Temporary internet sharing with Cloudflare Tunnel</a></li>
+              <li><a href="/docs/hosting/docker-and-vps">Docker and VPS</a></li>
+              <li><a href="/docs/hosting/a-linux-server-with-systemd">A Linux server with systemd</a></li>
+              <li><a href="/docs/hosting/a-windows-server-as-a-service">A Windows server, as a service</a></li>
+              <li><a href="/docs/hosting/voice-and-huddles">Voice and huddles</a></li>
+              <li><a href="/docs/hosting/attachment-storage">Attachment storage</a></li>
+              <li><a href="/docs/hosting/backups-restore-updates">Backups, restore, updates</a></li>
+              <li><a href="/docs/hosting/moving-in-from-slack">Moving in from Slack</a></li>
+              <li><a href="/docs/hosting/taking-your-data-out">Taking your data out</a></li>
+              <li><a href="/docs/hosting/deletion-and-retention">Deletion and retention</a></li>
+              <li><a href="/docs/hosting/integration-delivery">Integration delivery</a></li>
+              <li><a href="/docs/hosting/link-previews">Link previews</a></li>
+              <li><a href="/docs/hosting/notifications-while-the-browser-is-closed">Notifications while the browser is closed</a></li>
+              <li><a href="/docs/hosting/behind-a-reverse-proxy">Behind a reverse proxy</a></li>
+              <li><a href="/docs/hosting/request-limits">Request limits</a></li>
+              <li><a href="/docs/hosting/password-hashing">Password hashing</a></li>
+              <li><a href="/docs/hosting/changing-a-workspace-address-and-keeping-local-work">Changing a workspace address and keeping local work</a></li>
+              <li><a href="/docs/hosting/desktop-saved-sign-ins">Desktop saved sign-ins</a></li>
+              <li><a href="/docs/hosting/the-administrative-record">The administrative record</a></li>
+              <li><a href="/docs/hosting/invites">Invites</a></li>
+              <li><a href="/docs/hosting/who-may-join">Who may join</a></li>
+              <li><a href="/docs/hosting/guests">Guests</a></li>
+              <li><a href="/docs/hosting/a-plans-members">A plan&#39;s members</a></li>
+              <li><a href="/docs/hosting/an-enterprise-license" aria-current="page">An Enterprise license</a></li>
+              <li><a href="/docs/hosting/hosting-workspaces-for-others">Hosting workspaces for others</a></li>
+              <li><a href="/docs/hosting/current-boundaries">Current boundaries</a></li>
+            </ul>
+            <p class="docs-group">Integration API contract</p>
+            <ul>
+              <li><a href="/docs/integrations/">Overview</a></li>
+              <li><a href="/docs/integrations/setting-up-an-app">Setting up an app</a></li>
+              <li><a href="/docs/integrations/identifiers">Identifiers</a></li>
+              <li><a href="/docs/integrations/verifying-requests-from-this-server">Verifying requests from this server</a></li>
+              <li><a href="/docs/integrations/web-api-methods">Web API methods</a></li>
+              <li><a href="/docs/integrations/incoming-webhooks">Incoming webhooks</a></li>
+              <li><a href="/docs/integrations/slash-commands">Slash commands</a></li>
+              <li><a href="/docs/integrations/interactive-buttons">Interactive buttons</a></li>
+              <li><a href="/docs/integrations/modals">Modals</a></li>
+              <li><a href="/docs/integrations/events">Events</a></li>
+              <li><a href="/docs/integrations/block-kit">Block Kit</a></li>
+              <li><a href="/docs/integrations/the-native-client-protocol">The native client protocol</a></li>
+            </ul>
+          </nav>
+        </details>
+      </aside>
+
+      <aside class="docs-toc" aria-labelledby="toc-title">
+        <p id="toc-title" class="docs-toc-title">On this page</p>
+        <ul>
+          <li class="toc-3"><a href="#single-sign-on">Single sign-on</a></li>
+          <li class="toc-3"><a href="#single-sign-on-with-saml">Single sign-on with SAML</a></li>
+          <li class="toc-3"><a href="#scim-provisioning">SCIM provisioning</a></li>
+          <li class="toc-3"><a href="#compliance-legal-hold-export-and-sending-the-record">Compliance: legal hold, export and sending the record</a></li>
+        </ul>
+      </aside>
+      <main id="main" class="docs-main">
+        <p class="docs-crumb"><a href="/docs/">Docs</a> / <a href="/docs/hosting/">Hosting OwnBase</a></p>
+        <article class="doc">
+        <h1 id="an-enterprise-license">An Enterprise license</h1>
+        
+<p>The server is the free edition until it is given an Enterprise license, the file
+OwnBase sends:</p>
+<pre tabindex="0"><code class="language-sh">ownbase-server --data ./data --license ./acme.license</code></pre>
+<p><code>OWNBASE_LICENSE_FILE</code> names the file from the environment, and <code>OWNBASE_LICENSE</code>
+holds the license itself, for a secret store; give one of them. The server checks it
+offline when it starts. A license that is not one, was changed, or cannot be read
+stops the server with the reason. One that has ended keeps its features for 14 days,
+and the owner and administrators see a line under the conversation&#39;s header saying
+until when; then the features turn off. Within 30 days of the end, and when the
+workspace has more members than the license covers, they are told too. Chat, sign-in
+and joining never depend on a license. Diagnostics shows where the license stands,
+and <code>GET /api/admin/license</code> answers the same for the owner and administrators.</p>
+<p>The Enterprise code is in <code>ee/</code>, source-available under its own license; the rest of
+the server is MIT. See <a href="https://github.com/Blazeiscoding/OwnBase/blob/main/ee/README.md">ee/README.md</a>.</p>
+<h2 id="single-sign-on">Single sign-on<a class="doc-anchor" href="#single-sign-on" aria-label="Link to Single sign-on">#</a></h2>
+<p>A license with <code>sso</code> lets the owner sign people in through the company&#39;s OpenID
+Connect provider, such as Okta, Microsoft Entra ID, Google Workspace or Keycloak. The
+server needs its public address, since the provider sends people back to it:</p>
+<pre tabindex="0"><code class="language-sh">ownbase-server --data ./data --license ./acme.license --public-url https://chat.acme.com</code></pre>
+<p>At the provider, register a web application with the sign-in redirect address
+<code>https://chat.acme.com/api/sso/callback</code>. Then, in Workspace settings under Sign-in,
+give its issuer, client ID and client secret; OwnBase reads the rest from the issuer&#39;s
+<code>/.well-known/openid-configuration</code> and checks it before saving. For Entra ID, use the
+tenant&#39;s own issuer (<code>https://login.microsoftonline.com/&lt;tenant id&gt;/v2.0</code>), not the
+shared one.</p>
+<p>The sign-in screen then has a &quot;Sign in with&quot; button. People who have an account link
+it once in Account settings, under Security. The owner can let the provider make
+accounts for people new to the workspace, only for verified addresses at the domains
+given when any are, and can require single sign-on, after which passwords sign in the
+owner alone.
+The desktop app signs in through the system&#39;s browser and comes back to itself.</p>
+<h2 id="single-sign-on-with-saml">Single sign-on with SAML<a class="doc-anchor" href="#single-sign-on-with-saml" aria-label="Link to Single sign-on with SAML">#</a></h2>
+<p>The same <code>sso</code> license feature covers SAML 2.0, for providers set up that way, such
+as Okta, Microsoft Entra ID, AD FS, Google Workspace or Keycloak. It needs the public
+address too. At the provider, add a SAML application with:</p>
+<ul>
+<li><strong>Entity ID</strong> (Okta: audience URI, Entra: identifier):
+<code>https://chat.acme.com/api/saml/metadata</code>. That address also serves this workspace&#39;s
+metadata, for providers that read it, once the license is in.</li>
+<li><strong>Sign-in address</strong> (the assertion consumer service, Okta: single sign-on URL,
+Entra: reply URL): <code>https://chat.acme.com/api/saml/acs</code>.</li>
+<li><strong>Name ID</strong>: a value that stays the same for each person, such as their email address
+or a persistent ID. A transient one is refused, since nobody could be linked by it.</li>
+<li><strong>Attributes</strong>: <code>email</code> and <code>displayName</code>, or the provider&#39;s usual names for them.
+Entra&#39;s own claims work as they come.</li>
+</ul>
+<p>Then, in Workspace settings under Sign-in, fill in &quot;Single sign-on with SAML&quot; with what
+the provider gives: its sign-in address (Okta: identity provider single sign-on URL,
+Entra: login URL), its entity ID (Okta: identity provider issuer, Entra: Microsoft Entra
+identifier) and its signing certificate. Paste the certificate as it comes; while the
+provider changes certificates, put the new one after the old one, separated by a comma.</p>
+<p>Sign-in begins in OwnBase. An answer the provider sends unasked, such as from its
+dashboard of apps, is refused, so point the dashboard tile at the workspace&#39;s address
+(Entra: sign-on URL). The answer must be signed with that certificate, on the assertion
+or on the response around it; come from that entity ID; be for this workspace; be in
+date, within a minute of this server&#39;s clock; and answer the sign-in it ends. It is
+used once. An email address in it counts as verified, since the provider is the
+company&#39;s directory, so give new accounts only to domains whose addresses the
+provider controls.</p>
+<p>Linking, new accounts and requiring single sign-on work as for OpenID Connect. Both
+can be set up at once: the sign-in screen then has a button for each, and requiring
+either one turns passwords off for everyone but the owner.</p>
+<h2 id="scim-provisioning">SCIM provisioning<a class="doc-anchor" href="#scim-provisioning" aria-label="Link to SCIM provisioning">#</a></h2>
+<p>A license with <code>scim</code> lets the company&#39;s identity provider, such as Okta or Microsoft
+Entra ID, manage who is in the workspace over SCIM 2.0: it adds people, keeps their
+names current, and deactivates them when they leave.</p>
+<p>In Workspace settings under Sign-in, the owner presses Make a token in &quot;Provisioning
+with SCIM&quot;. The token is shown once; copy it into the provider&#39;s SCIM settings as the
+bearer token (Okta: HTTP header, Entra: secret token). Give the provider the base
+address <code>https://chat.acme.com/scim/v2</code>, the server&#39;s public address followed by
+<code>/scim/v2</code>; people are at <code>/scim/v2/Users</code>. Making a new token stops the old one at
+once, and Turn off stops the provider changing anything. People it added stay either way.</p>
+<p>Someone the provider adds gets an account with no password and a username from the first
+part of their SCIM userName, usually their address, and joins the public channels as anyone joining does. They sign in with
+single sign-on: the first time the provider signs them in with a verified address it
+gave over SCIM, that account is theirs. The provider cannot change apps or guests, and
+never deactivates the owner.</p>
+<p>Deactivating someone, or deleting them, which OwnBase treats the same way, ends their
+sessions at once and keeps their messages; nobody is deleted. Adding them again brings
+back the same account. Groups are not mapped to channels: a provider asking for groups
+gets an empty list, and making one is refused, so leave group push off. Assigning a
+group to the application still works, since the provider then sends its people one by
+one.</p>
+<p>When the license ends, everyone the provider added stays, and it can still rename,
+deactivate and reactivate them, but it cannot add anyone new.</p>
+<p>Turning OpenID Connect, SAML or provisioning on or off, changing their settings and
+making a new SCIM token all go in the <a href="/docs/hosting/the-administrative-record#the-administrative-record">administrative record</a>,
+with who did it. The entry names the settings that changed, never a secret, certificate
+or token.</p>
+<h2 id="compliance-legal-hold-export-and-sending-the-record">Compliance: legal hold, export and sending the record<a class="doc-anchor" href="#compliance-legal-hold-export-and-sending-the-record" aria-label="Link to Compliance: legal hold, export and sending the record">#</a></h2>
+<p>A license with <code>compliance</code> adds a Compliance tab to Workspace settings, for the
+owner. It has three parts.</p>
+<p><strong>Legal hold.</strong> Name people by username and channels by name. From then on, messages
+written by the people held, and every message in the channels held, are kept whatever
+their age: the retention sweep skips them and the whole thread each is in, and nobody
+can delete them, not their author, an administrator, an app, or a report&#39;s removal.
+Deleting one is refused with &quot;This message is kept for the workspace&#39;s records, so it
+cannot be deleted.&quot; Deleting the first message of a thread a held message is in is
+refused too, since that deletes the replies. Editing still works, and the words an edit
+replaces are kept for the export. The people held are not told, apart from that
+refusal. Direct conversations cannot be named; hold the people in them instead, which
+keeps what they wrote there.</p>
+<p><strong>Export.</strong> Choose a range of days (in UTC) and people, channels or both, save, then
+press Download the export. It downloads once, by a link that works for a minute, as a
+zip:</p>
+<ul>
+<li><code>messages.jsonl</code>, a line for each message written in the range by the people chosen,
+anywhere, every message in their direct conversations whoever wrote it, and every
+message in the channels chosen: thread replies and the server&#39;s notes about calls
+included, oldest first.</li>
+<li><code>conversations.jsonl</code> and <code>people.jsonl</code>, for the ids those lines name.</li>
+<li><code>files/&lt;id&gt;/&lt;name&gt;</code> for each file still attached.</li>
+<li><code>manifest.json</code>: the range, the choice, who made it and when, and counts.</li>
+</ul>
+<p>What &quot;edits&quot; and &quot;deletions&quot; can honestly hold follows from what the server keeps (see
+<a href="/docs/hosting/deletion-and-retention#what-deleting-a-message-does">What deleting a message does</a>). An edited message has
+its newest words and when it was last edited; earlier words are there only for messages
+that were held when they were edited. A deleted message has who wrote it, where, when it
+was sent and when it was deleted, and nothing of what it said: the words and files were
+erased at the time. Messages retention has already removed are not there at all.</p>
+<p><strong>Sending the record.</strong> Each entry of the
+<a href="/docs/hosting/the-administrative-record#the-administrative-record">administrative record</a> goes, in order, to a webhook, to
+syslog, or both:</p>
+<ul>
+<li>A webhook gets <code>POST {&quot;entries&quot;: [...]}</code> as JSON, signed as OwnBase signs what it
+sends apps: <code>x-ownbase-signature</code> is <code>v0=</code> and the HMAC-SHA256, with the signing secret
+you give, of <code>v0:&lt;x-ownbase-request-timestamp&gt;:&lt;body&gt;</code>. It goes through the same guard
+as app webhooks, so a private address is refused unless the server runs with
+<code>--allow-private-hooks</code>. Any answer other than 2xx counts as a failure.</li>
+<li>Syslog takes <code>udp://host:514</code>, <code>tcp://host:514</code> (octet counted, RFC 6587) or
+<code>tls://host:6514</code>. Each entry is one RFC 5424 message, facility log audit, with the
+entry&#39;s action as the message id and the entry as JSON.</li>
+</ul>
+<p>Each entry has its <code>id</code>, <code>time</code>, the username of who did it as <code>actor</code>, the action, its
+target and details, and never what anyone wrote. A destination set up for the first time
+gets the whole record first. A failure is shown in the panel and tried again every
+minute, from the entry after the last one sent, so nothing is skipped, though an entry
+can arrive twice; use its <code>id</code> to tell.</p>
+<p>Holds, exports and changes to where the record goes are themselves in the record. When
+the license ends, holds stay in force and can be lifted but not added to, no new export
+can be made, and nothing more is sent until the license is renewed; then everything
+recorded meanwhile goes.</p>
+        </article>
+        <nav class="docs-pager" aria-label="Pages"><a class="docs-prev" href="/docs/hosting/a-plans-members"><span>Previous</span>A plan&#39;s members</a><a class="docs-next" href="/docs/hosting/hosting-workspaces-for-others"><span>Next</span>Hosting workspaces for others</a></nav>
+        <p class="docs-source">This page is made from <a href="https://github.com/Blazeiscoding/OwnBase/blob/main/docs/DEPLOYMENT.md#an-enterprise-license">docs/DEPLOYMENT.md</a>.</p>
+      </main>
+    </div>
+
+    <footer class="end guide-foot">
+      <div class="footer wrap">
+        <a class="brand" href="/">
+          <img src="/ownbase.svg?v=2" alt="" width="24" height="24" />
+          <span>OwnBase</span>
+        </a>
+        <ul class="footer-links">
+          <li><a href="/host">Hosting guide</a></li>
+          <li><a href="/docs/">Docs</a></li>
+          <li><a href="https://github.com/Blazeiscoding/OwnBase">GitHub</a></li>
+          <li><a href="https://github.com/Blazeiscoding/OwnBase/blob/main/SECURITY.md">Security</a></li>
+          <li><a href="https://github.com/Blazeiscoding/OwnBase/blob/main/docs/PLANS.md">Plans</a></li>
+        </ul>
+        <p class="legal">
+          OwnBase is in alpha. MIT licensed, except the Enterprise code in <code>ee/</code>. Not
+          affiliated with Slack or Salesforce.
+        </p>
+      </div>
+    </footer>
+  </body>
+</html>

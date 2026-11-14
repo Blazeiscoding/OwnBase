@@ -1,0 +1,262 @@
+<!doctype html>
+<!-- Written by scripts/generate-docs-site.mjs from docs/DEPLOYMENT.md. Edit that, not this. -->
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Windows and LAN · Hosting OwnBase · OwnBase docs</title>
+    <meta name="description" content="Build an installer with pnpm build:win. The output is apps/desktop/release/OwnBase-Setup-0.2.0.exe. Local builds are unsigned unless you supply a signing…" />
+    <link rel="canonical" href="https://ownbase.site/docs/hosting/windows-and-lan" />
+    <meta property="og:title" content="Windows and LAN · Hosting OwnBase · OwnBase docs" />
+    <meta property="og:description" content="Build an installer with pnpm build:win. The output is apps/desktop/release/OwnBase-Setup-0.2.0.exe. Local builds are unsigned unless you supply a signing…" />
+    <meta property="og:type" content="article" />
+    <meta property="og:url" content="https://ownbase.site/docs/hosting/windows-and-lan" />
+    <meta property="og:site_name" content="OwnBase" />
+    <meta property="og:image" content="https://ownbase.site/og.png?v=2" />
+    <meta name="theme-color" content="#0b0a20" />
+    <link rel="preload" href="/fonts/onest-latin-wght-normal.woff2" as="font" type="font/woff2" crossorigin />
+    <link rel="icon" href="/ownbase.svg?v=2" type="image/svg+xml" />
+    <link rel="stylesheet" href="/site.css?v=7cf174c67f" />
+    <link rel="stylesheet" href="/docs.css?v=30dafeac35" />
+    <script src="/docs.js?v=123540c9d0" defer></script>
+  </head>
+  <body class="docs-body" data-search="/docs/search.json?v=c49ebd883a" data-guide="hosting">
+    <a class="skip" href="#main">Skip to content</a>
+
+    <header class="guide-head">
+      <nav class="nav wrap" aria-label="Main">
+        <a class="brand" href="/">
+          <img src="/ownbase.svg?v=2" alt="" width="32" height="32" />
+          <span>OwnBase</span>
+          <span class="alpha">Alpha</span>
+        </a>
+        <ul class="nav-links">
+          <li><a href="/#host">Hosting</a></li>
+          <li><a href="/host">Guide</a></li>
+          <li><a href="/docs/" aria-current="page">Docs</a></li>
+          <li><a href="/#download">Download</a></li>
+          <li><a href="https://github.com/Blazeiscoding/OwnBase">GitHub</a></li>
+        </ul>
+        <a class="btn btn-small btn-light" href="/#download">Get OwnBase</a>
+      </nav>
+    </header>
+
+    <div class="docs wrap">
+      <aside class="docs-side">
+        <div class="docs-search" role="search" hidden>
+          <label class="sr-only" for="docs-query">Search the docs</label>
+          <input id="docs-query" type="search" placeholder="Search the docs" autocomplete="off" spellcheck="false" />
+          <p class="docs-status" aria-live="polite"></p>
+          <div class="docs-results" hidden></div>
+        </div>
+        <details class="docs-nav" open>
+          <summary>All sections</summary>
+          <nav aria-label="Docs">
+            <p class="docs-group">Hosting OwnBase</p>
+            <ul>
+              <li><a href="/docs/hosting/">Overview</a></li>
+              <li><a href="/docs/hosting/windows-and-lan" aria-current="page">Windows and LAN</a></li>
+              <li><a href="/docs/hosting/temporary-internet-sharing-with-cloudflare-tunnel">Temporary internet sharing with Cloudflare Tunnel</a></li>
+              <li><a href="/docs/hosting/docker-and-vps">Docker and VPS</a></li>
+              <li><a href="/docs/hosting/a-linux-server-with-systemd">A Linux server with systemd</a></li>
+              <li><a href="/docs/hosting/a-windows-server-as-a-service">A Windows server, as a service</a></li>
+              <li><a href="/docs/hosting/voice-and-huddles">Voice and huddles</a></li>
+              <li><a href="/docs/hosting/attachment-storage">Attachment storage</a></li>
+              <li><a href="/docs/hosting/backups-restore-updates">Backups, restore, updates</a></li>
+              <li><a href="/docs/hosting/moving-in-from-slack">Moving in from Slack</a></li>
+              <li><a href="/docs/hosting/taking-your-data-out">Taking your data out</a></li>
+              <li><a href="/docs/hosting/deletion-and-retention">Deletion and retention</a></li>
+              <li><a href="/docs/hosting/integration-delivery">Integration delivery</a></li>
+              <li><a href="/docs/hosting/link-previews">Link previews</a></li>
+              <li><a href="/docs/hosting/notifications-while-the-browser-is-closed">Notifications while the browser is closed</a></li>
+              <li><a href="/docs/hosting/behind-a-reverse-proxy">Behind a reverse proxy</a></li>
+              <li><a href="/docs/hosting/request-limits">Request limits</a></li>
+              <li><a href="/docs/hosting/password-hashing">Password hashing</a></li>
+              <li><a href="/docs/hosting/changing-a-workspace-address-and-keeping-local-work">Changing a workspace address and keeping local work</a></li>
+              <li><a href="/docs/hosting/desktop-saved-sign-ins">Desktop saved sign-ins</a></li>
+              <li><a href="/docs/hosting/the-administrative-record">The administrative record</a></li>
+              <li><a href="/docs/hosting/invites">Invites</a></li>
+              <li><a href="/docs/hosting/who-may-join">Who may join</a></li>
+              <li><a href="/docs/hosting/guests">Guests</a></li>
+              <li><a href="/docs/hosting/a-plans-members">A plan&#39;s members</a></li>
+              <li><a href="/docs/hosting/an-enterprise-license">An Enterprise license</a></li>
+              <li><a href="/docs/hosting/hosting-workspaces-for-others">Hosting workspaces for others</a></li>
+              <li><a href="/docs/hosting/current-boundaries">Current boundaries</a></li>
+            </ul>
+            <p class="docs-group">Integration API contract</p>
+            <ul>
+              <li><a href="/docs/integrations/">Overview</a></li>
+              <li><a href="/docs/integrations/setting-up-an-app">Setting up an app</a></li>
+              <li><a href="/docs/integrations/identifiers">Identifiers</a></li>
+              <li><a href="/docs/integrations/verifying-requests-from-this-server">Verifying requests from this server</a></li>
+              <li><a href="/docs/integrations/web-api-methods">Web API methods</a></li>
+              <li><a href="/docs/integrations/incoming-webhooks">Incoming webhooks</a></li>
+              <li><a href="/docs/integrations/slash-commands">Slash commands</a></li>
+              <li><a href="/docs/integrations/interactive-buttons">Interactive buttons</a></li>
+              <li><a href="/docs/integrations/modals">Modals</a></li>
+              <li><a href="/docs/integrations/events">Events</a></li>
+              <li><a href="/docs/integrations/block-kit">Block Kit</a></li>
+              <li><a href="/docs/integrations/the-native-client-protocol">The native client protocol</a></li>
+            </ul>
+          </nav>
+        </details>
+      </aside>
+
+      <aside class="docs-toc" aria-labelledby="toc-title">
+        <p id="toc-title" class="docs-toc-title">On this page</p>
+        <ul>
+          <li class="toc-3"><a href="#closing-the-window-and-quitting">Closing the window, and quitting</a></li>
+          <li class="toc-3"><a href="#reopening-renaming-and-starting-with-the-computer">Reopening, renaming and starting with the computer</a></li>
+          <li class="toc-3"><a href="#backing-up-from-the-desktop">Backing up from the desktop</a></li>
+        </ul>
+      </aside>
+      <main id="main" class="docs-main">
+        <p class="docs-crumb"><a href="/docs/">Docs</a> / <a href="/docs/hosting/">Hosting OwnBase</a></p>
+        <article class="doc">
+        <h1 id="windows-and-lan">Windows and LAN</h1>
+        
+<p>Build an installer with <code>pnpm build:win</code>.
+The output is <code>apps/desktop/release/OwnBase-Setup-0.2.0.exe</code>. Local builds are
+unsigned unless you supply a signing certificate; Windows may show SmartScreen.
+A published release carries the installer, the server bundle and <code>SHA256SUMS</code>;
+check a download with <code>Get-FileHash -Algorithm SHA256 &lt;file&gt;</code> against that list.
+Its notes name the commit it was built and tested from, which Diagnostics in the
+app and <code>/api/server-info</code> on a server also report. Release installers are not
+code-signed yet.</p>
+<p>Every change to the app merged to <code>main</code> is built, tested and published as the
+next alpha (<code>v0.2.0-alpha.4</code> after <code>v0.2.0-alpha.3</code>) by the Release workflow, and
+the download buttons on the website offer the newest published release. A run by
+hand, or from a pushed version tag, still leaves a draft to look over first.
+Publishing that draft creates its tag, and a tag whose release is already out
+builds nothing, so no second draft appears.</p>
+<p>Releases were betas (<code>v0.1.0-beta.1</code> to <code>v0.1.0-beta.39</code>) until November 2026,
+when they became alphas of 0.2.0 so the versions keep rising. A Windows copy of a
+beta does not update to an alpha by itself, because electron-updater never moves
+a beta down to an alpha; install the newest alpha from the website once.</p>
+<p>Install, choose <strong>Host a workspace on this computer</strong>, name it, and create the
+owner account. Allow incoming TCP on the displayed port through the host firewall.
+Other desktop users can discover the workspace on the same LAN or connect using
+<code>192.168.1.42:8543</code>. Browsers can use the same address for chat.</p>
+<p>The host computer must stay running and awake. For temporary internet sharing,
+use <strong>Open to all</strong> and Cloudflare Tunnel as described below. A VPN such as
+Tailscale, a VPS, or a public IP with port forwarding are alternatives. An IP
+address alone does not bypass NAT, CGNAT, or firewalls. LAN discovery does not
+cross routers.</p>
+<p>Each hosted workspace has its own folder under the app&#39;s user-data folder
+(<code>%APPDATA%\OwnBase</code> on Windows, <code>~/Library/Application Support/OwnBase</code> on
+macOS, <code>~/.config/OwnBase</code> on Linux), in <code>hosted/w-&lt;random id&gt;/</code>. The folder is fixed when the workspace is created and
+does not follow its name, so two workspaces may share a name and renaming one
+moves nothing; folders made by earlier versions, named after the workspace, are
+adopted as they are. <strong>Manage hosting</strong> shows the running workspace&#39;s data folder.
+Advanced deployments can set <code>OWNBASE_USER_DATA_DIR</code> to choose the desktop profile location.</p>
+<h2 id="closing-the-window-and-quitting">Closing the window, and quitting<a class="doc-anchor" href="#closing-the-window-and-quitting" aria-label="Link to Closing the window, and quitting">#</a></h2>
+<p>While a workspace is hosted, or starting or stopping, closing OwnBase&#39;s window
+does not stop it. The window goes to the system tray, whose icon offers <strong>Open
+OwnBase</strong>, what is hosted and on which port, <strong>Stop hosting</strong> and <strong>Stop
+hosting and quit</strong>. Neither asks first, since each already says that hosting
+stops. Launching OwnBase again, or opening an <code>ownbase://</code>
+link,
+also brings the window back. On a desktop with no tray, closing minimizes the
+window instead. With nothing hosted, closing the last window quits on Windows and
+Linux; macOS keeps the app in the dock as usual.</p>
+<p>A bar under a workspace you are hosting says so and offers <strong>Manage hosting</strong>: the
+workspace&#39;s name, the addresses teammates connect to, its port and its data
+folder. Its <strong>Stop hosting</strong> stops at once, as the tray&#39;s does, and disconnects
+everyone connected. Quitting while hosting other than from the tray asks first.
+Messages, files and accounts stay on disk. Quitting
+waits for a start already under way, and for the server to finish what it is
+doing. If stopping fails, OwnBase stays open and says so. If it fails while
+quitting, you can keep OwnBase open or quit anyway; quitting anyway ends at
+once and may lose changes still being written, but never deletes workspace data.</p>
+<p>If the last-used hosting settings cannot be saved, the workspace keeps running and
+Manage hosting shows a warning.</p>
+<h2 id="reopening-renaming-and-starting-with-the-computer">Reopening, renaming and starting with the computer<a class="doc-anchor" href="#reopening-renaming-and-starting-with-the-computer" aria-label="Link to Reopening, renaming and starting with the computer">#</a></h2>
+<p>Every workspace hosted on this computer is listed under <strong>Hosted on this
+computer</strong> in the host dialog, where each can be started again with its messages,
+renamed, given a different port or backed up. The join screen offers the most
+recently hosted one back with one click. Use the list to reopen a workspace:
+creating a new one under the same name starts a separate, empty workspace, and
+the dialog says so. The workspace&#39;s owner and administrators can also rename it
+from <strong>Workspace settings</strong> while it runs, and the list takes the new name.</p>
+<p>While a workspace is running, <strong>When this computer starts</strong> offers two choices:
+<strong>Start hosting it when OwnBase opens</strong>, and, where the system supports it,
+<strong>Open OwnBase when you sign in to this computer</strong>. With both on, the workspace
+is back for teammates once the computer restarts and someone signs in, and
+OwnBase waits in the tray. Only one workspace can be chosen. Starting this way
+hosts on the network; a temporary <strong>Open to all</strong> link is never reopened by
+itself, since its address changes every time. When a stable address is set up (see
+below), a third choice appears: <strong>Also reopen it when the workspace starts with
+OwnBase</strong>. It is kept for that workspace and that address only. After starting,
+OwnBase opens the address the usual way, checking that it reaches this
+workspace, and new accounts need an invite. If the address has changed, cannot be
+reached or fails the check, the workspace keeps running on the network and the
+reason is shown the next time the window is opened. A restored workspace still held
+from a backup is never started this way. If the chosen workspace cannot
+start, the reason is shown the next time the window is opened.</p>
+<p>A port you chose for a workspace, when creating it or with Change port, is kept:
+if another program holds it, the workspace does not start and says so, rather
+than moving to another port. A workspace left on the usual port moves to a free
+one and Manage hosting says where.</p>
+<p>While nothing is running, the same section appears above the list whenever a
+workspace is chosen to start, a start failed, or OwnBase opens at sign-in, so
+a workspace that cannot start can be taken off starting with OwnBase, and
+OwnBase off sign-in, without starting it first or removing it from the list.</p>
+<p>Current limit: opening at sign-in has not been tried on an installed macOS system.
+If macOS holds the registration for approval, the dialog says to allow OwnBase
+under Login Items in System Settings.</p>
+<h2 id="backing-up-from-the-desktop">Backing up from the desktop<a class="doc-anchor" href="#backing-up-from-the-desktop" aria-label="Link to Backing up from the desktop">#</a></h2>
+<p><strong>Back up now</strong> copies a hosted workspace into a new folder you choose, and
+<strong>Automatic backups</strong> does the same every day or week into one folder, keeping
+the newest few. A copy is kept only if it holds the same workspace as the one
+listed, retention never removes the copy it has just made, and an older copy
+counts toward the number kept only after it passes the same check as
+<code>verify-backup</code>. A failed automatic copy keeps its error across restarts and waits
+one hour before retrying; repeated failures double that delay up to 24 hours.
+<strong>Back up now</strong> can make an immediate copy, and choosing an automatic backup
+folder explicitly resets the delay. <strong>Try the backup again</strong> in the tray or
+hosting window also retries immediately. Failed captures never trigger removal of
+older verified backups.</p>
+<p><strong>Restore from a backup…</strong> checks a backup, then restores it as a hosted
+workspace without starting it; it will not restore over a workspace already
+hosted here. A restored workspace is held until you put it back in use, and the
+hold survives restarting OwnBase. While held, it is listed as &quot;Restored, not
+in use yet&quot;, is taken off starting with OwnBase, and <strong>Look inside</strong> starts
+it on this computer only: nothing it had queued is sent, no app is called, it is
+not announced on the network and it cannot be opened to all. After restoring,
+the dialog says what the backup would bring back: sign-ins it still accepts,
+scheduled messages waiting, app events not yet delivered and the apps it calls.
+<strong>Put back in use…</strong> asks first, then starts it as the workspace itself, which
+clears the hold for good.</p>
+<p>Only Windows has been checked. The packaged tests close the window while hosting,
+read the tray menu, stop hosting from the tray and from Manage hosting, quit from
+the tray, and quit with nothing hosted; the system&#39;s own
+quit confirmation is answered by the test, never shown. Whether a
+tray appears on Linux depends on the desktop environment, and macOS has not been
+run.</p>
+        </article>
+        <nav class="docs-pager" aria-label="Pages"><a class="docs-prev" href="/docs/hosting/"><span>Previous</span>Overview</a><a class="docs-next" href="/docs/hosting/temporary-internet-sharing-with-cloudflare-tunnel"><span>Next</span>Temporary internet sharing with Cloudflare Tunnel</a></nav>
+        <p class="docs-source">This page is made from <a href="https://github.com/Blazeiscoding/OwnBase/blob/main/docs/DEPLOYMENT.md#windows-and-lan">docs/DEPLOYMENT.md</a>.</p>
+      </main>
+    </div>
+
+    <footer class="end guide-foot">
+      <div class="footer wrap">
+        <a class="brand" href="/">
+          <img src="/ownbase.svg?v=2" alt="" width="24" height="24" />
+          <span>OwnBase</span>
+        </a>
+        <ul class="footer-links">
+          <li><a href="/host">Hosting guide</a></li>
+          <li><a href="/docs/">Docs</a></li>
+          <li><a href="https://github.com/Blazeiscoding/OwnBase">GitHub</a></li>
+          <li><a href="https://github.com/Blazeiscoding/OwnBase/blob/main/SECURITY.md">Security</a></li>
+          <li><a href="https://github.com/Blazeiscoding/OwnBase/blob/main/docs/PLANS.md">Plans</a></li>
+        </ul>
+        <p class="legal">
+          OwnBase is in alpha. MIT licensed, except the Enterprise code in <code>ee/</code>. Not
+          affiliated with Slack or Salesforce.
+        </p>
+      </div>
+    </footer>
+  </body>
+</html>

@@ -1,0 +1,247 @@
+<!doctype html>
+<!-- Written by scripts/generate-docs-site.mjs from docs/INTEGRATIONS.md. Edit that, not this. -->
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Web API methods · Integration API contract · OwnBase docs</title>
+    <meta name="description" content="Methods are called at https://&lt;server&gt;/api/&lt;method&gt;, as POST, with the token as Authorization: Bearer xoxb-… or as a token field in the body. A body can…" />
+    <link rel="canonical" href="https://ownbase.site/docs/integrations/web-api-methods" />
+    <meta property="og:title" content="Web API methods · Integration API contract · OwnBase docs" />
+    <meta property="og:description" content="Methods are called at https://&lt;server&gt;/api/&lt;method&gt;, as POST, with the token as Authorization: Bearer xoxb-… or as a token field in the body. A body can…" />
+    <meta property="og:type" content="article" />
+    <meta property="og:url" content="https://ownbase.site/docs/integrations/web-api-methods" />
+    <meta property="og:site_name" content="OwnBase" />
+    <meta property="og:image" content="https://ownbase.site/og.png?v=2" />
+    <meta name="theme-color" content="#0b0a20" />
+    <link rel="preload" href="/fonts/onest-latin-wght-normal.woff2" as="font" type="font/woff2" crossorigin />
+    <link rel="icon" href="/ownbase.svg?v=2" type="image/svg+xml" />
+    <link rel="stylesheet" href="/site.css?v=7cf174c67f" />
+    <link rel="stylesheet" href="/docs.css?v=30dafeac35" />
+    <script src="/docs.js?v=123540c9d0" defer></script>
+  </head>
+  <body class="docs-body" data-search="/docs/search.json?v=c49ebd883a" data-guide="integrations">
+    <a class="skip" href="#main">Skip to content</a>
+
+    <header class="guide-head">
+      <nav class="nav wrap" aria-label="Main">
+        <a class="brand" href="/">
+          <img src="/ownbase.svg?v=2" alt="" width="32" height="32" />
+          <span>OwnBase</span>
+          <span class="alpha">Alpha</span>
+        </a>
+        <ul class="nav-links">
+          <li><a href="/#host">Hosting</a></li>
+          <li><a href="/host">Guide</a></li>
+          <li><a href="/docs/" aria-current="page">Docs</a></li>
+          <li><a href="/#download">Download</a></li>
+          <li><a href="https://github.com/Blazeiscoding/OwnBase">GitHub</a></li>
+        </ul>
+        <a class="btn btn-small btn-light" href="/#download">Get OwnBase</a>
+      </nav>
+    </header>
+
+    <div class="docs wrap">
+      <aside class="docs-side">
+        <div class="docs-search" role="search" hidden>
+          <label class="sr-only" for="docs-query">Search the docs</label>
+          <input id="docs-query" type="search" placeholder="Search the docs" autocomplete="off" spellcheck="false" />
+          <p class="docs-status" aria-live="polite"></p>
+          <div class="docs-results" hidden></div>
+        </div>
+        <details class="docs-nav" open>
+          <summary>All sections</summary>
+          <nav aria-label="Docs">
+            <p class="docs-group">Hosting OwnBase</p>
+            <ul>
+              <li><a href="/docs/hosting/">Overview</a></li>
+              <li><a href="/docs/hosting/windows-and-lan">Windows and LAN</a></li>
+              <li><a href="/docs/hosting/temporary-internet-sharing-with-cloudflare-tunnel">Temporary internet sharing with Cloudflare Tunnel</a></li>
+              <li><a href="/docs/hosting/docker-and-vps">Docker and VPS</a></li>
+              <li><a href="/docs/hosting/a-linux-server-with-systemd">A Linux server with systemd</a></li>
+              <li><a href="/docs/hosting/a-windows-server-as-a-service">A Windows server, as a service</a></li>
+              <li><a href="/docs/hosting/voice-and-huddles">Voice and huddles</a></li>
+              <li><a href="/docs/hosting/attachment-storage">Attachment storage</a></li>
+              <li><a href="/docs/hosting/backups-restore-updates">Backups, restore, updates</a></li>
+              <li><a href="/docs/hosting/moving-in-from-slack">Moving in from Slack</a></li>
+              <li><a href="/docs/hosting/taking-your-data-out">Taking your data out</a></li>
+              <li><a href="/docs/hosting/deletion-and-retention">Deletion and retention</a></li>
+              <li><a href="/docs/hosting/integration-delivery">Integration delivery</a></li>
+              <li><a href="/docs/hosting/link-previews">Link previews</a></li>
+              <li><a href="/docs/hosting/notifications-while-the-browser-is-closed">Notifications while the browser is closed</a></li>
+              <li><a href="/docs/hosting/behind-a-reverse-proxy">Behind a reverse proxy</a></li>
+              <li><a href="/docs/hosting/request-limits">Request limits</a></li>
+              <li><a href="/docs/hosting/password-hashing">Password hashing</a></li>
+              <li><a href="/docs/hosting/changing-a-workspace-address-and-keeping-local-work">Changing a workspace address and keeping local work</a></li>
+              <li><a href="/docs/hosting/desktop-saved-sign-ins">Desktop saved sign-ins</a></li>
+              <li><a href="/docs/hosting/the-administrative-record">The administrative record</a></li>
+              <li><a href="/docs/hosting/invites">Invites</a></li>
+              <li><a href="/docs/hosting/who-may-join">Who may join</a></li>
+              <li><a href="/docs/hosting/guests">Guests</a></li>
+              <li><a href="/docs/hosting/a-plans-members">A plan&#39;s members</a></li>
+              <li><a href="/docs/hosting/an-enterprise-license">An Enterprise license</a></li>
+              <li><a href="/docs/hosting/hosting-workspaces-for-others">Hosting workspaces for others</a></li>
+              <li><a href="/docs/hosting/current-boundaries">Current boundaries</a></li>
+            </ul>
+            <p class="docs-group">Integration API contract</p>
+            <ul>
+              <li><a href="/docs/integrations/">Overview</a></li>
+              <li><a href="/docs/integrations/setting-up-an-app">Setting up an app</a></li>
+              <li><a href="/docs/integrations/identifiers">Identifiers</a></li>
+              <li><a href="/docs/integrations/verifying-requests-from-this-server">Verifying requests from this server</a></li>
+              <li><a href="/docs/integrations/web-api-methods" aria-current="page">Web API methods</a></li>
+              <li><a href="/docs/integrations/incoming-webhooks">Incoming webhooks</a></li>
+              <li><a href="/docs/integrations/slash-commands">Slash commands</a></li>
+              <li><a href="/docs/integrations/interactive-buttons">Interactive buttons</a></li>
+              <li><a href="/docs/integrations/modals">Modals</a></li>
+              <li><a href="/docs/integrations/events">Events</a></li>
+              <li><a href="/docs/integrations/block-kit">Block Kit</a></li>
+              <li><a href="/docs/integrations/the-native-client-protocol">The native client protocol</a></li>
+            </ul>
+          </nav>
+        </details>
+      </aside>
+
+      <aside class="docs-toc" aria-labelledby="toc-title">
+        <p id="toc-title" class="docs-toc-title">On this page</p>
+        <ul>
+          <li class="toc-3"><a href="#chatpostmessage">chat.postMessage</a></li>
+          <li class="toc-3"><a href="#viewsopen">views.open</a></li>
+          <li class="toc-3"><a href="#viewspush">views.push</a></li>
+          <li class="toc-3"><a href="#viewsupdate">views.update</a></li>
+        </ul>
+      </aside>
+      <main id="main" class="docs-main">
+        <p class="docs-crumb"><a href="/docs/">Docs</a> / <a href="/docs/integrations/">Integration API contract</a></p>
+        <article class="doc">
+        <h1 id="web-api-methods">Web API methods</h1>
+        
+<p>Methods are called at <code>https://&lt;server&gt;/api/&lt;method&gt;</code>, as <code>POST</code>, with the token
+as <code>Authorization: Bearer xoxb-…</code> or as a <code>token</code> field in the body. A body can
+be JSON or form-encoded; in a form, a structured argument such as <code>blocks</code> or
+<code>view</code> is a JSON string, which is how Slack&#39;s SDK sends every call.</p>
+<p>As on Slack, a call that fails is answered with <strong>HTTP 200</strong> and
+<code>{&quot;ok&quot;: false, &quot;error&quot;: &quot;&lt;code&gt;&quot;}</code>. Slack&#39;s SDK treats any other status as a
+failure to connect and never reads the error code, so this matters more than it
+looks. The one exception is rate limiting: <strong>429</strong> with a <code>Retry-After</code> header,
+which the SDK understands.</p>
+<p>The supported methods — <em>checked</em>:</p>
+<div class="doc-table" tabindex="0" role="region" aria-label="Table"><table>
+<thead><tr><th>Method</th><th>Arguments honoured</th><th>Notes</th></tr></thead>
+<tbody>
+<tr><td><code>auth.test</code></td><td>—</td><td>Returns <code>url</code>, <code>team</code>, <code>user</code>, <code>team_id</code>, <code>user_id</code>, <code>bot_id</code>. Bolt calls this before it will start.</td></tr>
+<tr><td><code>chat.postMessage</code></td><td><code>channel</code>, <code>text</code>, <code>blocks</code>, <code>thread_ts</code></td><td>Returns <code>ok</code>, <code>channel</code>, <code>ts</code>, and this server&#39;s own <code>message</code> object.</td></tr>
+<tr><td><code>views.open</code></td><td><code>trigger_id</code>, <code>view</code></td><td>Returns <code>ok</code> and <code>view</code> with <code>id</code>, <code>callback_id</code>, <code>external_id</code>, <code>hash</code> and the stack&#39;s ids.</td></tr>
+<tr><td><code>views.push</code></td><td><code>trigger_id</code>, <code>view</code></td><td>As <code>views.open</code>.</td></tr>
+<tr><td><code>views.update</code></td><td><code>view_id</code> or <code>external_id</code>, <code>view</code>, <code>hash</code></td><td>As <code>views.open</code>.</td></tr>
+</tbody>
+</table></div>
+<p><strong>Any other method</strong> answers <code>unknown_method</code>. That includes <code>chat.update</code>,
+<code>chat.delete</code>, <code>chat.postEphemeral</code>, <code>conversations.*</code>, <code>users.*</code>,
+<code>reactions.*</code>, <code>files.*</code>, <code>views.publish</code>, and <code>apps.connections.open</code> — so <strong>Socket Mode is not supported</strong>; an app receives
+events and interactions over HTTP.</p>
+<h2 id="chatpostmessage"><code>chat.postMessage</code><a class="doc-anchor" href="#chatpostmessage" aria-label="Link to chat.postMessage">#</a></h2>
+<ul>
+<li><code>channel</code> is a channel id or <code>#name</code>. <strong>A user id is not accepted</strong>: this does
+not open a direct message, and answers <code>channel_not_found</code>.</li>
+<li>It needs <code>chat:write</code>. Posting to a <strong>public</strong> channel the bot has not been
+added to also needs <code>chat:write.public</code>, as on Slack, and answers
+<code>not_in_channel</code> with <code>&quot;needed&quot;: &quot;chat:write.public&quot;</code> otherwise. A private
+channel or group conversation needs the bot in it, and answers
+<code>not_in_channel</code> otherwise.</li>
+<li><code>text</code> wins when both <code>text</code> and <code>blocks</code> are given, though the buttons in
+<code>blocks</code> are still drawn; <code>blocks</code> alone are turned into text (see
+<a href="/docs/integrations/block-kit#block-kit">Block Kit</a>).</li>
+<li>A <code>thread_ts</code> that is not the first message of a thread in that channel is
+ignored, and the message is posted to the channel.</li>
+<li>Not honoured: <code>attachments</code>, <code>username</code>, <code>icon_emoji</code>, <code>icon_url</code>, <code>as_user</code>,
+<code>reply_broadcast</code>, <code>mrkdwn</code>, <code>parse</code>, <code>link_names</code>, <code>unfurl_links</code>,
+<code>unfurl_media</code> and <code>metadata</code>.</li>
+</ul>
+<div class="doc-table" tabindex="0" role="region" aria-label="Table"><table>
+<thead><tr><th>Error</th><th>When</th></tr></thead>
+<tbody>
+<tr><td><code>invalid_auth</code></td><td>The token is missing, unknown, replaced, or its app is deactivated</td></tr>
+<tr><td><code>missing_scope</code></td><td>The app does not have <code>chat:write</code></td></tr>
+<tr><td><code>channel_not_found</code></td><td>No such channel, or it is archived</td></tr>
+<tr><td><code>not_in_channel</code></td><td>A conversation the bot has not been added to, as above</td></tr>
+<tr><td><code>no_text</code></td><td>Neither <code>text</code> nor <code>blocks</code> produced anything to post</td></tr>
+</tbody>
+</table></div>
+<h2 id="viewsopen"><code>views.open</code><a class="doc-anchor" href="#viewsopen" aria-label="Link to views.open">#</a></h2>
+<p>A <code>trigger_id</code> comes with a slash command, a button press or a form submission.
+It <strong>lasts three minutes</strong> (Slack&#39;s last three seconds, which is unkind to an app
+on a cold start), opens one view, and belongs to the app it was issued to and
+the person whose action produced it. The view is shown only to that person.</p>
+<p>A person has <strong>one stack of forms</strong> open at a time, as the client shows one:
+opening a view closes whatever they had open, from this app or another. What a
+view can contain is described under <a href="/docs/integrations/modals#modals">Modals</a>. A view may hold only
+text, with no inputs, such as &quot;Loading&quot; or &quot;Done&quot;; it has no submit button
+unless it names one.</p>
+<p><code>external_id</code> names a view for <code>views.update</code>, and must be unique among the
+app&#39;s open views. The <code>hash</code> in the answer changes every time the view does.</p>
+<div class="doc-table" tabindex="0" role="region" aria-label="Table"><table>
+<thead><tr><th>Error</th><th>When</th></tr></thead>
+<tbody>
+<tr><td><code>invalid_auth</code></td><td>As for <code>chat.postMessage</code></td></tr>
+<tr><td><code>expired_trigger_id</code></td><td>Unknown, used, or older than three minutes — or its room has closed</td></tr>
+<tr><td><code>trigger_not_yours</code></td><td>Issued to a different app</td></tr>
+<tr><td><code>unsupported_elements</code></td><td>Every input in the view was a kind this server cannot draw</td></tr>
+<tr><td><code>no_inputs</code></td><td>The view has neither inputs nor text</td></tr>
+<tr><td><code>duplicate_external_id</code></td><td>Another of the app&#39;s open views has that <code>external_id</code></td></tr>
+</tbody>
+</table></div>
+<h2 id="viewspush"><code>views.push</code><a class="doc-anchor" href="#viewspush" aria-label="Link to views.push">#</a></h2>
+<p>Puts a view on top of the one the person has open from this app, as on Slack:
+closing or submitting it goes back to the one under it. At most <strong>three</strong> views
+stack. If the person has no view of this app open, it opens as <code>views.open</code>
+would. The trigger is spent the same way.</p>
+<p>Errors are those of <code>views.open</code>, and <code>push_limit_reached</code> when three are open.</p>
+<h2 id="viewsupdate"><code>views.update</code><a class="doc-anchor" href="#viewsupdate" aria-label="Link to views.update">#</a></h2>
+<p>Changes a view the person still has open, anywhere in the stack, without a
+trigger: the usual way to answer at once with &quot;Loading&quot; and show the real form
+when the app has it. Name the view by <code>view_id</code> or by <code>external_id</code>. An input
+that keeps its <code>block_id</code> and <code>action_id</code> keeps what the person entered in it,
+as on Slack.</p>
+<p>Pass the <code>hash</code> from the last answer to refuse the change if the view has
+changed since, so two updates cannot overwrite each other. It also refreshes the
+view&#39;s thirty minutes. An app that updates views in a loop is limited as a
+posting app is, with <strong>429</strong> and <code>Retry-After</code>.</p>
+<div class="doc-table" tabindex="0" role="region" aria-label="Table"><table>
+<thead><tr><th>Error</th><th>When</th></tr></thead>
+<tbody>
+<tr><td><code>invalid_auth</code></td><td>As for <code>chat.postMessage</code></td></tr>
+<tr><td><code>not_found</code></td><td>No open view of this app by that id or name — or its room has closed</td></tr>
+<tr><td><code>hash_conflict</code></td><td>The view changed after the <code>hash</code> was given</td></tr>
+<tr><td><code>unsupported_elements</code></td><td>As for <code>views.open</code></td></tr>
+<tr><td><code>no_inputs</code></td><td>As for <code>views.open</code></td></tr>
+<tr><td><code>duplicate_external_id</code></td><td>Another of the app&#39;s open views has that <code>external_id</code></td></tr>
+</tbody>
+</table></div>
+        </article>
+        <nav class="docs-pager" aria-label="Pages"><a class="docs-prev" href="/docs/integrations/verifying-requests-from-this-server"><span>Previous</span>Verifying requests from this server</a><a class="docs-next" href="/docs/integrations/incoming-webhooks"><span>Next</span>Incoming webhooks</a></nav>
+        <p class="docs-source">This page is made from <a href="https://github.com/Blazeiscoding/OwnBase/blob/main/docs/INTEGRATIONS.md#web-api-methods">docs/INTEGRATIONS.md</a>.</p>
+      </main>
+    </div>
+
+    <footer class="end guide-foot">
+      <div class="footer wrap">
+        <a class="brand" href="/">
+          <img src="/ownbase.svg?v=2" alt="" width="24" height="24" />
+          <span>OwnBase</span>
+        </a>
+        <ul class="footer-links">
+          <li><a href="/host">Hosting guide</a></li>
+          <li><a href="/docs/">Docs</a></li>
+          <li><a href="https://github.com/Blazeiscoding/OwnBase">GitHub</a></li>
+          <li><a href="https://github.com/Blazeiscoding/OwnBase/blob/main/SECURITY.md">Security</a></li>
+          <li><a href="https://github.com/Blazeiscoding/OwnBase/blob/main/docs/PLANS.md">Plans</a></li>
+        </ul>
+        <p class="legal">
+          OwnBase is in alpha. MIT licensed, except the Enterprise code in <code>ee/</code>. Not
+          affiliated with Slack or Salesforce.
+        </p>
+      </div>
+    </footer>
+  </body>
+</html>
