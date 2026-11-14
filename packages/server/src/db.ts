@@ -2,6 +2,7 @@ import { DatabaseSync } from "node:sqlite";
 import { existsSync, mkdirSync, readdirSync, rmSync } from "node:fs";
 import { basename, dirname, join } from "node:path";
 import { pathToFileURL } from "node:url";
+import { searchText } from "./search/words.js";
 
 const MIGRATIONS: string[] = [
   // v1 — initial schema
@@ -795,6 +796,31 @@ const MIGRATIONS: string[] = [
   );
   CREATE INDEX idx_push_subscriptions_user ON push_subscriptions(user_id);
   `,
+
+  // v58 — search finds a word inside Chinese, Japanese, Korean or Thai text
+  // (H06). The index holds each character of those as a word of its own
+  // (search/words.ts), so the triggers can no longer copy the text as it is.
+  // Contentless, deleted by rowid: an external-content index has to be handed
+  // the very words it was given to delete them, and a mismatch there corrupts
+  // it without a word, where a rowid cannot be mismatched.
+  `
+  DROP TRIGGER messages_ai;
+  DROP TRIGGER messages_ad;
+  DROP TRIGGER messages_au;
+  DROP TABLE messages_fts;
+  CREATE VIRTUAL TABLE messages_fts USING fts5(text, content='', contentless_delete=1);
+  INSERT INTO messages_fts(rowid, text) SELECT rowid, ownbase_search_text(text) FROM messages;
+  CREATE TRIGGER messages_ai AFTER INSERT ON messages BEGIN
+    INSERT INTO messages_fts(rowid, text) VALUES (new.rowid, ownbase_search_text(new.text));
+  END;
+  CREATE TRIGGER messages_ad AFTER DELETE ON messages BEGIN
+    DELETE FROM messages_fts WHERE rowid = old.rowid;
+  END;
+  CREATE TRIGGER messages_au AFTER UPDATE OF text ON messages BEGIN
+    DELETE FROM messages_fts WHERE rowid = old.rowid;
+    INSERT INTO messages_fts(rowid, text) VALUES (new.rowid, ownbase_search_text(new.text));
+  END;
+  `,
 ];
 
 /** The schema this build understands. A workspace above it cannot be opened. */
@@ -988,13 +1014,27 @@ function isRestorableCopy(path: string, from: number, workspaceId: string | null
   }
 }
 
+/**
+ * The functions the schema's triggers call. The search index's triggers call
+ * `ownbase_search_text` on every write to a message's words, so a connection
+ * that writes messages needs it: `openDb` adds it, and so must anything else
+ * that opens the file to write one. Without it (the sqlite3 shell, say) a
+ * connection can read but not change a message's words.
+ */
+export function addSqlFunctions(db: DatabaseSync): DatabaseSync {
+  db.function("ownbase_search_text", { deterministic: true }, (text) =>
+    typeof text === "string" ? searchText(text) : text,
+  );
+  return db;
+}
+
 export function openDb(
   path: string,
   upTo = MIGRATIONS.length,
   options: OpenDbOptions = {},
 ): DatabaseSync {
   if (path !== ":memory:") mkdirSync(dirname(path), { recursive: true });
-  const db = new DatabaseSync(path);
+  const db = addSqlFunctions(new DatabaseSync(path));
   db.exec("PRAGMA journal_mode = WAL");
   db.exec("PRAGMA foreign_keys = ON");
   db.exec("PRAGMA busy_timeout = 5000");

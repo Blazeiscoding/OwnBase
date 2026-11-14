@@ -76,7 +76,15 @@ function everythingStored(): string {
     const tables = db
       .prepare("SELECT name FROM sqlite_master WHERE type = 'table' AND name NOT LIKE 'sqlite_%'")
       .all() as { name: string }[];
-    return JSON.stringify(tables.map(({ name }) => db.prepare(`SELECT * FROM "${name}"`).all()));
+    // As BigInts: the search index keeps counters past 2^53.
+    return JSON.stringify(
+      tables.map(({ name }) => {
+        const all = db.prepare(`SELECT * FROM "${name}"`);
+        all.setReadBigInts(true);
+        return all.all();
+      }),
+      (_, value: unknown) => (typeof value === "bigint" ? String(value) : value),
+    );
   } finally {
     db.close();
   }

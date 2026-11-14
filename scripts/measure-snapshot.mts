@@ -20,6 +20,7 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { cpus, tmpdir, totalmem } from "node:os";
 import { join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
+import { addSqlFunctions } from "../packages/server/src/db.js";
 import { execSync } from "node:child_process";
 import { PROTOCOL_VERSION } from "../packages/protocol/src/entities.js";
 import { createWorkspaceServer } from "../packages/server/src/index.js";
@@ -72,7 +73,7 @@ try {
   const me = registered.user.id as string;
 
   // ---- seed, through a second connection; WAL lets the server see it ----
-  const db = new DatabaseSync(join(dir, "workspace.db"));
+  const db = addSqlFunctions(new DatabaseSync(join(dir, "workspace.db")));
   db.exec("PRAGMA busy_timeout = 5000");
   const seeding = performance.now();
   db.exec("BEGIN");

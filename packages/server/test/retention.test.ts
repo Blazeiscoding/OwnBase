@@ -3,6 +3,7 @@ import { existsSync, mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
+import { addSqlFunctions } from "../src/db.js";
 import { createWorkspaceServer, type WorkspaceServer } from "../src/server.js";
 import { APP_SCOPES } from "@ownbase/protocol";
 
@@ -408,7 +409,7 @@ describe("a retention window", () => {
  * messages through the API would test the rate limits rather than retention.
  */
 function seedOldThread(rootId: string, replies: number): void {
-  const db = new DatabaseSync(join(directory, "workspace.db"));
+  const db = addSqlFunctions(new DatabaseSync(join(directory, "workspace.db")));
   try {
     db.exec("BEGIN");
     const insert = db.prepare(

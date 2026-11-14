@@ -5,6 +5,7 @@ import { MENTIONS_ME, NAMES_ME, NOT_BLOCKED, UNREAD } from "../core/sqlRules.js"
 import { countOf, shape } from "../core/rows.js";
 import { messageRow } from "../messages/store.js";
 import type { Store } from "../store.js";
+import { searchText } from "./words.js";
 
 const windowRow = shape({ edge: "text?", low: "number?", n: "number" });
 
@@ -152,10 +153,11 @@ export class SearchStore {
     // Quote every term so user input can never break FTS5 syntax. The last
     // one matches as the start of a word, so a search run as it is typed
     // finds "mockups" from "mock"; one with no letter or digit has no word
-    // to start.
+    // to start. Each term is split as the index split the text it holds, so a
+    // run of Chinese or Japanese is a phrase of its characters.
     const fts = query.terms
       .map((t, i) => {
-        const phrase = `"${t.replaceAll('"', '""')}"`;
+        const phrase = `"${searchText(t).trim().replaceAll('"', '""')}"`;
         return i === query.terms.length - 1 && /[\p{L}\p{N}]/u.test(t) ? `${phrase}*` : phrase;
       })
       .join(" ");
