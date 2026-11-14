@@ -14,6 +14,8 @@ OwnBase is early-stage and independently developed, under the
 which is source-available under its own license. It is not affiliated with Slack or
 Salesforce.
 
+- [The docs at ownbase.site](https://ownbase.site/docs/): the two guides below as
+  pages you can search
 - [Deployment and backups](docs/DEPLOYMENT.md)
 - [Integration API contract](docs/INTEGRATIONS.md)
 - [Project atlas](docs/PROJECT-VISUALIZER.html), an offline, interactive guide to
