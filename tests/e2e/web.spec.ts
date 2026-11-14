@@ -5688,7 +5688,8 @@ test("an admin uploads the workspace's icon, everyone signed in sees it, and so 
     const bobbysRail = bobby
       .getByRole("group", { name: "Workspaces", exact: true })
       .getByRole("button", { name: "Product Test", exact: true });
-    await expect(bobbysRail).toHaveText("PT");
+    // The initials are drawn by CSS, so they are not the button's text.
+    await expect(bobbysRail.locator("[data-drawn-text]")).toHaveAttribute("data-drawn-text", "PT");
     await expect(bobbysRail.locator("img")).toHaveCount(0);
 
     await signIn(page, "alice");

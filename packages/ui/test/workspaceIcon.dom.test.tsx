@@ -155,12 +155,12 @@ describe("WorkspaceIcon", () => {
       </>,
     );
     const [one, two] = [...container.children] as [HTMLElement, HTMLElement];
-    expect(one).toHaveTextContent("R");
+    expect(one).toHaveAttribute("data-drawn-text", "R");
     expect(one).toHaveAttribute("aria-hidden", "true");
     expect(one).toHaveClass("rounded-xl");
     expect(one.style.width).toBe("36px");
     expect(one.style.background).toContain("linear-gradient");
-    expect(two).toHaveTextContent("RT");
+    expect(two).toHaveAttribute("data-drawn-text", "RT");
     expect(container.querySelector("img")).toBeNull();
   });
 
@@ -176,7 +176,7 @@ describe("WorkspaceIcon", () => {
     expect(image).toHaveAttribute("width", "56");
     fireEvent.error(image);
     expect(container.querySelector("img")).toBeNull();
-    expect(container.firstElementChild).toHaveTextContent("R");
+    expect(container.firstElementChild).toHaveAttribute("data-drawn-text", "R");
   });
 });
 
@@ -323,7 +323,7 @@ describe("where the icon shows inside a workspace", () => {
     // Removed: the coloured square with the initials.
     client.store.setState({ iconVersion: null });
     await waitFor(() => expect(current.querySelector("img")).toBeNull());
-    expect(current).toHaveTextContent("RT");
+    expect(current.querySelector("[data-drawn-text]")).toHaveAttribute("data-drawn-text", "RT");
   });
 
   it("is set only by the owner and admins: a member has no way to Workspace settings", async () => {
@@ -394,7 +394,7 @@ describe("where the icon shows before signing in", () => {
     for (const iconVersion of [null]) {
       const card = await joinCard({ ...info, iconVersion });
       expect(card.querySelector("img")).toBeNull();
-      expect(card.querySelector('[aria-hidden="true"]')).toHaveTextContent("R");
+      expect(card.querySelector('[aria-hidden="true"]')).toHaveAttribute("data-drawn-text", "R");
       cleanup();
     }
     expect(Api.prototype.workspaceIcon).not.toHaveBeenCalled();
@@ -426,7 +426,10 @@ describe("where the icon shows before signing in", () => {
       "data:image/webp;base64,AAAA",
     );
     expect(row("Design Guild").querySelector("img")).toBeNull();
-    expect(row("Design Guild")).toHaveTextContent("D");
+    expect(row("Design Guild").querySelector("[data-drawn-text]")).toHaveAttribute(
+      "data-drawn-text",
+      "D",
+    );
     // Kept on the device: nothing is asked of a server that may be off.
     expect(Api.prototype.workspaceIcon).not.toHaveBeenCalled();
   });
@@ -469,7 +472,10 @@ describe("where the icon shows before signing in", () => {
     expect(asked).toHaveBeenCalledWith("0123456789abcdef");
     expect(asked.mock.contexts[0]).toMatchObject({ baseUrl: "http://192.168.1.20:8543" });
     expect(row("Design Guild").querySelector("img")).toBeNull();
-    expect(row("Design Guild")).toHaveTextContent("D");
+    expect(row("Design Guild").querySelector("[data-drawn-text]")).toHaveAttribute(
+      "data-drawn-text",
+      "D",
+    );
   });
 
   it("is read from this device for each saved workspace, and only as a picture it made", async () => {

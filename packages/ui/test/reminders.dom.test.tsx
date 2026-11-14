@@ -12,6 +12,7 @@ import { WorkspaceScreen } from "../src/screens/WorkspaceScreen.js";
 import { writeRoute } from "../src/lib/route.js";
 import type { Platform } from "../src/platform.js";
 import { emit } from "./clientEvents.js";
+import { drawnText } from "./accessibility.js";
 import { AppNotices } from "./workspaceParts.js";
 import { pointAtMessage } from "./pointAt.js";
 
@@ -352,7 +353,7 @@ describe("a reminder come due", () => {
 
   it("counts on Activity's badge, in the sidebar and in the phone's bar", async () => {
     screenWith({ [invoice.id]: reminder(invoice.id, 1, 2) });
-    expect(await screen.findByRole("img", { name: "Due reminders" })).toHaveTextContent("1");
+    expect(drawnText(await screen.findByRole("img", { name: "Due reminders" }))).toBe("1");
     cleanup();
 
     screenWith({ [invoice.id]: reminder(invoice.id, 1, 2) }, sam, true);

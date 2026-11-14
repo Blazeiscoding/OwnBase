@@ -46,10 +46,10 @@ describe("a count in a badge", () => {
     expect(badge().querySelector(".animate-count-in")).toBeNull();
 
     view.rerender(<CountBadge count={4} aria-label="Unread" />);
-    expect(badge()).toHaveTextContent("4");
+    expect(badge().firstElementChild).toHaveAttribute("data-drawn-text", "4");
     // Already there, so it does not pop again: only its number rolls.
     expect(badge()).not.toHaveClass("animate-badge-in");
-    expect(badge().querySelector(".animate-count-in")).toHaveTextContent("4");
+    expect(badge().querySelector(".animate-count-in")).toHaveAttribute("data-drawn-text", "4");
 
     view.rerender(<CountBadge count={0} aria-label="Unread" />);
     expect(screen.queryByLabelText("Unread")).toBeNull();

@@ -2156,6 +2156,16 @@ textarea::placeholder {
   box-shadow: inset 0 0 0 1px rgb(255 255 255 / 0.14);
 }
 
+/*
+ * Initials and counts that stand in for a picture, drawn as content rather
+ * than written as text. Voice control and axe (WCAG 2.5.3, label in name)
+ * take text inside a button as part of what it is called, and "MC" is not
+ * part of "View Maya Chen's profile". Screen readers skip them already.
+ */
+[data-drawn-text]::before {
+  content: attr(data-drawn-text);
+}
+
 /* The mark over an empty list, on a quiet tile. */
 .empty-tile {
   background: var(--color-lifted);

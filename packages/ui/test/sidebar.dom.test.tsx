@@ -7,7 +7,7 @@ import { ClientContext } from "../src/context.js";
 import { Sidebar, type HostingEntry, type OtherWorkspace } from "../src/components/Sidebar.js";
 import { statusUntil } from "../src/lib/status.js";
 import { renderPart } from "./workspaceParts.js";
-import { accessibilityProblems } from "./accessibility.js";
+import { accessibilityProblems, drawnText } from "./accessibility.js";
 
 const sam: User = {
   id: "U_SAM",
@@ -354,7 +354,7 @@ describe("the workspace switcher", () => {
     });
     const rail = screen.getByRole("group", { name: "Workspaces" });
     const design = within(rail).getByRole("button", { name: "Design Guild · @sam, 3 mentions" });
-    expect(design).toHaveTextContent("3");
+    expect(drawnText(design.querySelector(".badge-mention")!)).toBe("3");
     const quiet = within(rail).getByRole("button", {
       name: "Rocket Team · @sam.r, unread messages",
     });

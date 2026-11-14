@@ -37,12 +37,15 @@ function usePicture(user: User | undefined): string | null {
  * A person's picture, or their initials on a colour of their own, round as
  * in Discord. Hidden from screen readers: the name is always written beside
  * it, or on the button it sits in, and "M C Maya Chen" says the person twice.
+ * The initials are drawn by CSS (`data-drawn-text` in theme.css), since text
+ * inside a button counts as part of its name for voice control.
  */
 export function Avatar({ user, size = 36 }: { user: User | undefined; size?: number }) {
   const picture = usePicture(user);
   return (
     <div
       aria-hidden="true"
+      data-drawn-text={picture ? undefined : initials(user?.displayName ?? "?")}
       className="avatar-face flex shrink-0 select-none items-center justify-center rounded-full font-semibold text-white"
       style={{
         width: size,
@@ -51,15 +54,13 @@ export function Avatar({ user, size = 36 }: { user: User | undefined; size?: num
         fontSize: size * 0.38,
       }}
     >
-      {picture ? (
+      {picture && (
         <img
           src={picture}
           alt=""
           decoding="async"
           className="size-full rounded-full object-cover"
         />
-      ) : (
-        initials(user?.displayName ?? "?")
       )}
     </div>
   );
