@@ -16,6 +16,8 @@
  * other file, a swapped or changed one, or a second installer is refused.
  * The Windows app's update feed must name the installer beside it, by its
  * SHA-512, at the version the tag names, since that is all an update checks.
+ * `image.json` names the container image the release pushes, which is not a
+ * file of the release; the notes give its digest. Folders in <dir> are skipped.
  * `SHA256SUMS` is written into <dir>, the notes to <file>, which is never
  * itself counted as a file to publish, so preparing twice gives the same sums.
  */
@@ -45,6 +47,14 @@ export const PUBLISHED = {
 };
 /** The feed electron-builder writes for the Windows installer. */
 const FEED = "latest.yml";
+/**
+ * The container image the image job tested, which publish pushes to the
+ * registry rather than attaching to the release: its name, the digest of its
+ * index and the server identity inside it.
+ */
+const IMAGE = "image.json";
+export const IMAGE_NAME = "ghcr.io/blazeiscoding/ownbase";
+export const IMAGE_PLATFORMS = ["linux/amd64", "linux/arm64"];
 export function sha256(path) {
   return createHash("sha256").update(readFileSync(path)).digest("hex");
 }
@@ -59,6 +69,32 @@ export function identityProblem(name, identity, { revision, version }) {
       : `${name} was built from source with uncommitted changes`;
   if (identity.version !== version)
     return `${name} is version ${identity.version}, but the tag names ${version}`;
+  return null;
+}
+
+/**
+ * What is wrong with the container image staged for this release, or null.
+ * A container build has no git to ask whether its source had changed, so its
+ * server must have the source inputs of the server archive, built where git
+ * could say.
+ */
+export function imageProblem(image, server, { revision, version }) {
+  if (image === null || typeof image !== "object" || Array.isArray(image))
+    return `${IMAGE} is not an object`;
+  if (image.name !== IMAGE_NAME) return `${IMAGE} names ${image.name}, not ${IMAGE_NAME}`;
+  if (typeof image.digest !== "string" || !/^sha256:[0-9a-f]{64}$/.test(image.digest))
+    return `${IMAGE} has no digest`;
+  const platforms = Array.isArray(image.platforms) ? [...image.platforms].sort() : [];
+  if (platforms.join() !== IMAGE_PLATFORMS.join())
+    return `the image is for ${platforms.join(", ") || "no platform"}, not ${IMAGE_PLATFORMS.join(", ")}`;
+  const shape = manifestProblem(image.build);
+  if (shape) return `the image's build.json ${shape}`;
+  if (image.build.revision !== revision)
+    return `the image was built from ${image.build.revision.slice(0, 12)}, not ${revision.slice(0, 12)}`;
+  if (image.build.version !== version)
+    return `the image is version ${image.build.version}, but the tag names ${version}`;
+  if (server && image.build.inputs !== server.inputs)
+    return `the image's server was built from other source than the server archive (inputs ${image.build.inputs}, not ${server.inputs})`;
   return null;
 }
 
@@ -134,12 +170,13 @@ export function prepareRelease({ dir, revision, tag, signed = false, notes: note
   const identities = [];
   const bindings = new Map();
   const files = [];
+  let image;
   for (const entry of readdirSync(dir).sort()) {
     if (entry === SUMS || entry === notesName || !statSync(join(dir, entry)).isFile()) continue;
     const identity = IDENTITY.exec(entry);
     const binding = BINDING.exec(entry);
     let parsed;
-    if (identity || binding) {
+    if (identity || binding || entry === IMAGE) {
       try {
         parsed = JSON.parse(readFileSync(join(dir, entry), "utf8"));
       } catch {
@@ -147,7 +184,8 @@ export function prepareRelease({ dir, revision, tag, signed = false, notes: note
         continue;
       }
     }
-    if (identity) {
+    if (entry === IMAGE) image = parsed;
+    else if (identity) {
       const shape = manifestProblem(parsed);
       if (shape) problems.push(`${entry} ${shape}`);
       else identities.push([identity[1], parsed]);
@@ -213,6 +251,11 @@ export function prepareRelease({ dir, revision, tag, signed = false, notes: note
     if (carried?.revision !== server.revision || carried?.inputs !== server.inputs)
       problems.push(`${file} does not carry the server identity it was staged with`);
   }
+  if (image === undefined) problems.push(`no container image was staged (${IMAGE})`);
+  else if (version) {
+    const problem = imageProblem(image, server, { revision, version });
+    if (problem) problems.push(problem);
+  }
   const installer = files.find((file) => PUBLISHED.desktop[0].file.test(file));
   if (version && installer && files.includes(FEED)) {
     const problem = feedProblem(readFileSync(join(dir, FEED), "utf8"), {
@@ -234,6 +277,13 @@ export function prepareRelease({ dir, revision, tag, signed = false, notes: note
       ([name, identity]) =>
         `| ${name} | ${identity.version} | \`${identity.revision.slice(0, 12)}\` | \`${identity.inputs}\` |`,
     ),
+    `| image | ${image.build.version} | \`${image.build.revision.slice(0, 12)}\` | \`${image.build.inputs}\` |`,
+    "",
+    `The container image, for ${IMAGE_PLATFORMS.join(" and ")}, is \`${IMAGE_NAME}:${version}\`, with the digest \`${image.digest}\`:`,
+    "",
+    "```",
+    `docker run -p 8543:8543 -v ownbase-data:/data ${IMAGE_NAME}@${image.digest}`,
+    "```",
     "",
     "Diagnostics in the app, and `/api/server-info` on a server, report the same revision.",
     "",
