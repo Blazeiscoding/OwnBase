@@ -65,7 +65,14 @@ runs in the previous release's folder and reads what that release left there.
 Each job lists the files it built and tested, with their SHA-256
 (`release-manifest.mjs bind`), and `scripts/release-manifest.mjs` then refuses
 any file not built from that commit, built from changed source, not listed, or
-changed since, and writes `SHA256SUMS` and notes naming the revision. The result is a draft release; publishing it is a person's decision.
+changed since, and writes `SHA256SUMS` and notes naming the revision. From a tag
+or a manual run the result is a draft release, a pre-release when the tag has a
+hyphen; publishing it is a person's decision. Every change to the app merged to
+`main` is released the same way as the next alpha (`v0.2.0-alpha.N`) and
+published at once: its files go to `dl.ownbase.site` (Cloudflare R2) first, then
+the release is created as a normal release marked Latest, though its tag has a
+hyphen, and `latest.json` on R2 is written last. Releases are one line, so
+GitHub's Latest, the website and the desktop app's updates name the same version.
 Its files are release assets, so the clean-up below never touches them. The
 `release-*` artifacts that carry them between jobs are deleted by the release
 run itself. A pull request that changes the release workflow or its scripts

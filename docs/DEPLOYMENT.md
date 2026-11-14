@@ -12,9 +12,12 @@ app and `/api/server-info` on a server also report. Release installers are not
 code-signed yet.
 
 Every change to the app merged to `main` is built, tested and published as the
-next alpha (`v0.2.0-alpha.4` after `v0.2.0-alpha.3`) by the Release workflow, and
-the download buttons on the website offer the newest published release. A run by
-hand, or from a pushed version tag, still leaves a draft to look over first.
+next alpha (`v0.2.0-alpha.4` after `v0.2.0-alpha.3`) by the Release workflow.
+It is published as a normal release, not a pre-release, and marked Latest on
+GitHub, so GitHub, the download buttons on the website and the desktop app's
+updates all name the same newest version. A run by hand, or from a pushed
+version tag, still leaves a draft to look over first, marked as a pre-release
+when its tag has a hyphen.
 Publishing that draft creates its tag, and a tag whose release is already out
 builds nothing, so no second draft appears.
 
