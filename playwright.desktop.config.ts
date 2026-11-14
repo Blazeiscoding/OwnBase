@@ -1,4 +1,10 @@
 import { defineConfig } from "@playwright/test";
+
+// Workspaces these tests start, as child processes or inside the packaged
+// app, inherit this: they sign in many times, and the real password cost
+// takes about a fifth of a second and 64 MiB each.
+process.env.OWNBASE_PASSWORD_COST ??= "ln=4,r=8,p=1";
+
 export default defineConfig({
   testDir: "./tests/e2e",
   // What the tests launch must be built from the checkout (IMP-08).

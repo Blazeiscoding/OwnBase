@@ -32,19 +32,6 @@ export function useUpdateStatus(): UpdateStatus | null {
 }
 
 /**
- * Tells the app whether a call is on, so an update never restarts it in the
- * middle of one. A call ends, as far as updates go, when the workspace closes.
- */
-export function useReportCall(inCall: boolean): void {
-  const updates = usePlatform().updates;
-  useEffect(() => {
-    if (!updates) return;
-    void updates.reportCall(inCall).catch(() => {});
-    return () => void updates.reportCall(false).catch(() => {});
-  }, [updates, inCall]);
-}
-
-/**
  * "Restart to update", wherever it is pressed. When the restart disconnects
  * the people in a workspace hosted here, it asks first in the app's own
  * dialog. Resolves to why it did not restart, or null when it is restarting

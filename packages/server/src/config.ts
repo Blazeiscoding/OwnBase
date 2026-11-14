@@ -119,6 +119,51 @@ export function parseMemberNotice(raw: {
   return notice;
 }
 
+/** Shorter than this, a passphrase can be guessed from a stolen backup however slow the key is. */
+export const BACKUP_PASSPHRASE_MIN = 12;
+
+/**
+ * The backup passphrase (H04): OWNBASE_BACKUP_PASSPHRASE, or the file that
+ * --backup-passphrase-file names, never a command-line value, since anyone on
+ * the machine can list those. A file's last line break is not part of it,
+ * since an editor adds one; anything else is, spaces included. Undefined
+ * when neither is set. No message here quotes the passphrase.
+ */
+export function parseBackupPassphrase(settings: {
+  direct: string | undefined;
+  file: string | undefined;
+  readFile: (path: string) => string;
+}): string | undefined {
+  const { direct, file } = settings;
+  if (direct !== undefined && file !== undefined)
+    throw new ConfigError(
+      "Set the backup passphrase one way, OWNBASE_BACKUP_PASSPHRASE or --backup-passphrase-file, not both",
+    );
+  let passphrase = direct;
+  if (file !== undefined) {
+    if (!file.trim()) throw new ConfigError("--backup-passphrase-file needs the path of a file");
+    try {
+      passphrase = settings.readFile(file).replace(/\r?\n$/, "");
+    } catch (error) {
+      const code = (error as NodeJS.ErrnoException).code;
+      throw new ConfigError(
+        `OwnBase could not read the backup passphrase file ${file}${code ? ` (${code})` : ""}. Check the path and that this account may read it.`,
+      );
+    }
+  }
+  if (passphrase === undefined) return undefined;
+  const where = file !== undefined ? `The file ${file}` : "OWNBASE_BACKUP_PASSPHRASE";
+  if (passphrase.trim() === "")
+    throw new ConfigError(
+      `${where} gives an empty backup passphrase. Put the passphrase in it, or unset it to take backups without one.`,
+    );
+  if ([...passphrase].length < BACKUP_PASSPHRASE_MIN)
+    throw new ConfigError(
+      `The backup passphrase must be at least ${BACKUP_PASSPHRASE_MIN} characters. Several unrelated words are easy to keep and hard to guess.`,
+    );
+  return passphrase;
+}
+
 /** A count of whole units, such as days, where a fraction would be silently rounded. */
 export function parseWholeNumber(raw: string | undefined, flag: string, fallback: number): number {
   if (raw === undefined) return fallback;

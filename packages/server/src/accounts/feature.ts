@@ -8,7 +8,14 @@ import {
   type User,
 } from "@ownbase/protocol";
 import type { FastifyRequest } from "fastify";
-import { hashPassword, hashToken, newSessionToken, verifyPassword } from "../auth.js";
+import {
+  hashPassword,
+  hashToken,
+  needsRehash,
+  newSessionToken,
+  verifyNoPassword,
+  verifyPassword,
+} from "../auth.js";
 import { type Channels } from "../channels/feature.js";
 import type { RecordEvent } from "../core/commit.js";
 import { type ServerContext } from "../core/context.js";
@@ -222,24 +229,50 @@ export function registerAccounts(
     return { token, user };
   });
 
+  /**
+   * Stores a password its owner just proved again at today's cost, when its
+   * hash was made at another (H03). The hash and salt stored afterwards, or
+   * `current` if it was not stored: the old hash still works, and the next
+   * sign-in tries again. Never fails a sign-in.
+   */
+  const upgradeHash = async (
+    userId: ID,
+    current: { passwordHash: string; salt: string },
+    password: string,
+  ): Promise<{ passwordHash: string; salt: string }> => {
+    if (!needsRehash(current.passwordHash)) return current;
+    try {
+      const next = await hashPassword(password);
+      if (store.accounts.rehashPassword(userId, current, next))
+        return { passwordHash: next.hash, salt: next.salt };
+    } catch {
+      // Busy with other sign-ins, or the write failed.
+    }
+    return current;
+  };
+
   route(endpoints.login, async ({ req, body }) => {
     // Keyed on the handle as well as the address: an account is worth
     // protecting from many machines, and an address from many accounts.
     ration("authByAddress", network.callerAddress(req));
     ration("authByHandle", body.handle.toLowerCase());
     const auth = store.people.authByHandle(body.handle);
+    // A guest has no password: it resumes its session or joins again. Without
+    // an account with a password, the same work is done anyway, so the time
+    // the refusal takes does not say whether the handle exists.
     const valid =
-      !!auth &&
-      // A guest has no password: it resumes its session or joins again.
-      auth.role !== "guest" &&
-      (await verifyPassword(body.password, auth.salt, auth.passwordHash));
+      auth && auth.role !== "guest"
+        ? await verifyPassword(body.password, auth.salt, auth.passwordHash)
+        : await verifyNoPassword(body.password);
+    // Before the check below, which then also catches a change made while it hashed.
+    const proven = auth && valid ? await upgradeHash(auth.id, auth, body.password) : null;
     const latest = auth ? store.people.authByHandle(auth.handle) : null;
     if (
       !auth ||
-      !valid ||
+      !proven ||
       !latest ||
-      latest.passwordHash !== auth.passwordHash ||
-      latest.salt !== auth.salt
+      latest.passwordHash !== proven.passwordHash ||
+      latest.salt !== proven.salt
     ) {
       throw new HttpError(401, "invalid_credentials");
     }
@@ -412,6 +445,7 @@ export function registerAccounts(
     const valid = await verifyPassword(password, auth.salt, auth.passwordHash);
     if (!valid) throw new HttpError(403, "invalid_credentials", "That is not your password.");
     authSucceeded(me.handle);
+    await upgradeHash(auth.id, auth, password);
   };
 
   /** Keys being set up, waiting for their first code (E11), by account. In memory. */
