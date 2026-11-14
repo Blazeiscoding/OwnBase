@@ -2989,7 +2989,7 @@
       "details": [
         "Placed in a portal on the trigger's dialog, main, nav or aside, or the fullscreen element holding it; flips sides when the preferred one does not fit, and follows its trigger on scroll, resize and every frame.",
         "Escape closes it. Only while its trigger has focus does it keep that Escape from everything else. A hint opened by the pointer elsewhere used to hold it too: the phone drawer slides in under the pointer that opened it, onto the rail of workspaces, and that rail's hint kept Escape from closing the drawer while focus was on Jump to…",
-        "Split from Tooltip to make room for slice 7's status that clears itself, when the desktop entry stood at 499.2 kB of a 500 kB limit (since raised to 700 kB by #301): about 2.9 kB less for every first download."
+        "Split from Tooltip to make room for slice 7's status that clears itself, when the desktop entry stood at 499.2 kB of a 500 kB limit (since raised to 700 kB by #301 and to 750 kB for React 19.3): about 2.9 kB less for every first download."
       ],
       "concepts": ["portal position", "lazy chunk", "entry budget"]
     },

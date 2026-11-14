@@ -25,7 +25,7 @@ export default defineConfig({
   plugins: [react(), tailwindcss(), stampBuild, precompress()],
   build: {
     // kB, the entry budget scripts/check-web-bundle.mjs enforces.
-    chunkSizeWarningLimit: 700,
+    chunkSizeWarningLimit: 750,
     rolldownOptions: {
       output: {
         // Rolldown would otherwise put each module the first screen shares with

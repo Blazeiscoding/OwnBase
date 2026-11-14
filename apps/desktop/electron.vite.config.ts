@@ -53,7 +53,7 @@ export default defineConfig({
     build: {
       minify: true,
       cssMinify: true,
-      chunkSizeWarningLimit: 700,
+      chunkSizeWarningLimit: 750,
       rolldownOptions: { output: { codeSplitting: FIRST_PAINT_IN_ONE_FILE } },
     },
   },
