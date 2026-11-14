@@ -1,0 +1,15 @@
+# What CodeQL leaves out (.github/workflows/codeql.yml). Each of these is
+# written by a script or a test, so a finding in it would be about the
+# generator, which CodeQL reads anyway. The atlas embeds every source file,
+# so scanning it would report each finding twice and take minutes.
+name: OwnBase CodeQL config
+paths-ignore:
+  - docs/PROJECT-VISUALIZER.html
+  - packages/ui/src/lib/emojiData.json
+  - packages/ui/src/emoji.css
+  - packages/server/src/import/slackEmoji.json
+  - packages/ui/src/components/brandMark.json
+  - packages/server/openapi.json
+  - "**/dist"
+  - "**/out"
+  - "**/release"

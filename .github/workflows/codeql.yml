@@ -1,0 +1,71 @@
+name: CodeQL
+# Code scanning: GitHub's CodeQL reads the TypeScript and JavaScript sources
+# and the workflows themselves, and its findings appear in the Security tab
+# and on the pull request. It runs on a pull request that changes code or a
+# workflow, after every push to main (the Security tab tracks main's alerts),
+# and once a week, so new queries reach code nobody has touched. A pull
+# request that changes only documentation, pictures or the lockfile starts
+# nothing: CodeQL reads none of those.
+#
+# Nothing is built. Both languages are read straight from the source
+# (`build-mode: none`). .github/codeql/config.yml leaves out generated files.
+#
+# Dependabot's pull requests start with a read-only token, but on a
+# pull_request run the job's `permissions` key raises it, so the upload below
+# works there too. Dependabot's npm updates touch only package.json files and
+# the lockfile, so only its monthly actions update starts this workflow.
+on:
+  pull_request:
+    paths:
+      - "**/*.ts"
+      - "**/*.tsx"
+      - "**/*.mts"
+      - "**/*.cts"
+      - "**/*.js"
+      - "**/*.mjs"
+      - "**/*.cjs"
+      - "**/*.jsx"
+      - "**/*.html"
+      - "!docs/PROJECT-VISUALIZER.html"
+      - ".github/workflows/**"
+      - ".github/actions/**"
+      - ".github/codeql/**"
+  push:
+    branches: [main]
+    paths-ignore:
+      - "docs/PROJECT-VISUALIZER.html"
+      - "**/*.md"
+  schedule:
+    # Mondays 04:30 IST, before Dependabot's 06:00 run.
+    - cron: "0 23 * * 0"
+  workflow_dispatch:
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+permissions:
+  contents: read
+jobs:
+  analyze:
+    name: analyze (${{ matrix.language }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: read
+      # To upload the results to code scanning.
+      security-events: write
+      # The CodeQL action reads the run's own status through this.
+      actions: read
+    strategy:
+      fail-fast: false
+      matrix:
+        language: [javascript-typescript, actions]
+    steps:
+      - uses: actions/checkout@v7
+      - uses: github/codeql-action/init@v4
+        with:
+          languages: ${{ matrix.language }}
+          build-mode: none
+          config-file: ./.github/codeql/config.yml
+      - uses: github/codeql-action/analyze@v4
+        with:
+          category: /language:${{ matrix.language }}
