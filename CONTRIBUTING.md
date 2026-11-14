@@ -2,7 +2,7 @@
 
 Report a bug or ask for a feature with the issue forms (Issues → New issue). A
 security problem goes to the private form instead, as [SECURITY.md](SECURITY.md)
-says.
+says. Everyone taking part follows the [code of conduct](CODE_OF_CONDUCT.md).
 
 Develop each improvement on a branch and open a pull request against `main`.
 Describe the user-visible change, validation performed, and any remaining limits.
