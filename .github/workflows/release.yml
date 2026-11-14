@@ -19,6 +19,12 @@ on:
     # What is in the installer, the disk image, the server or its image. GitHub does not
     # read paths for a tag, so a version tag still releases whatever changed.
     paths:
+      # And the workflows: GitHub refuses the run's token a tag at a commit
+      # whose workflows differ from main's (it can never hold the workflows
+      # permission), so a release built before a workflow change merged cannot
+      # be published (run 43639248849, after #488). The change's own release,
+      # from the newer commit, takes its place.
+      - ".github/workflows/**"
       - "apps/desktop/**"
       - "apps/server-cli/**"
       - "apps/web/**"
