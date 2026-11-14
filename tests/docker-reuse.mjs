@@ -19,7 +19,9 @@ function build(target) {
     0,
     `docker buildx build --target ${target} failed:\n${log.slice(-4000)}`,
   );
-  const step = log.match(/^(#\d+) \[deps \d+\/\d+\] RUN pnpm fetch$/m)?.[1];
+  // BuildKit may name the stage with its platform (`[linux/amd64 deps 3/4]`),
+  // since the stage runs on the build machine's own.
+  const step = log.match(/^(#\d+) \[(?:\S+ )?deps \d+\/\d+\] RUN pnpm fetch$/m)?.[1];
   assert(step, `no "RUN pnpm fetch" step in the build output:\n${log.slice(-4000)}`);
   return {
     fetchCached: log.split("\n").some((line) => line.trim() === `${step} CACHED`),
