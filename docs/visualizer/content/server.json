@@ -298,6 +298,28 @@
       "concepts": ["offsite backup", "S3 SigV4", "multipart upload", "Cloudflare R2"]
     },
     {
+      "path": "packages/server/src/backups/encryption.ts",
+      "plain": "Locks a backup with a passphrase the host chooses, so a copy that leaves the machine is unreadable to anyone without it.",
+      "summary": "The encrypted backup format: a scrypt key and AES-256-GCM in 64 KiB parts, streamed.",
+      "details": [
+        "H04: the header holds plain magic words, a version, the scrypt salt and cost (2^17, r 8, p 1 by default), the part size, a key check (HMAC with a second derived key) and a SHA-256 of all that. The checksum tells a damaged header from a wrong passphrase; the key check tells a wrong passphrase before any part is read.",
+        "Parts follow the STREAM construction (Hoang et al. 2015, as age and Tink use it): each nonce is the part's number and a last-part flag, so parts cannot be reordered, dropped, repeated or cut off at a part's edge. The key is unique to the file through its salt, so counting nonces from zero repeats none.",
+        "A cost or part size read from a file is bounded, so a crafted header cannot ask for gigabytes. openEncryptedFile reads any range part by part, which is how the manifest is read without decrypting the rest."
+      ],
+      "concepts": ["encrypted backup", "AES-GCM", "scrypt", "STREAM", "H04"]
+    },
+    {
+      "path": "packages/server/src/backups/sealed.ts",
+      "plain": "Turns a checked backup folder into one encrypted file and back, so restore and verify take either kind.",
+      "summary": "Seals a verified backup as one encrypted zip, reads it back to prove it, and decrypts it for restore and verify.",
+      "details": [
+        "sealBackup zips the verified capture as a workspace copy would, encrypts it into a new file, then decrypts the whole file and compares its SHA-256 and length before the backup is published.",
+        "withAnyBackupFolder recognises an encrypted backup by its first bytes, decrypts it beside itself with every part checked before the zip is opened, and removes the decrypted copy afterwards. Folders and zips go through withBackupFolder as before.",
+        "Scheduled ones are named backup-<time>Z.encrypted, which listScheduledBackups and offsite pruning count alongside plain folders and .zip copies."
+      ],
+      "concepts": ["encrypted backup", "read-back check", "H04"]
+    },
+    {
       "path": "packages/server/src/backups/feature.ts",
       "plain": "Takes backups on a timer and makes the copy of the workspace the owner downloads.",
       "summary": "registerBackups: scheduled backups (P3), the owner's workspace copy and its download through a one-use ticket (P4), and the backup summary in workspace status.",
@@ -2196,6 +2218,17 @@
             "ee/cloud/src/controlPlane.ts"
           ],
           "detail": "--backup-offsite https://<host>/<bucket>[/<folder>] with OWNBASE_BACKUP_OFFSITE_ACCESS_KEY_ID/_SECRET_ACCESS_KEY/_REGION. SigV4 PUT or multipart, then ListObjectsV2 and DELETE past --backup-offsite-keep. Status adds offsite.lastSuccessAt and failures. The control plane gives each hosted workspace <url>/<slug>."
+        },
+        {
+          "title": "Locked with a passphrase",
+          "description": "A host can set a backup passphrase. Every backup from then on, and every copy sent elsewhere, is one encrypted file nobody can open without it. Restore and verify ask for it, and say whether a failure was the passphrase or a damaged file. Lose the passphrase and those backups are lost.",
+          "files": [
+            "packages/server/src/backups/encryption.ts",
+            "packages/server/src/backups/sealed.ts",
+            "packages/server/src/config.ts",
+            "packages/server/src/cli/run.ts"
+          ],
+          "detail": "OWNBASE_BACKUP_PASSPHRASE or --backup-passphrase-file, never a CLI value. backupWorkspace({encryption}) seals the verified capture and reads it back before publishing <name>.encrypted; the child process gets the passphrase in its environment only when asked. The owner's download stays plain."
         },
         {
           "title": "Or download a copy as the owner",
