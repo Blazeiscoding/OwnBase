@@ -1,0 +1,72 @@
+name: Bug report
+description: Something in OwnBase does not work the way it should.
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time to report this.
+
+        **Found a security problem?** Do not report it here, where anyone can read it. Use the private form instead: https://github.com/Blazeiscoding/OwnBase/security/advisories/new
+
+        Leave out passwords, invite links, sign-in tokens and anything private from your workspace. Everything in this form is public.
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened
+      description: What you saw. Copy any error message word for word, and add a screenshot if it helps.
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: What you expected
+      description: What should have happened instead.
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to make it happen
+      description: Starting from a place we can find, such as "open a channel" or "start a huddle".
+      placeholder: |
+        1. Open a channel
+        2. ...
+        3. ...
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: Version
+      description: |
+        In the app: Your account (your picture) → Diagnostics → Copy diagnostics, and paste the "Server" line here. The whole text can go in the box at the end.
+        For a server on its own: the `serverVersion` that `https://<your server>/api/server-info` shows.
+      placeholder: "Server: v0.2.0-alpha.16, ..."
+    validations:
+      required: true
+  - type: dropdown
+    id: where
+    attributes:
+      label: Where it happens
+      multiple: true
+      options:
+        - Desktop app
+        - In a web browser
+        - On a phone's browser
+        - The server (ownbase-server, Docker or the desktop app hosting a workspace)
+    validations:
+      required: true
+  - type: input
+    id: system
+    attributes:
+      label: Operating system and browser
+      description: For example "Windows 11, desktop app" or "Android 16, Chrome".
+    validations:
+      required: true
+  - type: textarea
+    id: diagnostics
+    attributes:
+      label: Diagnostics or logs
+      description: Anything else that helps, such as the copied diagnostics or the server's log around the time it happened. Check it for private details first.
+      render: text
