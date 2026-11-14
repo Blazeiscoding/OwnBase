@@ -20,6 +20,7 @@ import { mkdtempSync, rmSync, statSync } from "node:fs";
 import { cpus, tmpdir, totalmem } from "node:os";
 import { join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
+import { addSqlFunctions } from "../packages/server/src/db.js";
 import { createWorkspaceServer } from "../packages/server/src/index.js";
 
 const count = Number(
@@ -69,7 +70,7 @@ try {
     fetch(base + path, { headers: { authorization: `Bearer ${token}` } }).then(ok);
 
   // ---- seed, through a second connection; WAL lets the server see it ----
-  const db = new DatabaseSync(join(dir, "workspace.db"));
+  const db = addSqlFunctions(new DatabaseSync(join(dir, "workspace.db")));
   db.exec("PRAGMA busy_timeout = 5000");
   const insert = db.prepare(
     `INSERT INTO messages (id, channel_id, user_id, text, thread_root_id, seq, created_at)

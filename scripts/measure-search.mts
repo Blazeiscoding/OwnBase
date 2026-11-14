@@ -16,6 +16,13 @@
  * cannot see, and every tenth message also carries a file named "scan.bin",
  * 20,000 in all: too many names for a search to start from (F13).
  *
+ * One message in twenty each also has a sentence in Japanese, Chinese, Thai
+ * or Korean, made of common words with no spaces between them (Korean with
+ * its usual spaces between phrases), so a word inside one is searched for as
+ * the index splits it (H06). Those words come from a random sequence of their
+ * own, so every other query finds what it did before they were added. The
+ * search index's size is printed after seeding.
+ *
  * It checks that nothing from the hidden channel is returned, then times one
  * page (21 rows, as the route asks for 20) of each query through the store,
  * after five untimed runs, and prints a short hash of the page's ids, so two
@@ -93,6 +100,53 @@ try {
   join_.run("CSECRET", people[2]!);
   let rng = 7;
   const random = () => (rng = (rng * 1103515245 + 12345) % 2 ** 31) / 2 ** 31;
+  let wordRng = 11;
+  const wordRandom = () => (wordRng = (wordRng * 1103515245 + 12345) % 2 ** 31) / 2 ** 31;
+  const sentence = (list: string[], n: number, gap: string) =>
+    Array.from({ length: n }, () => list[Math.floor(wordRandom() * list.length)]!).join(gap);
+  const languages: [words: string[], length: number, gap: string][] = [
+    [
+      ["明日", "新しい", "バージョン", "を", "デプロイ", "します", "会議", "の", "資料", "確認"]
+        .concat(["お願い", "今日", "は", "テスト", "が", "終わり", "ました", "東京", "に", "設定"])
+        .concat(["変更", "して", "ください", "予定", "です"]),
+      8,
+      "",
+    ],
+    [
+      ["我们", "明天", "部署", "新", "版本", "会议", "的", "资料", "请", "确认", "今天", "测试"]
+        .concat(["已经", "完成", "上海", "出差", "设置", "修改", "一下", "问题", "解决", "了"])
+        .concat(["服务器", "重启"]),
+      8,
+      "",
+    ],
+    [
+      ["พรุ่งนี้", "เรา", "จะ", "ปรับใช้", "เวอร์ชัน", "ใหม่", "ประชุม", "เอกสาร", "ตรวจสอบ"].concat([
+        "วันนี้",
+        "ทดสอบ",
+        "เสร็จ",
+        "แล้ว",
+        "กรุงเทพ",
+        "ตั้งค่า",
+        "เปลี่ยน",
+        "ครับ",
+        "ค่ะ",
+      ]),
+      8,
+      "",
+    ],
+    [
+      ["내일", "신규버전을", "배포합니다", "회의", "자료를", "확인해", "주세요", "오늘"].concat([
+        "테스트가",
+        "끝났습니다",
+        "서울에",
+        "갑니다",
+        "설정을",
+        "변경했습니다",
+      ]),
+      4,
+      " ",
+    ],
+  ];
   for (let i = 0; i < count; i++) {
     const r = random();
     const channel =
@@ -112,6 +166,8 @@ try {
     if (channel === "CSECRET" && random() < 0.5) words.push("classified");
     if (channel === "CSECRET" && i % 17 === 0) words.push("restricted");
     if (random() < 0.02) words.push("https://example.com/page");
+    const language = languages[(i % 20) - 7];
+    if (language) words.push(sentence(...language));
     const at = START + Math.floor((i / count) * (END - START));
     const id = `M${String(at).padStart(14, "0")}${String(i).padStart(7, "0")}`;
     const author = i % 2000 === 0 ? "URARE" : people[i % 50]!;
@@ -124,6 +180,9 @@ try {
       attach.run(`S${i}`, channel, author, id, "scan.bin", "application/octet-stream", at);
   }
   db.exec("COMMIT");
+  const fts = db
+    .prepare("SELECT SUM(pgsize) AS bytes FROM dbstat WHERE name LIKE 'messages_fts%'")
+    .get() as { bytes: number };
   let head = "";
   try {
     head = execSync("git rev-parse --short HEAD", { encoding: "utf8" }).trim();
@@ -133,7 +192,8 @@ try {
   console.log(
     `${count.toLocaleString()} messages seeded in ${((performance.now() - seeding) / 1000).toFixed(1)} s. ` +
       `${head}, ${cpus()[0]?.model ?? "cpu"}, ${cpus().length} threads, ` +
-      `${Math.round(totalmem() / 2 ** 30)} GB, Node ${process.version}, ${process.platform}.\n`,
+      `${Math.round(totalmem() / 2 ** 30)} GB, Node ${process.version}, ${process.platform}. ` +
+      `Search index ${(fts.bytes / 2 ** 20).toFixed(1)} MB.\n`,
   );
 
   const day = (ms: number) => new Date(ms).toISOString().slice(0, 10);
@@ -164,6 +224,14 @@ try {
     ["budget", { cursor: true }],
     ["budget from:@u02"],
     [`budget before:${day(START + 365 * DAY)}`],
+    ["デプロイ"],
+    ["部署"],
+    ["の"],
+    ["新版"],
+    ["部署 the"],
+    ["ปรับใช้"],
+    ["버전"],
+    ["확인"],
   ];
   console.log("query                              rows   p50 ms   p95 ms   page");
   for (const [text, options] of queries) {

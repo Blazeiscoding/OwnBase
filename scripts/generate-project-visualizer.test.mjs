@@ -41,7 +41,11 @@ const catalogs = ["client", "server", "desktop"].map((name) =>
 test("the snapshot includes tracked inputs, excludes private/build data, and preserves every file", () => {
   const tracked = git(root, "ls-files", "-z").split("\0").filter(Boolean);
   for (const path of tracked) {
-    if (path !== outputPath) assert.ok(byPath.has(path), `Missing tracked input: ${path}`);
+    // The docs pages are written from docs/*.md, which the atlas holds already.
+    const docsPage = path.startsWith("apps/site/docs/");
+    if (path !== outputPath && !docsPage)
+      assert.ok(byPath.has(path), `Missing tracked input: ${path}`);
+    if (docsPage) assert.ok(!byPath.has(path), `The atlas holds the docs page ${path}`);
   }
   assert.equal(byPath.size, data.files.length, "File paths must be unique.");
   assert.ok(!byPath.has(outputPath), "The generated page must not embed itself.");

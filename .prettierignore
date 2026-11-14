@@ -4,6 +4,10 @@ pnpm-lock.yaml
 # Portable source atlas: generated deterministically with embedded source/data.
 docs/PROJECT-VISUALIZER.html
 
+# The docs pages, written from docs/*.md by scripts/generate-docs-site.mjs,
+# which `pnpm docs:check` compares them with.
+apps/site/docs/
+
 # Written by scripts/generate-emoji.mjs, which checks they are what it writes.
 packages/ui/src/lib/emojiData.json
 packages/ui/src/emoji.css

@@ -7,6 +7,12 @@ import ts from "typescript";
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const outputPath = "docs/PROJECT-VISUALIZER.html";
+/**
+ * The docs pages, written from docs/*.md by scripts/generate-docs-site.mjs.
+ * Left out so the atlas does not hold the guides twice, and so committing
+ * rebuilt pages leaves the atlas current.
+ */
+const isDocsPage = (path) => path.startsWith("apps/site/docs/");
 const git = (...args) => execFileSync("git", args, { cwd: root, encoding: "utf8" }).trim();
 const read = (path) => readFileSync(resolve(root, path), "utf8").replace(/\r\n/g, "\n");
 const hash = (value) => createHash("sha256").update(value).digest("hex");
@@ -23,7 +29,7 @@ function walk(directory) {
 }
 const tracked = git("ls-files", "-z").split("\0").filter(Boolean);
 const paths = [...new Set([...tracked, ...owned, ...walk("docs/visualizer")])]
-  .filter((path) => path !== outputPath)
+  .filter((path) => path !== outputPath && !isDocsPage(path))
   .sort();
 const pathSet = new Set(paths);
 const packages = paths

@@ -29,11 +29,12 @@ export const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 
 /**
  * Files every build reads, whatever it builds (F05): what Turbo's cache
- * already counts as every task's input (`globalDependencies`: the TypeScript
- * base config and pnpm's workspace and install settings), the manifest and
- * lockfile, and this script, which writes the identity into each build. One
- * list, read from the build configuration, so a change that makes Turbo
- * build again also makes an older build stale here.
+ * counts as every task's input (`globalDependencies`: the root manifest and
+ * lockfile, the TypeScript base config and pnpm's workspace and install
+ * settings) and this script, which writes the identity into each build and
+ * is an input of Turbo's build task. One list, read from the build
+ * configuration, so a change that makes Turbo build again also makes an
+ * older build stale here, and the other way round (a test checks both).
  */
 export const SHARED_INPUTS = [
   ...new Set([

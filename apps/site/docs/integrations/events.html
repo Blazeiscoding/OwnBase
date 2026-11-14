@@ -1,0 +1,218 @@
+<!doctype html>
+<!-- Written by scripts/generate-docs-site.mjs from docs/INTEGRATIONS.md. Edit that, not this. -->
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Events · Integration API contract · OwnBase docs</title>
+    <meta name="description" content="An app subscribes a URL to events in Apps and integrations. The URL must first answer a url_verification request — {&quot;type&quot;: &quot;url_verification&quot;, &quot;token&quot;:…" />
+    <link rel="canonical" href="https://ownbase.site/docs/integrations/events" />
+    <meta property="og:title" content="Events · Integration API contract · OwnBase docs" />
+    <meta property="og:description" content="An app subscribes a URL to events in Apps and integrations. The URL must first answer a url_verification request — {&quot;type&quot;: &quot;url_verification&quot;, &quot;token&quot;:…" />
+    <meta property="og:type" content="article" />
+    <meta property="og:url" content="https://ownbase.site/docs/integrations/events" />
+    <meta property="og:site_name" content="OwnBase" />
+    <meta property="og:image" content="https://ownbase.site/og.png?v=2" />
+    <meta name="theme-color" content="#0b0a20" />
+    <link rel="preload" href="/fonts/onest-latin-wght-normal.woff2" as="font" type="font/woff2" crossorigin />
+    <link rel="icon" href="/ownbase.svg?v=2" type="image/svg+xml" />
+    <link rel="stylesheet" href="/site.css?v=7cf174c67f" />
+    <link rel="stylesheet" href="/docs.css?v=30dafeac35" />
+    <script src="/docs.js?v=123540c9d0" defer></script>
+  </head>
+  <body class="docs-body" data-search="/docs/search.json?v=c49ebd883a" data-guide="integrations">
+    <a class="skip" href="#main">Skip to content</a>
+
+    <header class="guide-head">
+      <nav class="nav wrap" aria-label="Main">
+        <a class="brand" href="/">
+          <img src="/ownbase.svg?v=2" alt="" width="32" height="32" />
+          <span>OwnBase</span>
+          <span class="alpha">Alpha</span>
+        </a>
+        <ul class="nav-links">
+          <li><a href="/#host">Hosting</a></li>
+          <li><a href="/host">Guide</a></li>
+          <li><a href="/docs/" aria-current="page">Docs</a></li>
+          <li><a href="/#download">Download</a></li>
+          <li><a href="https://github.com/Blazeiscoding/OwnBase">GitHub</a></li>
+        </ul>
+        <a class="btn btn-small btn-light" href="/#download">Get OwnBase</a>
+      </nav>
+    </header>
+
+    <div class="docs wrap">
+      <aside class="docs-side">
+        <div class="docs-search" role="search" hidden>
+          <label class="sr-only" for="docs-query">Search the docs</label>
+          <input id="docs-query" type="search" placeholder="Search the docs" autocomplete="off" spellcheck="false" />
+          <p class="docs-status" aria-live="polite"></p>
+          <div class="docs-results" hidden></div>
+        </div>
+        <details class="docs-nav" open>
+          <summary>All sections</summary>
+          <nav aria-label="Docs">
+            <p class="docs-group">Hosting OwnBase</p>
+            <ul>
+              <li><a href="/docs/hosting/">Overview</a></li>
+              <li><a href="/docs/hosting/windows-and-lan">Windows and LAN</a></li>
+              <li><a href="/docs/hosting/temporary-internet-sharing-with-cloudflare-tunnel">Temporary internet sharing with Cloudflare Tunnel</a></li>
+              <li><a href="/docs/hosting/docker-and-vps">Docker and VPS</a></li>
+              <li><a href="/docs/hosting/a-linux-server-with-systemd">A Linux server with systemd</a></li>
+              <li><a href="/docs/hosting/a-windows-server-as-a-service">A Windows server, as a service</a></li>
+              <li><a href="/docs/hosting/voice-and-huddles">Voice and huddles</a></li>
+              <li><a href="/docs/hosting/attachment-storage">Attachment storage</a></li>
+              <li><a href="/docs/hosting/backups-restore-updates">Backups, restore, updates</a></li>
+              <li><a href="/docs/hosting/moving-in-from-slack">Moving in from Slack</a></li>
+              <li><a href="/docs/hosting/taking-your-data-out">Taking your data out</a></li>
+              <li><a href="/docs/hosting/deletion-and-retention">Deletion and retention</a></li>
+              <li><a href="/docs/hosting/integration-delivery">Integration delivery</a></li>
+              <li><a href="/docs/hosting/link-previews">Link previews</a></li>
+              <li><a href="/docs/hosting/notifications-while-the-browser-is-closed">Notifications while the browser is closed</a></li>
+              <li><a href="/docs/hosting/behind-a-reverse-proxy">Behind a reverse proxy</a></li>
+              <li><a href="/docs/hosting/request-limits">Request limits</a></li>
+              <li><a href="/docs/hosting/password-hashing">Password hashing</a></li>
+              <li><a href="/docs/hosting/changing-a-workspace-address-and-keeping-local-work">Changing a workspace address and keeping local work</a></li>
+              <li><a href="/docs/hosting/desktop-saved-sign-ins">Desktop saved sign-ins</a></li>
+              <li><a href="/docs/hosting/the-administrative-record">The administrative record</a></li>
+              <li><a href="/docs/hosting/invites">Invites</a></li>
+              <li><a href="/docs/hosting/who-may-join">Who may join</a></li>
+              <li><a href="/docs/hosting/guests">Guests</a></li>
+              <li><a href="/docs/hosting/a-plans-members">A plan&#39;s members</a></li>
+              <li><a href="/docs/hosting/an-enterprise-license">An Enterprise license</a></li>
+              <li><a href="/docs/hosting/hosting-workspaces-for-others">Hosting workspaces for others</a></li>
+              <li><a href="/docs/hosting/current-boundaries">Current boundaries</a></li>
+            </ul>
+            <p class="docs-group">Integration API contract</p>
+            <ul>
+              <li><a href="/docs/integrations/">Overview</a></li>
+              <li><a href="/docs/integrations/setting-up-an-app">Setting up an app</a></li>
+              <li><a href="/docs/integrations/identifiers">Identifiers</a></li>
+              <li><a href="/docs/integrations/verifying-requests-from-this-server">Verifying requests from this server</a></li>
+              <li><a href="/docs/integrations/web-api-methods">Web API methods</a></li>
+              <li><a href="/docs/integrations/incoming-webhooks">Incoming webhooks</a></li>
+              <li><a href="/docs/integrations/slash-commands">Slash commands</a></li>
+              <li><a href="/docs/integrations/interactive-buttons">Interactive buttons</a></li>
+              <li><a href="/docs/integrations/modals">Modals</a></li>
+              <li><a href="/docs/integrations/events" aria-current="page">Events</a></li>
+              <li><a href="/docs/integrations/block-kit">Block Kit</a></li>
+              <li><a href="/docs/integrations/the-native-client-protocol">The native client protocol</a></li>
+            </ul>
+          </nav>
+        </details>
+      </aside>
+
+      <main id="main" class="docs-main">
+        <p class="docs-crumb"><a href="/docs/">Docs</a> / <a href="/docs/integrations/">Integration API contract</a></p>
+        <article class="doc">
+        <h1 id="events">Events</h1>
+        
+<p>An app subscribes a URL to events in Apps and integrations. The URL must first
+answer a <code>url_verification</code> request — <code>{&quot;type&quot;: &quot;url_verification&quot;, &quot;token&quot;: &quot;&quot;, &quot;challenge&quot;: &quot;…&quot;}</code> — by echoing the <code>challenge</code>, either as the whole body or as
+<code>{&quot;challenge&quot;: &quot;…&quot;}</code>.</p>
+<p>Each event then arrives as:</p>
+<pre tabindex="0"><code class="language-json">{
+  &quot;type&quot;: &quot;event_callback&quot;,
+  &quot;event_id&quot;: &quot;Ev1234&quot;,
+  &quot;event_time&quot;: 1789291228,
+  &quot;team_id&quot;: &quot;01M2D12P7QFB85N50CZ4MHTV46&quot;,
+  &quot;event&quot;: { &quot;type&quot;: &quot;message&quot;, &quot;channel&quot;: &quot;…&quot;, &quot;user&quot;: &quot;…&quot;, &quot;text&quot;: &quot;…&quot;, &quot;ts&quot;: &quot;…&quot; },
+  &quot;ownbase&quot;: { &quot;type&quot;: &quot;message.created&quot;, &quot;seq&quot;: 1234 }
+}</code></pre>
+<p><code>ownbase</code> carries this server&#39;s own event name and its position in the
+workspace&#39;s event log. There is no <code>api_app_id</code>, <code>authorizations</code>,
+<code>event_context</code> or verification <code>token</code>.</p>
+<p>What is delivered:</p>
+<ul>
+<li>events from <strong>channels the bot has been added to</strong>, and workspace-wide events
+such as a new member;</li>
+<li><strong>never</strong> an event caused by the app&#39;s own bot, which is how a bot that answers
+messages ends up answering itself forever;</li>
+<li>only the event types the subscription names, using the native names in the
+table below, or every type if it names none. A subscription naming any other
+type is refused;</li>
+<li>only what the app&#39;s scopes let it read, as the table&#39;s last column says. A
+message from a private channel needs <code>groups:history</code> where one from a public
+channel needs <code>channels:history</code>. Apps and integrations names the scopes a
+subscription&#39;s events are waiting on. Events already queued when a scope is
+taken away are still sent.</li>
+</ul>
+<p>How it is delivered:</p>
+<ul>
+<li><strong>at least once.</strong> A crash after the app answered but before the delivery was
+recorded sends it again with the same <code>event_id</code>, so deduplicate on it;</li>
+<li><strong>in order</strong> for each subscription, and in parallel across subscriptions;</li>
+<li>a <code>2xx</code> answer within four seconds is a delivery. Anything else is retried
+after 5 seconds, 30 seconds, 2 minutes, 10 minutes, 30 minutes, 1 hour and
+6 hours — eight attempts in all — with <code>X-Slack-Retry-Num</code> and
+<code>X-Slack-Retry-Reason: http_error</code> on each retry;</li>
+<li>at most <strong>500</strong> events wait for one subscription. Past that, new events are
+counted as dropped and shown beside the subscription;</li>
+<li>an endpoint that uses up its attempts has the rest of its queue given up with
+it. An administrator can retry the whole queue, in order, from Apps and
+integrations. Given-up events nobody asks to retry are kept for seven days;
+a retry that has been asked for is kept until it is sent, however long the
+queue stays full, or until the endpoint fails again, which starts its seven
+days afresh;</li>
+<li>a retry is a replay of history. Its events go out oldest first among
+themselves, each taking a place in the queue as one frees up, but events
+already waiting when the retry was asked for are not held back for it. So a
+replayed event can arrive after newer ones: order by <code>ownbase.seq</code> (or
+<code>event_id</code>) if your app needs the original order.</li>
+</ul>
+<p>What an edit or a deletion does to an event not yet delivered: a message&#39;s
+words are taken out of every event about it that is still waiting, or that
+gave up, in the same write that edits or deletes it, and the same happens when
+the retention window discards it. The events themselves stay, in order and with
+their <code>event_id</code>: an app that is behind receives the <code>message</code> with an empty
+<code>text</code> (or a <code>message_changed</code> whose <code>message.text</code> is empty), then the edit or
+deletion that supersedes it, as a client catching up on the event log does.
+Only the words are taken out; who wrote it, where and when stay. An event
+already delivered belongs to the app and cannot be called back, and one that was
+on its way out at that moment may still arrive as it was.</p>
+<p>The events — <em>checked</em>:</p>
+<div class="doc-table" tabindex="0" role="region" aria-label="Table"><table>
+<thead><tr><th>Native event</th><th>Slack <code>event.type</code></th><th>Differences</th><th>Scope</th></tr></thead>
+<tbody>
+<tr><td><code>message.created</code></td><td><code>message</code></td><td><code>thread_ts</code> present for a reply</td><td><code>channels:history</code>, <code>groups:history</code>, <code>im:history</code>, <code>mpim:history</code></td></tr>
+<tr><td><code>message.updated</code></td><td><code>message</code></td><td><code>subtype: &quot;message_changed&quot;</code>, with the new <code>message</code></td><td><code>channels:history</code>, <code>groups:history</code>, <code>im:history</code>, <code>mpim:history</code></td></tr>
+<tr><td><code>message.deleted</code></td><td><code>message</code></td><td><code>subtype: &quot;message_deleted&quot;</code>, with <code>deleted_ts</code></td><td><code>channels:history</code>, <code>groups:history</code>, <code>im:history</code>, <code>mpim:history</code></td></tr>
+<tr><td><code>reaction.added</code></td><td><code>reaction_added</code></td><td><code>reaction</code> is the emoji itself, not its name</td><td><code>reactions:read</code></td></tr>
+<tr><td><code>reaction.removed</code></td><td><code>reaction_removed</code></td><td>As above</td><td><code>reactions:read</code></td></tr>
+<tr><td><code>pin.added</code></td><td><code>pin_added</code></td><td>—</td><td><code>pins:read</code></td></tr>
+<tr><td><code>pin.removed</code></td><td><code>pin_removed</code></td><td>No <code>user</code></td><td><code>pins:read</code></td></tr>
+<tr><td><code>channel.created</code></td><td><code>channel_created</code></td><td>—</td><td><code>channels:read</code>, <code>groups:read</code></td></tr>
+<tr><td><code>channel.updated</code></td><td><code>channel_rename</code></td><td>Sent for any change to a channel, not only its name</td><td><code>channels:read</code>, <code>groups:read</code></td></tr>
+<tr><td><code>member.joined</code></td><td><code>member_joined_channel</code></td><td>—</td><td><code>channels:read</code>, <code>groups:read</code></td></tr>
+<tr><td><code>member.left</code></td><td><code>member_left_channel</code></td><td>—</td><td><code>channels:read</code>, <code>groups:read</code></td></tr>
+<tr><td><code>user.joined</code></td><td><code>team_join</code></td><td><code>user</code> carries <code>id</code>, <code>name</code>, <code>real_name</code>, <code>is_bot</code>, <code>deleted</code> only</td><td><code>users:read</code></td></tr>
+<tr><td><code>user.updated</code></td><td><code>user_change</code></td><td>As above</td><td><code>users:read</code></td></tr>
+</tbody>
+</table></div>
+        </article>
+        <nav class="docs-pager" aria-label="Pages"><a class="docs-prev" href="/docs/integrations/modals"><span>Previous</span>Modals</a><a class="docs-next" href="/docs/integrations/block-kit"><span>Next</span>Block Kit</a></nav>
+        <p class="docs-source">This page is made from <a href="https://github.com/Blazeiscoding/OwnBase/blob/main/docs/INTEGRATIONS.md#events">docs/INTEGRATIONS.md</a>.</p>
+      </main>
+    </div>
+
+    <footer class="end guide-foot">
+      <div class="footer wrap">
+        <a class="brand" href="/">
+          <img src="/ownbase.svg?v=2" alt="" width="24" height="24" />
+          <span>OwnBase</span>
+        </a>
+        <ul class="footer-links">
+          <li><a href="/host">Hosting guide</a></li>
+          <li><a href="/docs/">Docs</a></li>
+          <li><a href="https://github.com/Blazeiscoding/OwnBase">GitHub</a></li>
+          <li><a href="https://github.com/Blazeiscoding/OwnBase/blob/main/SECURITY.md">Security</a></li>
+          <li><a href="https://github.com/Blazeiscoding/OwnBase/blob/main/docs/PLANS.md">Plans</a></li>
+        </ul>
+        <p class="legal">
+          OwnBase is in alpha. MIT licensed, except the Enterprise code in <code>ee/</code>. Not
+          affiliated with Slack or Salesforce.
+        </p>
+      </div>
+    </footer>
+  </body>
+</html>

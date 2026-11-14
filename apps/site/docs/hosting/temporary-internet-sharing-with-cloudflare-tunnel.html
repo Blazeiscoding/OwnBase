@@ -1,0 +1,406 @@
+<!doctype html>
+<!-- Written by scripts/generate-docs-site.mjs from docs/DEPLOYMENT.md. Edit that, not this. -->
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Temporary internet sharing with Cloudflare Tunnel · Hosting OwnBase · OwnBase docs</title>
+    <meta name="description" content="OwnBase&#39;s Open to all button creates a Cloudflare Quick Tunnel from a random https://…trycloudflare.com address to the workspace on this computer. It…" />
+    <link rel="canonical" href="https://ownbase.site/docs/hosting/temporary-internet-sharing-with-cloudflare-tunnel" />
+    <meta property="og:title" content="Temporary internet sharing with Cloudflare Tunnel · Hosting OwnBase · OwnBase docs" />
+    <meta property="og:description" content="OwnBase&#39;s Open to all button creates a Cloudflare Quick Tunnel from a random https://…trycloudflare.com address to the workspace on this computer. It…" />
+    <meta property="og:type" content="article" />
+    <meta property="og:url" content="https://ownbase.site/docs/hosting/temporary-internet-sharing-with-cloudflare-tunnel" />
+    <meta property="og:site_name" content="OwnBase" />
+    <meta property="og:image" content="https://ownbase.site/og.png?v=2" />
+    <meta name="theme-color" content="#0b0a20" />
+    <link rel="preload" href="/fonts/onest-latin-wght-normal.woff2" as="font" type="font/woff2" crossorigin />
+    <link rel="icon" href="/ownbase.svg?v=2" type="image/svg+xml" />
+    <link rel="stylesheet" href="/site.css?v=7cf174c67f" />
+    <link rel="stylesheet" href="/docs.css?v=30dafeac35" />
+    <script src="/docs.js?v=123540c9d0" defer></script>
+  </head>
+  <body class="docs-body" data-search="/docs/search.json?v=c49ebd883a" data-guide="hosting">
+    <a class="skip" href="#main">Skip to content</a>
+
+    <header class="guide-head">
+      <nav class="nav wrap" aria-label="Main">
+        <a class="brand" href="/">
+          <img src="/ownbase.svg?v=2" alt="" width="32" height="32" />
+          <span>OwnBase</span>
+          <span class="alpha">Alpha</span>
+        </a>
+        <ul class="nav-links">
+          <li><a href="/#host">Hosting</a></li>
+          <li><a href="/host">Guide</a></li>
+          <li><a href="/docs/" aria-current="page">Docs</a></li>
+          <li><a href="/#download">Download</a></li>
+          <li><a href="https://github.com/Blazeiscoding/OwnBase">GitHub</a></li>
+        </ul>
+        <a class="btn btn-small btn-light" href="/#download">Get OwnBase</a>
+      </nav>
+    </header>
+
+    <div class="docs wrap">
+      <aside class="docs-side">
+        <div class="docs-search" role="search" hidden>
+          <label class="sr-only" for="docs-query">Search the docs</label>
+          <input id="docs-query" type="search" placeholder="Search the docs" autocomplete="off" spellcheck="false" />
+          <p class="docs-status" aria-live="polite"></p>
+          <div class="docs-results" hidden></div>
+        </div>
+        <details class="docs-nav" open>
+          <summary>All sections</summary>
+          <nav aria-label="Docs">
+            <p class="docs-group">Hosting OwnBase</p>
+            <ul>
+              <li><a href="/docs/hosting/">Overview</a></li>
+              <li><a href="/docs/hosting/windows-and-lan">Windows and LAN</a></li>
+              <li><a href="/docs/hosting/temporary-internet-sharing-with-cloudflare-tunnel" aria-current="page">Temporary internet sharing with Cloudflare Tunnel</a></li>
+              <li><a href="/docs/hosting/docker-and-vps">Docker and VPS</a></li>
+              <li><a href="/docs/hosting/a-linux-server-with-systemd">A Linux server with systemd</a></li>
+              <li><a href="/docs/hosting/a-windows-server-as-a-service">A Windows server, as a service</a></li>
+              <li><a href="/docs/hosting/voice-and-huddles">Voice and huddles</a></li>
+              <li><a href="/docs/hosting/attachment-storage">Attachment storage</a></li>
+              <li><a href="/docs/hosting/backups-restore-updates">Backups, restore, updates</a></li>
+              <li><a href="/docs/hosting/moving-in-from-slack">Moving in from Slack</a></li>
+              <li><a href="/docs/hosting/taking-your-data-out">Taking your data out</a></li>
+              <li><a href="/docs/hosting/deletion-and-retention">Deletion and retention</a></li>
+              <li><a href="/docs/hosting/integration-delivery">Integration delivery</a></li>
+              <li><a href="/docs/hosting/link-previews">Link previews</a></li>
+              <li><a href="/docs/hosting/notifications-while-the-browser-is-closed">Notifications while the browser is closed</a></li>
+              <li><a href="/docs/hosting/behind-a-reverse-proxy">Behind a reverse proxy</a></li>
+              <li><a href="/docs/hosting/request-limits">Request limits</a></li>
+              <li><a href="/docs/hosting/password-hashing">Password hashing</a></li>
+              <li><a href="/docs/hosting/changing-a-workspace-address-and-keeping-local-work">Changing a workspace address and keeping local work</a></li>
+              <li><a href="/docs/hosting/desktop-saved-sign-ins">Desktop saved sign-ins</a></li>
+              <li><a href="/docs/hosting/the-administrative-record">The administrative record</a></li>
+              <li><a href="/docs/hosting/invites">Invites</a></li>
+              <li><a href="/docs/hosting/who-may-join">Who may join</a></li>
+              <li><a href="/docs/hosting/guests">Guests</a></li>
+              <li><a href="/docs/hosting/a-plans-members">A plan&#39;s members</a></li>
+              <li><a href="/docs/hosting/an-enterprise-license">An Enterprise license</a></li>
+              <li><a href="/docs/hosting/hosting-workspaces-for-others">Hosting workspaces for others</a></li>
+              <li><a href="/docs/hosting/current-boundaries">Current boundaries</a></li>
+            </ul>
+            <p class="docs-group">Integration API contract</p>
+            <ul>
+              <li><a href="/docs/integrations/">Overview</a></li>
+              <li><a href="/docs/integrations/setting-up-an-app">Setting up an app</a></li>
+              <li><a href="/docs/integrations/identifiers">Identifiers</a></li>
+              <li><a href="/docs/integrations/verifying-requests-from-this-server">Verifying requests from this server</a></li>
+              <li><a href="/docs/integrations/web-api-methods">Web API methods</a></li>
+              <li><a href="/docs/integrations/incoming-webhooks">Incoming webhooks</a></li>
+              <li><a href="/docs/integrations/slash-commands">Slash commands</a></li>
+              <li><a href="/docs/integrations/interactive-buttons">Interactive buttons</a></li>
+              <li><a href="/docs/integrations/modals">Modals</a></li>
+              <li><a href="/docs/integrations/events">Events</a></li>
+              <li><a href="/docs/integrations/block-kit">Block Kit</a></li>
+              <li><a href="/docs/integrations/the-native-client-protocol">The native client protocol</a></li>
+            </ul>
+          </nav>
+        </details>
+      </aside>
+
+      <aside class="docs-toc" aria-labelledby="toc-title">
+        <p id="toc-title" class="docs-toc-title">On this page</p>
+        <ul>
+          <li class="toc-3"><a href="#install-cloudflared">Install cloudflared</a></li>
+          <li class="toc-3"><a href="#open-and-share-the-desktop-workspace">Open and share the desktop workspace</a></li>
+          <li class="toc-3"><a href="#use-an-address-you-already-have">Use an address you already have</a></li>
+          <li class="toc-4"><a href="#with-tailscale-funnel">With Tailscale Funnel</a></li>
+          <li class="toc-4"><a href="#setting-it-outside-the-app">Setting it outside the app</a></li>
+          <li class="toc-3"><a href="#a-stable-address-ownbase-runs-for-you">A stable address OwnBase runs for you</a></li>
+          <li class="toc-3"><a href="#run-a-quick-tunnel-with-the-standalone-server">Run a Quick Tunnel with the standalone server</a></li>
+          <li class="toc-3"><a href="#quick-tunnel-limits">Quick Tunnel limits</a></li>
+        </ul>
+      </aside>
+      <main id="main" class="docs-main">
+        <p class="docs-crumb"><a href="/docs/">Docs</a> / <a href="/docs/hosting/">Hosting OwnBase</a></p>
+        <article class="doc">
+        <h1 id="temporary-internet-sharing-with-cloudflare-tunnel">Temporary internet sharing with Cloudflare Tunnel</h1>
+        
+<p>OwnBase&#39;s <strong>Open to all</strong> button creates a
+<a href="https://developers.cloudflare.com/cloudflare-one/networks/connectors/cloudflare-tunnel/do-more-with-tunnels/trycloudflare/">Cloudflare Quick Tunnel</a>
+from a random <code>https://…trycloudflare.com</code> address to the workspace on this
+computer. It needs no Cloudflare account, domain, inbound firewall rule, port
+forward, or public IP. <code>cloudflared</code> makes an outbound connection to Cloudflare;
+friends use the public address while that connector is already running.</p>
+<h2 id="install-cloudflared">Install cloudflared<a class="doc-anchor" href="#install-cloudflared" aria-label="Link to Install cloudflared">#</a></h2>
+<p>The desktop app can install it for you: when it is missing, <strong>Manage hosting →
+Share on the internet</strong> offers <strong>Install cloudflared</strong>. OwnBase uses winget on
+Windows (for your account only, without an administrator) or Homebrew on macOS
+and Linux. Without either, or when that fails, it downloads Cloudflare&#39;s latest
+release from GitHub into its own folder, and keeps it only when it matches the
+SHA-256 digest GitHub publishes for it.</p>
+<p>To install it yourself instead, use Cloudflare&#39;s <a href="https://developers.cloudflare.com/tunnel/downloads/">official downloads</a>,
+then check the installed version. On Windows, run these commands in PowerShell:</p>
+<pre tabindex="0"><code class="language-powershell">$msi = Join-Path $env:TEMP &quot;cloudflared-windows-amd64.msi&quot;
+Invoke-WebRequest -Uri &quot;https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-windows-amd64.msi&quot; -OutFile $msi
+Start-Process msiexec.exe -Verb RunAs -Wait -ArgumentList @(&quot;/i&quot;, &quot;`&quot;$msi`&quot;&quot;)</code></pre>
+<p>Open a new PowerShell window and verify the installation:</p>
+<pre tabindex="0"><code class="language-powershell">cloudflared --version</code></pre>
+<p>On macOS with Homebrew:</p>
+<pre tabindex="0"><code class="language-sh">brew install cloudflared
+cloudflared --version</code></pre>
+<p>On Debian, Ubuntu, or another Debian-based distribution, use
+<a href="https://pkg.cloudflare.com/">Cloudflare&#39;s package repository</a>:</p>
+<pre tabindex="0"><code class="language-sh">sudo mkdir -p --mode=0755 /usr/share/keyrings
+curl -fsSL https://pkg.cloudflare.com/cloudflare-main.gpg | sudo tee /usr/share/keyrings/cloudflare-main.gpg &gt;/dev/null
+echo &#39;deb [signed-by=/usr/share/keyrings/cloudflare-main.gpg] https://pkg.cloudflare.com/cloudflared any main&#39; | sudo tee /etc/apt/sources.list.d/cloudflared.list
+sudo apt-get update &amp;&amp; sudo apt-get install cloudflared
+cloudflared --version</code></pre>
+<p>If <code>cloudflared</code> is elsewhere, set <code>OWNBASE_CLOUDFLARED</code> to its full path
+before starting OwnBase.</p>
+<h2 id="open-and-share-the-desktop-workspace">Open and share the desktop workspace<a class="doc-anchor" href="#open-and-share-the-desktop-workspace" aria-label="Link to Open and share the desktop workspace">#</a></h2>
+<ol>
+<li>In OwnBase, choose <strong>Host a workspace on this computer</strong>, open it, and
+create its owner account while it is still local.</li>
+<li>Open <strong>Manage hosting</strong> and select <strong>Open to all</strong>. Leave <strong>Require an invite
+link to create an account</strong> selected unless everyone who learns the public
+address should be able to create an account.</li>
+<li>Wait for OwnBase to show the <code>https://…trycloudflare.com</code> address. The app
+starts and monitors <code>cloudflared</code>; a Cloudflare account is not required.</li>
+<li>Open <strong>Workspace → Invite people</strong>, generate an invite, then choose <strong>Copy
+link</strong> under <strong>Browser link</strong>. Send that complete link to a friend. It opens
+the browser client with the invite code filled in; the friend does not
+install <code>cloudflared</code>.</li>
+<li>Keep the host computer awake and keep OwnBase running. <strong>Close public
+link</strong>, <strong>Stop hosting</strong>, or quitting OwnBase ends the connector and makes
+that address unusable. Opening it again creates a different address, so send
+a new invite link.</li>
+</ol>
+<p>The public HTTPS address carries the browser client, API requests, and
+WebSockets used for chat. Opening the invite link on another computer sends the
+request to Cloudflare&#39;s edge, which forwards it through the tunnel that the host
+already opened. A click cannot open a tunnel on a host that is offline.
+While that connector is active, the embedded server accepts Cloudflare&#39;s
+visitor-address header only from a loopback peer so its unauthenticated limits
+remain separate per visitor. It stops trusting that header as soon as the public
+link closes; LAN and other network peers cannot supply it.</p>
+<p><strong>Open to all</strong> adds Cloudflare&#39;s STUN service for peer-to-peer huddles. That is
+enough for most networks, but some, such as mobile data and strict office
+networks, will not let two people reach each other directly: chat works while
+their call stays on <strong>Connecting…</strong>. Calls between them need a TURN relay. Add
+one in <strong>Manage hosting</strong>, under <strong>Calls from other networks</strong>:</p>
+<ul>
+<li><strong>Cloudflare</strong>: a TURN key&#39;s ID and API token, from the Realtime section of the
+Cloudflare dashboard. The token stays on the host computer, encrypted by the
+operating system; each call is given a password from Cloudflare that lasts a
+day.</li>
+<li><strong>Another TURN server</strong>: its <code>turn:</code> or <code>turns:</code> addresses, username and
+password. Everyone in a call is given that username and password.</li>
+</ul>
+<p><strong>Test</strong> checks that the relay gives this computer a route before anyone
+depends on it. A change reaches calls that start afterwards; a call stuck on
+<strong>Connecting…</strong> picks it up when it retries. If Cloudflare later refuses the key,
+the card says so.</p>
+<h2 id="use-an-address-you-already-have">Use an address you already have<a class="doc-anchor" href="#use-an-address-you-already-have" aria-label="Link to Use an address you already have">#</a></h2>
+<p>A Quick Tunnel gives a different address every time it opens, so every invite
+link has to be sent again. If something already carries a public HTTPS address
+to this computer, give that address to OwnBase instead and <strong>Open to all</strong>
+verifies and uses the same one every time.</p>
+<p>Open <strong>Manage hosting</strong>, put the address under <strong>Your own address</strong>, and save.
+OwnBase starts no connector in this mode. It checks that the address reaches
+this workspace, publishes it into browser, invite and message links, and keeps
+checking while the link is open. OwnBase itself needs no domain or Cloudflare
+account for this mode, although the outside service you choose can have its own
+account or domain requirements.</p>
+<p>The outside service remains in charge of public access. <strong>Close public link</strong>
+stops OwnBase from monitoring and putting the address into new links, but it
+cannot stop a Funnel, proxy, or tunnel that OwnBase did not start. As long as
+that service and the hosted workspace are running, the address remains
+reachable. Stop the outside service, or stop hosting, when the workspace must no
+longer be public. An old invite link keeps the stable base address, but its code
+can still expire or reach its use limit.</p>
+<p>The carrier must forward every HTTP path and WebSocket upgrade to
+<code>http://127.0.0.1:&lt;port&gt;</code>; forwarding only the home page is not enough for the
+API or live chat. A Tailscale Funnel, a WebSocket-capable reverse proxy, a VPS
+with a reverse tunnel, or another tunnel can do this. Use the actual port
+<strong>Manage hosting</strong> shows for the workspace; it can differ from 8543 when that
+port was already occupied.</p>
+<p>Holding a port is not the same as owning it. On Windows a program already
+listening on <code>127.0.0.1:8543</code> does not stop OwnBase binding <code>0.0.0.0:8543</code>,
+and loopback requests then go to that program rather than the workspace, so a
+carrier forwarding there reaches the wrong thing. OwnBase checks this when
+hosting starts and says so in <strong>Manage hosting</strong>; stop the other program and
+start hosting again, or host on a different port. <strong>Open to all</strong> refuses
+either way, because the address has to answer as this workspace before it is
+published.</p>
+<h3 id="with-tailscale-funnel">With Tailscale Funnel<a class="doc-anchor" href="#with-tailscale-funnel" aria-label="Link to With Tailscale Funnel">#</a></h3>
+<p><a href="https://tailscale.com/docs/features/tailscale-funnel">Tailscale Funnel</a> gives a
+stable HTTPS name with a real certificate and no domain to buy. It is available
+on every Tailscale plan; Tailscale&#39;s Personal plan is free but is for
+non-commercial use, and caps how many people share a tailnet. That cap counts
+Tailscale accounts, not workspace members: a Funnel is open to the internet, so
+teammates join OwnBase through the address in a browser and need no Tailscale
+account at all. Funnel is currently beta and has non-configurable bandwidth
+limits. It also needs
+MagicDNS, HTTPS certificates, and the Funnel node attribute in the tailnet
+policy. The first command can open Tailscale&#39;s approval page to enable those
+settings; the person approving it needs the appropriate tailnet role.</p>
+<p>Install Tailscale and sign in. On Windows, open PowerShell as Administrator and
+run the command with the port shown by OwnBase (8543 is only the usual
+value):</p>
+<pre tabindex="0"><code class="language-powershell">$port = 8543
+tailscale funnel $port</code></pre>
+<p>That form runs in the foreground. Keep the PowerShell window open while people
+use the workspace, and press Ctrl+C to stop the Funnel. To let Tailscale keep it
+running in the background instead, use:</p>
+<pre tabindex="0"><code class="language-powershell">tailscale funnel --bg $port</code></pre>
+<p>Stop all Funnel routes on that computer when sharing is finished:</p>
+<pre tabindex="0"><code class="language-powershell">tailscale funnel reset</code></pre>
+<p>On Linux, use the same commands through <code>sudo</code> unless that user was configured
+as Tailscale&#39;s operator:</p>
+<pre tabindex="0"><code class="language-sh">port=8543
+sudo tailscale funnel &quot;$port&quot;
+# Or keep it in the background:
+sudo tailscale funnel --bg &quot;$port&quot;
+# Later, remove the public Funnel configuration:
+sudo tailscale funnel reset</code></pre>
+<p>Funnel prints a name like <code>https://box.tail1234.ts.net</code>; paste it into <strong>Your own
+address</strong>. The public HTTPS listener can use only port 443 (the default), 8443,
+or 10000. The <code>8543</code> above is the local OwnBase target, not the public
+listener. On macOS, forwarding a port needs one of the GUI builds — Tailscale
+documents the Standalone system extension for this, and the open-source
+<code>tailscaled</code> build is what its file-sharing rule is about, not ports. Check
+<a href="https://tailscale.com/docs/concepts/macos-variants">which macOS variant you have</a>
+if <code>tailscale funnel</code> refuses the port.</p>
+<p>OwnBase does not sign in to Tailscale or change the tailnet policy. Those
+steps belong to Tailscale&#39;s own client and approval page, and the Windows command
+needs Administrator rights. OwnBase takes only the finished public address;
+it never receives Tailscale account credentials.</p>
+<h3 id="setting-it-outside-the-app">Setting it outside the app<a class="doc-anchor" href="#setting-it-outside-the-app" aria-label="Link to Setting it outside the app">#</a></h3>
+<p><code>OWNBASE_PUBLIC_URL</code> sets the same address from the environment, for a
+service or a scripted install. An address set
+that way is shown in <strong>Manage hosting</strong> but cannot be edited there, since the
+app does not own it. A saved address takes precedence over both, so an old
+variable in a shell cannot quietly replace one somebody typed into the app.</p>
+<p>The address has to be a public HTTPS origin, the same rule described below. If
+it stops answering as this workspace, OwnBase gives it up after several
+checks in a row fail, removes it from new links, and says so in <strong>Manage
+hosting</strong>. A brief network blip does not invalidate the links you have sent.
+This does not shut down the outside carrier; use its own stop command when the
+address itself must stop accepting connections.</p>
+<h2 id="a-stable-address-ownbase-runs-for-you">A stable address OwnBase runs for you<a class="doc-anchor" href="#a-stable-address-ownbase-runs-for-you" aria-label="Link to A stable address OwnBase runs for you">#</a></h2>
+<p>If you own a domain on Cloudflare, OwnBase can run the connector itself
+rather than leaving it to you. Open to all then starts and stops a Cloudflare
+named tunnel with the workspace, at an address that does not change. This needs
+a domain; the section above needs none.</p>
+<p>Create a <strong>remotely managed</strong> tunnel in Cloudflare&#39;s
+<a href="https://one.dash.cloudflare.com/">Tunnels dashboard</a>, then add a Published
+application route whose hostname is your public address and whose service URL is
+<code>http://127.0.0.1:8543</code>, replacing 8543 with the port <strong>Manage hosting</strong> shows.
+Do not use <code>cloudflared tunnel create</code> for this flow: that command creates a
+locally managed tunnel with a credentials JSON file, while OwnBase&#39;s
+<code>--token-file</code> flow requires a remotely managed tunnel.</p>
+<p>In the tunnel&#39;s dashboard page, choose <strong>Add a replica</strong> and copy the connector
+token (the <code>eyJ…</code> value in Cloudflare&#39;s installation command) into a file
+readable only by your account. OwnBase never reads its contents; it passes
+the path to <a href="https://developers.cloudflare.com/tunnel/reference/run-parameters/#token-file"><code>cloudflared --token-file</code></a>.
+That option requires <code>cloudflared</code> 2025.4.0 or later, so check
+<code>cloudflared --version</code> and update it first when needed.</p>
+<p>Environment variables belong to the process that starts OwnBase. On Windows,
+set both in PowerShell and launch the installed app from that same window so it
+inherits them:</p>
+<pre tabindex="0"><code class="language-powershell">$env:OWNBASE_TUNNEL_URL = &quot;https://chat.example.org&quot;
+$env:OWNBASE_TUNNEL_TOKEN_FILE = &quot;C:\Users\sam\.cloudflared\chat-token.txt&quot;
+Start-Process &quot;$env:LOCALAPPDATA\Programs\OwnBase\OwnBase.exe&quot;</code></pre>
+<p>If OwnBase was installed elsewhere, replace the last path with the path to
+its <code>OwnBase.exe</code>. To launch it later from the Start menu, save the two values
+as user environment variables first, then sign out and back in so newly launched
+apps inherit them. The token itself stays in the protected file; the environment
+contains only its path.</p>
+<p>On Linux, export the values and run the AppImage from that same shell:</p>
+<pre tabindex="0"><code class="language-sh">export OWNBASE_TUNNEL_URL=https://chat.example.org
+export OWNBASE_TUNNEL_TOKEN_FILE=/home/sam/.cloudflared/chat-token
+./OwnBase-0.2.0.AppImage</code></pre>
+<p>The same inheritance rule applies on macOS: a GUI app opened from Finder or the
+Dock does not inherit variables exported in an unrelated terminal. Start its
+executable from the configured shell or provide the values through the service
+or launcher that owns the app process. Releases include no Linux package, and
+CI neither builds nor tests one.</p>
+<p><code>OWNBASE_TUNNEL_URL</code> has to be a public HTTPS origin: a hostname with a dot,
+and no path, query, credentials, or fragment. Loopback and private-network
+suffixes (<code>.local</code>, <code>.internal</code>, <code>.home</code>, <code>.lan</code>, <code>localhost</code>) and bare IP
+addresses are refused, and so is a trailing dot. An accented hostname is
+accepted and stored in its punycode form. A non-standard HTTPS port is allowed,
+for the alternate ports Cloudflare proxies. Setting only one of the pair, naming
+a token file that is not there, or giving an address that cannot be published
+is reported in <strong>Manage hosting</strong> and leaves <strong>Open to all</strong> unavailable, rather
+than quietly opening a temporary address nobody was given. Environment variables
+are read when the app launches, so fully quit and restart OwnBase from the
+correct environment after changing them. After installing <code>cloudflared</code> or
+creating a missing token file, reopen <strong>Manage hosting</strong> (or use <strong>Check again</strong>
+when shown) to refresh the status.</p>
+<p><strong>Open to all</strong> then starts the saved connector and waits until the configured
+address reaches <em>this</em> running workspace before publishing it. If the address
+answers as something else — another workspace, or a route left pointing
+somewhere old — opening fails and says which Cloudflare route to correct. What
+the connector prints is kept out of OwnBase&#39;s messages and logs, because it
+can quote the token it was given.</p>
+<p>Closing the public link or quitting stops the connector, and the address stops
+working until it is opened again. Unlike a Quick Tunnel, the address itself
+survives, so invite links already sent keep working the next time you open it.</p>
+<h2 id="run-a-quick-tunnel-with-the-standalone-server">Run a Quick Tunnel with the standalone server<a class="doc-anchor" href="#run-a-quick-tunnel-with-the-standalone-server" aria-label="Link to Run a Quick Tunnel with the standalone server">#</a></h2>
+<p>Build the server first, start it only on the local interface, and create the
+owner account before exposing it:</p>
+<pre tabindex="0"><code class="language-sh">pnpm install
+pnpm build
+node apps/server-cli/dist/ownbase-server.js --data ./data --name &quot;My Team&quot; --host 127.0.0.1 --invite-only</code></pre>
+<p>Open <code>http://127.0.0.1:8543</code>, create the owner, then stop the server with
+Ctrl+C. In one terminal, start a Quick Tunnel and keep it running:</p>
+<pre tabindex="0"><code class="language-sh">cloudflared tunnel --url http://127.0.0.1:8543</code></pre>
+<p>Copy the <code>https://…trycloudflare.com</code> address it prints. In a second terminal,
+set the STUN configuration and restart the same data directory with that exact
+address. On macOS or Linux:</p>
+<pre tabindex="0"><code class="language-sh">export OWNBASE_ICE_SERVERS=&#39;[{&quot;urls&quot;:&quot;stun:stun.cloudflare.com:3478&quot;}]&#39;
+node apps/server-cli/dist/ownbase-server.js --data ./data --name &quot;My Team&quot; --host 127.0.0.1 --invite-only --public-url https://YOUR-RANDOM-NAME.trycloudflare.com</code></pre>
+<p>Or in PowerShell:</p>
+<pre tabindex="0"><code class="language-powershell">$env:OWNBASE_ICE_SERVERS=&#39;[{&quot;urls&quot;:&quot;stun:stun.cloudflare.com:3478&quot;}]&#39;
+node apps/server-cli/dist/ownbase-server.js --data ./data --name &quot;My Team&quot; --host 127.0.0.1 --invite-only --public-url https://YOUR-RANDOM-NAME.trycloudflare.com</code></pre>
+<p>Sign in through the public address, open <strong>Workspace → Invite people</strong>, and send
+the copied browser invite link. Stop the server and <code>cloudflared</code> with Ctrl+C
+when finished. The STUN setting is optional for chat; it has the same no-TURN
+limitation described above.</p>
+<h2 id="quick-tunnel-limits">Quick Tunnel limits<a class="doc-anchor" href="#quick-tunnel-limits" aria-label="Link to Quick Tunnel limits">#</a></h2>
+<p>Cloudflare describes Quick Tunnels as a testing and development feature. They
+have no SLA, give a random address for the life of the process, and are limited
+to 200 concurrent in-flight requests. WebSockets work, which is what OwnBase
+chat uses, but Server-Sent Events do not. See Cloudflare&#39;s
+<a href="https://developers.cloudflare.com/cloudflare-one/networks/connectors/cloudflare-tunnel/do-more-with-tunnels/trycloudflare/">Quick Tunnel documentation</a>
+and <a href="https://developers.cloudflare.com/cloudflare-one/faq/cloudflare-tunnels-faq/">Tunnel FAQ</a>
+for the current limits. Use a named tunnel, your own domain, and a supervised
+server process for a stable deployment; Cloudflare documents that flow under
+<a href="https://developers.cloudflare.com/tunnel/features/locally-managed-tunnels/create-local-tunnel/">Create a locally-managed tunnel</a>.</p>
+<p>Cloudflare also says Quick Tunnels are unsupported while a
+<code>.cloudflared/config.yaml</code> file is present. If <code>cloudflared</code> refuses to create
+the temporary link for that reason, temporarily move that file aside, retry,
+and restore it before using its named-tunnel configuration again.</p>
+        </article>
+        <nav class="docs-pager" aria-label="Pages"><a class="docs-prev" href="/docs/hosting/windows-and-lan"><span>Previous</span>Windows and LAN</a><a class="docs-next" href="/docs/hosting/docker-and-vps"><span>Next</span>Docker and VPS</a></nav>
+        <p class="docs-source">This page is made from <a href="https://github.com/Blazeiscoding/OwnBase/blob/main/docs/DEPLOYMENT.md#temporary-internet-sharing-with-cloudflare-tunnel">docs/DEPLOYMENT.md</a>.</p>
+      </main>
+    </div>
+
+    <footer class="end guide-foot">
+      <div class="footer wrap">
+        <a class="brand" href="/">
+          <img src="/ownbase.svg?v=2" alt="" width="24" height="24" />
+          <span>OwnBase</span>
+        </a>
+        <ul class="footer-links">
+          <li><a href="/host">Hosting guide</a></li>
+          <li><a href="/docs/">Docs</a></li>
+          <li><a href="https://github.com/Blazeiscoding/OwnBase">GitHub</a></li>
+          <li><a href="https://github.com/Blazeiscoding/OwnBase/blob/main/SECURITY.md">Security</a></li>
+          <li><a href="https://github.com/Blazeiscoding/OwnBase/blob/main/docs/PLANS.md">Plans</a></li>
+        </ul>
+        <p class="legal">
+          OwnBase is in alpha. MIT licensed, except the Enterprise code in <code>ee/</code>. Not
+          affiliated with Slack or Salesforce.
+        </p>
+      </div>
+    </footer>
+  </body>
+</html>

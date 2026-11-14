@@ -1,0 +1,186 @@
+<!doctype html>
+<!-- Written by scripts/generate-docs-site.mjs from docs/DEPLOYMENT.md. Edit that, not this. -->
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Integration delivery · Hosting OwnBase · OwnBase docs</title>
+    <meta name="description" content="Outgoing event subscriptions use a durable queue in workspace.db. Each matching delivery commits with its workspace event, then runs outside the user&#39;s…" />
+    <link rel="canonical" href="https://ownbase.site/docs/hosting/integration-delivery" />
+    <meta property="og:title" content="Integration delivery · Hosting OwnBase · OwnBase docs" />
+    <meta property="og:description" content="Outgoing event subscriptions use a durable queue in workspace.db. Each matching delivery commits with its workspace event, then runs outside the user&#39;s…" />
+    <meta property="og:type" content="article" />
+    <meta property="og:url" content="https://ownbase.site/docs/hosting/integration-delivery" />
+    <meta property="og:site_name" content="OwnBase" />
+    <meta property="og:image" content="https://ownbase.site/og.png?v=2" />
+    <meta name="theme-color" content="#0b0a20" />
+    <link rel="preload" href="/fonts/onest-latin-wght-normal.woff2" as="font" type="font/woff2" crossorigin />
+    <link rel="icon" href="/ownbase.svg?v=2" type="image/svg+xml" />
+    <link rel="stylesheet" href="/site.css?v=7cf174c67f" />
+    <link rel="stylesheet" href="/docs.css?v=30dafeac35" />
+    <script src="/docs.js?v=123540c9d0" defer></script>
+  </head>
+  <body class="docs-body" data-search="/docs/search.json?v=c49ebd883a" data-guide="hosting">
+    <a class="skip" href="#main">Skip to content</a>
+
+    <header class="guide-head">
+      <nav class="nav wrap" aria-label="Main">
+        <a class="brand" href="/">
+          <img src="/ownbase.svg?v=2" alt="" width="32" height="32" />
+          <span>OwnBase</span>
+          <span class="alpha">Alpha</span>
+        </a>
+        <ul class="nav-links">
+          <li><a href="/#host">Hosting</a></li>
+          <li><a href="/host">Guide</a></li>
+          <li><a href="/docs/" aria-current="page">Docs</a></li>
+          <li><a href="/#download">Download</a></li>
+          <li><a href="https://github.com/Blazeiscoding/OwnBase">GitHub</a></li>
+        </ul>
+        <a class="btn btn-small btn-light" href="/#download">Get OwnBase</a>
+      </nav>
+    </header>
+
+    <div class="docs wrap">
+      <aside class="docs-side">
+        <div class="docs-search" role="search" hidden>
+          <label class="sr-only" for="docs-query">Search the docs</label>
+          <input id="docs-query" type="search" placeholder="Search the docs" autocomplete="off" spellcheck="false" />
+          <p class="docs-status" aria-live="polite"></p>
+          <div class="docs-results" hidden></div>
+        </div>
+        <details class="docs-nav" open>
+          <summary>All sections</summary>
+          <nav aria-label="Docs">
+            <p class="docs-group">Hosting OwnBase</p>
+            <ul>
+              <li><a href="/docs/hosting/">Overview</a></li>
+              <li><a href="/docs/hosting/windows-and-lan">Windows and LAN</a></li>
+              <li><a href="/docs/hosting/temporary-internet-sharing-with-cloudflare-tunnel">Temporary internet sharing with Cloudflare Tunnel</a></li>
+              <li><a href="/docs/hosting/docker-and-vps">Docker and VPS</a></li>
+              <li><a href="/docs/hosting/a-linux-server-with-systemd">A Linux server with systemd</a></li>
+              <li><a href="/docs/hosting/a-windows-server-as-a-service">A Windows server, as a service</a></li>
+              <li><a href="/docs/hosting/voice-and-huddles">Voice and huddles</a></li>
+              <li><a href="/docs/hosting/attachment-storage">Attachment storage</a></li>
+              <li><a href="/docs/hosting/backups-restore-updates">Backups, restore, updates</a></li>
+              <li><a href="/docs/hosting/moving-in-from-slack">Moving in from Slack</a></li>
+              <li><a href="/docs/hosting/taking-your-data-out">Taking your data out</a></li>
+              <li><a href="/docs/hosting/deletion-and-retention">Deletion and retention</a></li>
+              <li><a href="/docs/hosting/integration-delivery" aria-current="page">Integration delivery</a></li>
+              <li><a href="/docs/hosting/link-previews">Link previews</a></li>
+              <li><a href="/docs/hosting/notifications-while-the-browser-is-closed">Notifications while the browser is closed</a></li>
+              <li><a href="/docs/hosting/behind-a-reverse-proxy">Behind a reverse proxy</a></li>
+              <li><a href="/docs/hosting/request-limits">Request limits</a></li>
+              <li><a href="/docs/hosting/password-hashing">Password hashing</a></li>
+              <li><a href="/docs/hosting/changing-a-workspace-address-and-keeping-local-work">Changing a workspace address and keeping local work</a></li>
+              <li><a href="/docs/hosting/desktop-saved-sign-ins">Desktop saved sign-ins</a></li>
+              <li><a href="/docs/hosting/the-administrative-record">The administrative record</a></li>
+              <li><a href="/docs/hosting/invites">Invites</a></li>
+              <li><a href="/docs/hosting/who-may-join">Who may join</a></li>
+              <li><a href="/docs/hosting/guests">Guests</a></li>
+              <li><a href="/docs/hosting/a-plans-members">A plan&#39;s members</a></li>
+              <li><a href="/docs/hosting/an-enterprise-license">An Enterprise license</a></li>
+              <li><a href="/docs/hosting/hosting-workspaces-for-others">Hosting workspaces for others</a></li>
+              <li><a href="/docs/hosting/current-boundaries">Current boundaries</a></li>
+            </ul>
+            <p class="docs-group">Integration API contract</p>
+            <ul>
+              <li><a href="/docs/integrations/">Overview</a></li>
+              <li><a href="/docs/integrations/setting-up-an-app">Setting up an app</a></li>
+              <li><a href="/docs/integrations/identifiers">Identifiers</a></li>
+              <li><a href="/docs/integrations/verifying-requests-from-this-server">Verifying requests from this server</a></li>
+              <li><a href="/docs/integrations/web-api-methods">Web API methods</a></li>
+              <li><a href="/docs/integrations/incoming-webhooks">Incoming webhooks</a></li>
+              <li><a href="/docs/integrations/slash-commands">Slash commands</a></li>
+              <li><a href="/docs/integrations/interactive-buttons">Interactive buttons</a></li>
+              <li><a href="/docs/integrations/modals">Modals</a></li>
+              <li><a href="/docs/integrations/events">Events</a></li>
+              <li><a href="/docs/integrations/block-kit">Block Kit</a></li>
+              <li><a href="/docs/integrations/the-native-client-protocol">The native client protocol</a></li>
+            </ul>
+          </nav>
+        </details>
+      </aside>
+
+      <aside class="docs-toc" aria-labelledby="toc-title">
+        <p id="toc-title" class="docs-toc-title">On this page</p>
+        <ul>
+          <li class="toc-3"><a href="#replacing-a-leaked-credential">Replacing a leaked credential</a></li>
+        </ul>
+      </aside>
+      <main id="main" class="docs-main">
+        <p class="docs-crumb"><a href="/docs/">Docs</a> / <a href="/docs/hosting/">Hosting OwnBase</a></p>
+        <article class="doc">
+        <h1 id="integration-delivery">Integration delivery</h1>
+        
+<p>Outgoing event subscriptions use a durable queue in <code>workspace.db</code>. Each matching
+delivery commits with its workspace event, then runs outside the user&#39;s request.
+Failures retry eight times with increasing delays, in event order for each
+subscription and in parallel across different subscriptions. Pending work resumes
+when the server restarts. A successful receiver may see the same event again if the
+server exits after its HTTP response but before recording completion, so receivers
+must deduplicate by the stable <code>event_id</code>.</p>
+<p>Stopping the server cuts off any delivery, slash command or button call still
+waiting on an app, rather than waiting out its timeout. A delivery cut off that way
+is not counted as one of the endpoint&#39;s attempts, since the endpoint neither answered
+nor refused; it goes out again after the restart. Requests already being handled are
+finished before the database closes, so a shutdown never leaves one half-applied.</p>
+<p>One endpoint may hold at most 500 waiting events. Delivery is ordered, so a receiver
+that stops answering holds up everything behind it; without a ceiling its queue would
+grow for as long as the workspace stays busy. Past the ceiling events are counted as
+dropped rather than queued, and the count is shown beside the subscription. Once a
+delivery has used up its attempts, the rest of that endpoint&#39;s queue is given up on
+with it, so a dead receiver is not kept under load for days and an administrator
+repairing it does not face a backlog that drains one event every few hours. Retrying
+restores the whole queue in order. The dropped count clears once the endpoint is
+delivering again, or when an administrator retries.</p>
+<p>Apps and integrations shows pending and terminally failed deliveries. An admin can
+retry failed work after repairing the endpoint. Terminal records are retained for
+seven days; deleting the subscription or app deletes its queue immediately. A
+deactivated bot receives no new events and its prior pending deliveries pause.
+Removing a bot from a channel discards queued events for that channel, so restoring
+membership does not disclose events from the revoked interval.</p>
+<h2 id="replacing-a-leaked-credential">Replacing a leaked credential<a class="doc-anchor" href="#replacing-a-leaked-credential" aria-label="Link to Replacing a leaked credential">#</a></h2>
+<p>Apps and integrations offers a replacement for each of an app&#39;s three kinds of
+secret, without deleting the app or losing its commands, subscriptions and
+webhooks:</p>
+<ul>
+<li><strong>New bot token</strong> replaces every token the app has. The old one stops working
+with that request, with no overlap, since a token is replaced because it has
+leaked. This is also how to get a token for an app whose original was never
+copied: the server stores tokens only as hashes and cannot show one again.</li>
+<li><strong>Replace</strong> beside the signing secret takes effect on the next request the server signs,
+including event deliveries already waiting in the queue, which are signed when
+they are sent. The app rejects requests until it has the new secret.</li>
+<li><strong>New URL</strong> on a webhook keeps its channel and replaces the secret in its URL.
+Anything posting to the old URL gets a 404.</li>
+</ul>
+<p>Each replacement is logged with the app or webhook and the administrator who made
+it, never the credential itself.</p>
+        </article>
+        <nav class="docs-pager" aria-label="Pages"><a class="docs-prev" href="/docs/hosting/deletion-and-retention"><span>Previous</span>Deletion and retention</a><a class="docs-next" href="/docs/hosting/link-previews"><span>Next</span>Link previews</a></nav>
+        <p class="docs-source">This page is made from <a href="https://github.com/Blazeiscoding/OwnBase/blob/main/docs/DEPLOYMENT.md#integration-delivery">docs/DEPLOYMENT.md</a>.</p>
+      </main>
+    </div>
+
+    <footer class="end guide-foot">
+      <div class="footer wrap">
+        <a class="brand" href="/">
+          <img src="/ownbase.svg?v=2" alt="" width="24" height="24" />
+          <span>OwnBase</span>
+        </a>
+        <ul class="footer-links">
+          <li><a href="/host">Hosting guide</a></li>
+          <li><a href="/docs/">Docs</a></li>
+          <li><a href="https://github.com/Blazeiscoding/OwnBase">GitHub</a></li>
+          <li><a href="https://github.com/Blazeiscoding/OwnBase/blob/main/SECURITY.md">Security</a></li>
+          <li><a href="https://github.com/Blazeiscoding/OwnBase/blob/main/docs/PLANS.md">Plans</a></li>
+        </ul>
+        <p class="legal">
+          OwnBase is in alpha. MIT licensed, except the Enterprise code in <code>ee/</code>. Not
+          affiliated with Slack or Salesforce.
+        </p>
+      </div>
+    </footer>
+  </body>
+</html>

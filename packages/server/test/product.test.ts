@@ -265,6 +265,14 @@ describe("self-hosted product", () => {
       },
     );
     expect(posted.status).toBe(201);
+    const japanese = await request(
+      base,
+      `/api/channels/${channel.id}/messages`,
+      owner.data.token,
+      "POST",
+      { text: "古いメッセージを検索します", nonce: "old-2" },
+    );
+    expect(japanese.status).toBe(201);
     const dir = directory!;
     await server!.stop();
     server = undefined;
@@ -277,6 +285,25 @@ describe("self-hosted product", () => {
     const db = new DatabaseSync(join(dir, "workspace.db"));
     const historical = openDbAtVersion(":memory:", 8);
     try {
+      // The search index as v1 made it, rebuilt from the words.
+      db.exec(`
+        DROP TRIGGER messages_ai;
+        DROP TRIGGER messages_ad;
+        DROP TRIGGER messages_au;
+        DROP TABLE messages_fts;
+        CREATE VIRTUAL TABLE messages_fts USING fts5(text, content='messages', content_rowid='rowid');
+        INSERT INTO messages_fts(messages_fts) VALUES ('rebuild');
+        CREATE TRIGGER messages_ai AFTER INSERT ON messages BEGIN
+          INSERT INTO messages_fts(rowid, text) VALUES (new.rowid, new.text);
+        END;
+        CREATE TRIGGER messages_ad AFTER DELETE ON messages BEGIN
+          INSERT INTO messages_fts(messages_fts, rowid, text) VALUES ('delete', old.rowid, old.text);
+        END;
+        CREATE TRIGGER messages_au AFTER UPDATE OF text ON messages BEGIN
+          INSERT INTO messages_fts(messages_fts, rowid, text) VALUES ('delete', old.rowid, old.text);
+          INSERT INTO messages_fts(rowid, text) VALUES (new.rowid, new.text);
+        END;
+      `);
       db.exec("DROP TABLE push_subscriptions");
       db.exec("DROP TABLE channel_removals");
       db.exec("ALTER TABLE channel_members DROP COLUMN notify_chosen");
@@ -380,6 +407,17 @@ describe("self-hosted product", () => {
     const old = messages.data.messages.find((m: { nonce: string }) => m.nonce === "old-1");
     expect(old.text).toBe("written before buttons existed");
     expect(old.actions).toEqual([]);
+
+    // The search index is built again from the words that were there, a word
+    // in the middle of a Japanese sentence among them.
+    const found = await request(
+      reopened,
+      `/api/search?tz=UTC&q=${encodeURIComponent("メッセージ")}`,
+      login.data.token,
+    );
+    expect(found.data.messages.map((m: { text: string }) => m.text)).toEqual([
+      "古いメッセージを検索します",
+    ]);
 
     // And the new column is really there: writing one would fail without it.
     const after = await request(

@@ -1738,6 +1738,13 @@ restart. Cleanup handles at most 100 queued files per pass; shutdown awaits the
 active pass before closing the database. A locked file can remain on disk until
 cleanup succeeds, but the download API no longer serves it after deletion commits.
 
+Schema v58 rebuilds the search index from every message, so that a word inside
+Chinese, Japanese, Korean or Thai text can be found. It runs once, on the first
+start after the upgrade, before anyone can sign in: about 0.4 seconds for 100,000
+messages and 5 seconds for a million on a desktop PC. From v58 the index is kept
+up to date by a function the server adds to its own database connection, so the
+`sqlite3` shell can read messages but cannot change their words or add new ones.
+
 ### Updating the desktop app
 
 The Windows app from a release updates itself from GitHub Releases. It looks
@@ -2692,6 +2699,13 @@ What OwnBase does not do today:
   plain `http://` LAN address notifies only while a tab has it open. See
   [Notifications while the browser is closed](#notifications-while-the-browser-is-closed).
   The desktop app notifies while it is running.
+- **Search matches words, not meanings.** It finds whole words, and the start
+  of the last word typed, so `deploy` finds "deployed" and "deploying" but
+  `deploying` does not find "deployed". It ignores accents and letter case. In
+  Chinese, Japanese, Korean and Thai, which do not separate words with spaces,
+  it finds the characters typed anywhere in a message, next to each other and
+  in that order, so it can also find them across the boundary between two
+  words. Nothing is ranked: results are newest first.
 - **No SFU.** Calls are a mesh, which suits small groups. See
   [How many people a call holds](#how-many-people-a-call-holds).
 - **SQLite and a local folder.** A workspace is one SQLite database and its

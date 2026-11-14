@@ -1,0 +1,249 @@
+<!doctype html>
+<!-- Written by scripts/generate-docs-site.mjs from docs/DEPLOYMENT.md. Edit that, not this. -->
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Hosting workspaces for others · Hosting OwnBase · OwnBase docs</title>
+    <meta name="description" content="ownbase-cloud is the control plane for hosting many workspaces on one machine, the way OwnBase&#39;s Team plan is hosted. It keeps a list of workspaces, runs…" />
+    <link rel="canonical" href="https://ownbase.site/docs/hosting/hosting-workspaces-for-others" />
+    <meta property="og:title" content="Hosting workspaces for others · Hosting OwnBase · OwnBase docs" />
+    <meta property="og:description" content="ownbase-cloud is the control plane for hosting many workspaces on one machine, the way OwnBase&#39;s Team plan is hosted. It keeps a list of workspaces, runs…" />
+    <meta property="og:type" content="article" />
+    <meta property="og:url" content="https://ownbase.site/docs/hosting/hosting-workspaces-for-others" />
+    <meta property="og:site_name" content="OwnBase" />
+    <meta property="og:image" content="https://ownbase.site/og.png?v=2" />
+    <meta name="theme-color" content="#0b0a20" />
+    <link rel="preload" href="/fonts/onest-latin-wght-normal.woff2" as="font" type="font/woff2" crossorigin />
+    <link rel="icon" href="/ownbase.svg?v=2" type="image/svg+xml" />
+    <link rel="stylesheet" href="/site.css?v=7cf174c67f" />
+    <link rel="stylesheet" href="/docs.css?v=30dafeac35" />
+    <script src="/docs.js?v=123540c9d0" defer></script>
+  </head>
+  <body class="docs-body" data-search="/docs/search.json?v=c49ebd883a" data-guide="hosting">
+    <a class="skip" href="#main">Skip to content</a>
+
+    <header class="guide-head">
+      <nav class="nav wrap" aria-label="Main">
+        <a class="brand" href="/">
+          <img src="/ownbase.svg?v=2" alt="" width="32" height="32" />
+          <span>OwnBase</span>
+          <span class="alpha">Alpha</span>
+        </a>
+        <ul class="nav-links">
+          <li><a href="/#host">Hosting</a></li>
+          <li><a href="/host">Guide</a></li>
+          <li><a href="/docs/" aria-current="page">Docs</a></li>
+          <li><a href="/#download">Download</a></li>
+          <li><a href="https://github.com/Blazeiscoding/OwnBase">GitHub</a></li>
+        </ul>
+        <a class="btn btn-small btn-light" href="/#download">Get OwnBase</a>
+      </nav>
+    </header>
+
+    <div class="docs wrap">
+      <aside class="docs-side">
+        <div class="docs-search" role="search" hidden>
+          <label class="sr-only" for="docs-query">Search the docs</label>
+          <input id="docs-query" type="search" placeholder="Search the docs" autocomplete="off" spellcheck="false" />
+          <p class="docs-status" aria-live="polite"></p>
+          <div class="docs-results" hidden></div>
+        </div>
+        <details class="docs-nav" open>
+          <summary>All sections</summary>
+          <nav aria-label="Docs">
+            <p class="docs-group">Hosting OwnBase</p>
+            <ul>
+              <li><a href="/docs/hosting/">Overview</a></li>
+              <li><a href="/docs/hosting/windows-and-lan">Windows and LAN</a></li>
+              <li><a href="/docs/hosting/temporary-internet-sharing-with-cloudflare-tunnel">Temporary internet sharing with Cloudflare Tunnel</a></li>
+              <li><a href="/docs/hosting/docker-and-vps">Docker and VPS</a></li>
+              <li><a href="/docs/hosting/a-linux-server-with-systemd">A Linux server with systemd</a></li>
+              <li><a href="/docs/hosting/a-windows-server-as-a-service">A Windows server, as a service</a></li>
+              <li><a href="/docs/hosting/voice-and-huddles">Voice and huddles</a></li>
+              <li><a href="/docs/hosting/attachment-storage">Attachment storage</a></li>
+              <li><a href="/docs/hosting/backups-restore-updates">Backups, restore, updates</a></li>
+              <li><a href="/docs/hosting/moving-in-from-slack">Moving in from Slack</a></li>
+              <li><a href="/docs/hosting/taking-your-data-out">Taking your data out</a></li>
+              <li><a href="/docs/hosting/deletion-and-retention">Deletion and retention</a></li>
+              <li><a href="/docs/hosting/integration-delivery">Integration delivery</a></li>
+              <li><a href="/docs/hosting/link-previews">Link previews</a></li>
+              <li><a href="/docs/hosting/notifications-while-the-browser-is-closed">Notifications while the browser is closed</a></li>
+              <li><a href="/docs/hosting/behind-a-reverse-proxy">Behind a reverse proxy</a></li>
+              <li><a href="/docs/hosting/request-limits">Request limits</a></li>
+              <li><a href="/docs/hosting/password-hashing">Password hashing</a></li>
+              <li><a href="/docs/hosting/changing-a-workspace-address-and-keeping-local-work">Changing a workspace address and keeping local work</a></li>
+              <li><a href="/docs/hosting/desktop-saved-sign-ins">Desktop saved sign-ins</a></li>
+              <li><a href="/docs/hosting/the-administrative-record">The administrative record</a></li>
+              <li><a href="/docs/hosting/invites">Invites</a></li>
+              <li><a href="/docs/hosting/who-may-join">Who may join</a></li>
+              <li><a href="/docs/hosting/guests">Guests</a></li>
+              <li><a href="/docs/hosting/a-plans-members">A plan&#39;s members</a></li>
+              <li><a href="/docs/hosting/an-enterprise-license">An Enterprise license</a></li>
+              <li><a href="/docs/hosting/hosting-workspaces-for-others" aria-current="page">Hosting workspaces for others</a></li>
+              <li><a href="/docs/hosting/current-boundaries">Current boundaries</a></li>
+            </ul>
+            <p class="docs-group">Integration API contract</p>
+            <ul>
+              <li><a href="/docs/integrations/">Overview</a></li>
+              <li><a href="/docs/integrations/setting-up-an-app">Setting up an app</a></li>
+              <li><a href="/docs/integrations/identifiers">Identifiers</a></li>
+              <li><a href="/docs/integrations/verifying-requests-from-this-server">Verifying requests from this server</a></li>
+              <li><a href="/docs/integrations/web-api-methods">Web API methods</a></li>
+              <li><a href="/docs/integrations/incoming-webhooks">Incoming webhooks</a></li>
+              <li><a href="/docs/integrations/slash-commands">Slash commands</a></li>
+              <li><a href="/docs/integrations/interactive-buttons">Interactive buttons</a></li>
+              <li><a href="/docs/integrations/modals">Modals</a></li>
+              <li><a href="/docs/integrations/events">Events</a></li>
+              <li><a href="/docs/integrations/block-kit">Block Kit</a></li>
+              <li><a href="/docs/integrations/the-native-client-protocol">The native client protocol</a></li>
+            </ul>
+          </nav>
+        </details>
+      </aside>
+
+      <main id="main" class="docs-main">
+        <p class="docs-crumb"><a href="/docs/">Docs</a> / <a href="/docs/hosting/">Hosting OwnBase</a></p>
+        <article class="doc">
+        <h1 id="hosting-workspaces-for-others">Hosting workspaces for others</h1>
+        
+<p><code>ownbase-cloud</code> is the control plane for hosting many workspaces on one machine,
+the way OwnBase&#39;s Team plan is hosted. It keeps a list of workspaces, runs one
+<code>ownbase-server</code> per workspace on a loopback port, and puts Caddy in front: each
+workspace gets its own address, <code>https://&lt;name&gt;.example.com</code>, with a certificate
+Caddy fetches the first time someone opens it. An operator API creates, pauses,
+restarts, copies and deletes workspaces. It is in <code>ee/cloud</code>, under the same
+license as the rest of <code>ee/</code>.</p>
+<p>You need a Linux machine you can reach from the internet (these steps use Ubuntu
+24.04), a domain, and ports 80 and 443 open to it. Point a wildcard DNS record,
+<code>*.example.com</code>, at the machine (an <code>A</code> record, and <code>AAAA</code> for IPv6).</p>
+<p><strong>1. Node 24 and Caddy.</strong> Caddy comes from its own package repository. Its
+<code>caddy-api</code> service keeps the configuration the control plane loads through
+Caddy&#39;s admin API, including across restarts, so use it instead of the usual
+<code>caddy</code> service:</p>
+<pre tabindex="0"><code class="language-sh">curl -fsSL https://deb.nodesource.com/setup_24.x | sudo bash -
+sudo apt-get install -y nodejs debian-keyring debian-archive-keyring apt-transport-https
+curl -1sLf &#39;https://dl.cloudsmith.io/public/caddy/stable/gpg.key&#39; \
+  | sudo gpg --dearmor -o /usr/share/keyrings/caddy-stable-archive-keyring.gpg
+curl -1sLf &#39;https://dl.cloudsmith.io/public/caddy/stable/debian.deb.txt&#39; \
+  | sudo tee /etc/apt/sources.list.d/caddy-stable.list
+sudo apt-get update &amp;&amp; sudo apt-get install -y caddy
+sudo systemctl disable --now caddy
+sudo systemctl enable --now caddy-api</code></pre>
+<p>Caddy&#39;s admin API listens on <code>localhost:2019</code> only. Keep it that way: anyone who
+reaches it can change what Caddy serves.</p>
+<p><strong>2. The files.</strong> Build the browser client, the server and the control plane,
+and copy them to the machine. The server finds <code>web/</code> beside it.</p>
+<pre tabindex="0"><code class="language-sh">pnpm --filter @ownbase/web build
+pnpm --filter ownbase-server build
+pnpm --filter @ownbase/cloud build
+# then, on the machine:
+sudo mkdir -p /opt/ownbase /etc/ownbase
+sudo cp ownbase-server.js ownbase-cloud.js /opt/ownbase/   # from apps/server-cli/dist and ee/cloud/dist
+sudo cp -r web /opt/ownbase/                               # from apps/server-cli/dist/web
+sudo useradd --system --home-dir /var/lib/ownbase --create-home ownbase
+openssl rand -hex 32 | sudo tee /etc/ownbase/cloud-token &gt; /dev/null
+sudo chown ownbase /etc/ownbase/cloud-token &amp;&amp; sudo chmod 600 /etc/ownbase/cloud-token</code></pre>
+<p><strong>3. The service.</strong> Save this as <code>/etc/systemd/system/ownbase-cloud.service</code>,
+with your domain and addresses:</p>
+<pre tabindex="0"><code class="language-ini">[Unit]
+Description=OwnBase hosting control plane
+After=network-online.target caddy-api.service
+Wants=network-online.target
+
+[Service]
+User=ownbase
+Group=ownbase
+Environment=OWNBASE_CLOUD_TOKEN_FILE=/etc/ownbase/cloud-token
+EnvironmentFile=-/etc/ownbase/relay.env
+ExecStart=/usr/bin/node /opt/ownbase/ownbase-cloud.js --data /var/lib/ownbase \
+  --domain example.com --email ops@example.com --upgrade-url https://example.com/plans
+# Only the control plane is asked to stop; it stops each workspace&#39;s server
+# itself, rather than having them all stopped at once and started again.
+KillMode=mixed
+TimeoutStopSec=60
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target</code></pre>
+<pre tabindex="0"><code class="language-sh">sudo systemctl daemon-reload
+sudo systemctl enable --now ownbase-cloud
+journalctl -u ownbase-cloud -f</code></pre>
+<p><strong>4. A workspace.</strong> The operator API listens on <code>127.0.0.1:8100</code>, so call it from
+the machine (or through an SSH tunnel). Every request carries the token:</p>
+<pre tabindex="0"><code class="language-sh">TOKEN=$(sudo cat /etc/ownbase/cloud-token)
+curl -s -X POST http://127.0.0.1:8100/api/workspaces \
+  -H &quot;authorization: Bearer $TOKEN&quot; -H &quot;content-type: application/json&quot; \
+  -d &#39;{&quot;slug&quot;:&quot;acme&quot;,&quot;name&quot;:&quot;Acme&quot;,&quot;ownerEmail&quot;:&quot;ada@acme.example&quot;,&quot;plan&quot;:&quot;team&quot;}&#39;</code></pre>
+<p>The answer includes <code>claimLink</code>, such as
+<code>https://acme.example.com/#/claim/&lt;code&gt;</code>. Send it to the owner: it opens creating
+their account with the workspace&#39;s claim code filled in, and that account owns the
+workspace. Nobody else can create the first account. The link shows in the
+workspace&#39;s details until someone has claimed it.</p>
+<div class="doc-table" tabindex="0" role="region" aria-label="Table"><table>
+<thead><tr><th>Request</th><th>What it does</th></tr></thead>
+<tbody>
+<tr><td><code>GET /api/workspaces</code></td><td>Every workspace, its state and its server&#39;s</td></tr>
+<tr><td><code>GET /api/workspaces/&lt;slug&gt;</code></td><td>One workspace, with <code>claimLink</code> while nobody owns it</td></tr>
+<tr><td><code>POST /api/workspaces</code></td><td>Creates one: <code>slug</code>, <code>name</code>, <code>ownerEmail</code>, <code>plan</code> (<code>team</code> or <code>business</code>)</td></tr>
+<tr><td><code>POST /api/workspaces/&lt;slug&gt;/suspend</code></td><td>Stops its server; its address shows a page saying it is paused</td></tr>
+<tr><td><code>POST /api/workspaces/&lt;slug&gt;/resume</code></td><td>Starts it again, as it was</td></tr>
+<tr><td><code>POST /api/workspaces/&lt;slug&gt;/export</code></td><td>A checked backup in <code>exports/</code>; the workspace is stopped for the few seconds it takes</td></tr>
+<tr><td><code>DELETE /api/workspaces/&lt;slug&gt;</code></td><td>Exports it, then deletes its folder. Its address is never given out again</td></tr>
+</tbody>
+</table></div>
+<p>A workspace&#39;s address is 3 to 32 lowercase letters, digits and single hyphens.
+Team includes 50 members and 25 GB of files, Business 200 members and 100 GB; past
+the members, the owner is told (see <a href="/docs/hosting/a-plans-members#a-plans-members">A plan&#39;s members</a>) and
+nobody is locked out. Each workspace backs itself up daily into its own
+<code>backups/</code>, keeping 7.</p>
+<p>Everything lives in <code>/var/lib/ownbase</code>: <code>control.db</code> (the list), <code>workspaces/&lt;slug&gt;/</code>
+(<code>data/</code>, <code>backups/</code> and the server&#39;s <code>server.log</code>) and <code>exports/</code>. A workspace&#39;s
+server that stops on its own is started again after 1, 2, 5, 10, 30, then 60
+seconds; one that has run for a minute starts the waits over. Caddy only gets a
+certificate for an address the control plane says is a workspace&#39;s, so nobody can
+make it fetch certificates for names you do not host.</p>
+<p><strong>Calls between networks.</strong> Each workspace&#39;s server takes the call relay from the
+control plane&#39;s environment, in <code>/etc/ownbase/relay.env</code>. Either Cloudflare&#39;s
+TURN service:</p>
+<pre tabindex="0"><code class="language-sh">OWNBASE_CLOUDFLARE_TURN_KEY_ID=...
+OWNBASE_CLOUDFLARE_TURN_API_TOKEN=...</code></pre>
+<p>or your own coturn, set up as in
+<a href="/docs/hosting/voice-and-huddles#your-own-relay-with-coturn">Your own relay with coturn</a>, with its addresses and
+secret:</p>
+<pre tabindex="0"><code class="language-sh">OWNBASE_TURN_URLS=turn:turn.example.com:3478?transport=udp,turn:turn.example.com:3478?transport=tcp
+OWNBASE_TURN_SECRET=...</code></pre>
+<p>Every workspace&#39;s server signs its own members&#39; passwords with that secret, and
+coturn&#39;s quotas count each member apart.</p>
+<p><strong>Trying it on one machine.</strong> <code>--tls internal</code> makes Caddy use its own
+certificates instead, which nothing trusts unless told to. With
+<code>curl -k --resolve acme.example.com:443:127.0.0.1 https://acme.example.com/</code> the
+whole path answers without DNS.</p>
+        </article>
+        <nav class="docs-pager" aria-label="Pages"><a class="docs-prev" href="/docs/hosting/an-enterprise-license"><span>Previous</span>An Enterprise license</a><a class="docs-next" href="/docs/hosting/current-boundaries"><span>Next</span>Current boundaries</a></nav>
+        <p class="docs-source">This page is made from <a href="https://github.com/Blazeiscoding/OwnBase/blob/main/docs/DEPLOYMENT.md#hosting-workspaces-for-others">docs/DEPLOYMENT.md</a>.</p>
+      </main>
+    </div>
+
+    <footer class="end guide-foot">
+      <div class="footer wrap">
+        <a class="brand" href="/">
+          <img src="/ownbase.svg?v=2" alt="" width="24" height="24" />
+          <span>OwnBase</span>
+        </a>
+        <ul class="footer-links">
+          <li><a href="/host">Hosting guide</a></li>
+          <li><a href="/docs/">Docs</a></li>
+          <li><a href="https://github.com/Blazeiscoding/OwnBase">GitHub</a></li>
+          <li><a href="https://github.com/Blazeiscoding/OwnBase/blob/main/SECURITY.md">Security</a></li>
+          <li><a href="https://github.com/Blazeiscoding/OwnBase/blob/main/docs/PLANS.md">Plans</a></li>
+        </ul>
+        <p class="legal">
+          OwnBase is in alpha. MIT licensed, except the Enterprise code in <code>ee/</code>. Not
+          affiliated with Slack or Salesforce.
+        </p>
+      </div>
+    </footer>
+  </body>
+</html>

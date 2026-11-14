@@ -1,0 +1,246 @@
+<!doctype html>
+<!-- Written by scripts/generate-docs-site.mjs from docs/DEPLOYMENT.md. Edit that, not this. -->
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>A Windows server, as a service · Hosting OwnBase · OwnBase docs</title>
+    <meta name="description" content="On Windows the server runs as a service through NSSM, a small program that runs another one as a service. Windows cannot run Node as a service by itself:…" />
+    <link rel="canonical" href="https://ownbase.site/docs/hosting/a-windows-server-as-a-service" />
+    <meta property="og:title" content="A Windows server, as a service · Hosting OwnBase · OwnBase docs" />
+    <meta property="og:description" content="On Windows the server runs as a service through NSSM, a small program that runs another one as a service. Windows cannot run Node as a service by itself:…" />
+    <meta property="og:type" content="article" />
+    <meta property="og:url" content="https://ownbase.site/docs/hosting/a-windows-server-as-a-service" />
+    <meta property="og:site_name" content="OwnBase" />
+    <meta property="og:image" content="https://ownbase.site/og.png?v=2" />
+    <meta name="theme-color" content="#0b0a20" />
+    <link rel="preload" href="/fonts/onest-latin-wght-normal.woff2" as="font" type="font/woff2" crossorigin />
+    <link rel="icon" href="/ownbase.svg?v=2" type="image/svg+xml" />
+    <link rel="stylesheet" href="/site.css?v=7cf174c67f" />
+    <link rel="stylesheet" href="/docs.css?v=30dafeac35" />
+    <script src="/docs.js?v=123540c9d0" defer></script>
+  </head>
+  <body class="docs-body" data-search="/docs/search.json?v=c49ebd883a" data-guide="hosting">
+    <a class="skip" href="#main">Skip to content</a>
+
+    <header class="guide-head">
+      <nav class="nav wrap" aria-label="Main">
+        <a class="brand" href="/">
+          <img src="/ownbase.svg?v=2" alt="" width="32" height="32" />
+          <span>OwnBase</span>
+          <span class="alpha">Alpha</span>
+        </a>
+        <ul class="nav-links">
+          <li><a href="/#host">Hosting</a></li>
+          <li><a href="/host">Guide</a></li>
+          <li><a href="/docs/" aria-current="page">Docs</a></li>
+          <li><a href="/#download">Download</a></li>
+          <li><a href="https://github.com/Blazeiscoding/OwnBase">GitHub</a></li>
+        </ul>
+        <a class="btn btn-small btn-light" href="/#download">Get OwnBase</a>
+      </nav>
+    </header>
+
+    <div class="docs wrap">
+      <aside class="docs-side">
+        <div class="docs-search" role="search" hidden>
+          <label class="sr-only" for="docs-query">Search the docs</label>
+          <input id="docs-query" type="search" placeholder="Search the docs" autocomplete="off" spellcheck="false" />
+          <p class="docs-status" aria-live="polite"></p>
+          <div class="docs-results" hidden></div>
+        </div>
+        <details class="docs-nav" open>
+          <summary>All sections</summary>
+          <nav aria-label="Docs">
+            <p class="docs-group">Hosting OwnBase</p>
+            <ul>
+              <li><a href="/docs/hosting/">Overview</a></li>
+              <li><a href="/docs/hosting/windows-and-lan">Windows and LAN</a></li>
+              <li><a href="/docs/hosting/temporary-internet-sharing-with-cloudflare-tunnel">Temporary internet sharing with Cloudflare Tunnel</a></li>
+              <li><a href="/docs/hosting/docker-and-vps">Docker and VPS</a></li>
+              <li><a href="/docs/hosting/a-linux-server-with-systemd">A Linux server with systemd</a></li>
+              <li><a href="/docs/hosting/a-windows-server-as-a-service" aria-current="page">A Windows server, as a service</a></li>
+              <li><a href="/docs/hosting/voice-and-huddles">Voice and huddles</a></li>
+              <li><a href="/docs/hosting/attachment-storage">Attachment storage</a></li>
+              <li><a href="/docs/hosting/backups-restore-updates">Backups, restore, updates</a></li>
+              <li><a href="/docs/hosting/moving-in-from-slack">Moving in from Slack</a></li>
+              <li><a href="/docs/hosting/taking-your-data-out">Taking your data out</a></li>
+              <li><a href="/docs/hosting/deletion-and-retention">Deletion and retention</a></li>
+              <li><a href="/docs/hosting/integration-delivery">Integration delivery</a></li>
+              <li><a href="/docs/hosting/link-previews">Link previews</a></li>
+              <li><a href="/docs/hosting/notifications-while-the-browser-is-closed">Notifications while the browser is closed</a></li>
+              <li><a href="/docs/hosting/behind-a-reverse-proxy">Behind a reverse proxy</a></li>
+              <li><a href="/docs/hosting/request-limits">Request limits</a></li>
+              <li><a href="/docs/hosting/password-hashing">Password hashing</a></li>
+              <li><a href="/docs/hosting/changing-a-workspace-address-and-keeping-local-work">Changing a workspace address and keeping local work</a></li>
+              <li><a href="/docs/hosting/desktop-saved-sign-ins">Desktop saved sign-ins</a></li>
+              <li><a href="/docs/hosting/the-administrative-record">The administrative record</a></li>
+              <li><a href="/docs/hosting/invites">Invites</a></li>
+              <li><a href="/docs/hosting/who-may-join">Who may join</a></li>
+              <li><a href="/docs/hosting/guests">Guests</a></li>
+              <li><a href="/docs/hosting/a-plans-members">A plan&#39;s members</a></li>
+              <li><a href="/docs/hosting/an-enterprise-license">An Enterprise license</a></li>
+              <li><a href="/docs/hosting/hosting-workspaces-for-others">Hosting workspaces for others</a></li>
+              <li><a href="/docs/hosting/current-boundaries">Current boundaries</a></li>
+            </ul>
+            <p class="docs-group">Integration API contract</p>
+            <ul>
+              <li><a href="/docs/integrations/">Overview</a></li>
+              <li><a href="/docs/integrations/setting-up-an-app">Setting up an app</a></li>
+              <li><a href="/docs/integrations/identifiers">Identifiers</a></li>
+              <li><a href="/docs/integrations/verifying-requests-from-this-server">Verifying requests from this server</a></li>
+              <li><a href="/docs/integrations/web-api-methods">Web API methods</a></li>
+              <li><a href="/docs/integrations/incoming-webhooks">Incoming webhooks</a></li>
+              <li><a href="/docs/integrations/slash-commands">Slash commands</a></li>
+              <li><a href="/docs/integrations/interactive-buttons">Interactive buttons</a></li>
+              <li><a href="/docs/integrations/modals">Modals</a></li>
+              <li><a href="/docs/integrations/events">Events</a></li>
+              <li><a href="/docs/integrations/block-kit">Block Kit</a></li>
+              <li><a href="/docs/integrations/the-native-client-protocol">The native client protocol</a></li>
+            </ul>
+          </nav>
+        </details>
+      </aside>
+
+      <main id="main" class="docs-main">
+        <p class="docs-crumb"><a href="/docs/">Docs</a> / <a href="/docs/hosting/">Hosting OwnBase</a></p>
+        <article class="doc">
+        <h1 id="a-windows-server-as-a-service">A Windows server, as a service</h1>
+        
+<p>On Windows the server runs as a service through NSSM, a small program that runs
+another one as a service. Windows cannot run Node as a service by itself:
+<code>sc.exe create</code> with <code>node.exe</code> makes the service, but Node never tells Windows it
+has started. Windows waits, 30 seconds unless the machine is set to wait longer,
+then ends it with error 1053. NSSM starts Node, starts it again if it stops,
+writes what it prints to a log, and asks it to stop with Ctrl+C, so the server
+closes its database before it exits.</p>
+<p>Run these in PowerShell as Administrator. They put the program in
+<code>C:\Program Files\OwnBase</code> and the workspace in <code>C:\ProgramData\OwnBase</code>.</p>
+<p><strong>1. Node 24.</strong> Install Node.js 24 from nodejs.org with the Windows Installer
+(<code>.msi</code>) and its default choices. It puts <code>node.exe</code> in <code>C:\Program Files\nodejs</code>.</p>
+<p><strong>2. The server and NSSM.</strong> Build the archive as in step 2 of
+<a href="/docs/hosting/a-linux-server-with-systemd#a-linux-server-with-systemd">A Linux server with systemd</a>. The same archive runs
+on both. To build it in PowerShell, run <code>$env:ELECTRON_SKIP_BINARY_DOWNLOAD = 1</code>
+on a line of its own, then <code>pnpm install</code> without that prefix. Unpack the
+archive, and copy in the 64-bit <code>nssm.exe</code> from NSSM 2.24. nssm.cc is often
+unavailable, so the second download line takes the same file from the Internet
+Archive. NSSM is not signed, so either way the third line checks the file before
+it is used. nssm.cc publishes its SHA-1, <code>be7b3577c6e3a280e5106a9e9db5b3775931cefc</code>,
+and the SHA-256 there is of that same file.</p>
+<pre tabindex="0"><code class="language-powershell">New-Item -ItemType Directory -Force &quot;C:\Program Files\OwnBase\server&quot; | Out-Null
+tar -xzf ownbase-server.tar.gz -C &quot;C:\Program Files\OwnBase\server&quot;
+try { Invoke-WebRequest https://nssm.cc/release/nssm-2.24.zip -OutFile nssm-2.24.zip }
+catch { Invoke-WebRequest https://web.archive.org/web/20250206084707id_/https://nssm.cc/release/nssm-2.24.zip -OutFile nssm-2.24.zip }
+if ((Get-FileHash nssm-2.24.zip).Hash -ne &quot;727D1E42275C605E0F04ABA98095C38A8E1E46DEF453CDFFCE42869428AA6743&quot;) { throw &quot;nssm-2.24.zip is not NSSM 2.24&quot; }
+Expand-Archive nssm-2.24.zip -DestinationPath .
+Copy-Item nssm-2.24\win64\nssm.exe &quot;C:\Program Files\OwnBase\&quot;</code></pre>
+<p>nssm.cc also offers a later build, 2.24-101, made for programs that failed to
+start under 2.24 on Windows 10 1703. Use 2.24 all the same. On Windows Server 2025,
+2.24 did everything in this section, while 2.24-101 never started the server
+again after it was ended.</p>
+<p><strong>3. The service.</strong> It starts in the program&#39;s folder, so the server&#39;s file is
+named without a path, and it runs as <code>NT SERVICE\OwnBase</code>, an account Windows
+makes for this one service, with no password and no rights of its own:</p>
+<pre tabindex="0"><code class="language-powershell">$nssm = &quot;C:\Program Files\OwnBase\nssm.exe&quot;
+$data = &quot;C:\ProgramData\OwnBase&quot;
+&amp; $nssm install OwnBase &quot;C:\Program Files\nodejs\node.exe&quot;
+&amp; $nssm set OwnBase AppDirectory &quot;C:\Program Files\OwnBase\server&quot;
+&amp; $nssm set OwnBase AppParameters &quot;ownbase-server.js --data $data\data --backup-dir $data\backups --invite-only&quot;
+&amp; $nssm set OwnBase DisplayName &quot;OwnBase workspace server&quot;
+&amp; $nssm set OwnBase Start SERVICE_AUTO_START
+&amp; $nssm set OwnBase AppStdout &quot;$data\logs\server.log&quot;
+&amp; $nssm set OwnBase AppStderr &quot;$data\logs\server.log&quot;
+&amp; $nssm set OwnBase AppRotateFiles 1
+&amp; $nssm set OwnBase AppRotateOnline 1
+&amp; $nssm set OwnBase AppRotateBytes 10485760
+&amp; $nssm set OwnBase AppRestartDelay 5000
+&amp; $nssm set OwnBase AppStopMethodConsole 30000
+sc.exe config OwnBase obj= &quot;NT SERVICE\OwnBase&quot;</code></pre>
+<p><strong>4. The workspace&#39;s folder,</strong> open to that account, SYSTEM and Administrators,
+and nobody else. Other people who sign in to the machine cannot read it:</p>
+<pre tabindex="0"><code class="language-powershell">New-Item -ItemType Directory -Force &quot;$data\data&quot;, &quot;$data\backups&quot;, &quot;$data\logs&quot; | Out-Null
+icacls $data /inheritance:r /grant:r &quot;*S-1-5-18:(OI)(CI)F&quot; &quot;*S-1-5-32-544:(OI)(CI)F&quot; &quot;NT SERVICE\OwnBase:(OI)(CI)M&quot;</code></pre>
+<p><strong>5. Start it.</strong></p>
+<pre tabindex="0"><code class="language-powershell">Start-Service OwnBase
+Invoke-RestMethod http://127.0.0.1:8543/api/health
+Select-String &quot;Claim code&quot; &quot;$data\logs\server.log&quot;</code></pre>
+<p>The first account made from this machine needs no claim code. From another
+machine it needs the one in the log. For other machines to reach the server,
+let them through the firewall:</p>
+<pre tabindex="0"><code class="language-powershell">New-NetFirewallRule -DisplayName &quot;OwnBase&quot; -Direction Inbound -Action Allow -Protocol TCP -LocalPort 8543 -Program &quot;C:\Program Files\nodejs\node.exe&quot;</code></pre>
+<p>Settings the server reads from the environment, such as a call relay&#39;s, go in
+NSSM&#39;s <code>AppEnvironmentExtra</code>, one <code>NAME=value</code> each. The server reads them when
+it starts:</p>
+<pre tabindex="0"><code class="language-powershell">&amp; $nssm set OwnBase AppEnvironmentExtra &quot;OWNBASE_TURN_URLS=turn:turn.example.org:3478&quot; &quot;OWNBASE_TURN_SECRET=the-shared-secret&quot;
+Restart-Service OwnBase</code></pre>
+<p>NSSM keeps them in the service&#39;s registry key, which anyone who signs in to the
+machine can read. On a computer other people use, that includes the relay&#39;s
+secret. With it they could use your relay, though the denied addresses in
+<a href="/docs/hosting/voice-and-huddles#your-own-relay-with-coturn">Your own relay with coturn</a> keep them out of your
+network.</p>
+<p>For people outside your network, put the server behind HTTPS and set
+<code>--public-url</code>, as in <a href="/docs/hosting/behind-a-reverse-proxy#behind-a-reverse-proxy">Behind a reverse proxy</a>.</p>
+<p><strong>Day to day.</strong></p>
+<ul>
+<li><code>Get-Content &quot;$data\logs\server.log&quot; -Wait -Tail 50</code> follows the log. NSSM starts
+a new file past 10 MB and keeps the old ones beside it.</li>
+<li>To update, <code>Stop-Service OwnBase</code>, unpack the new archive over the server&#39;s
+folder, and <code>Start-Service OwnBase</code>.</li>
+<li>Commands that change the workspace, such as <code>restore</code> and <code>recover</code>, run with the
+service stopped, from an Administrator PowerShell:
+<code>node &quot;C:\Program Files\OwnBase\server\ownbase-server.js&quot; recover --data C:\ProgramData\OwnBase\data</code>.</li>
+<li><code>&amp; $nssm remove OwnBase confirm</code> removes the service and leaves the workspace.</li>
+</ul>
+<p><strong>Tried</strong> on 2026-10-28 on a new GitHub Actions machine with Windows Server 2025.
+A script ran each block above as written in Windows PowerShell 5.1 as
+Administrator, with the archive built from this version:</p>
+<ul>
+<li><code>node-v24.22.1-x64.msi</code> installed without questions into
+<code>C:\Program Files\nodejs</code>.</li>
+<li>nssm.cc answered 503 in three of four runs. The Internet Archive&#39;s copy then
+matched the hash.</li>
+<li>The service ran <code>node.exe</code> as <code>NT SERVICE\OwnBase</code>. The folder&#39;s permissions
+listed that account, SYSTEM and Administrators, and nobody else. The service&#39;s
+registry key was readable by <code>BUILTIN\Users</code>.</li>
+<li>The first <code>Start-Service</code> took 20 to 47 seconds across the runs, and step 5&#39;s
+health check answered as soon as it returned. Later starts took a second or two.</li>
+<li>The first account, made on that machine, needed no code. A message, an upload
+and the owner&#39;s copy worked.</li>
+<li>After <code>Stop-Process -Force</code> on <code>node.exe</code>, NSSM had the server answering again
+in 6 seconds, with its data.</li>
+<li><code>Stop-Service</code> returned at once, and the database&#39;s <code>-wal</code> file, 770 KB while
+the server ran, was gone: Ctrl+C reached Node and it closed the database.</li>
+<li>Settings in <code>AppEnvironmentExtra</code> reached the server.</li>
+<li>A service made for <code>node.exe</code> itself failed with error 1053 after 120 seconds,
+that machine&#39;s setting, and Windows ended Node.</li>
+<li><code>nssm remove</code> left the workspace&#39;s folder.</li>
+</ul>
+<p>Not tried: the firewall rule from another machine, starting at boot, and NSSM&#39;s
+log rotation.</p>
+        </article>
+        <nav class="docs-pager" aria-label="Pages"><a class="docs-prev" href="/docs/hosting/a-linux-server-with-systemd"><span>Previous</span>A Linux server with systemd</a><a class="docs-next" href="/docs/hosting/voice-and-huddles"><span>Next</span>Voice and huddles</a></nav>
+        <p class="docs-source">This page is made from <a href="https://github.com/Blazeiscoding/OwnBase/blob/main/docs/DEPLOYMENT.md#a-windows-server-as-a-service">docs/DEPLOYMENT.md</a>.</p>
+      </main>
+    </div>
+
+    <footer class="end guide-foot">
+      <div class="footer wrap">
+        <a class="brand" href="/">
+          <img src="/ownbase.svg?v=2" alt="" width="24" height="24" />
+          <span>OwnBase</span>
+        </a>
+        <ul class="footer-links">
+          <li><a href="/host">Hosting guide</a></li>
+          <li><a href="/docs/">Docs</a></li>
+          <li><a href="https://github.com/Blazeiscoding/OwnBase">GitHub</a></li>
+          <li><a href="https://github.com/Blazeiscoding/OwnBase/blob/main/SECURITY.md">Security</a></li>
+          <li><a href="https://github.com/Blazeiscoding/OwnBase/blob/main/docs/PLANS.md">Plans</a></li>
+        </ul>
+        <p class="legal">
+          OwnBase is in alpha. MIT licensed, except the Enterprise code in <code>ee/</code>. Not
+          affiliated with Slack or Salesforce.
+        </p>
+      </div>
+    </footer>
+  </body>
+</html>

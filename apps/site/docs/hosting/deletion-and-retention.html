@@ -1,0 +1,220 @@
+<!doctype html>
+<!-- Written by scripts/generate-docs-site.mjs from docs/DEPLOYMENT.md. Edit that, not this. -->
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Deletion and retention · Hosting OwnBase · OwnBase docs</title>
+    <meta name="description" content="Run OwnBase on a desktop, a Linux or Windows server, or in Docker: sharing it on the internet, calls, backups, proxies, limits and the Enterprise features." />
+    <link rel="canonical" href="https://ownbase.site/docs/hosting/deletion-and-retention" />
+    <meta property="og:title" content="Deletion and retention · Hosting OwnBase · OwnBase docs" />
+    <meta property="og:description" content="Run OwnBase on a desktop, a Linux or Windows server, or in Docker: sharing it on the internet, calls, backups, proxies, limits and the Enterprise features." />
+    <meta property="og:type" content="article" />
+    <meta property="og:url" content="https://ownbase.site/docs/hosting/deletion-and-retention" />
+    <meta property="og:site_name" content="OwnBase" />
+    <meta property="og:image" content="https://ownbase.site/og.png?v=2" />
+    <meta name="theme-color" content="#0b0a20" />
+    <link rel="preload" href="/fonts/onest-latin-wght-normal.woff2" as="font" type="font/woff2" crossorigin />
+    <link rel="icon" href="/ownbase.svg?v=2" type="image/svg+xml" />
+    <link rel="stylesheet" href="/site.css?v=7cf174c67f" />
+    <link rel="stylesheet" href="/docs.css?v=30dafeac35" />
+    <script src="/docs.js?v=123540c9d0" defer></script>
+  </head>
+  <body class="docs-body" data-search="/docs/search.json?v=c49ebd883a" data-guide="hosting">
+    <a class="skip" href="#main">Skip to content</a>
+
+    <header class="guide-head">
+      <nav class="nav wrap" aria-label="Main">
+        <a class="brand" href="/">
+          <img src="/ownbase.svg?v=2" alt="" width="32" height="32" />
+          <span>OwnBase</span>
+          <span class="alpha">Alpha</span>
+        </a>
+        <ul class="nav-links">
+          <li><a href="/#host">Hosting</a></li>
+          <li><a href="/host">Guide</a></li>
+          <li><a href="/docs/" aria-current="page">Docs</a></li>
+          <li><a href="/#download">Download</a></li>
+          <li><a href="https://github.com/Blazeiscoding/OwnBase">GitHub</a></li>
+        </ul>
+        <a class="btn btn-small btn-light" href="/#download">Get OwnBase</a>
+      </nav>
+    </header>
+
+    <div class="docs wrap">
+      <aside class="docs-side">
+        <div class="docs-search" role="search" hidden>
+          <label class="sr-only" for="docs-query">Search the docs</label>
+          <input id="docs-query" type="search" placeholder="Search the docs" autocomplete="off" spellcheck="false" />
+          <p class="docs-status" aria-live="polite"></p>
+          <div class="docs-results" hidden></div>
+        </div>
+        <details class="docs-nav" open>
+          <summary>All sections</summary>
+          <nav aria-label="Docs">
+            <p class="docs-group">Hosting OwnBase</p>
+            <ul>
+              <li><a href="/docs/hosting/">Overview</a></li>
+              <li><a href="/docs/hosting/windows-and-lan">Windows and LAN</a></li>
+              <li><a href="/docs/hosting/temporary-internet-sharing-with-cloudflare-tunnel">Temporary internet sharing with Cloudflare Tunnel</a></li>
+              <li><a href="/docs/hosting/docker-and-vps">Docker and VPS</a></li>
+              <li><a href="/docs/hosting/a-linux-server-with-systemd">A Linux server with systemd</a></li>
+              <li><a href="/docs/hosting/a-windows-server-as-a-service">A Windows server, as a service</a></li>
+              <li><a href="/docs/hosting/voice-and-huddles">Voice and huddles</a></li>
+              <li><a href="/docs/hosting/attachment-storage">Attachment storage</a></li>
+              <li><a href="/docs/hosting/backups-restore-updates">Backups, restore, updates</a></li>
+              <li><a href="/docs/hosting/moving-in-from-slack">Moving in from Slack</a></li>
+              <li><a href="/docs/hosting/taking-your-data-out">Taking your data out</a></li>
+              <li><a href="/docs/hosting/deletion-and-retention" aria-current="page">Deletion and retention</a></li>
+              <li><a href="/docs/hosting/integration-delivery">Integration delivery</a></li>
+              <li><a href="/docs/hosting/link-previews">Link previews</a></li>
+              <li><a href="/docs/hosting/notifications-while-the-browser-is-closed">Notifications while the browser is closed</a></li>
+              <li><a href="/docs/hosting/behind-a-reverse-proxy">Behind a reverse proxy</a></li>
+              <li><a href="/docs/hosting/request-limits">Request limits</a></li>
+              <li><a href="/docs/hosting/password-hashing">Password hashing</a></li>
+              <li><a href="/docs/hosting/changing-a-workspace-address-and-keeping-local-work">Changing a workspace address and keeping local work</a></li>
+              <li><a href="/docs/hosting/desktop-saved-sign-ins">Desktop saved sign-ins</a></li>
+              <li><a href="/docs/hosting/the-administrative-record">The administrative record</a></li>
+              <li><a href="/docs/hosting/invites">Invites</a></li>
+              <li><a href="/docs/hosting/who-may-join">Who may join</a></li>
+              <li><a href="/docs/hosting/guests">Guests</a></li>
+              <li><a href="/docs/hosting/a-plans-members">A plan&#39;s members</a></li>
+              <li><a href="/docs/hosting/an-enterprise-license">An Enterprise license</a></li>
+              <li><a href="/docs/hosting/hosting-workspaces-for-others">Hosting workspaces for others</a></li>
+              <li><a href="/docs/hosting/current-boundaries">Current boundaries</a></li>
+            </ul>
+            <p class="docs-group">Integration API contract</p>
+            <ul>
+              <li><a href="/docs/integrations/">Overview</a></li>
+              <li><a href="/docs/integrations/setting-up-an-app">Setting up an app</a></li>
+              <li><a href="/docs/integrations/identifiers">Identifiers</a></li>
+              <li><a href="/docs/integrations/verifying-requests-from-this-server">Verifying requests from this server</a></li>
+              <li><a href="/docs/integrations/web-api-methods">Web API methods</a></li>
+              <li><a href="/docs/integrations/incoming-webhooks">Incoming webhooks</a></li>
+              <li><a href="/docs/integrations/slash-commands">Slash commands</a></li>
+              <li><a href="/docs/integrations/interactive-buttons">Interactive buttons</a></li>
+              <li><a href="/docs/integrations/modals">Modals</a></li>
+              <li><a href="/docs/integrations/events">Events</a></li>
+              <li><a href="/docs/integrations/block-kit">Block Kit</a></li>
+              <li><a href="/docs/integrations/the-native-client-protocol">The native client protocol</a></li>
+            </ul>
+          </nav>
+        </details>
+      </aside>
+
+      <aside class="docs-toc" aria-labelledby="toc-title">
+        <p id="toc-title" class="docs-toc-title">On this page</p>
+        <ul>
+          <li class="toc-3"><a href="#what-deleting-a-message-does">What deleting a message does</a></li>
+          <li class="toc-3"><a href="#keeping-less-history">Keeping less history</a></li>
+        </ul>
+      </aside>
+      <main id="main" class="docs-main">
+        <p class="docs-crumb"><a href="/docs/">Docs</a> / <a href="/docs/hosting/">Hosting OwnBase</a></p>
+        <article class="doc">
+        <h1 id="deletion-and-retention">Deletion and retention</h1>
+        
+<h2 id="what-deleting-a-message-does">What deleting a message does<a class="doc-anchor" href="#what-deleting-a-message-does" aria-label="Link to What deleting a message does">#</a></h2>
+<p>Deleting a message removes it from every channel, thread, search result, pinned
+list and saved list immediately, and releases its attachments. Specifically:</p>
+<ul>
+<li><strong>The message itself</strong> is kept as an empty tombstone rather than a row that is
+gone. The row holds no text, no attachment and nothing anyone wrote; what it
+still holds is an id, an author and a timestamp, which is what lets a reply
+posted under it keep resolving.</li>
+<li><strong>Replies</strong> are deleted with the message that started their thread — every
+reply, whoever wrote it, exactly as if each had been deleted on its own: words
+blanked, attachments released, and their copies in the event log redacted. The
+thread drops out of the followed list and asking for it returns
+<code>thread_not_found</code>. Deleting the message you opened a conversation with
+therefore deletes everyone else&#39;s answers to it, which is worth knowing before
+deleting the top of a long thread. Deleting a single reply leaves the rest of
+the thread alone.</li>
+<li><strong>Attachments</strong> are removed from the database with the message and their bytes
+are deleted from disk by a queue that retries until it succeeds. A file locked
+by the operating system can survive on disk for a few minutes; the download
+API stops serving it the moment the deletion commits.</li>
+<li><strong>Pins, saves and reactions</strong> pointing at it are deleted outright.</li>
+<li><strong>The search index</strong> loses the text as part of the same write. SQLite marks the
+freed index pages reusable rather than overwriting them, so the words can
+remain in unallocated space inside <code>workspace.db</code> until something else writes
+over them. <code>VACUUM</code> on a stopped server rewrites the file without them.</li>
+<li><strong>The event log</strong> loses the text and the attachment names too. The events
+themselves stay — a missing sequence number would look to a catching-up client
+exactly like a log it had fallen off the end of, and send it back for a whole
+new snapshot — but what they replay is a message with nothing in it, followed
+immediately by the deletion.</li>
+<li><strong>Editing</strong> a message does the same to every earlier version of it. Taking
+back a sentence by editing it away is the usual way people do it, and leaving
+the first draft in the log would make the correction cosmetic.</li>
+<li><strong>App events still waiting to be delivered</strong>, or that gave up, lose the words
+too, on edit, deletion and retention alike; the events stay so each app still
+receives them in order. An event already delivered belongs to that app and
+cannot be recalled, and one on its way out at that moment may still arrive as
+it was. See <a href="/docs/integrations/events#events">Integration API contract</a>.</li>
+<li><strong>The request log</strong> never held the text: the server logs methods, paths and
+status codes, not bodies.</li>
+<li><strong>Backups</strong> taken before the deletion still contain the original text, in full.
+Nothing this server does reaches into a backup you have already made. If a
+deletion has to be permanent, the backups from before it have to go too.</li>
+</ul>
+<p>A message under an Enterprise legal hold cannot be deleted, and an edit of one keeps
+the words it replaced; see <a href="/docs/hosting/an-enterprise-license#compliance-legal-hold-export-and-sending-the-record">Compliance</a>.</p>
+<p>There is no account deletion. An account can be deactivated, which ends its
+sessions and stops it signing in, and what it wrote stays where it is.</p>
+<h2 id="keeping-less-history">Keeping less history<a class="doc-anchor" href="#keeping-less-history" aria-label="Link to Keeping less history">#</a></h2>
+<pre tabindex="0"><code class="language-sh">ownbase-server --data ./data --retention-days 365</code></pre>
+<p>Off by default: a workspace that quietly started discarding history would be
+worse than one that grows. Also settable with <code>OWNBASE_RETENTION_DAYS</code>. The
+server prints the window on every start, because a setting that deletes things
+is one to be reminded of.</p>
+<p>An hourly sweep removes conversation older than the window outright — rows,
+attachments, pins, saves, reactions, and the text in the event log — rather than
+hiding it. A thread ages out as one thing: a root is taken only once its newest
+reply is past the window too, so nobody is left with replies hanging under
+nothing. Each pass removes at most 5,000 messages, counting replies, taking the
+oldest threads first; a single thread larger than that goes whole, on its own.
+The hourly sweep runs passes back to back, giving other requests the server
+between them, until nothing is left or it has run for 30 seconds, and the rest
+follow on the next hour. A sweep that fails is logged as an error and tried
+again on the next hour; it does not stop the server.</p>
+<p>Nothing is announced to connected clients. These messages are old enough that no
+screen is showing them, and announcing a year of deletions would put the events
+into the very log this is meant to keep small. A client scrolled that far back
+keeps what it already has until it next asks the server, which will not have it.</p>
+<p>Messages under an Enterprise legal hold, and every thread one is in, are skipped
+whatever their age.</p>
+<p>This is not reversible. Getting discarded conversation back means restoring a
+backup taken before the sweep ran. Decide the window before turning it on, take
+a backup, and remember that lowering it later discards everything the new window
+excludes on the next hour.</p>
+<p>The event log is pruned separately and always: only the most recent 20,000
+events are kept, which is what a client resyncs against. Falling behind that is
+not a loss of history — the client takes a fresh snapshot instead.</p>
+        </article>
+        <nav class="docs-pager" aria-label="Pages"><a class="docs-prev" href="/docs/hosting/taking-your-data-out"><span>Previous</span>Taking your data out</a><a class="docs-next" href="/docs/hosting/integration-delivery"><span>Next</span>Integration delivery</a></nav>
+        <p class="docs-source">This page is made from <a href="https://github.com/Blazeiscoding/OwnBase/blob/main/docs/DEPLOYMENT.md#deletion-and-retention">docs/DEPLOYMENT.md</a>.</p>
+      </main>
+    </div>
+
+    <footer class="end guide-foot">
+      <div class="footer wrap">
+        <a class="brand" href="/">
+          <img src="/ownbase.svg?v=2" alt="" width="24" height="24" />
+          <span>OwnBase</span>
+        </a>
+        <ul class="footer-links">
+          <li><a href="/host">Hosting guide</a></li>
+          <li><a href="/docs/">Docs</a></li>
+          <li><a href="https://github.com/Blazeiscoding/OwnBase">GitHub</a></li>
+          <li><a href="https://github.com/Blazeiscoding/OwnBase/blob/main/SECURITY.md">Security</a></li>
+          <li><a href="https://github.com/Blazeiscoding/OwnBase/blob/main/docs/PLANS.md">Plans</a></li>
+        </ul>
+        <p class="legal">
+          OwnBase is in alpha. MIT licensed, except the Enterprise code in <code>ee/</code>. Not
+          affiliated with Slack or Salesforce.
+        </p>
+      </div>
+    </footer>
+  </body>
+</html>

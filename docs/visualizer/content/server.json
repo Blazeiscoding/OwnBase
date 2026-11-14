@@ -405,7 +405,8 @@
         "Schema 47 adds profiles (E9): users.time_zone, users.away (set by hand) and users.avatar_version, and user_avatars, one picture's type and bytes per account, going with the account. Removing a picture deletes its row.",
         "Schema 48 adds messages.call_kind (E10): the kind of note the server left about a call, missed, and null on every other message.",
         "Schema 49 adds two-step sign-in (E11): users.two_step_secret (null while it is off) and users.two_step_step, the last time step a code was accepted for; and two_step_codes, an account's recovery codes as SHA-256 hashes with used_at, going with the account.",
-        "Schema 50 adds blocking and reporting (E12): user_blocks, whom each account blocked, going with either account; and message_reports, a reason, a note and when each was resolved, by whom and how, going with the message and the reporter. A partial unique index keeps one open report per person per message, so a new one can open once the last is resolved."
+        "Schema 50 adds blocking and reporting (E12): user_blocks, whom each account blocked, going with either account; and message_reports, a reason, a note and when each was resolved, by whom and how, going with the message and the reporter. A partial unique index keeps one open report per person per message, so a new one can open once the last is resolved.",
+        "Schema 58 rebuilds messages_fts as a contentless FTS5 table (contentless_delete=1) holding search/words.ts's text, so a word inside Chinese, Japanese, Korean or Thai is found (H06). Its triggers call ownbase_search_text, which openDb adds with addSqlFunctions; a connection without it cannot change a message's words. Deletes go by rowid, so the old words are never needed. About 5 s per million messages."
       ],
       "concepts": ["SQLite", "schema 37", "atomic migration", "content cleanup"]
     },
@@ -1829,6 +1830,17 @@
         "Activity reads mentions from message_mentions by the same rule as the badges (core/sqlRules.ts)."
       ],
       "concepts": ["search", "FTS", "queries"]
+    },
+    {
+      "path": "packages/server/src/search/words.ts",
+      "plain": "Splits Chinese, Japanese, Korean and Thai text so search can find a word in the middle of a sentence.",
+      "summary": "searchText: the text the search index holds, and that a search is matched against, with each character of a writing system without spaces as a word of its own.",
+      "details": [
+        "The index triggers call it as ownbase_search_text, which openDb adds to the connection (addSqlFunctions); a search term goes through it too, so its characters are a phrase.",
+        "Fixed code-point ranges, not Intl.Segmenter or \\p{Script}, so every Node that opens the workspace splits text the same way.",
+        "Changing what it returns needs a migration that rebuilds the index (v58 built it)."
+      ],
+      "concepts": ["search", "FTS", "languages"]
     },
     {
       "path": "packages/server/src/huddles/feature.ts",

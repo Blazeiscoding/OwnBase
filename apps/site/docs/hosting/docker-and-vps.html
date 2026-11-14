@@ -1,0 +1,301 @@
+<!doctype html>
+<!-- Written by scripts/generate-docs-site.mjs from docs/DEPLOYMENT.md. Edit that, not this. -->
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Docker and VPS · Hosting OwnBase · OwnBase docs</title>
+    <meta name="description" content="Every release publishes an image for linux/amd64 and linux/arm64 to ghcr.io/blazeiscoding/ownbase. The release run builds it from the release&#39;s commit,…" />
+    <link rel="canonical" href="https://ownbase.site/docs/hosting/docker-and-vps" />
+    <meta property="og:title" content="Docker and VPS · Hosting OwnBase · OwnBase docs" />
+    <meta property="og:description" content="Every release publishes an image for linux/amd64 and linux/arm64 to ghcr.io/blazeiscoding/ownbase. The release run builds it from the release&#39;s commit,…" />
+    <meta property="og:type" content="article" />
+    <meta property="og:url" content="https://ownbase.site/docs/hosting/docker-and-vps" />
+    <meta property="og:site_name" content="OwnBase" />
+    <meta property="og:image" content="https://ownbase.site/og.png?v=2" />
+    <meta name="theme-color" content="#0b0a20" />
+    <link rel="preload" href="/fonts/onest-latin-wght-normal.woff2" as="font" type="font/woff2" crossorigin />
+    <link rel="icon" href="/ownbase.svg?v=2" type="image/svg+xml" />
+    <link rel="stylesheet" href="/site.css?v=7cf174c67f" />
+    <link rel="stylesheet" href="/docs.css?v=30dafeac35" />
+    <script src="/docs.js?v=123540c9d0" defer></script>
+  </head>
+  <body class="docs-body" data-search="/docs/search.json?v=c49ebd883a" data-guide="hosting">
+    <a class="skip" href="#main">Skip to content</a>
+
+    <header class="guide-head">
+      <nav class="nav wrap" aria-label="Main">
+        <a class="brand" href="/">
+          <img src="/ownbase.svg?v=2" alt="" width="32" height="32" />
+          <span>OwnBase</span>
+          <span class="alpha">Alpha</span>
+        </a>
+        <ul class="nav-links">
+          <li><a href="/#host">Hosting</a></li>
+          <li><a href="/host">Guide</a></li>
+          <li><a href="/docs/" aria-current="page">Docs</a></li>
+          <li><a href="/#download">Download</a></li>
+          <li><a href="https://github.com/Blazeiscoding/OwnBase">GitHub</a></li>
+        </ul>
+        <a class="btn btn-small btn-light" href="/#download">Get OwnBase</a>
+      </nav>
+    </header>
+
+    <div class="docs wrap">
+      <aside class="docs-side">
+        <div class="docs-search" role="search" hidden>
+          <label class="sr-only" for="docs-query">Search the docs</label>
+          <input id="docs-query" type="search" placeholder="Search the docs" autocomplete="off" spellcheck="false" />
+          <p class="docs-status" aria-live="polite"></p>
+          <div class="docs-results" hidden></div>
+        </div>
+        <details class="docs-nav" open>
+          <summary>All sections</summary>
+          <nav aria-label="Docs">
+            <p class="docs-group">Hosting OwnBase</p>
+            <ul>
+              <li><a href="/docs/hosting/">Overview</a></li>
+              <li><a href="/docs/hosting/windows-and-lan">Windows and LAN</a></li>
+              <li><a href="/docs/hosting/temporary-internet-sharing-with-cloudflare-tunnel">Temporary internet sharing with Cloudflare Tunnel</a></li>
+              <li><a href="/docs/hosting/docker-and-vps" aria-current="page">Docker and VPS</a></li>
+              <li><a href="/docs/hosting/a-linux-server-with-systemd">A Linux server with systemd</a></li>
+              <li><a href="/docs/hosting/a-windows-server-as-a-service">A Windows server, as a service</a></li>
+              <li><a href="/docs/hosting/voice-and-huddles">Voice and huddles</a></li>
+              <li><a href="/docs/hosting/attachment-storage">Attachment storage</a></li>
+              <li><a href="/docs/hosting/backups-restore-updates">Backups, restore, updates</a></li>
+              <li><a href="/docs/hosting/moving-in-from-slack">Moving in from Slack</a></li>
+              <li><a href="/docs/hosting/taking-your-data-out">Taking your data out</a></li>
+              <li><a href="/docs/hosting/deletion-and-retention">Deletion and retention</a></li>
+              <li><a href="/docs/hosting/integration-delivery">Integration delivery</a></li>
+              <li><a href="/docs/hosting/link-previews">Link previews</a></li>
+              <li><a href="/docs/hosting/notifications-while-the-browser-is-closed">Notifications while the browser is closed</a></li>
+              <li><a href="/docs/hosting/behind-a-reverse-proxy">Behind a reverse proxy</a></li>
+              <li><a href="/docs/hosting/request-limits">Request limits</a></li>
+              <li><a href="/docs/hosting/password-hashing">Password hashing</a></li>
+              <li><a href="/docs/hosting/changing-a-workspace-address-and-keeping-local-work">Changing a workspace address and keeping local work</a></li>
+              <li><a href="/docs/hosting/desktop-saved-sign-ins">Desktop saved sign-ins</a></li>
+              <li><a href="/docs/hosting/the-administrative-record">The administrative record</a></li>
+              <li><a href="/docs/hosting/invites">Invites</a></li>
+              <li><a href="/docs/hosting/who-may-join">Who may join</a></li>
+              <li><a href="/docs/hosting/guests">Guests</a></li>
+              <li><a href="/docs/hosting/a-plans-members">A plan&#39;s members</a></li>
+              <li><a href="/docs/hosting/an-enterprise-license">An Enterprise license</a></li>
+              <li><a href="/docs/hosting/hosting-workspaces-for-others">Hosting workspaces for others</a></li>
+              <li><a href="/docs/hosting/current-boundaries">Current boundaries</a></li>
+            </ul>
+            <p class="docs-group">Integration API contract</p>
+            <ul>
+              <li><a href="/docs/integrations/">Overview</a></li>
+              <li><a href="/docs/integrations/setting-up-an-app">Setting up an app</a></li>
+              <li><a href="/docs/integrations/identifiers">Identifiers</a></li>
+              <li><a href="/docs/integrations/verifying-requests-from-this-server">Verifying requests from this server</a></li>
+              <li><a href="/docs/integrations/web-api-methods">Web API methods</a></li>
+              <li><a href="/docs/integrations/incoming-webhooks">Incoming webhooks</a></li>
+              <li><a href="/docs/integrations/slash-commands">Slash commands</a></li>
+              <li><a href="/docs/integrations/interactive-buttons">Interactive buttons</a></li>
+              <li><a href="/docs/integrations/modals">Modals</a></li>
+              <li><a href="/docs/integrations/events">Events</a></li>
+              <li><a href="/docs/integrations/block-kit">Block Kit</a></li>
+              <li><a href="/docs/integrations/the-native-client-protocol">The native client protocol</a></li>
+            </ul>
+          </nav>
+        </details>
+      </aside>
+
+      <aside class="docs-toc" aria-labelledby="toc-title">
+        <p id="toc-title" class="docs-toc-title">On this page</p>
+        <ul>
+          <li class="toc-3"><a href="#reading-the-workspace-status">Reading the workspace status</a></li>
+          <li class="toc-3"><a href="#metrics-for-prometheus">Metrics for Prometheus</a></li>
+          <li class="toc-3"><a href="#an-hour-of-steady-use">An hour of steady use</a></li>
+        </ul>
+      </aside>
+      <main id="main" class="docs-main">
+        <p class="docs-crumb"><a href="/docs/">Docs</a> / <a href="/docs/hosting/">Hosting OwnBase</a></p>
+        <article class="doc">
+        <h1 id="docker-and-vps">Docker and VPS</h1>
+        
+<p>Every release publishes an image for linux/amd64 and linux/arm64 to
+<code>ghcr.io/blazeiscoding/ownbase</code>. The release run builds it from the release&#39;s
+commit, runs the container tests against it, and pushes that same image under
+the release&#39;s version without its <code>v</code> (<code>0.2.0-alpha.5</code>); <code>latest</code> follows the
+newest release, as the website&#39;s downloads do. The release notes give its digest.
+Run it with no clone:</p>
+<pre tabindex="0"><code class="language-sh">docker run -d --name ownbase -p 8543:8543 -v ownbase-data:/data ghcr.io/blazeiscoding/ownbase</code></pre>
+<p>The server prints the claim code the first person to sign up needs
+(<code>docker logs ownbase</code>). For the compose file, which names the workspace, makes
+it invite-only, restarts the server and drops its privileges, fetch it on its own:</p>
+<pre tabindex="0"><code class="language-sh">curl -fsSLO https://raw.githubusercontent.com/Blazeiscoding/OwnBase/main/docker/docker-compose.yml
+docker compose up -d</code></pre>
+<p><code>OWNBASE_VERSION</code> in the environment or a <code>.env</code> beside the file pins a release.
+To build from source, run <code>docker compose -f docker/docker-compose.yml up -d --build</code>
+from a clone.
+Data lives in a named volume at <code>/data</code>; the server runs as a non-root user.
+The compose file&#39;s <code>--name</code> and <code>--invite-only</code> set up a new workspace; once it
+has an owner, its name and who may join are changed in <strong>Workspace settings</strong>,
+and a restart keeps them (see <a href="/docs/hosting/who-may-join#who-may-join">Who may join</a>).
+The workspace&#39;s icon is set there too, by the same people, and kept in the
+database&#39;s <code>meta</code> table (<code>workspace_icon_type</code>, <code>_version</code> and <code>_data</code>), so a
+backup and a restore carry it. It is a PNG, JPEG or WebP of at most 256 KB and
+1024 pixels a side; the app cuts the picture someone chooses to 256 pixels
+square before sending it, and the server checks its first bytes and never
+decodes or resizes it. <code>PUT</code> and <code>DELETE /api/admin/workspace/icon</code> change it,
+each recorded in the administrative record without the image, and
+<code>GET /api/workspace/icon</code> serves it to anyone, signed in or not, since the join
+screen shows it; asked for with <code>?v=&lt;version&gt;</code>, as clients do, it may be cached
+for a year, as a new picture has a new version.
+<code>GET /api/health</code> checks the process and database. Docker&#39;s health status reports
+failures; the restart policy restarts exited processes, not merely unhealthy ones.</p>
+<p><code>GET /api/admin/status</code>, signed in as the owner or an admin, says whether the
+server is keeping up: schema version, uptime, the database and its log on disk,
+attachment storage against its limit, free disk space, waiting and failed app
+deliveries (with the oldest waiting), queued, held and failed scheduled
+messages, how retention&#39;s last sweeps went, open connections, and how late the
+event loop ran over the last full minute. It is counts, sizes and times only:
+no message, file name, address, token or delivery error, so it can be pasted
+into a request for help. In the app, the owner and admins find the same figures
+at the end of <strong>Diagnostics</strong>, shown in full before they are copied or saved
+as a file.</p>
+<h2 id="reading-the-workspace-status">Reading the workspace status<a class="doc-anchor" href="#reading-the-workspace-status" aria-label="Link to Reading the workspace status">#</a></h2>
+<p>What each line of the status means, what is ordinary, and what to do when it
+is not. There are no fixed warning thresholds yet: they wait on measuring the
+workspace on reference hardware (OPT-01). A line that keeps getting worse
+between two readings an hour apart matters more than any one number.</p>
+<div class="doc-table" tabindex="0" role="region" aria-label="Table"><table>
+<thead><tr><th>Line</th><th>Ordinary</th><th>Look into it when</th><th>What to do</th></tr></thead>
+<tbody>
+<tr><td><strong>Server</strong> (version, schema, uptime)</td><td>The version you installed; uptime since the last start</td><td>Uptime keeps resetting</td><td>The process is restarting: read its log, and check Docker&#39;s restart count or the service manager</td></tr>
+<tr><td><strong>Database</strong> and <strong>log</strong></td><td>The log is a few megabytes. SQLite reuses it rather than shrinking it, so its size is the most it has needed since the server started</td><td>The log keeps growing across readings</td><td>Something kept the database open for reading a long time, such as a very long backup. It is folded back in when that ends, and removed when the server stops</td></tr>
+<tr><td><strong>Attachments</strong></td><td>Below the <code>--storage-limit-mb</code> you set, or &quot;no limit&quot;</td><td>Close to the limit</td><td>Raise the limit, or remove old files (deleting their messages frees them), or turn on <a href="/docs/hosting/deletion-and-retention#keeping-less-history">Keeping less history</a>. Uploads past the limit are refused with <code>507</code>; nothing is lost</td></tr>
+<tr><td><strong>Attachment removal</strong></td><td>0 waiting, or a few for a moment; 0 retrying and set aside</td><td>Retrying or set aside above 0</td><td>Retrying: the log&#39;s <code>attachment cleanup deferred</code> names each file and error, often a permission or a file held open; each is tried again later. Set aside: not a file name the server gives, never tried</td></tr>
+<tr><td><strong>Free disk</strong></td><td>Comfortably more than the database and attachments together</td><td>Less than the next few weeks of growth, or less than one backup</td><td>Free space before the disk fills: a full disk stops every write, messages included. &quot;unknown&quot; means the system did not say</td></tr>
+<tr><td><strong>App deliveries</strong> waiting</td><td>0, or a few for a moment</td><td>The count, or how long the oldest has waited, keeps growing</td><td>A receiver is slow or not answering; deliveries to it wait in order. Check the app&#39;s endpoint. See <a href="/docs/hosting/integration-delivery#integration-delivery">Integration delivery</a></td></tr>
+<tr><td><strong>App deliveries</strong> given up</td><td>0</td><td>Above 0</td><td>An endpoint used up its retries, and its queue was set aside with it. Repair the endpoint, then retry in <strong>Apps and integrations</strong>, which restores the queue in order. Kept seven days</td></tr>
+<tr><td><strong>Scheduled messages</strong> queued</td><td>Messages people scheduled</td><td>—</td><td>Nothing; they send when due</td></tr>
+<tr><td><strong>Scheduled messages</strong> held for a retry</td><td>0</td><td>Above 0 for long</td><td>Each is waiting on something that may clear: an archived channel, a lost membership, a deactivated author. It is tried again a minute later, or as soon as that changes</td></tr>
+<tr><td><strong>Scheduled messages</strong> failed</td><td>0</td><td>Above 0</td><td>Terminal: the author sees it as <strong>Not sent</strong> under Scheduled and can reschedule it. Nothing retries it</td></tr>
+<tr><td><strong>Backups</strong></td><td>&quot;not scheduled&quot;, or last done within the time between backups, with the next one due</td><td>A failure, or no backup for longer than the time between them</td><td>The server log says why: usually no room on the disk, or no permission to write to <code>--backup-dir</code>. Fix it and the next try goes ahead within the hour</td></tr>
+<tr><td><strong>History removal</strong></td><td>&quot;off&quot;, or last done within the hour</td><td>&quot;not run yet&quot; for more than an hour, or failures since</td><td>Read the server log for <code>retention sweep failed</code>, which carries the error. Each failure is tried again the next hour, and the server keeps running</td></tr>
+<tr><td><strong>Background work</strong></td><td>all running</td><td>Failing for more than a minute or two</td><td>Read the server log for <code>background work failed</code>, which names the queue and carries the error. The server keeps serving and tries again each round; queued work waits rather than being lost</td></tr>
+<tr><td><strong>Connections</strong></td><td>About one to three sockets per person (tabs, devices)</td><td>Many more sockets than people, or both climbing without new members</td><td>Clients reconnecting in a loop, often a proxy that drops WebSockets; see <a href="/docs/hosting/behind-a-reverse-proxy#behind-a-reverse-proxy">Behind a reverse proxy</a></td></tr>
+<tr><td><strong>Event loop delay</strong></td><td>A few milliseconds at p50 and p99</td><td>p99 near or above 100 ms, the project&#39;s main-loop target, minute after minute</td><td>The server is busy enough that requests wait. Compare with what was happening (a large import, a retention sweep, a backup) and with free CPU and disk; a sustained figure is worth reporting with the status attached</td></tr>
+</tbody>
+</table></div>
+<p>The status holds no message, name, file name, address or delivery error, so it
+can go into a request for help as it is. <strong>Diagnostics</strong> in the app saves it as
+a file for that.</p>
+<h2 id="metrics-for-prometheus">Metrics for Prometheus<a class="doc-anchor" href="#metrics-for-prometheus" aria-label="Link to Metrics for Prometheus">#</a></h2>
+<p>Start the server with <code>--metrics-token &lt;token&gt;</code>, or set <code>OWNBASE_METRICS_TOKEN</code>,
+which keeps the token out of the process list. <code>GET /metrics</code> then answers in
+Prometheus&#39;s text format to a request carrying <code>Authorization: Bearer &lt;token&gt;</code>,
+and refuses any other with <code>401</code>. Without a token the path does not exist. The
+token must be at least 16 characters with no spaces.</p>
+<pre tabindex="0"><code class="language-yaml">scrape_configs:
+  - job_name: ownbase
+    scheme: https
+    authorization:
+      credentials_file: /etc/prometheus/ownbase-token
+    static_configs:
+      - targets: [&quot;chat.example.org&quot;]</code></pre>
+<p>To read it by hand:
+<code>curl -H &quot;Authorization: Bearer $OWNBASE_METRICS_TOKEN&quot; https://chat.example.org/metrics</code>.</p>
+<p>Metrics hold counts only: no names, ids, addresses or message text. Requests are
+labelled by the route&#39;s pattern (<code>/api/channels/:id/messages</code>), never the
+address asked for, so the number of series stays fixed. An address no route has
+is counted under <code>unmatched</code>.</p>
+<div class="doc-table" tabindex="0" role="region" aria-label="Table"><table>
+<thead><tr><th>Metric</th><th>Meaning</th></tr></thead>
+<tbody>
+<tr><td><code>ownbase_info{version}</code></td><td>Always 1; the label carries the server&#39;s version</td></tr>
+<tr><td><code>ownbase_uptime_seconds</code></td><td>Seconds since the server started</td></tr>
+<tr><td><code>ownbase_open_sockets</code></td><td>Sockets open now, signed in or not yet</td></tr>
+<tr><td><code>ownbase_connected_people</code></td><td>People connected now, each counted once however many devices they use</td></tr>
+<tr><td><code>ownbase_signed_in_sessions</code></td><td>Sessions signed in and not expired</td></tr>
+<tr><td><code>ownbase_events_written_total</code></td><td>Counter of events written to the workspace&#39;s log; <code>rate()</code> of it is events a second</td></tr>
+<tr><td><code>ownbase_http_requests_total{method,route,code}</code></td><td>Counter of requests answered</td></tr>
+<tr><td><code>ownbase_http_request_duration_seconds{method,route}</code></td><td>Histogram of how long requests took</td></tr>
+<tr><td><code>ownbase_database_bytes</code>, <code>ownbase_database_wal_bytes</code></td><td>Size of the database file and of its write-ahead log</td></tr>
+<tr><td><code>ownbase_disk_free_bytes</code></td><td>Free space where the workspace is kept, when the system says</td></tr>
+<tr><td><code>ownbase_files_stored</code>, <code>ownbase_files_stored_bytes</code></td><td>Attachments stored, and their bytes</td></tr>
+<tr><td><code>ownbase_files_limit_bytes</code></td><td>The <code>--storage-limit-mb</code> limit, when one is set</td></tr>
+<tr><td><code>ownbase_file_removals{state}</code></td><td>Deleted attachments whose files are still to be removed: waiting, retrying, rejected</td></tr>
+<tr><td><code>ownbase_app_deliveries{state}</code></td><td>Events for apps waiting to be delivered, and given up on</td></tr>
+<tr><td><code>ownbase_scheduled_messages{state}</code></td><td>Scheduled messages queued, held for a retry, and failed</td></tr>
+<tr><td><code>ownbase_backups_enabled</code></td><td>1 when the server takes backups on a timer</td></tr>
+<tr><td><code>ownbase_backup_last_success_age_seconds</code></td><td>Seconds since the last scheduled backup finished well; absent until one has</td></tr>
+<tr><td><code>ownbase_backup_failures</code></td><td>Scheduled backups failed since the last good one</td></tr>
+<tr><td><code>ownbase_retention_failures</code></td><td>History removals failed since the last good one, when <code>--retention-days</code> is set</td></tr>
+<tr><td><code>ownbase_event_loop_delay_seconds{quantile}</code></td><td>How late the event loop ran over the last full minute, at 0.5, 0.99 and 1 (the most)</td></tr>
+<tr><td><code>ownbase_background_queues_failing</code></td><td>Background queues failing now</td></tr>
+<tr><td><code>ownbase_huddles</code>, <code>ownbase_huddle_people</code></td><td>Huddles going now, and the people in them</td></tr>
+<tr><td><code>ownbase_push_subscriptions</code></td><td>Browsers subscribed to notifications while OwnBase is closed</td></tr>
+<tr><td><code>ownbase_pushes_total{result}</code></td><td>Counter of pushes to closed browsers: sent, failed, or dropped from a full queue</td></tr>
+</tbody>
+</table></div>
+<p>The <a href="#reading-the-workspace-status">table above</a> says what is ordinary for each
+of these and what to do when it is not. Good first alerts:
+<code>ownbase_backup_last_success_age_seconds</code> past twice the time between backups,
+<code>ownbase_disk_free_bytes</code> below one backup&#39;s size, and
+<code>ownbase_app_deliveries{state=&quot;failed&quot;} &gt; 0</code>.</p>
+<h2 id="an-hour-of-steady-use">An hour of steady use<a class="doc-anchor" href="#an-hour-of-steady-use" aria-label="Link to An hour of steady use">#</a></h2>
+<p><code>scripts/measure-soak.mts</code> runs one server for a set time against scripted
+people who post, reply, edit, delete, react, upload and remove files, join and
+leave channels, drop and reconnect, sign in and out, read history and start
+huddles, and samples the server once a minute. The <strong>Soak</strong> workflow runs it on
+a GitHub runner when started by hand.</p>
+<p>The first full run, on 13 November 2026 (v0.2.0, a 4-core runner with 16 GB, Node
+24), had 20 people on a workspace seeded with 20,000 messages for 60 minutes:</p>
+<div class="doc-table" tabindex="0" role="region" aria-label="Table"><table>
+<thead><tr><th>Over the hour</th><th>Start</th><th>End</th></tr></thead>
+<tbody>
+<tr><td>Server memory (resident)</td><td>316 MiB</td><td>318.1 MiB</td></tr>
+<tr><td>JavaScript heap</td><td>30.3 MiB</td><td>31.2 MiB</td></tr>
+<tr><td>Open handles</td><td>32</td><td>33</td></tr>
+<tr><td>Event loop delay, p99</td><td>12.9 ms</td><td>11.2 ms</td></tr>
+<tr><td>Send to receive, p50 and p99</td><td>3.7, 157 ms</td><td>3.5, 106 ms</td></tr>
+<tr><td>Database</td><td>17.1 MiB</td><td>34 MiB</td></tr>
+</tbody>
+</table></div>
+<p>&quot;Start&quot; is the first settled minute (the fifth or sixth); the database is as
+seeded. About 23,700 actions (10,935 posts, 237 huddles, 211 uploads, 513 reconnects)
+and none failed. Memory and heap rose by about 2 MiB and 1 MiB in the first
+40 minutes and then stayed level for the last 20; the database grows because it
+keeps what was said. Run it again after a change to how the server holds
+connections, caches or queues, and compare.</p>
+<p>Create the owner account before allowing public traffic, using an SSH tunnel if
+necessary. The supplied Compose configuration then requires invitations for new
+accounts. Place an HTTPS reverse proxy in front and set <code>--public-url</code> in the
+service&#39;s command, e.g. <code>https://chat.example.org</code>. WebSocket upgrades must be
+forwarded. For an internet deployment, bind the published chat port to localhost
+when the reverse proxy runs on the host.</p>
+<p>Example Caddy configuration on that host:</p>
+<pre tabindex="0"><code class="language-caddyfile">chat.example.org {
+    reverse_proxy 127.0.0.1:8543
+}</code></pre>
+        </article>
+        <nav class="docs-pager" aria-label="Pages"><a class="docs-prev" href="/docs/hosting/temporary-internet-sharing-with-cloudflare-tunnel"><span>Previous</span>Temporary internet sharing with Cloudflare Tunnel</a><a class="docs-next" href="/docs/hosting/a-linux-server-with-systemd"><span>Next</span>A Linux server with systemd</a></nav>
+        <p class="docs-source">This page is made from <a href="https://github.com/Blazeiscoding/OwnBase/blob/main/docs/DEPLOYMENT.md#docker-and-vps">docs/DEPLOYMENT.md</a>.</p>
+      </main>
+    </div>
+
+    <footer class="end guide-foot">
+      <div class="footer wrap">
+        <a class="brand" href="/">
+          <img src="/ownbase.svg?v=2" alt="" width="24" height="24" />
+          <span>OwnBase</span>
+        </a>
+        <ul class="footer-links">
+          <li><a href="/host">Hosting guide</a></li>
+          <li><a href="/docs/">Docs</a></li>
+          <li><a href="https://github.com/Blazeiscoding/OwnBase">GitHub</a></li>
+          <li><a href="https://github.com/Blazeiscoding/OwnBase/blob/main/SECURITY.md">Security</a></li>
+          <li><a href="https://github.com/Blazeiscoding/OwnBase/blob/main/docs/PLANS.md">Plans</a></li>
+        </ul>
+        <p class="legal">
+          OwnBase is in alpha. MIT licensed, except the Enterprise code in <code>ee/</code>. Not
+          affiliated with Slack or Salesforce.
+        </p>
+      </div>
+    </footer>
+  </body>
+</html>

@@ -1,0 +1,181 @@
+<!doctype html>
+<!-- Written by scripts/generate-docs-site.mjs from docs/INTEGRATIONS.md. Edit that, not this. -->
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Setting up an app · Integration API contract · OwnBase docs</title>
+    <meta name="description" content="An administrator creates an app under Apps and integrations. Each app gets: a bot user, which is who its messages are posted as; a bot token (xoxb-…),…" />
+    <link rel="canonical" href="https://ownbase.site/docs/integrations/setting-up-an-app" />
+    <meta property="og:title" content="Setting up an app · Integration API contract · OwnBase docs" />
+    <meta property="og:description" content="An administrator creates an app under Apps and integrations. Each app gets: a bot user, which is who its messages are posted as; a bot token (xoxb-…),…" />
+    <meta property="og:type" content="article" />
+    <meta property="og:url" content="https://ownbase.site/docs/integrations/setting-up-an-app" />
+    <meta property="og:site_name" content="OwnBase" />
+    <meta property="og:image" content="https://ownbase.site/og.png?v=2" />
+    <meta name="theme-color" content="#0b0a20" />
+    <link rel="preload" href="/fonts/onest-latin-wght-normal.woff2" as="font" type="font/woff2" crossorigin />
+    <link rel="icon" href="/ownbase.svg?v=2" type="image/svg+xml" />
+    <link rel="stylesheet" href="/site.css?v=7cf174c67f" />
+    <link rel="stylesheet" href="/docs.css?v=30dafeac35" />
+    <script src="/docs.js?v=123540c9d0" defer></script>
+  </head>
+  <body class="docs-body" data-search="/docs/search.json?v=c49ebd883a" data-guide="integrations">
+    <a class="skip" href="#main">Skip to content</a>
+
+    <header class="guide-head">
+      <nav class="nav wrap" aria-label="Main">
+        <a class="brand" href="/">
+          <img src="/ownbase.svg?v=2" alt="" width="32" height="32" />
+          <span>OwnBase</span>
+          <span class="alpha">Alpha</span>
+        </a>
+        <ul class="nav-links">
+          <li><a href="/#host">Hosting</a></li>
+          <li><a href="/host">Guide</a></li>
+          <li><a href="/docs/" aria-current="page">Docs</a></li>
+          <li><a href="/#download">Download</a></li>
+          <li><a href="https://github.com/Blazeiscoding/OwnBase">GitHub</a></li>
+        </ul>
+        <a class="btn btn-small btn-light" href="/#download">Get OwnBase</a>
+      </nav>
+    </header>
+
+    <div class="docs wrap">
+      <aside class="docs-side">
+        <div class="docs-search" role="search" hidden>
+          <label class="sr-only" for="docs-query">Search the docs</label>
+          <input id="docs-query" type="search" placeholder="Search the docs" autocomplete="off" spellcheck="false" />
+          <p class="docs-status" aria-live="polite"></p>
+          <div class="docs-results" hidden></div>
+        </div>
+        <details class="docs-nav" open>
+          <summary>All sections</summary>
+          <nav aria-label="Docs">
+            <p class="docs-group">Hosting OwnBase</p>
+            <ul>
+              <li><a href="/docs/hosting/">Overview</a></li>
+              <li><a href="/docs/hosting/windows-and-lan">Windows and LAN</a></li>
+              <li><a href="/docs/hosting/temporary-internet-sharing-with-cloudflare-tunnel">Temporary internet sharing with Cloudflare Tunnel</a></li>
+              <li><a href="/docs/hosting/docker-and-vps">Docker and VPS</a></li>
+              <li><a href="/docs/hosting/a-linux-server-with-systemd">A Linux server with systemd</a></li>
+              <li><a href="/docs/hosting/a-windows-server-as-a-service">A Windows server, as a service</a></li>
+              <li><a href="/docs/hosting/voice-and-huddles">Voice and huddles</a></li>
+              <li><a href="/docs/hosting/attachment-storage">Attachment storage</a></li>
+              <li><a href="/docs/hosting/backups-restore-updates">Backups, restore, updates</a></li>
+              <li><a href="/docs/hosting/moving-in-from-slack">Moving in from Slack</a></li>
+              <li><a href="/docs/hosting/taking-your-data-out">Taking your data out</a></li>
+              <li><a href="/docs/hosting/deletion-and-retention">Deletion and retention</a></li>
+              <li><a href="/docs/hosting/integration-delivery">Integration delivery</a></li>
+              <li><a href="/docs/hosting/link-previews">Link previews</a></li>
+              <li><a href="/docs/hosting/notifications-while-the-browser-is-closed">Notifications while the browser is closed</a></li>
+              <li><a href="/docs/hosting/behind-a-reverse-proxy">Behind a reverse proxy</a></li>
+              <li><a href="/docs/hosting/request-limits">Request limits</a></li>
+              <li><a href="/docs/hosting/password-hashing">Password hashing</a></li>
+              <li><a href="/docs/hosting/changing-a-workspace-address-and-keeping-local-work">Changing a workspace address and keeping local work</a></li>
+              <li><a href="/docs/hosting/desktop-saved-sign-ins">Desktop saved sign-ins</a></li>
+              <li><a href="/docs/hosting/the-administrative-record">The administrative record</a></li>
+              <li><a href="/docs/hosting/invites">Invites</a></li>
+              <li><a href="/docs/hosting/who-may-join">Who may join</a></li>
+              <li><a href="/docs/hosting/guests">Guests</a></li>
+              <li><a href="/docs/hosting/a-plans-members">A plan&#39;s members</a></li>
+              <li><a href="/docs/hosting/an-enterprise-license">An Enterprise license</a></li>
+              <li><a href="/docs/hosting/hosting-workspaces-for-others">Hosting workspaces for others</a></li>
+              <li><a href="/docs/hosting/current-boundaries">Current boundaries</a></li>
+            </ul>
+            <p class="docs-group">Integration API contract</p>
+            <ul>
+              <li><a href="/docs/integrations/">Overview</a></li>
+              <li><a href="/docs/integrations/setting-up-an-app" aria-current="page">Setting up an app</a></li>
+              <li><a href="/docs/integrations/identifiers">Identifiers</a></li>
+              <li><a href="/docs/integrations/verifying-requests-from-this-server">Verifying requests from this server</a></li>
+              <li><a href="/docs/integrations/web-api-methods">Web API methods</a></li>
+              <li><a href="/docs/integrations/incoming-webhooks">Incoming webhooks</a></li>
+              <li><a href="/docs/integrations/slash-commands">Slash commands</a></li>
+              <li><a href="/docs/integrations/interactive-buttons">Interactive buttons</a></li>
+              <li><a href="/docs/integrations/modals">Modals</a></li>
+              <li><a href="/docs/integrations/events">Events</a></li>
+              <li><a href="/docs/integrations/block-kit">Block Kit</a></li>
+              <li><a href="/docs/integrations/the-native-client-protocol">The native client protocol</a></li>
+            </ul>
+          </nav>
+        </details>
+      </aside>
+
+      <main id="main" class="docs-main">
+        <p class="docs-crumb"><a href="/docs/">Docs</a> / <a href="/docs/integrations/">Integration API contract</a></p>
+        <article class="doc">
+        <h1 id="setting-up-an-app">Setting up an app</h1>
+        
+<p>An administrator creates an app under <strong>Apps and integrations</strong>. Each app gets:</p>
+<ul>
+<li>a <strong>bot user</strong>, which is who its messages are posted as;</li>
+<li>a <strong>bot token</strong> (<code>xoxb-…</code>), shown once and stored only as a hash — <strong>New bot
+token</strong> replaces it;</li>
+<li>a <strong>signing secret</strong>, used to sign every request this server makes to the app
+— <strong>Replace</strong> beside it issues a new one;</li>
+<li>any number of <strong>incoming webhooks</strong>, one per channel, each with a secret URL —
+<strong>New URL</strong> replaces one.</li>
+</ul>
+<p>There is no OAuth installation flow. Instead, the administrator chooses the
+app&#39;s <strong>scopes</strong> when they create it, and can change them on its card at any
+time. They use Slack&#39;s names, so the scopes an app&#39;s own instructions ask for
+carry over. Its bot token holds them from its next call. On top of them, the
+bot user&#39;s reach still applies: private channels and group conversations only
+once the bot has been added to them.</p>
+<ul>
+<li>An app made in <strong>Apps and integrations</strong> starts able to post and is sent no
+events, until more is ticked.</li>
+<li>An app made through the API without a <code>scopes</code> list, and every app made before
+scopes existed, has all of them, as every app did then.</li>
+<li>Every Web API answer carries the token&#39;s scopes in <code>X-OAuth-Scopes</code>, as
+Slack&#39;s do, and a method the scopes do not reach answers <code>missing_scope</code> with
+<code>needed</code> and <code>provided</code>.</li>
+<li>The methods for forms (<code>views.*</code>) and <code>auth.test</code> need no scope, as on Slack.</li>
+<li>There are no methods that read, so the reading scopes decide which <strong>events</strong>
+reach the app&#39;s subscriptions (see <a href="/docs/integrations/events#events">Events</a>).</li>
+</ul>
+<p>The scopes — <em>checked</em>:</p>
+<div class="doc-table" tabindex="0" role="region" aria-label="Table"><table>
+<thead><tr><th>Scope</th><th>Lets the app</th></tr></thead>
+<tbody>
+<tr><td><code>chat:write</code></td><td>Post with <code>chat.postMessage</code> where its bot has been added</td></tr>
+<tr><td><code>chat:write.public</code></td><td>Also post in public channels its bot has not been added to</td></tr>
+<tr><td><code>channels:history</code></td><td>Be sent messages from public channels its bot is in</td></tr>
+<tr><td><code>groups:history</code></td><td>Be sent messages from private channels its bot is in</td></tr>
+<tr><td><code>im:history</code></td><td>Be sent messages from direct messages with its bot</td></tr>
+<tr><td><code>mpim:history</code></td><td>Be sent messages from group conversations its bot is in</td></tr>
+<tr><td><code>channels:read</code></td><td>Be sent channels made or changed, and members joining or leaving, if public</td></tr>
+<tr><td><code>groups:read</code></td><td>The same for private channels its bot is in</td></tr>
+<tr><td><code>reactions:read</code></td><td>Be sent reactions added and removed</td></tr>
+<tr><td><code>pins:read</code></td><td>Be sent pins added and removed</td></tr>
+<tr><td><code>users:read</code></td><td>Be sent people joining the workspace and changing their profiles</td></tr>
+</tbody>
+</table></div>
+        </article>
+        <nav class="docs-pager" aria-label="Pages"><a class="docs-prev" href="/docs/integrations/"><span>Previous</span>Overview</a><a class="docs-next" href="/docs/integrations/identifiers"><span>Next</span>Identifiers</a></nav>
+        <p class="docs-source">This page is made from <a href="https://github.com/Blazeiscoding/OwnBase/blob/main/docs/INTEGRATIONS.md#setting-up-an-app">docs/INTEGRATIONS.md</a>.</p>
+      </main>
+    </div>
+
+    <footer class="end guide-foot">
+      <div class="footer wrap">
+        <a class="brand" href="/">
+          <img src="/ownbase.svg?v=2" alt="" width="24" height="24" />
+          <span>OwnBase</span>
+        </a>
+        <ul class="footer-links">
+          <li><a href="/host">Hosting guide</a></li>
+          <li><a href="/docs/">Docs</a></li>
+          <li><a href="https://github.com/Blazeiscoding/OwnBase">GitHub</a></li>
+          <li><a href="https://github.com/Blazeiscoding/OwnBase/blob/main/SECURITY.md">Security</a></li>
+          <li><a href="https://github.com/Blazeiscoding/OwnBase/blob/main/docs/PLANS.md">Plans</a></li>
+        </ul>
+        <p class="legal">
+          OwnBase is in alpha. MIT licensed, except the Enterprise code in <code>ee/</code>. Not
+          affiliated with Slack or Salesforce.
+        </p>
+      </div>
+    </footer>
+  </body>
+</html>

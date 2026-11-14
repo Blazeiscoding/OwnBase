@@ -1,0 +1,401 @@
+<!doctype html>
+<!-- Written by scripts/generate-docs-site.mjs from docs/DEPLOYMENT.md. Edit that, not this. -->
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Backups, restore, updates · Hosting OwnBase · OwnBase docs</title>
+    <meta name="description" content="Use the built-in commands rather than copying files by hand: ownbase-server backup --data ./data --out ./backups/2026-09-06 ownbase-server verify-backup…" />
+    <link rel="canonical" href="https://ownbase.site/docs/hosting/backups-restore-updates" />
+    <meta property="og:title" content="Backups, restore, updates · Hosting OwnBase · OwnBase docs" />
+    <meta property="og:description" content="Use the built-in commands rather than copying files by hand: ownbase-server backup --data ./data --out ./backups/2026-09-06 ownbase-server verify-backup…" />
+    <meta property="og:type" content="article" />
+    <meta property="og:url" content="https://ownbase.site/docs/hosting/backups-restore-updates" />
+    <meta property="og:site_name" content="OwnBase" />
+    <meta property="og:image" content="https://ownbase.site/og.png?v=2" />
+    <meta name="theme-color" content="#0b0a20" />
+    <link rel="preload" href="/fonts/onest-latin-wght-normal.woff2" as="font" type="font/woff2" crossorigin />
+    <link rel="icon" href="/ownbase.svg?v=2" type="image/svg+xml" />
+    <link rel="stylesheet" href="/site.css?v=7cf174c67f" />
+    <link rel="stylesheet" href="/docs.css?v=30dafeac35" />
+    <script src="/docs.js?v=123540c9d0" defer></script>
+  </head>
+  <body class="docs-body" data-search="/docs/search.json?v=c49ebd883a" data-guide="hosting">
+    <a class="skip" href="#main">Skip to content</a>
+
+    <header class="guide-head">
+      <nav class="nav wrap" aria-label="Main">
+        <a class="brand" href="/">
+          <img src="/ownbase.svg?v=2" alt="" width="32" height="32" />
+          <span>OwnBase</span>
+          <span class="alpha">Alpha</span>
+        </a>
+        <ul class="nav-links">
+          <li><a href="/#host">Hosting</a></li>
+          <li><a href="/host">Guide</a></li>
+          <li><a href="/docs/" aria-current="page">Docs</a></li>
+          <li><a href="/#download">Download</a></li>
+          <li><a href="https://github.com/Blazeiscoding/OwnBase">GitHub</a></li>
+        </ul>
+        <a class="btn btn-small btn-light" href="/#download">Get OwnBase</a>
+      </nav>
+    </header>
+
+    <div class="docs wrap">
+      <aside class="docs-side">
+        <div class="docs-search" role="search" hidden>
+          <label class="sr-only" for="docs-query">Search the docs</label>
+          <input id="docs-query" type="search" placeholder="Search the docs" autocomplete="off" spellcheck="false" />
+          <p class="docs-status" aria-live="polite"></p>
+          <div class="docs-results" hidden></div>
+        </div>
+        <details class="docs-nav" open>
+          <summary>All sections</summary>
+          <nav aria-label="Docs">
+            <p class="docs-group">Hosting OwnBase</p>
+            <ul>
+              <li><a href="/docs/hosting/">Overview</a></li>
+              <li><a href="/docs/hosting/windows-and-lan">Windows and LAN</a></li>
+              <li><a href="/docs/hosting/temporary-internet-sharing-with-cloudflare-tunnel">Temporary internet sharing with Cloudflare Tunnel</a></li>
+              <li><a href="/docs/hosting/docker-and-vps">Docker and VPS</a></li>
+              <li><a href="/docs/hosting/a-linux-server-with-systemd">A Linux server with systemd</a></li>
+              <li><a href="/docs/hosting/a-windows-server-as-a-service">A Windows server, as a service</a></li>
+              <li><a href="/docs/hosting/voice-and-huddles">Voice and huddles</a></li>
+              <li><a href="/docs/hosting/attachment-storage">Attachment storage</a></li>
+              <li><a href="/docs/hosting/backups-restore-updates" aria-current="page">Backups, restore, updates</a></li>
+              <li><a href="/docs/hosting/moving-in-from-slack">Moving in from Slack</a></li>
+              <li><a href="/docs/hosting/taking-your-data-out">Taking your data out</a></li>
+              <li><a href="/docs/hosting/deletion-and-retention">Deletion and retention</a></li>
+              <li><a href="/docs/hosting/integration-delivery">Integration delivery</a></li>
+              <li><a href="/docs/hosting/link-previews">Link previews</a></li>
+              <li><a href="/docs/hosting/notifications-while-the-browser-is-closed">Notifications while the browser is closed</a></li>
+              <li><a href="/docs/hosting/behind-a-reverse-proxy">Behind a reverse proxy</a></li>
+              <li><a href="/docs/hosting/request-limits">Request limits</a></li>
+              <li><a href="/docs/hosting/password-hashing">Password hashing</a></li>
+              <li><a href="/docs/hosting/changing-a-workspace-address-and-keeping-local-work">Changing a workspace address and keeping local work</a></li>
+              <li><a href="/docs/hosting/desktop-saved-sign-ins">Desktop saved sign-ins</a></li>
+              <li><a href="/docs/hosting/the-administrative-record">The administrative record</a></li>
+              <li><a href="/docs/hosting/invites">Invites</a></li>
+              <li><a href="/docs/hosting/who-may-join">Who may join</a></li>
+              <li><a href="/docs/hosting/guests">Guests</a></li>
+              <li><a href="/docs/hosting/a-plans-members">A plan&#39;s members</a></li>
+              <li><a href="/docs/hosting/an-enterprise-license">An Enterprise license</a></li>
+              <li><a href="/docs/hosting/hosting-workspaces-for-others">Hosting workspaces for others</a></li>
+              <li><a href="/docs/hosting/current-boundaries">Current boundaries</a></li>
+            </ul>
+            <p class="docs-group">Integration API contract</p>
+            <ul>
+              <li><a href="/docs/integrations/">Overview</a></li>
+              <li><a href="/docs/integrations/setting-up-an-app">Setting up an app</a></li>
+              <li><a href="/docs/integrations/identifiers">Identifiers</a></li>
+              <li><a href="/docs/integrations/verifying-requests-from-this-server">Verifying requests from this server</a></li>
+              <li><a href="/docs/integrations/web-api-methods">Web API methods</a></li>
+              <li><a href="/docs/integrations/incoming-webhooks">Incoming webhooks</a></li>
+              <li><a href="/docs/integrations/slash-commands">Slash commands</a></li>
+              <li><a href="/docs/integrations/interactive-buttons">Interactive buttons</a></li>
+              <li><a href="/docs/integrations/modals">Modals</a></li>
+              <li><a href="/docs/integrations/events">Events</a></li>
+              <li><a href="/docs/integrations/block-kit">Block Kit</a></li>
+              <li><a href="/docs/integrations/the-native-client-protocol">The native client protocol</a></li>
+            </ul>
+          </nav>
+        </details>
+      </aside>
+
+      <aside class="docs-toc" aria-labelledby="toc-title">
+        <p id="toc-title" class="docs-toc-title">On this page</p>
+        <ul>
+          <li class="toc-3"><a href="#backups-on-a-schedule">Backups on a schedule</a></li>
+          <li class="toc-3"><a href="#backups-somewhere-else">Backups somewhere else</a></li>
+          <li class="toc-3"><a href="#encrypted-backups">Encrypted backups</a></li>
+          <li class="toc-3"><a href="#a-copy-for-the-owner-to-download">A copy for the owner to download</a></li>
+          <li class="toc-3"><a href="#updating-the-desktop-app">Updating the desktop app</a></li>
+        </ul>
+      </aside>
+      <main id="main" class="docs-main">
+        <p class="docs-crumb"><a href="/docs/">Docs</a> / <a href="/docs/hosting/">Hosting OwnBase</a></p>
+        <article class="doc">
+        <h1 id="backups-restore-updates">Backups, restore, updates</h1>
+        
+<p>Use the built-in commands rather than copying files by hand:</p>
+<pre tabindex="0"><code class="language-sh">ownbase-server backup  --data ./data --out ./backups/2026-09-06
+ownbase-server verify-backup --from ./backups/2026-09-06
+ownbase-server restore --from ./backups/2026-09-06 --data ./data</code></pre>
+<p><code>backup</code> writes a consistent database snapshot (including anything still in the
+write-ahead log), every attachment referenced by that snapshot, and a <code>manifest.json</code>
+recording the schema version, checksums, and row counts from the copied database.
+<code>--out</code> must be a new or empty directory outside the workspace data directory.
+Stop the server first for a backup that is certain to be complete.
+If an attachment disappears during capture, backup fails instead of reporting success.
+The copy is captured and verified in an owned staging folder beside the destination,
+then published into <code>--out</code>. Failed staging is removed; a later capture reconciles
+interrupted operation records without deleting unrecognized folders or active captures.</p>
+<p><code>verify-backup</code> checks checksums, safe attachment paths, the actual database schema,
+row counts, foreign keys and attachment inventory without changing a workspace.
+An omitted attachment is rejected even if all listed checksums match.
+It then lists what starting the backup would reach outside itself: the addresses
+its apps are sent events, commands and button clicks at, messages waiting to be
+posted, app events not yet delivered, and how many sign-ins it would accept.
+Sign-ins ended after the backup was taken are valid again in a restore, so after
+restoring a real workspace, ask people to look at their signed-in devices and
+end any they had already ended.
+Settings given on the command line or in the environment are not in a backup:
+<code>--public-url</code>, <code>--retention-days</code>, <code>--storage-limit-mb</code>, <code>--allow-private-hooks</code>,
+<code>--trust-proxy</code>, <code>OWNBASE_ICE_SERVERS</code>, and any proxy or certificate in front
+of the server. Note them where you keep the backup.</p>
+<p><code>restore</code> verifies the backup, stages and re-verifies it beside the target, and only then swaps
+it in; the previous data directory is renamed to <code>data.superseded-&lt;timestamp&gt;</code>
+rather than deleted. Stop the server before restoring: a restore, like <code>recover</code>,
+is refused while a server has the data directory open, and a server started
+while a restore is running is refused until it has finished. A backup from a newer
+server than the one restoring it is refused instead of half-applied.</p>
+<p>Only one server can have a data directory open at a time. A second one started
+on the same directory, through any path or link to it, is refused before it
+opens anything and says which process has it. The lock is the operating
+system&#39;s, held on <code>workspace.lock</code> inside the directory, so it goes when that
+process exits or crashes, and there is nothing to clear by hand afterwards.
+<code>workspace.owner.json</code> beside it only describes the holder. Keep the data
+directory on a local disk: file locking on a network share is not dependable,
+for this lock or for SQLite itself.</p>
+<p>A restore has to let go of that lock to move the old directory aside and the
+restored one in. So that nothing starts in between, a second lock is held
+beside the directory, on <code>data.lock</code> for a directory named <code>data</code>: by a restore
+from start to finish, and for a moment by anything else that takes the
+directory. The file is removed when the lock is let go. If one is left behind
+after a crash, it is empty and the next start removes it.</p>
+<p>To check that a backup really holds what you need, restore it into a new
+directory and start that copy with <code>--isolated</code>:</p>
+<pre tabindex="0"><code class="language-sh">ownbase-server restore --from ./backups/2026-09-06 --data ./restore-check
+ownbase-server --data ./restore-check --isolated --port 8600</code></pre>
+<p>The copy holds the original&#39;s apps, their signing secrets and its queue of
+scheduled messages. Started normally, it would post messages that were due a
+second time and call the same apps as the same workspace. An isolated start posts
+no scheduled message, delivers no app event, answers slash commands and buttons
+with &quot;this is an isolated copy of the workspace, which does not contact apps&quot;, and
+does not announce itself on the local network. It listens on this machine only
+unless <code>--host</code> says otherwise. Sign in, read, search and open attachments as
+usual. What it holds back stays queued, so delete the copy when you are done
+rather than starting it normally, or the queue goes out from there.</p>
+<h2 id="backups-on-a-schedule">Backups on a schedule<a class="doc-anchor" href="#backups-on-a-schedule" aria-label="Link to Backups on a schedule">#</a></h2>
+<p>The server can take backups by itself:</p>
+<pre tabindex="0"><code class="language-sh">ownbase-server --data ./data --backup-dir ./backups --backup-every-hours 24 --backup-keep 7</code></pre>
+<p>Each one goes into a dated folder in <code>--backup-dir</code>, such as
+<code>backup-2026-10-25T03-00-00Z</code>, and is the same as one <code>backup</code> writes: verified
+before it is kept, checked with <code>verify-backup</code>, put back with <code>restore --from</code>.
+Once a new one is verified, the oldest past <code>--backup-keep</code> are removed. Only
+folders named that way are counted or removed, so anything else in the directory
+is left alone. <code>--backup-dir</code> must be outside <code>--data</code>. The defaults are every 24
+hours and keeping 7. The same settings can be given as <code>OWNBASE_BACKUP_DIR</code>,
+<code>OWNBASE_BACKUP_EVERY_HOURS</code> and <code>OWNBASE_BACKUP_KEEP</code>.</p>
+<p>The next backup is due that long after the newest one already in the directory,
+so restarting the server does not take another, and a server that was stopped
+past the time takes one a minute after it starts. A backup that fails is tried
+again within the hour, and the status says how many have failed since the last
+one that worked. While a backup copies attachments the server removes none, so a
+file deleted during the copy is still there for it and the backup is complete
+without stopping the server. The removals wait in their queue and go when the
+copy ends.</p>
+<p>The copy and its checks run in a separate process, so chat does not wait on
+them. Stopping the server stops a backup that is running; the half-made copy is
+removed by the next one. An <code>--isolated</code> copy takes no backups, since it would
+otherwise write into the original&#39;s directory and remove the original&#39;s older
+backups.</p>
+<h2 id="backups-somewhere-else">Backups somewhere else<a class="doc-anchor" href="#backups-somewhere-else" aria-label="Link to Backups somewhere else">#</a></h2>
+<p>Backups on the same disk as the workspace go with it if that disk or machine is
+lost. <code>--backup-offsite</code> also sends each scheduled backup, as one <code>.zip</code>, to an
+S3-compatible bucket: Cloudflare R2, Amazon S3, Backblaze B2, MinIO and the like.</p>
+<pre tabindex="0"><code class="language-sh">export OWNBASE_BACKUP_OFFSITE_ACCESS_KEY_ID=...
+export OWNBASE_BACKUP_OFFSITE_SECRET_ACCESS_KEY=...
+ownbase-server --data ./data --backup-dir ./backups \
+  --backup-offsite https://&lt;account-id&gt;.r2.cloudflarestorage.com/ownbase-backups/acme</code></pre>
+<p>The address is the bucket&#39;s S3 endpoint, then the bucket, then an optional folder
+in it (<code>acme</code> above). The keys are read only from the environment, so they never
+show in a process list, and the region from <code>OWNBASE_BACKUP_OFFSITE_REGION</code>
+(<code>auto</code> unless set, which is what R2 wants). The address can also be given as
+<code>OWNBASE_BACKUP_OFFSITE_URL</code>. Each copy is named after its backup, such as
+<code>acme/backup-2026-11-04T03-00-00Z.zip</code>. Once one is sent, the oldest past
+<code>--backup-offsite-keep</code> (default: the same as <code>--backup-keep</code>) are removed from
+the bucket. As in <code>--backup-dir</code>, nothing named any other way is touched.</p>
+<p>A backup up to 32 MB goes in one request; a larger one goes in 32 MB parts,
+which never holds more than one part in memory. Every request is signed and its
+body&#39;s SHA-256 is checked by the bucket. A send that fails leaves the backup on
+disk as it is; the server log says why, the status counts the failures, and the
+same backup is sent again within the hour. A newer backup takes its place.</p>
+<p>To restore, download the zip and give it to <code>restore --from</code>, as with a copy the
+owner downloaded. For R2:</p>
+<pre tabindex="0"><code class="language-sh">cf r2 buckets objects get acme/backup-2026-11-04T03-00-00Z.zip --bucket-name ownbase-backups &gt; backup.zip
+ownbase-server restore --from backup.zip --data ./data</code></pre>
+<p><strong>Cloudflare R2.</strong> Create a bucket (Standard storage, not Infrequent Access, which
+charges for every read), and an R2 API token with <strong>Object Read &amp; Write</strong> on that
+bucket only. The token&#39;s Access Key ID and Secret Access Key are the two keys
+above, and the endpoint is shown on the bucket&#39;s settings page. R2&#39;s free tier is
+10 GB-month of storage, a million writes and ten million reads a month, and
+downloads cost nothing. A daily backup uses about five requests, plus one per
+32 MB above that, so with seven kept the storage is the only part that grows: seven
+times the size of a backup. A lifecycle rule that aborts unfinished multipart
+uploads after a day keeps a send cut short from being stored. R2 has no spending
+cap, so set a usage alert under <strong>Notifications → Usage Based Billing</strong> as well.</p>
+<h2 id="encrypted-backups">Encrypted backups<a class="doc-anchor" href="#encrypted-backups" aria-label="Link to Encrypted backups">#</a></h2>
+<p>A backup holds every message and file, and the secrets the workspace keeps as
+plain values: two-step sign-in secrets, app signing secrets and push keys. Give
+the server a backup passphrase and every backup taken from then on is one
+encrypted file that nobody can read without it, wherever it ends up:</p>
+<pre tabindex="0"><code class="language-sh">export OWNBASE_BACKUP_PASSPHRASE=&#39;several unrelated words you will not forget&#39;
+ownbase-server --data ./data --backup-dir ./backups --backup-offsite https://...</code></pre>
+<p>Or put the passphrase alone in a file that only the server&#39;s account can read
+and pass <code>--backup-passphrase-file /etc/ownbase/backup-passphrase</code> (or
+<code>OWNBASE_BACKUP_PASSPHRASE_FILE</code>). A last line break in the file is ignored;
+everything else, spaces included, is the passphrase. It is never taken as a
+command-line value, which anyone on the machine can see in a process list. It
+must be at least 12 characters. The server refuses to start, and the commands
+refuse to run, when the passphrase is empty, too short, given both ways, or the
+file cannot be read. The server never logs it.</p>
+<p><strong>If you lose the passphrase, you lose those backups.</strong> Nobody can open them
+without it, OwnBase included, and there is no way round that. Keep it somewhere
+apart from the server, such as a password manager, and somewhere a second person
+can reach it.</p>
+<p>With a passphrase set:</p>
+<ul>
+<li>Scheduled backups are files named like the folders were, ending in
+<code>.encrypted</code>, such as <code>backup-2026-11-14T03-00-00Z.encrypted</code>. Each is
+captured and verified as usual, encrypted, then read back in full and checked
+before it is kept. <code>--backup-keep</code> counts plain folders and encrypted files
+together, so the plain backups from before a passphrase was set are pruned in
+their turn.</li>
+<li>The copy sent with <code>--backup-offsite</code> is that same file, as
+<code>acme/backup-2026-11-14T03-00-00Z.encrypted</code>. The bucket never holds
+anything readable. <code>--backup-offsite-keep</code> counts <code>.zip</code> and <code>.encrypted</code>
+copies together.</li>
+<li><code>backup --out ./backups/2026-11-14</code> writes <code>./backups/2026-11-14.encrypted</code>, a
+file rather than a folder. The name must not exist yet.</li>
+<li><code>restore</code> and <code>verify-backup</code> read encrypted and plain backups both. An
+encrypted one needs the same passphrase, set the same way. They say so when
+none is given, say when the passphrase is wrong, and say when the file is
+damaged or cut short, all before anything is restored. The file is decrypted
+into a folder beside itself while they work, every part checked first, and
+that folder is removed afterwards, so that disk needs room for the workspace
+twice.</li>
+</ul>
+<p>To check a backup by hand, and to restore one taken offsite:</p>
+<pre tabindex="0"><code class="language-sh">export OWNBASE_BACKUP_PASSPHRASE=&#39;...&#39;
+cf r2 buckets objects get acme/backup-2026-11-14T03-00-00Z.encrypted --bucket-name ownbase-backups &gt; backup.encrypted
+ownbase-server verify-backup --from backup.encrypted
+ownbase-server restore --from backup.encrypted --data ./restore-check
+ownbase-server --data ./restore-check --isolated --port 8600</code></pre>
+<p>Changing the passphrase applies to backups taken afterwards; older ones still
+need the passphrase they were taken with, so keep it until they have been pruned.
+Unsetting it goes back to plain backups.</p>
+<p>Not covered: the copy the owner downloads from Workspace settings stays a plain
+zip, since the owner may not hold the host&#39;s passphrase and can read everything
+in it already; the desktop app&#39;s backups; and the copy of the database the
+server takes before an upgrade, which stays inside the data directory beside
+the live database it copies. The live database itself is not encrypted: a key
+kept beside it would protect nothing.</p>
+<p>The file starts with the words <code>OwnBase encrypted backup</code>, then the scrypt salt
+and cost the key was derived with, then the backup&#39;s zip encrypted with
+AES-256-GCM in 64 KiB parts (the STREAM construction, as age uses). Each part is
+bound to its position and to whether it is the last, so a part changed, moved,
+dropped or cut off fails the check.</p>
+<h2 id="a-copy-for-the-owner-to-download">A copy for the owner to download<a class="doc-anchor" href="#a-copy-for-the-owner-to-download" aria-label="Link to A copy for the owner to download">#</a></h2>
+<p>The workspace&#39;s owner can download the whole workspace from <strong>Workspace settings →
+General → Download a copy</strong>, without access to the server. <strong>Make a copy</strong> takes a
+fresh backup, the same as <code>backup</code> makes, and <strong>Download</strong> saves it as one <code>.zip</code>
+named after the workspace and the day. Admins and members are not offered it. The
+copy stays on the server for an hour after it is ready, longer if a download is
+still running, and is removed after that, when a new one is made, and when the
+server stops.</p>
+<p>The zip holds the backup&#39;s own files, dated when it was taken, so it goes back the
+same way:</p>
+<pre tabindex="0"><code class="language-sh">ownbase-server verify-backup --from &quot;./My Workspace 2026-10-25.zip&quot;
+ownbase-server restore --from &quot;./My Workspace 2026-10-25.zip&quot; --data ./data</code></pre>
+<p>Both unpack the zip into a folder beside it while they work and remove that folder
+afterwards, so that disk needs room for the workspace once more. A copy over 4 GB,
+or with more than 65,535 files, uses ZIP64, which Windows Explorer, macOS and
+<code>unzip</code> all read.</p>
+<p>The copy is made where scheduled backups go, in a <code>.copies</code> folder, or in the
+system&#39;s temporary folder when there are none; <code>copiesDir</code> changes it for an
+embedded server. That disk needs room for the whole workspace; the server checks
+before it starts and says how much it needs. No attachment is removed while the
+copy is made. The download link is good once, for a minute, and only for the
+owner signed in on the device that asked for it. Making and downloading a copy
+both go in the administrative record.</p>
+<p>The copy holds every message, file and account, the secrets apps use, and the
+sign-ins in use when it was made. Keep it as safe as the server. It is not
+encrypted, even when a backup passphrase is set.</p>
+<p>Store backups away from the host, encrypted (see &quot;Encrypted backups&quot;). For Docker, run the same commands
+inside the container against the mounted volume, or set <code>OWNBASE_BACKUP_DIR</code> to a
+second volume.</p>
+<p>Before upgrading, take a backup. Rebuild and restart with Compose; SQLite migrations
+run automatically. To roll back a schema change, restore the matching backup and
+previous application version together — the server refuses to open a database
+newer than it understands, so an application rollback alone will not start.</p>
+<p>The server also copies the database itself before any upgrade that changes the
+schema, so there is something to roll back to even when nobody remembered. The copy
+goes in <code>pre-upgrade/</code> inside the data directory, is named for the schema versions
+it sits between, and the startup output says where it went. The three most recent
+are kept, counting the one just taken, which is never removed. &quot;Most recent&quot; means
+from the latest schema first, and only then by the time in the name, so a clock set
+wrong cannot push out the copy an upgrade has just made. Only copies that open at
+the schema their name records, as this workspace, count towards the three; a copy
+that does not is left where it is for you to look at. If the copy cannot be written — most often a full disk — the server
+refuses to upgrade and changes nothing. The copy is the database only: attachments
+are not duplicated, since no migration touches them. To roll back with it, stop the
+server, put the copy in place of <code>workspace.db</code>, and start the previous release.
+Everything written since the upgrade is lost with it — messages, accounts, settings.
+Attachments uploaded since then stay on disk with nothing pointing at them; a release
+that reconciles orphaned attachments frees them on start, and an older one leaves
+them for you to remove. <code>--skip-upgrade-backup</code> turns the copy off,
+for someone who has just taken a backup and has no room for a second one.
+Deleting a container preserves the named volume; <code>docker compose down -v</code> deletes
+it, so avoid that command for real data.</p>
+<p>There are no separate Redis, Postgres, or message broker services to maintain.
+Monitor disk usage for uploads and history, resource use, health, and backups.</p>
+<p>Schema v13 keeps a persistent queue for deleted attachments. Message and file
+metadata are removed atomically; physical file removal follows the commit.
+Temporary filesystem failures remain queued for retry every 15 seconds and on
+restart. Cleanup handles at most 100 queued files per pass; shutdown awaits the
+active pass before closing the database. A locked file can remain on disk until
+cleanup succeeds, but the download API no longer serves it after deletion commits.</p>
+<p>Schema v58 rebuilds the search index from every message, so that a word inside
+Chinese, Japanese, Korean or Thai text can be found. It runs once, on the first
+start after the upgrade, before anyone can sign in: about 0.4 seconds for 100,000
+messages and 5 seconds for a million on a desktop PC. From v58 the index is kept
+up to date by a function the server adds to its own database connection, so the
+<code>sqlite3</code> shell can read messages but cannot change their words or add new ones.</p>
+<h2 id="updating-the-desktop-app">Updating the desktop app<a class="doc-anchor" href="#updating-the-desktop-app" aria-label="Link to Updating the desktop app">#</a></h2>
+<p>The Windows app from a release updates itself from GitHub Releases. It looks
+when it starts and every four hours after, downloads in the background, and
+installs when you restart or quit, never during a call. It checks the download
+against the SHA-512 in the release&#39;s <code>latest.yml</code>. The Mac app, signed ad hoc,
+only says a new release is out and links to the download. With <strong>Update
+automatically</strong> off, under Account settings → Updates, the app looks only when
+you ask it to. Builds made anywhere but the Release workflow never look.
+<code>updates.log</code> in the app&#39;s data folder (<code>%APPDATA%\OwnBase</code> on Windows) says
+which version updated to which, and why one could not.</p>
+        </article>
+        <nav class="docs-pager" aria-label="Pages"><a class="docs-prev" href="/docs/hosting/attachment-storage"><span>Previous</span>Attachment storage</a><a class="docs-next" href="/docs/hosting/moving-in-from-slack"><span>Next</span>Moving in from Slack</a></nav>
+        <p class="docs-source">This page is made from <a href="https://github.com/Blazeiscoding/OwnBase/blob/main/docs/DEPLOYMENT.md#backups-restore-updates">docs/DEPLOYMENT.md</a>.</p>
+      </main>
+    </div>
+
+    <footer class="end guide-foot">
+      <div class="footer wrap">
+        <a class="brand" href="/">
+          <img src="/ownbase.svg?v=2" alt="" width="24" height="24" />
+          <span>OwnBase</span>
+        </a>
+        <ul class="footer-links">
+          <li><a href="/host">Hosting guide</a></li>
+          <li><a href="/docs/">Docs</a></li>
+          <li><a href="https://github.com/Blazeiscoding/OwnBase">GitHub</a></li>
+          <li><a href="https://github.com/Blazeiscoding/OwnBase/blob/main/SECURITY.md">Security</a></li>
+          <li><a href="https://github.com/Blazeiscoding/OwnBase/blob/main/docs/PLANS.md">Plans</a></li>
+        </ul>
+        <p class="legal">
+          OwnBase is in alpha. MIT licensed, except the Enterprise code in <code>ee/</code>. Not
+          affiliated with Slack or Salesforce.
+        </p>
+      </div>
+    </footer>
+  </body>
+</html>

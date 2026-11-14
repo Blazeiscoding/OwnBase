@@ -1,0 +1,182 @@
+<!doctype html>
+<!-- Written by scripts/generate-docs-site.mjs from docs/DEPLOYMENT.md. Edit that, not this. -->
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Notifications while the browser is closed · Hosting OwnBase · OwnBase docs</title>
+    <meta name="description" content="Someone using OwnBase in a browser can turn on Account settings → Notifications → Notify me when OwnBase is closed. Their browser then gets a…" />
+    <link rel="canonical" href="https://ownbase.site/docs/hosting/notifications-while-the-browser-is-closed" />
+    <meta property="og:title" content="Notifications while the browser is closed · Hosting OwnBase · OwnBase docs" />
+    <meta property="og:description" content="Someone using OwnBase in a browser can turn on Account settings → Notifications → Notify me when OwnBase is closed. Their browser then gets a…" />
+    <meta property="og:type" content="article" />
+    <meta property="og:url" content="https://ownbase.site/docs/hosting/notifications-while-the-browser-is-closed" />
+    <meta property="og:site_name" content="OwnBase" />
+    <meta property="og:image" content="https://ownbase.site/og.png?v=2" />
+    <meta name="theme-color" content="#0b0a20" />
+    <link rel="preload" href="/fonts/onest-latin-wght-normal.woff2" as="font" type="font/woff2" crossorigin />
+    <link rel="icon" href="/ownbase.svg?v=2" type="image/svg+xml" />
+    <link rel="stylesheet" href="/site.css?v=7cf174c67f" />
+    <link rel="stylesheet" href="/docs.css?v=30dafeac35" />
+    <script src="/docs.js?v=123540c9d0" defer></script>
+  </head>
+  <body class="docs-body" data-search="/docs/search.json?v=c49ebd883a" data-guide="hosting">
+    <a class="skip" href="#main">Skip to content</a>
+
+    <header class="guide-head">
+      <nav class="nav wrap" aria-label="Main">
+        <a class="brand" href="/">
+          <img src="/ownbase.svg?v=2" alt="" width="32" height="32" />
+          <span>OwnBase</span>
+          <span class="alpha">Alpha</span>
+        </a>
+        <ul class="nav-links">
+          <li><a href="/#host">Hosting</a></li>
+          <li><a href="/host">Guide</a></li>
+          <li><a href="/docs/" aria-current="page">Docs</a></li>
+          <li><a href="/#download">Download</a></li>
+          <li><a href="https://github.com/Blazeiscoding/OwnBase">GitHub</a></li>
+        </ul>
+        <a class="btn btn-small btn-light" href="/#download">Get OwnBase</a>
+      </nav>
+    </header>
+
+    <div class="docs wrap">
+      <aside class="docs-side">
+        <div class="docs-search" role="search" hidden>
+          <label class="sr-only" for="docs-query">Search the docs</label>
+          <input id="docs-query" type="search" placeholder="Search the docs" autocomplete="off" spellcheck="false" />
+          <p class="docs-status" aria-live="polite"></p>
+          <div class="docs-results" hidden></div>
+        </div>
+        <details class="docs-nav" open>
+          <summary>All sections</summary>
+          <nav aria-label="Docs">
+            <p class="docs-group">Hosting OwnBase</p>
+            <ul>
+              <li><a href="/docs/hosting/">Overview</a></li>
+              <li><a href="/docs/hosting/windows-and-lan">Windows and LAN</a></li>
+              <li><a href="/docs/hosting/temporary-internet-sharing-with-cloudflare-tunnel">Temporary internet sharing with Cloudflare Tunnel</a></li>
+              <li><a href="/docs/hosting/docker-and-vps">Docker and VPS</a></li>
+              <li><a href="/docs/hosting/a-linux-server-with-systemd">A Linux server with systemd</a></li>
+              <li><a href="/docs/hosting/a-windows-server-as-a-service">A Windows server, as a service</a></li>
+              <li><a href="/docs/hosting/voice-and-huddles">Voice and huddles</a></li>
+              <li><a href="/docs/hosting/attachment-storage">Attachment storage</a></li>
+              <li><a href="/docs/hosting/backups-restore-updates">Backups, restore, updates</a></li>
+              <li><a href="/docs/hosting/moving-in-from-slack">Moving in from Slack</a></li>
+              <li><a href="/docs/hosting/taking-your-data-out">Taking your data out</a></li>
+              <li><a href="/docs/hosting/deletion-and-retention">Deletion and retention</a></li>
+              <li><a href="/docs/hosting/integration-delivery">Integration delivery</a></li>
+              <li><a href="/docs/hosting/link-previews">Link previews</a></li>
+              <li><a href="/docs/hosting/notifications-while-the-browser-is-closed" aria-current="page">Notifications while the browser is closed</a></li>
+              <li><a href="/docs/hosting/behind-a-reverse-proxy">Behind a reverse proxy</a></li>
+              <li><a href="/docs/hosting/request-limits">Request limits</a></li>
+              <li><a href="/docs/hosting/password-hashing">Password hashing</a></li>
+              <li><a href="/docs/hosting/changing-a-workspace-address-and-keeping-local-work">Changing a workspace address and keeping local work</a></li>
+              <li><a href="/docs/hosting/desktop-saved-sign-ins">Desktop saved sign-ins</a></li>
+              <li><a href="/docs/hosting/the-administrative-record">The administrative record</a></li>
+              <li><a href="/docs/hosting/invites">Invites</a></li>
+              <li><a href="/docs/hosting/who-may-join">Who may join</a></li>
+              <li><a href="/docs/hosting/guests">Guests</a></li>
+              <li><a href="/docs/hosting/a-plans-members">A plan&#39;s members</a></li>
+              <li><a href="/docs/hosting/an-enterprise-license">An Enterprise license</a></li>
+              <li><a href="/docs/hosting/hosting-workspaces-for-others">Hosting workspaces for others</a></li>
+              <li><a href="/docs/hosting/current-boundaries">Current boundaries</a></li>
+            </ul>
+            <p class="docs-group">Integration API contract</p>
+            <ul>
+              <li><a href="/docs/integrations/">Overview</a></li>
+              <li><a href="/docs/integrations/setting-up-an-app">Setting up an app</a></li>
+              <li><a href="/docs/integrations/identifiers">Identifiers</a></li>
+              <li><a href="/docs/integrations/verifying-requests-from-this-server">Verifying requests from this server</a></li>
+              <li><a href="/docs/integrations/web-api-methods">Web API methods</a></li>
+              <li><a href="/docs/integrations/incoming-webhooks">Incoming webhooks</a></li>
+              <li><a href="/docs/integrations/slash-commands">Slash commands</a></li>
+              <li><a href="/docs/integrations/interactive-buttons">Interactive buttons</a></li>
+              <li><a href="/docs/integrations/modals">Modals</a></li>
+              <li><a href="/docs/integrations/events">Events</a></li>
+              <li><a href="/docs/integrations/block-kit">Block Kit</a></li>
+              <li><a href="/docs/integrations/the-native-client-protocol">The native client protocol</a></li>
+            </ul>
+          </nav>
+        </details>
+      </aside>
+
+      <main id="main" class="docs-main">
+        <p class="docs-crumb"><a href="/docs/">Docs</a> / <a href="/docs/hosting/">Hosting OwnBase</a></p>
+        <article class="doc">
+        <h1 id="notifications-while-the-browser-is-closed">Notifications while the browser is closed</h1>
+        
+<p>Someone using OwnBase in a browser can turn on <strong>Account settings →
+Notifications → Notify me when OwnBase is closed</strong>. Their browser then gets a
+notification for any message that would have notified them in the app, and for
+reminders that come due, with every tab closed. It works on desktop browsers and
+Android. On an iPhone or iPad it works only after <strong>Share → Add to Home Screen</strong>,
+opened from the home screen. The desktop app notifies on its own and does not
+use this.</p>
+<p>What it needs:</p>
+<ul>
+<li><strong>HTTPS.</strong> A browser runs the service worker that receives pushes only on an
+<code>https://</code> address or on <code>localhost</code>. A workspace opened at
+<code>http://192.168.x.x</code> cannot use it, and the switch says so. A workspace hosted
+from the desktop app works too when its public address is HTTPS, such as a
+Cloudflare Tunnel&#39;s.</li>
+<li><strong>Outbound HTTPS to the browsers&#39; push services.</strong> The server sends each push
+to the service the person&#39;s browser chose, such as
+<code>fcm.googleapis.com</code> (Chrome, Edge on Android), <code>updates.push.services.mozilla.com</code>
+(Firefox), <code>wns2-*.notify.windows.com</code> (Edge on Windows) or
+<code>web.push.apple.com</code> (Safari). A firewall that blocks them stops pushes and
+nothing else.</li>
+</ul>
+<p>What the server sends: a payload encrypted for that one browser (RFC 8291), so
+the push service passes it on without being able to read it, signed with a key
+pair the server makes on first use and keeps with the workspace&#39;s settings
+(RFC 8292). The payload holds the notification&#39;s title and words and the ids of
+the conversation and message a click opens. A device set to show nothing about
+messages under <strong>What notifications show</strong> gets only &quot;New message&quot;. Each push
+also names a contact for the push services, <code>https://ownbase.site</code> unless
+<code>--push-contact</code> (or <code>OWNBASE_PUSH_CONTACT</code>) gives a <code>mailto:</code> or <code>https:</code>
+address of your own.</p>
+<p>Who is pushed to: the same rule the app notifies by (mentions, direct messages,
+each conversation&#39;s level, muted conversations and threads, Do Not Disturb),
+and only people with no connection open, since an open app notifies by itself.
+A subscription belongs to one sign-in, so signing out, ending that session from
+<strong>Devices</strong>, changing the password or deactivating the account removes it. A
+browser that unsubscribed is forgotten when its push service answers <code>404</code> or
+<code>410</code>.</p>
+<p>Limits: one message pushes to at most 250 people; one person gets at most one
+push per conversation every 5 seconds; at most 2,000 pushes wait to go, and past
+that the oldest are dropped; 16 go at once, each with 10 seconds to answer. A
+push service that answers <code>429</code> or <code>5xx</code> is tried three more times, waiting 2,
+8 and 32 seconds (or longer when it says so), and then given up. A push service
+on a private or loopback address is refused when the browser subscribes, unless
+<code>--allow-private-hooks</code> is set. The metrics count pushes sent, failed and
+dropped (see <a href="/docs/hosting/docker-and-vps#metrics-for-prometheus">Metrics for Prometheus</a>). An isolated copy
+of a workspace pushes to nobody.</p>
+        </article>
+        <nav class="docs-pager" aria-label="Pages"><a class="docs-prev" href="/docs/hosting/link-previews"><span>Previous</span>Link previews</a><a class="docs-next" href="/docs/hosting/behind-a-reverse-proxy"><span>Next</span>Behind a reverse proxy</a></nav>
+        <p class="docs-source">This page is made from <a href="https://github.com/Blazeiscoding/OwnBase/blob/main/docs/DEPLOYMENT.md#notifications-while-the-browser-is-closed">docs/DEPLOYMENT.md</a>.</p>
+      </main>
+    </div>
+
+    <footer class="end guide-foot">
+      <div class="footer wrap">
+        <a class="brand" href="/">
+          <img src="/ownbase.svg?v=2" alt="" width="24" height="24" />
+          <span>OwnBase</span>
+        </a>
+        <ul class="footer-links">
+          <li><a href="/host">Hosting guide</a></li>
+          <li><a href="/docs/">Docs</a></li>
+          <li><a href="https://github.com/Blazeiscoding/OwnBase">GitHub</a></li>
+          <li><a href="https://github.com/Blazeiscoding/OwnBase/blob/main/SECURITY.md">Security</a></li>
+          <li><a href="https://github.com/Blazeiscoding/OwnBase/blob/main/docs/PLANS.md">Plans</a></li>
+        </ul>
+        <p class="legal">
+          OwnBase is in alpha. MIT licensed, except the Enterprise code in <code>ee/</code>. Not
+          affiliated with Slack or Salesforce.
+        </p>
+      </div>
+    </footer>
+  </body>
+</html>
