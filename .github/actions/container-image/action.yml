@@ -62,9 +62,14 @@ runs:
       run: node tests/docker-smoke.mjs
       env:
         OWNBASE_EXPECT_REVISION: ${{ github.sha }}
+    # BuildKit applies SOURCE_DATE_EPOCH to every stage, so it is part of each
+    # step's cache key: the test's builds pass the same one, or none of them
+    # could reuse the build above.
     - name: Dependency layer reuse
       shell: bash
       run: node tests/docker-reuse.mjs
+      env:
+        SOURCE_DATE_EPOCH: ${{ steps.epoch.outputs.epoch }}
     - name: Choose where the archive goes
       id: where
       shell: bash

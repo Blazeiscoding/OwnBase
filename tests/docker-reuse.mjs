@@ -5,12 +5,29 @@ import { spawnSync } from "node:child_process";
 import { readFileSync, writeFileSync } from "node:fs";
 import assert from "node:assert/strict";
 
+// BuildKit applies SOURCE_DATE_EPOCH to every stage, so it is part of each
+// step's cache key. CI dates the image by its commit; these builds pass the
+// same value, or nothing the earlier build cached would match.
+const epoch = process.env.SOURCE_DATE_EPOCH
+  ? ["--build-arg", `SOURCE_DATE_EPOCH=${process.env.SOURCE_DATE_EPOCH}`]
+  : [];
+
 /** Builds `target` and says whether `pnpm fetch` came from the cache, and how long it took. */
 function build(target) {
   const began = Date.now();
   const run = spawnSync(
     "docker",
-    ["buildx", "build", "-f", "docker/Dockerfile", "--target", target, "--progress=plain", "."],
+    [
+      "buildx",
+      "build",
+      "-f",
+      "docker/Dockerfile",
+      "--target",
+      target,
+      ...epoch,
+      "--progress=plain",
+      ".",
+    ],
     { encoding: "utf8", maxBuffer: 64 * 1024 * 1024 },
   );
   const log = `${run.stdout}\n${run.stderr}`;
