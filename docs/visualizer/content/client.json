@@ -2012,6 +2012,16 @@
       "concepts": ["inline replies", "message context", "navigation"]
     },
     {
+      "path": "packages/ui/src/components/DeletedEdit.tsx",
+      "plain": "When someone else deletes a message you were editing, your unsaved words stay where the message was, to copy or throw away.",
+      "summary": "Keeps an unsaved edit visible after its message is deleted by someone else.",
+      "details": [
+        "The message row and its editor leave with the deleted message, so the timeline and the thread listen for deletions and remember each deleted message that still had an edit draft on this device.",
+        "The note sits between the messages it was sent between and offers Copy text and Discard. Discard clears the edit draft, and the note goes as soon as the draft does, wherever it was cleared."
+      ],
+      "concepts": ["changes under you", "drafts", "message editing"]
+    },
+    {
       "path": "packages/ui/src/components/ForwardCard.tsx",
       "plain": "The box under a forwarded message that shows the message it passes on: who wrote it, when, what it said and its files.",
       "summary": "Renders a forward's card and leads back to the original where the reader can open it.",

@@ -13,6 +13,7 @@ import { Composer } from "./Composer.js";
 import { usePanelFocus } from "../lib/usePanelFocus.js";
 import { useRovingMessages } from "../lib/useRovingMessages.js";
 import { MessageItem } from "./MessageItem.js";
+import { DeletedEditNote, placeDeletedEdits, useDeletedEdits } from "./DeletedEdit.js";
 import { ReplyQuote } from "./ReplyQuote.js";
 import { PendingPoll } from "./PollCard.js";
 import { Lightbox, PendingAttachments } from "./Attachments.js";
@@ -52,6 +53,7 @@ export function ThreadPanel({
   const page = useWorkspace((s) => s.threadPages[rootId]);
   const root = useWorkspace((s) => threadRootMessage(s, rootId));
   const replies = useWorkspace((s) => threadReplies(s, rootId));
+  const deletedEdits = placeDeletedEdits(useDeletedEdits(channelId, replies ?? []), replies ?? []);
   const follows = useWorkspace((s) => s.threadFollows[rootId]?.following ?? false);
   const muted = useWorkspace((s) => s.threadFollows[rootId]?.muted === true);
   const pending = useWorkspace((s) => s.pending).filter((p) => p.threadRootId === rootId);
@@ -359,6 +361,9 @@ export function ThreadPanel({
             !msg.replyTo;
           return (
             <div key={msg.id} data-reply={msg.id}>
+              {deletedEdits[i]!.map((gone) => (
+                <DeletedEditNote key={gone.id} channelId={channelId} messageId={gone.id} />
+              ))}
               <MessageItem
                 message={msg}
                 highlighted={msg.id === targetId}
@@ -371,6 +376,9 @@ export function ThreadPanel({
             </div>
           );
         })}
+        {deletedEdits[replies?.length ?? 0]!.map((gone) => (
+          <DeletedEditNote key={gone.id} channelId={channelId} messageId={gone.id} />
+        ))}
         {page?.hasMoreNewer && (
           <div className="flex justify-center gap-4 py-2 text-sm font-medium text-ink-dim">
             <button disabled={page.loading} onClick={() => load("newer")}>
