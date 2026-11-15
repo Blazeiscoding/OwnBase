@@ -13,7 +13,7 @@ name: Checks
 #
 # The work is split into jobs that run side by side, so a run takes about as
 # long as its longest job rather than all of them in a row: the quick checks,
-# the long unit-test suites in three parts and the browser tests in four. The
+# the linter, the long unit-test suites in three parts and the browser tests. The
 # repository is public, so standard runners' minutes are free; each extra job
 # costs its setup, about half a minute, and no wait.
 on:
@@ -158,6 +158,23 @@ jobs:
           ids=$(gh api "repos/$GITHUB_REPOSITORY/actions/artifacts?per_page=100" --jq \
             "[.artifacts[] | select(.workflow_run.id != $GITHUB_RUN_ID and (.expired | not) and (.name | startswith(\"release-\") | not)) | .id] | join(\" \")")
           echo "ids=$ids" >> "$GITHUB_OUTPUT"
+
+  # ESLint with type information (G11): forgotten awaits, promises handed to
+  # something that ignores them, hook rules and common accessibility mistakes.
+  # The typed rules read each package's tsconfig, so nothing is built first.
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: pnpm/action-setup@v6
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+        env:
+          ELECTRON_SKIP_BINARY_DOWNLOAD: 1
+      - run: pnpm lint
 
   # The two suites that take minutes: the server's, and ui's in two halves.
   # Turbo runs only the one test task (--only), so the shard flag reaches
