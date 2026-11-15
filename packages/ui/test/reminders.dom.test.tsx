@@ -14,6 +14,7 @@ import type { Platform } from "../src/platform.js";
 import { emit } from "./clientEvents.js";
 import { drawnText } from "./accessibility.js";
 import { AppNotices } from "./workspaceParts.js";
+import { chooseTime } from "./chooseTime.js";
 import { pointAtMessage } from "./pointAt.js";
 
 /** Reminders (E4): set from a message, listed in Activity, counted and told. */
@@ -158,14 +159,12 @@ describe("a reminder from a message's menu", () => {
     render(tree(client, <MessageItem message={invoice} compact={false} />));
     const { menu } = await moreActions(user);
     await user.click(within(menu).getByRole("menuitem", { name: "Remind me about this…" }));
-    const field = await screen.findByLabelText("Choose a date and time");
-
-    fireEvent.change(field, { target: { value: "2001-01-05T09:00" } });
+    const field = await chooseTime("2001-01-05", "09:00");
     await user.click(screen.getByRole("button", { name: /^Remind me .*2001 at / }));
     expect(field).toHaveAccessibleDescription("Choose a date and time in the future.");
     expect(setReminder).not.toHaveBeenCalled();
 
-    fireEvent.change(field, { target: { value: "2099-03-02T08:15" } });
+    await chooseTime("2099-03-02", "08:15");
     await user.click(screen.getByRole("button", { name: /^Remind me .*2099 at / }));
     expect(setReminder).toHaveBeenCalledWith(invoice.id, new Date("2099-03-02T08:15").getTime());
   });

@@ -1938,9 +1938,21 @@
         "Send later and reminders (E4) both choose with it. The caller names it (label, which also heads the list), gives the presets, and words the button under the field for the time chosen there or none yet.",
         "The whole popover mounts at once, so Popover measures and places it with its real height; the custom time lives here and is cleared when it closes.",
         "The button names the time chosen before it is used. The caller still owns the request, its recovery record and what it says once the server confirms.",
-        "The button is never greyed out: pressed with no date and time, or one already past, it says so under the field and puts focus there, and nothing reaches the caller."
+        "The button is never greyed out: pressed with no date and time, or one already past, it says so under the field and puts focus there (the date field, or the hour once a date is chosen), and nothing reaches the caller.",
+        "The custom time is a date field and TimeField, not datetime-local, whose time half followed Chromium's language and asked for AM or PM on a device set to 24-hour times."
       ],
       "concepts": ["scheduling", "reminders", "lazy loading", "local time"]
+    },
+    {
+      "path": "packages/ui/src/components/TimeField.tsx",
+      "plain": "The hour and minute boxes for choosing a time, written the way your device writes times: 14:30, or 2:30 PM.",
+      "summary": "An hour and minute field that follows the reader's 12- or 24-hour clock.",
+      "details": [
+        "It reads readerLocale, which the desktop app sets from the system's regional format, and asks Intl whether that locale writes a day period. On a 24-hour clock the hour runs 00 to 23 with no AM or PM; on a 12-hour clock it runs 1 to 12 with a button for the locale's own AM and PM words, placed first where the locale puts them first.",
+        "Each part is a spinbutton: the arrow keys step it around the clock, digits type it, the hour moves on to the minutes once nothing more can follow, colon or full stop moves on too, and A or P chooses the period. It reports HH:MM on the 24-hour clock once both parts are there, and empty until then.",
+        "TimePopover (Send later, reminders) and the Scheduled panel's New date and time use it beside a date field."
+      ],
+      "concepts": ["local time", "keyboard input", "scheduling"]
     },
     {
       "path": "packages/ui/src/components/RemindersList.tsx",

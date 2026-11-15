@@ -4,6 +4,7 @@ import { clockSkewNote, localDateTime, type SchedulePreset } from "../lib/schedu
 import { readerLocale } from "../lib/readerLocale.js";
 import { Icon } from "./Icon.js";
 import { Popover } from "./Popover.js";
+import { TimeField } from "./TimeField.js";
 
 /**
  * A time to do something at: a few from now, or any date and time. Send later
@@ -20,9 +21,12 @@ export function TimePopover(props: {
   /** What the button under the field says, for the time chosen there or none yet. */
   submitLabel: (at: Date | null) => string;
 }) {
-  const [customTime, setCustomTime] = useState("");
+  const [date, setDate] = useState("");
+  const [time, setTime] = useState("");
+  const customTime = date && time ? `${date}T${time}` : "";
   const [error, setError] = useState<string | null>(null);
-  const field = useRef<HTMLInputElement>(null);
+  const dateField = useRef<HTMLInputElement>(null);
+  const hourField = useRef<HTMLInputElement>(null);
   const errorId = useId();
   // A time chosen here is the device's; a clock far off sends it at the wrong moment.
   const skewNote = clockSkewNote(useWorkspace((s) => s.clockSkewMs));
@@ -64,27 +68,42 @@ export function TimePopover(props: {
                 ? "Choose a date and time in the future."
                 : null;
             setError(problem);
-            if (problem) field.current?.focus();
+            if (problem) (date ? hourField : dateField).current?.focus();
             else props.onPick(at);
           }}
         >
-          <label className="block text-[12px] font-medium text-ink-faint">
-            Choose a date and time
-            <input
-              ref={field}
-              type="datetime-local"
-              required
-              value={customTime}
-              min={localDateTime(new Date())}
-              aria-invalid={error ? true : undefined}
-              aria-describedby={error ? errorId : undefined}
-              onChange={(e) => {
-                setCustomTime(e.target.value);
-                setError(null);
-              }}
-              className="mt-1.5 w-full min-w-0 rounded-lg border border-edge bg-ground px-2.5 py-1.5 text-sm text-ink outline-none focus:border-copper aria-invalid:border-alert"
-            />
-          </label>
+          <fieldset className="min-w-0">
+            <legend className="text-[12px] font-medium text-ink-faint">
+              Choose a date and time
+            </legend>
+            <div className="mt-1.5 flex gap-2">
+              <input
+                ref={dateField}
+                type="date"
+                aria-label="Date"
+                required
+                value={date}
+                min={localDateTime(new Date()).slice(0, 10)}
+                aria-invalid={error ? true : undefined}
+                aria-describedby={error ? errorId : undefined}
+                onChange={(e) => {
+                  setDate(e.target.value);
+                  setError(null);
+                }}
+                className="w-full min-w-0 flex-1 rounded-lg border border-edge bg-ground px-2.5 py-1.5 text-sm text-ink outline-none focus:border-copper aria-invalid:border-alert"
+              />
+              <TimeField
+                label="Time"
+                hourRef={hourField}
+                invalid={!!error}
+                describedBy={error ? errorId : undefined}
+                onChange={(value) => {
+                  setTime(value);
+                  setError(null);
+                }}
+              />
+            </div>
+          </fieldset>
           {error && (
             <p id={errorId} role="alert" className="flex items-start gap-1 text-[11px] text-alert">
               <Icon name="alert" size={12} className="mt-px" />
