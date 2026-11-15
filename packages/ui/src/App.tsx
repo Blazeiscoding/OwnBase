@@ -292,7 +292,7 @@ export function App({ platform }: { platform: Platform }) {
   useEffect(() => {
     void restoreServers();
     return () => {
-      navigation.current++;
+      navigation.current += 1;
       clientRef.current?.destroy();
     };
   }, [restoreServers]);

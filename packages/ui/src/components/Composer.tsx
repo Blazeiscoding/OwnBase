@@ -1,4 +1,13 @@
-import { lazy, Suspense, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import {
+  lazy,
+  Suspense,
+  useEffect,
+  useEffectEvent,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import {
   isRoom,
   MESSAGE_TEXT_MAX,
@@ -143,13 +152,15 @@ export function Composer({ channelId, threadRootId, placeholder, autoFocus, onLe
   /** The saved draft as this composer last wrote or took it; typing since is unsaved. */
   const synced = useRef(savedDraft);
 
+  // Declared further down; read when the conversation changes, not a reason to reset.
+  const closeSuggestions = useEffectEvent(() => suggestions.close());
   // Switching conversations swaps in that conversation's draft and clears attachments.
   useEffect(() => {
     edited.current = false;
     synced.current = client.state.drafts[draftKey] ?? "";
     setText(synced.current);
     setAttached([]);
-    suggestions.close();
+    closeSuggestions();
     setPreview(false);
     setAttachmentNote(null);
     setSendRefusal(null);
@@ -186,7 +197,7 @@ export function Composer({ channelId, threadRootId, placeholder, autoFocus, onLe
     return () => {
       active = false;
     };
-  }, [client, schedules, scheduleScope, channelId, threadRootId, restoreAttempt]);
+  }, [client, schedules, scheduleScope, channelId, threadRootId, draftKey, restoreAttempt]);
 
   // Drafts load from disk asynchronously, so they can arrive after this mounts,
   // and another window can change or clear this conversation's draft. Either

@@ -133,17 +133,49 @@ export const MessageTimeline = memo(function MessageTimeline({
   /** Where this conversation is being read now, noted as the reader scrolls. */
   const reading = useRef<{ channelId: ID; position: ReadingPosition | null } | null>(null);
   const noteTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const noteReading = (flush: boolean) => {
-    if (noteTimer.current !== null) clearTimeout(noteTimer.current);
-    noteTimer.current = null;
-    const write = () => {
+  const noteReading = useCallback(
+    (flush: boolean) => {
+      if (noteTimer.current !== null) clearTimeout(noteTimer.current);
       noteTimer.current = null;
-      const now = reading.current;
-      if (now) rememberReadingPosition(client.baseUrl, now.channelId, now.position);
-    };
-    if (flush) write();
-    else noteTimer.current = setTimeout(write, 200);
-  };
+      const write = () => {
+        noteTimer.current = null;
+        const now = reading.current;
+        if (now) rememberReadingPosition(client.baseUrl, now.channelId, now.position);
+      };
+      if (flush) write();
+      else noteTimer.current = setTimeout(write, 200);
+    },
+    [client],
+  );
+
+  const requestHistory = useCallback(
+    (kind: "initial" | "older" | "newer") => {
+      const loading = client.state.timelineStatus[channelId]?.loading;
+      if (kind !== "initial" && loading && loading !== "latest") return;
+      const container = scroller.current;
+      const anchor = kind === "older" && container ? topAnchor(container) : null;
+      if (kind === "newer") {
+        void client.loadNewer(channelId);
+        return;
+      }
+      const ticket = {};
+      if (kind === "initial") opening.current = ticket;
+      const load = client.loadTimeline(channelId, {
+        older: kind === "older",
+        // More missed than one page holds opens at the first of them, not the newest.
+        unreadAfter:
+          kind === "initial" && !pendingPosition.current ? readBoundary.current.seq : undefined,
+      });
+      if (anchor && client.state.timelineStatus[channelId]?.loading === "older")
+        historyAnchor.current = anchor;
+      if (kind === "initial")
+        void load.then(() => {
+          if (opening.current === ticket && client.state.timelines[channelId]?.loaded)
+            initialLoaded.current = channelId;
+        });
+    },
+    [client, channelId],
+  );
 
   useEffect(() => {
     historyAnchor.current = null;
@@ -163,9 +195,10 @@ export const MessageTimeline = memo(function MessageTimeline({
     return () => {
       opening.current = null;
     };
-  }, [client, channelId, highlightMessageId]);
+  }, [client, channelId, highlightMessageId, requestHistory]);
 
   const items = useWorkspace((s) => timelineMessages(s, channelId));
+  const newestId = items.at(-1)?.id;
   const deletedEdits = placeDeletedEdits(useDeletedEdits(channelId, items), items);
   // Where the New line goes is known only with something already read loaded
   // above it, or nothing older at all: otherwise the first unread may be
@@ -178,31 +211,6 @@ export const MessageTimeline = memo(function MessageTimeline({
     : -1;
   const channelPending = pending.filter((p) => p.channelId === channelId && !p.threadRootId);
 
-  function requestHistory(kind: "initial" | "older" | "newer") {
-    const loading = client.state.timelineStatus[channelId]?.loading;
-    if (kind !== "initial" && loading && loading !== "latest") return;
-    const container = scroller.current;
-    const anchor = kind === "older" && container ? topAnchor(container) : null;
-    if (kind === "newer") {
-      void client.loadNewer(channelId);
-      return;
-    }
-    const ticket = {};
-    if (kind === "initial") opening.current = ticket;
-    const load = client.loadTimeline(channelId, {
-      older: kind === "older",
-      // More missed than one page holds opens at the first of them, not the newest.
-      unreadAfter:
-        kind === "initial" && !pendingPosition.current ? readBoundary.current.seq : undefined,
-    });
-    if (anchor && client.state.timelineStatus[channelId]?.loading === "older")
-      historyAnchor.current = anchor;
-    if (kind === "initial")
-      void load.then(() => {
-        if (opening.current === ticket && client.state.timelines[channelId]?.loaded)
-          initialLoaded.current = channelId;
-      });
-  }
   const typers = Object.keys(typing ?? {})
     .filter((id) => id !== selfId)
     .map((id) => users[id]?.displayName ?? "someone");
@@ -244,7 +252,7 @@ export const MessageTimeline = memo(function MessageTimeline({
     el.scrollTop = el.scrollHeight;
   }, [
     items.length,
-    items.at(-1)?.id,
+    newestId,
     channelPending.length,
     typers.length,
     channelId,
@@ -286,6 +294,7 @@ export const MessageTimeline = memo(function MessageTimeline({
   // Opening a conversation with more unread than fits starts at the New line,
   // as Slack does, rather than at the newest with the first unread far above.
   // Once, after its first load; not after a jump or a remembered place.
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- waits for the first load, known only from refs, so it runs after every render; placedUnread makes it act once per conversation
   useLayoutEffect(() => {
     const el = scroller.current;
     if (!el || placedUnread.current === channelId || initialLoaded.current !== channelId) return;
@@ -310,7 +319,7 @@ export const MessageTimeline = memo(function MessageTimeline({
   // Messages that come in while the reader is scrolled up are counted for the pill.
   const newestSeen = useRef<{ channelId: ID; id?: ID } | null>(null);
   useEffect(() => {
-    const newest = items.at(-1)?.id;
+    const newest = newestId;
     const before = newestSeen.current;
     newestSeen.current = { channelId, id: newest };
     if (!before || before.channelId !== channelId || !before.id || !newest) return;
@@ -318,21 +327,24 @@ export const MessageTimeline = memo(function MessageTimeline({
     const since = before.id;
     const fresh = items.filter((m) => m.id > since && m.userId !== selfId).length;
     if (fresh > 0) setAway((was) => ({ newer: (was?.newer ?? 0) + fresh }));
-  }, [channelId, items.at(-1)?.id]);
+  }, [channelId, newestId, items, selfId, timeline?.hasMoreNewer]);
 
   /** The conversation whose New line has been on screen; its pill is not offered again. */
   const lineSeen = useRef<ID | null>(null);
-  function checkUnreadAbove(el: HTMLElement) {
-    const line = el.querySelector<HTMLElement>(NEW_LINE);
-    const box = el.getBoundingClientRect();
-    const at = line?.getBoundingClientRect();
-    if (at && at.bottom >= box.top + 4 && at.top <= box.bottom) lineSeen.current = channelId;
-    const above = !!at && at.bottom < box.top + 4 && lineSeen.current !== channelId;
-    setUnreadAbove((was) => (was === above ? was : above));
-  }
+  const checkUnreadAbove = useCallback(
+    (el: HTMLElement) => {
+      const line = el.querySelector<HTMLElement>(NEW_LINE);
+      const box = el.getBoundingClientRect();
+      const at = line?.getBoundingClientRect();
+      if (at && at.bottom >= box.top + 4 && at.top <= box.bottom) lineSeen.current = channelId;
+      const above = !!at && at.bottom < box.top + 4 && lineSeen.current !== channelId;
+      setUnreadAbove((was) => (was === above ? was : above));
+    },
+    [channelId],
+  );
   useEffect(() => {
     if (scroller.current) checkUnreadAbove(scroller.current);
-  }, [channelId, firstUnread, items.length]);
+  }, [channelId, firstUnread, items.length, checkUnreadAbove]);
 
   const smooth = (): ScrollBehavior =>
     window.matchMedia?.("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth";
@@ -434,9 +446,9 @@ export const MessageTimeline = memo(function MessageTimeline({
       window.removeEventListener("pagehide", flush);
       flush();
     };
-  }, [client, channelId]);
+  }, [client, channelId, noteReading]);
 
-  function readVisibleTail() {
+  const readVisibleTail = useCallback(() => {
     if (
       !readActive ||
       !pinnedToBottom.current ||
@@ -445,7 +457,7 @@ export const MessageTimeline = memo(function MessageTimeline({
     )
       return;
     client.readLoadedTail(channelId);
-  }
+  }, [readActive, client, channelId]);
 
   // Do not acknowledge a newer socket watermark until its history is on screen.
   useEffect(() => {
@@ -460,11 +472,12 @@ export const MessageTimeline = memo(function MessageTimeline({
     client,
     channelId,
     items.length,
-    items.at(-1)?.id,
+    newestId,
     timeline?.hasMoreNewer,
     timeline?.loaded,
     timeline?.readThroughSeq,
     readActive,
+    readVisibleTail,
   ]);
 
   function onScroll() {

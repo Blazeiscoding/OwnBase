@@ -358,4 +358,18 @@ describe("choosing devices from the huddle", () => {
     expect(screen.queryByRole("button", { name: "Microphone and speaker" })).toBeNull();
     expect(screen.queryByRole("button", { name: "Camera options" })).toBeNull();
   });
+
+  it("lets go of the camera's picture when its preview stops", async () => {
+    const { user } = await settings();
+    const stop = vi.fn();
+    const stream = { getTracks: () => [{ stop }] };
+    vi.mocked(navigator.mediaDevices.getUserMedia).mockResolvedValue(stream as never);
+    await user.click(screen.getByRole("button", { name: "Preview camera" }));
+    await screen.findByRole("button", { name: "Stop preview" });
+    const video = document.querySelector("video")!;
+    expect(video.srcObject).toBe(stream);
+    await user.click(screen.getByRole("button", { name: "Stop preview" }));
+    expect(stop).toHaveBeenCalled();
+    expect(video.srcObject).toBeNull();
+  });
 });

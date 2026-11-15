@@ -130,6 +130,7 @@ export function KeepsFocus({
   useLayoutEffect(() => {
     const element = own.current;
     return () => {
+      // eslint-disable-next-line react-hooks/exhaustive-deps -- focus goes to the home node there is at unmount, not the one at mount
       if (element?.contains(document.activeElement)) home.current?.focus({ preventScroll: true });
     };
   }, [home]);

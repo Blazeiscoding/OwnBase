@@ -65,7 +65,7 @@ export function MicrophoneCheck({
     startIfAsked();
     return () => {
       alive.current = false;
-      attempt.current++;
+      attempt.current += 1;
       test.current?.stop();
       test.current = null;
     };
