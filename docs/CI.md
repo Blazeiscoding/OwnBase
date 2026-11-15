@@ -4,11 +4,12 @@ Checks keep all seven workspace typechecks, all five unit-test tasks, three buil
 
 Dependency updates and the audit step are described [at the end](#dependency-updates).
 
-Checks runs as ten Linux jobs side by side, so a run lasts about as long as its longest job instead of all of them in a row (about ten to twelve minutes in one job before):
+Checks runs as eleven Linux jobs side by side, so a run lasts about as long as its longest job instead of all of them in a row (about ten to twelve minutes in one job before):
 
 | Job                                              | What it runs                                                                                                                                                                                                      |
 | ------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `checks`                                         | Formatting, the automation typecheck, the cache-input and script tests, every typecheck, protocol/client-core/desktop unit tests, the three builds and their guards, the dependency audit and the artifact lookup |
+| `lint`                                           | ESLint with type information, `pnpm lint` ([below](#lint))                                                                                                                                                        |
 | `unit (server)`                                  | The server's unit tests                                                                                                                                                                                           |
 | `unit (ui 1 of 2)`, `unit (ui 2 of 2)`           | ui's unit tests in two halves (`vitest --shard`)                                                                                                                                                                  |
 | `browser (e2e 1 of 3)` to `browser (e2e 3 of 3)` | The browser suite in Chromium, in three parts (`playwright test --project=chromium --shard`)                                                                                                                      |
@@ -20,6 +21,18 @@ Every job installs on its own, about half a minute; the repository is public, so
 Measured on #354 (2026-10-24): Checks took 3 minutes 29 seconds from start to finish on a cold task cache, and 3 minutes 36 seconds on the next push, where `checks` and the unit jobs replayed from the cache in 16–40 seconds. Before, the one job took 10–12 minutes. The longest job is the first e2e part (3 minutes 26–34 seconds, 168 seconds of it tests), because the call and WebRTC scenarios come first in the file and shards are contiguous; the other parts take about two minutes. Desktop took 3 minutes 29 seconds with the installer, against about four minutes before.
 
 The browser suite is one file, and Playwright splits shards by file unless `fullyParallel` is on. It is on in `playwright.config.ts`: every scenario starts a workspace of its own (REV-08), so order does not matter, and with one worker a local run is unchanged. Shards split by count, fifteen scenarios each.
+
+## Lint
+
+The `lint` job runs `pnpm lint`: ESLint with only rules that catch bugs, configured in `eslint.config.mjs` at the root. Formatting stays prettier's and types stay tsc's.
+
+- From typescript-eslint, with type information: `no-floating-promises`, `no-misused-promises`, `await-thenable` and `switch-exhaustiveness-check`. A `default` branch counts as covering the cases it takes.
+- From `eslint-plugin-react-hooks`: `rules-of-hooks` and `exhaustive-deps`.
+- From `eslint-plugin-jsx-a11y`: its recommended set, in `.tsx` files.
+
+The typed rules read each file's own package `tsconfig.json` (`projectService`), so the job builds nothing and needs no task cache. A disable comment the rules no longer need fails the job. Locally `pnpm lint` keeps ESLint's cache in `node_modules/.cache/eslint`. That cache knows only each file's own content, so a change to a type in one file can leave another file's stale result in place; CI starts with no cache and is the one to trust.
+
+The rules are turned on one package at a time. `notYetLinted` in `eslint.config.mjs` lists what is not linted yet.
 
 ## WebKit and Firefox
 

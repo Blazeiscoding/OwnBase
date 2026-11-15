@@ -21,6 +21,7 @@
     "docs:check": "node scripts/generate-docs-site.mjs --check",
     "docs:test": "node --test scripts/generate-docs-site.test.mjs",
     "format": "prettier --write .",
+    "lint": "eslint --cache --cache-strategy content --cache-location node_modules/.cache/eslint/ .",
     "typecheck:automation": "tsc -p tsconfig.automation.json",
     "visualizer:build": "node scripts/generate-project-visualizer.mjs",
     "visualizer:check": "node scripts/generate-project-visualizer.mjs --check",
@@ -33,13 +34,18 @@
     "@playwright/test": "^1.65.0",
     "@types/node": "^24.3.0",
     "@vitest/coverage-v8": "5.1.0",
+    "eslint": "^9.39.5",
+    "eslint-plugin-jsx-a11y": "^6.10.2",
+    "eslint-plugin-react-hooks": "^7.1.1",
     "prettier": "^3.10.1",
     "turbo": "^2.11.11",
-    "typescript": "^5.9.2"
+    "typescript": "^5.9.2",
+    "typescript-eslint": "^8.72.1"
   },
   "pnpm": {
     "overrides": {
       "@electron/universal>minimatch": "^11.0.1",
+      "@typescript-eslint/typescript-estree>minimatch": "^11.0.1",
       "app-builder-lib>minimatch": "^11.0.1"
     }
   }
