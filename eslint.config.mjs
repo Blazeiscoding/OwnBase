@@ -5,19 +5,6 @@ import jsxA11y from "eslint-plugin-jsx-a11y";
 import reactHooks from "eslint-plugin-react-hooks";
 import tseslint from "typescript-eslint";
 
-// Turned on one package at a time (G11). Each package's pull request removes
-// its line here and fixes what the rules find.
-const notYetLinted = [
-  "apps/web/**",
-  "apps/server-cli/**",
-  "apps/site/**",
-  "tests/**",
-  "scripts/**",
-  ".github/**",
-  // Build and test tool configs, with apps, tests and scripts.
-  "**/*.config.{ts,mts,mjs,cjs,js}",
-];
-
 export default defineConfig(
   {
     ignores: [
@@ -36,7 +23,6 @@ export default defineConfig(
       "**/test-results/**",
       "**/.turbo/**",
       ".claude/worktrees/**",
-      ...notYetLinted,
     ],
   },
   {
@@ -53,7 +39,20 @@ export default defineConfig(
     files: ["**/*.{ts,tsx,mts,cts}"],
     languageOptions: {
       parser: tseslint.parser,
-      parserOptions: { projectService: true, tsconfigRootDir: import.meta.dirname },
+      parserOptions: {
+        projectService: {
+          // Package test configs that no package tsconfig includes.
+          allowDefaultProject: [
+            "packages/protocol/vitest.config.ts",
+            "packages/client-core/vitest.config.ts",
+            "packages/server/vitest.config.ts",
+            "apps/desktop/vitest.config.ts",
+            "ee/vitest.config.ts",
+            "ee/cloud/vitest.config.ts",
+          ],
+        },
+        tsconfigRootDir: import.meta.dirname,
+      },
     },
     rules: {
       "@typescript-eslint/no-floating-promises": "error",
@@ -65,6 +64,23 @@ export default defineConfig(
         "error",
         { considerDefaultExhaustiveForUnions: true },
       ],
+    },
+  },
+  {
+    // The Playwright suites and measuring scripts are typed by their own
+    // tsconfig, which is not named tsconfig.json, so the service cannot find it.
+    files: [
+      "playwright*.config.ts",
+      "tests/e2e/**/*.ts",
+      "tests/visual/**/*.ts",
+      "scripts/**/*.mts",
+    ],
+    languageOptions: {
+      parserOptions: {
+        projectService: false,
+        project: "./tsconfig.automation.json",
+        tsconfigRootDir: import.meta.dirname,
+      },
     },
   },
   {
