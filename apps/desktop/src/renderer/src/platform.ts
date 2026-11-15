@@ -181,7 +181,7 @@ export function electronPlatform(bridge: OwnBaseBridge): Platform {
       let saved = false;
       try {
         for (const capture of [...preparing.capture]) await capture();
-        await Promise.all([...preparing.persist].map((persist) => persist()));
+        await Promise.all([...preparing.persist].map(async (persist) => persist()));
         saved = true;
       } catch {
         // Failure is handed back to the native close decision; it must not silently quit.
