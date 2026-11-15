@@ -2,7 +2,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { act, cleanup, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { ApiError, WorkspaceClient } from "@ownbase/client-core";
-import type { AccessPolicy, Channel, User } from "@ownbase/protocol";
+import type { AccessPolicy, Channel, ServerToClient, User } from "@ownbase/protocol";
 import { ClientContext, PlatformContext } from "../src/context.js";
 import { ConfirmProvider } from "../src/components/Confirm.js";
 import { ToastProvider } from "../src/components/Toast.js";
@@ -219,6 +219,33 @@ describe("the workspace's name", () => {
     // The page still names the workspace as it is now.
     await waitFor(() => expect(within(dialog).getByText("Red Team")).toBeVisible());
     expect(field).toHaveValue("Green Team!");
+  });
+});
+
+describe("two admins renaming at once", () => {
+  it("says who renamed it while the name was being edited, and saves on the next Save", async () => {
+    const priya = person("U_PRIYA", "Priya Shah", "admin");
+    const { dialog, client, rename, user } = page({ others: [priya] });
+    const field = within(dialog).getByLabelText("Workspace name");
+    await user.clear(field);
+    await user.type(field, "Blue Team");
+    act(() =>
+      (client as unknown as { handleServerMessage(m: ServerToClient): void }).handleServerMessage({
+        type: "ephemeral",
+        event: { type: "workspace.renamed", workspaceName: "Green Team", by: priya.id },
+      }),
+    );
+    const save = within(dialog).getByRole("button", { name: "Save" });
+    await user.click(save);
+    expect(rename).not.toHaveBeenCalled();
+    expect(within(dialog).getByRole("alert")).toHaveTextContent(
+      "Priya Shah renamed this workspace to Green Team while you were editing. Save again to use your name instead.",
+    );
+    expect(field).toHaveValue("Blue Team");
+
+    await user.click(save);
+    expect(rename).toHaveBeenCalledWith("Blue Team");
+    expect(await within(dialog).findByText("Saved")).toBeVisible();
   });
 });
 

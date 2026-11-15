@@ -68,6 +68,7 @@ function state(over: Partial<WorkspaceState> = {}): WorkspaceState {
     serverNotices: [],
     status: "online",
     workspaceName: "W",
+    workspaceRenamedBy: null,
     workspaceId: null,
     clockSkewMs: null,
     sidebarSections: [],

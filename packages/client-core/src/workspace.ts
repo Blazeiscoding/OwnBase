@@ -408,6 +408,11 @@ export interface WorkspaceState extends MessageCache {
   serverNotices: ServerNotice[];
   status: ConnectionStatus;
   workspaceName: string;
+  /**
+   * Who made the last rename heard since connecting: null for the host, or
+   * for none heard. Workspace settings names them to an admin who was editing.
+   */
+  workspaceRenamedBy: ID | null;
   /** Authenticated storage identity; null until the first snapshot. */
   workspaceId: ID | null;
   /**
@@ -558,6 +563,7 @@ const initialState: WorkspaceState = {
   serverNotices: [],
   status: "connecting",
   workspaceName: "",
+  workspaceRenamedBy: null,
   workspaceId: null,
   serverProtocolVersion: null,
   clockSkewMs: null,
@@ -1393,7 +1399,7 @@ export class WorkspaceClient {
         this.store.setState({ openReports: event.open });
         break;
       case "workspace.renamed":
-        this.store.setState({ workspaceName: event.workspaceName });
+        this.store.setState({ workspaceName: event.workspaceName, workspaceRenamedBy: event.by });
         break;
       case "workspace.accessPolicy":
         this.store.setState({ accessPolicy: event.accessPolicy });

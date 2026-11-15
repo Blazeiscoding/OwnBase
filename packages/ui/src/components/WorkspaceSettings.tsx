@@ -6,7 +6,7 @@ import {
   type SettingsPanel,
   type WorkspaceCopy,
 } from "@ownbase/protocol";
-import { ApiError } from "@ownbase/client-core";
+import { ApiError, type WorkspaceState } from "@ownbase/client-core";
 import { useClient, usePlatform, useWorkspace } from "../context.js";
 import { formatBytes, formatTime } from "../lib/format.js";
 import { failureText } from "../lib/failure.js";
@@ -261,12 +261,23 @@ function renameProblem(err: ApiError): string {
 }
 
 /** The workspace's name: typed, checked when sent, and kept with Save. */
+/** Who renamed the workspace while this admin was editing its name, and what to do. */
+function renamedMeanwhile(state: WorkspaceState, name: string): string {
+  const by = state.workspaceRenamedBy;
+  if (by && by === state.self?.id)
+    return `You renamed this workspace to ${name} in another window. Save again to use this name instead.`;
+  const who = (by && state.users[by]?.displayName) || "Someone";
+  return `${who} renamed this workspace to ${name} while you were editing. Save again to use your name instead.`;
+}
+
 function NameSection() {
   const client = useClient();
   const saved = useSaved();
   const alive = useAlive();
   const name = useWorkspace((s) => s.workspaceName);
   const [draft, setDraft] = useState(name);
+  /** The name the edit started from, to tell when someone renamed it meanwhile. */
+  const [base, setBase] = useState(name);
   const [typed, setTyped] = useState(false);
   const [problem, setProblem] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -274,7 +285,9 @@ function NameSection() {
   // Renamed from elsewhere, by another admin or the host, while nothing is
   // typed here: the field shows the new name rather than an old one to save.
   useEffect(() => {
-    if (!typed) setDraft(name);
+    if (typed) return;
+    setDraft(name);
+    setBase(name);
   }, [name, typed]);
 
   async function save(event: React.FormEvent) {
@@ -291,6 +304,14 @@ function NameSection() {
       field.current?.focus();
       return;
     }
+    // The server keeps the last name saved, so two admins saving at once
+    // would lose one name without a word. This one is asked to save again.
+    if (name !== base && next !== name) {
+      setBase(name);
+      setProblem(renamedMeanwhile(client.state, name));
+      field.current?.focus();
+      return;
+    }
     setBusy(true);
     const kept = await client.renameWorkspace(next);
     if (!alive.current) return;
@@ -301,6 +322,7 @@ function NameSection() {
       return;
     }
     setDraft(kept);
+    setBase(kept);
     setTyped(false);
     saved();
   }

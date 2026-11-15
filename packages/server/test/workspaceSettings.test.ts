@@ -240,7 +240,13 @@ describe("renaming the workspace and choosing who may join", () => {
     await rename(admin.token, "Blue Team");
     await choose(admin.token, "invite_only");
     for (const socket of [ownerSocket, memberSocket]) {
-      await socket.heard((e) => e.type === "workspace.renamed" && e.workspaceName === "Blue Team");
+      // Naming who did it, so an admin editing the name can be told.
+      await socket.heard(
+        (e) =>
+          e.type === "workspace.renamed" &&
+          e.workspaceName === "Blue Team" &&
+          e.by === admin.user.id,
+      );
       await socket.heard(
         (e) => e.type === "workspace.accessPolicy" && e.accessPolicy === "invite_only",
       );

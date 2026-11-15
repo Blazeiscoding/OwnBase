@@ -83,9 +83,10 @@ export type EphemeralEvent =
   | { type: "presence"; userId: ID; presence: Presence }
   /**
    * The workspace has a new name, replacing the one the ready snapshot gave.
-   * A client that misses it gets the new name from its next snapshot.
+   * A client that misses it gets the new name from its next snapshot. `by`
+   * is who renamed it, or null for the host.
    */
-  | { type: "workspace.renamed"; workspaceName: string }
+  | { type: "workspace.renamed"; workspaceName: string; by: ID | null }
   /**
    * Who may join changed, replacing what the ready snapshot gave. Told to
    * everyone signed in, since the Join screen tells anyone who asks.

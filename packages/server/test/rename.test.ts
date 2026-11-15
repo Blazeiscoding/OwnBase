@@ -77,10 +77,12 @@ describe("renaming a workspace while it runs", () => {
     return { ws, received, opened, closed, heard };
   }
 
+  // Renamed by the host, not by anyone in the workspace.
   const renamed = (name: string) => (m: ServerToClient) =>
     m.type === "ephemeral" &&
     m.event.type === "workspace.renamed" &&
-    m.event.workspaceName === name;
+    m.event.workspaceName === name &&
+    m.event.by === null;
 
   it("tells everyone signed in at once, and keeps the name for the next start", async () => {
     await start("Rocket Team");
