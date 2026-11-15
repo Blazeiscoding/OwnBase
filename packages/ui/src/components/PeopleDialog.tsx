@@ -463,7 +463,7 @@ export function PeopleDialog({ onClose }: { onClose: () => void }) {
                         person={person}
                         isOwner={isOwner}
                         disabled={!!busy}
-                        onChange={change}
+                        onChange={(person, patch) => void change(person, patch)}
                         onBeginAction={beginAction}
                       />
                     </div>

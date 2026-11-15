@@ -86,7 +86,7 @@ export function NewChannelDialog(props: { onClose: () => void; onCreated: (ch: C
 
   return (
     <Dialog title="New channel" onClose={props.onClose}>
-      <form onSubmit={create} noValidate className="space-y-4">
+      <form onSubmit={(e) => void create(e)} noValidate className="space-y-4">
         <div>
           <label
             htmlFor="new-channel-name"
@@ -245,7 +245,7 @@ export function GuestAccountDialog(props: {
         You are here as a guest, for a day. An account keeps your name, messages and channels, and
         lets you sign in again from anywhere.
       </p>
-      <form onSubmit={create} noValidate className="space-y-3">
+      <form onSubmit={(e) => void create(e)} noValidate className="space-y-3">
         <TextField
           ref={handleField}
           label="Username"

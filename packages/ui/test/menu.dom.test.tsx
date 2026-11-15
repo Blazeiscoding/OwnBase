@@ -242,13 +242,13 @@ describe("a menu whose trigger has a hint", () => {
 
     // The pointer brings the hint up, then the keyboard opens the menu.
     fireEvent.pointerEnter(trigger, { pointerType: "mouse" });
-    act(() => vi.advanceTimersByTime(400));
+    act(() => void vi.advanceTimersByTime(400));
     expect(screen.getByRole("tooltip")).toHaveTextContent("More");
     act(() => trigger.focus());
     fireEvent.click(trigger);
     expect(screen.getByRole("menu")).toBeVisible();
     expect(screen.queryByRole("tooltip")).not.toBeInTheDocument();
-    act(() => vi.advanceTimersByTime(1000));
+    act(() => void vi.advanceTimersByTime(1000));
     expect(screen.queryByRole("tooltip")).not.toBeInTheDocument();
     fireEvent.keyDown(screen.getByRole("menu"), { key: "Escape" });
     expect(screen.queryByRole("menu")).not.toBeInTheDocument();
@@ -256,11 +256,11 @@ describe("a menu whose trigger has a hint", () => {
 
     // A hover that began just before the menu opened does not finish into one.
     fireEvent.pointerLeave(trigger, { pointerType: "mouse" });
-    act(() => vi.advanceTimersByTime(1000));
+    act(() => void vi.advanceTimersByTime(1000));
     fireEvent.pointerEnter(trigger, { pointerType: "mouse" });
-    act(() => vi.advanceTimersByTime(100));
+    act(() => void vi.advanceTimersByTime(100));
     fireEvent.click(trigger);
-    act(() => vi.advanceTimersByTime(1000));
+    act(() => void vi.advanceTimersByTime(1000));
     expect(screen.getByRole("menu")).toBeVisible();
     expect(screen.queryByRole("tooltip")).not.toBeInTheDocument();
   });

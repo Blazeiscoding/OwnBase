@@ -200,7 +200,7 @@ function FileCard({ file }: { file: FileMeta }) {
   return (
     <div>
       <button
-        onClick={save}
+        onClick={() => void save()}
         disabled={saving}
         aria-label={`${error ? "Retry download" : "Download"} ${file.name}`}
         className="flex items-center gap-2.5 rounded-xl border border-edge bg-raised px-3 py-2.5 text-left transition-colors hover:border-ink-faint/40"

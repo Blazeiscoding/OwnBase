@@ -25,7 +25,7 @@ describe("who joins and leaves a huddle, for a screen reader", () => {
 
     rerender(<CallAnnouncer peerIds={["U_LEE"]} users={users} />);
     expect(log).not.toHaveTextContent("left");
-    act(() => vi.advanceTimersByTime(LEAVE_GRACE_MS));
+    act(() => void vi.advanceTimersByTime(LEAVE_GRACE_MS));
     expect(log).toHaveTextContent("Maya Chen left the huddle.");
   });
 
@@ -35,7 +35,7 @@ describe("who joins and leaves a huddle, for a screen reader", () => {
     const log = screen.getByRole("log", { name: "Huddle arrivals" });
     rerender(<CallAnnouncer peerIds={[]} users={users} />);
     rerender(<CallAnnouncer peerIds={["U_MAYA"]} users={users} />);
-    act(() => vi.advanceTimersByTime(LEAVE_GRACE_MS * 2));
+    act(() => void vi.advanceTimersByTime(LEAVE_GRACE_MS * 2));
     expect(log).toBeEmptyDOMElement();
   });
 });

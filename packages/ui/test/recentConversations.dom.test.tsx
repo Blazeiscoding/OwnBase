@@ -66,7 +66,7 @@ describe("the conversations Ctrl+K offers first", () => {
     act(() => result.current.remember("C_OPS"));
     act(() => result.current.remember("C_NEW"));
     expect(result.current.recent).toEqual(["C_NEW", "C_OPS"]);
-    await answer();
+    answer();
     await waitFor(() => expect(result.current.recent).toEqual(["C_NEW", "C_OPS", "C_DESIGN"]));
     await waitFor(() =>
       expect(values.get(SLOT)).toEqual({ version: 1, value: ["C_NEW", "C_OPS", "C_DESIGN"] }),
@@ -78,7 +78,7 @@ describe("the conversations Ctrl+K offers first", () => {
   it("starts from nothing when the stored list cannot be read", async () => {
     const { platform, answer } = device({}, true);
     const { result } = open(platform);
-    await answer();
+    answer();
     act(() => result.current.remember("C_DESIGN"));
     expect(result.current.recent).toEqual(["C_DESIGN"]);
   });

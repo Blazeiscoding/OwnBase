@@ -38,15 +38,15 @@ async function open(label: string, platform: Platform = webPlatform()) {
 
 /** What a browser tells every other tab once one has written. */
 function otherTabsHear() {
-  act(() =>
+  act(() => {
     window.dispatchEvent(
       new StorageEvent("storage", {
         key: KEY,
         newValue: localStorage.getItem(KEY),
         storageArea: localStorage,
       }),
-    ),
-  );
+    );
+  });
 }
 
 const shown = (previews: Previews, account: string) =>

@@ -55,7 +55,7 @@ function closeDevice() {
   };
   const prepare = async () => {
     for (const callback of capture) await callback();
-    await Promise.all([...persist].map((callback) => callback()));
+    await Promise.all([...persist].map(async (callback) => callback()));
   };
   return { ...device, platform, capture, persist, prepare };
 }

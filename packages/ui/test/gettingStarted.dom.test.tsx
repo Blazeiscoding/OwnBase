@@ -216,7 +216,7 @@ describe("getting started, for whoever set the workspace up", () => {
     expect(card).toHaveTextContent("1 of 4 left");
 
     globalThis.Notification = { permission: "granted" } as unknown as typeof Notification;
-    act(() => window.dispatchEvent(new Event("focus")));
+    act(() => void window.dispatchEvent(new Event("focus")));
     expect(container).toBeEmptyDOMElement();
   });
 

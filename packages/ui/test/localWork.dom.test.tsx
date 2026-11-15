@@ -65,7 +65,7 @@ async function typeInto(box: HTMLTextAreaElement, text: string) {
 /** Types into the box and presses Enter, in one turn, as a fast typist does. */
 async function typeAndSend(box: HTMLTextAreaElement, text: string) {
   await typeInto(box, text);
-  act(() => box.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true })));
+  act(() => void box.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true })));
 }
 
 beforeEach(() => localStorage.clear());
@@ -168,7 +168,9 @@ describe("a send's words before the device keeps it (GL-02)", () => {
     expect(box).toHaveAttribute("aria-readonly", "true");
     await typeInto(box, "fresh words and more");
     expect(box.value).toBe("fresh words");
-    act(() => box.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true })));
+    act(
+      () => void box.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true })),
+    );
     expect(client.state.pending).toHaveLength(1);
 
     resume();

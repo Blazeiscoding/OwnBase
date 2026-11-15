@@ -381,10 +381,11 @@ export function App({ platform }: { platform: Platform }) {
 
   useEffect(() => {
     if (!platform.deepLinks) return;
+    // handleDeepLink shows its own failure (restore_failed).
     void platform.deepLinks.consumePending().then((url) => {
-      if (url) handleDeepLink(url);
+      if (url) void handleDeepLink(url);
     });
-    return platform.deepLinks.subscribe(handleDeepLink);
+    return platform.deepLinks.subscribe((url) => void handleDeepLink(url));
   }, [platform, handleDeepLink]);
 
   const leaveWorkspace = useCallback(

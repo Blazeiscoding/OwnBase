@@ -336,8 +336,9 @@ function useConversationFallback(restore: boolean) {
   useEffect(() => {
     if (!channelId) return;
     const hidden = client.state.prefs[channelId]?.hiddenSeq;
+    // A refusal shows beside the channel with a retry (prefsWrites).
     if (hidden !== null && hidden !== undefined)
-      client.setChannelPrefs(channelId, { hiddenSeq: null });
+      void client.setChannelPrefs(channelId, { hiddenSeq: null });
   }, [channelId, client]);
 
   useEffect(() => {

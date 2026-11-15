@@ -144,7 +144,7 @@ export function ForwardDialog({ source, onClose }: { source: ForwardSource; onCl
 
   return (
     <Dialog title="Forward message" onClose={onClose} width={520}>
-      <form onSubmit={send} className="space-y-4">
+      <form onSubmit={(e) => void send(e)} className="space-y-4">
         <label className="block">
           <span className="mb-1.5 block text-[13px] font-medium text-ink-dim">Forward to</span>
           <input

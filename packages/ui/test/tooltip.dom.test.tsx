@@ -27,9 +27,9 @@ describe("a tooltip", () => {
     expect(trigger).not.toHaveAccessibleDescription();
 
     fireEvent.pointerEnter(trigger, { pointerType: "mouse" });
-    act(() => vi.advanceTimersByTime(399));
+    act(() => void vi.advanceTimersByTime(399));
     expect(screen.queryByRole("tooltip")).not.toBeInTheDocument();
-    act(() => vi.advanceTimersByTime(1));
+    act(() => void vi.advanceTimersByTime(1));
     const tooltip = screen.getByRole("tooltip");
     expect(tooltip).toHaveTextContent("Attach a file");
     expect(trigger).toHaveAccessibleDescription("Attach a file");
@@ -40,13 +40,13 @@ describe("a tooltip", () => {
     fireEvent.pointerLeave(trigger, { pointerType: "mouse" });
     trigger.hidden = true;
     fireEvent.scroll(document);
-    act(() => vi.advanceTimersByTime(80));
+    act(() => void vi.advanceTimersByTime(80));
     fireEvent.pointerEnter(tooltip, { pointerType: "mouse" });
-    act(() => vi.advanceTimersByTime(200));
+    act(() => void vi.advanceTimersByTime(200));
     expect(screen.getByRole("tooltip")).toBeVisible();
 
     fireEvent.pointerLeave(tooltip, { pointerType: "mouse" });
-    act(() => vi.advanceTimersByTime(120));
+    act(() => void vi.advanceTimersByTime(120));
     expect(screen.queryByRole("tooltip")).not.toBeInTheDocument();
     expect(trigger).not.toHaveAccessibleDescription();
   });
@@ -208,7 +208,7 @@ describe("a tooltip", () => {
     fireEvent.pointerEnter(screen.getByRole("button", { name: "Pinned messages" }), {
       pointerType: "touch",
     });
-    act(() => vi.advanceTimersByTime(500));
+    act(() => void vi.advanceTimersByTime(500));
     expect(screen.queryByRole("tooltip")).not.toBeInTheDocument();
   });
 
@@ -243,7 +243,7 @@ describe("a tooltip", () => {
     expect(screen.queryByRole("tooltip")).not.toBeInTheDocument();
     expect(trigger).not.toHaveAccessibleDescription();
     fireEvent.pointerEnter(trigger, { pointerType: "mouse" });
-    act(() => vi.advanceTimersByTime(1000));
+    act(() => void vi.advanceTimersByTime(1000));
     expect(screen.queryByRole("tooltip")).not.toBeInTheDocument();
 
     // Turned back on, it is not up until the pointer or the keyboard asks.
@@ -251,7 +251,7 @@ describe("a tooltip", () => {
     expect(screen.queryByRole("tooltip")).not.toBeInTheDocument();
     fireEvent.pointerLeave(trigger, { pointerType: "mouse" });
     fireEvent.pointerEnter(trigger, { pointerType: "mouse" });
-    act(() => vi.advanceTimersByTime(400));
+    act(() => void vi.advanceTimersByTime(400));
     expect(screen.getByRole("tooltip")).toHaveTextContent("More");
   });
 
@@ -273,7 +273,7 @@ describe("a tooltip", () => {
     expect(screen.getByRole("tooltip")).toHaveTextContent("First hint");
 
     fireEvent.pointerEnter(second, { pointerType: "mouse" });
-    act(() => vi.advanceTimersByTime(400));
+    act(() => void vi.advanceTimersByTime(400));
     expect(screen.getAllByRole("tooltip")).toHaveLength(1);
     expect(screen.getByRole("tooltip")).toHaveTextContent("Second hint");
   });
@@ -298,7 +298,7 @@ describe("a tooltip", () => {
       expect(screen.getByRole("tooltip").parentElement).toBe(document.body);
 
       fullscreenElement = fullscreen;
-      act(() => document.dispatchEvent(new Event("fullscreenchange")));
+      act(() => void document.dispatchEvent(new Event("fullscreenchange")));
       expect(screen.getByRole("tooltip").parentElement).toBe(fullscreen);
       expect(screen.getByRole("tooltip")).toHaveStyle({ visibility: "visible" });
       view.unmount();

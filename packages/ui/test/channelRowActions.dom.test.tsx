@@ -226,7 +226,7 @@ describe("holding a row on a touchscreen", () => {
       // A drag would start from the hold on iOS, and take it.
       expect(row).not.toHaveAttribute("draggable");
       fireEvent.touchStart(row, { touches: [{ clientX: 10, clientY: 10 }] });
-      act(() => vi.advanceTimersByTime(500));
+      act(() => void vi.advanceTimersByTime(500));
       fireEvent.touchEnd(row);
       expect(screen.getByRole("menu", { name: "Options for general" })).toBeInTheDocument();
     } finally {
@@ -242,11 +242,11 @@ describe("holding a row on a touchscreen", () => {
       const row = screen.getByRole("button", { name: /^#\s*general$/ });
       fireEvent.touchStart(row, { touches: [{ clientX: 10, clientY: 10 }] });
       fireEvent.touchMove(row, { touches: [{ clientX: 10, clientY: 40 }] });
-      act(() => vi.advanceTimersByTime(500));
+      act(() => void vi.advanceTimersByTime(500));
       fireEvent.touchStart(row, { touches: [{ clientX: 10, clientY: 10 }] });
-      act(() => vi.advanceTimersByTime(200));
+      act(() => void vi.advanceTimersByTime(200));
       fireEvent.touchEnd(row);
-      act(() => vi.advanceTimersByTime(500));
+      act(() => void vi.advanceTimersByTime(500));
       expect(screen.queryByRole("menu")).toBeNull();
     } finally {
       vi.useRealTimers();

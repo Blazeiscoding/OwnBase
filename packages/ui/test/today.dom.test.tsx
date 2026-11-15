@@ -42,7 +42,7 @@ describe("a day said relative to now", () => {
     expect(screen.getByText("Today")).toBeTruthy();
     // No timer ran while asleep: the clock jumps, and the window regains focus.
     vi.setSystemTime(new Date(2026, 2, 15, 8, 0).getTime());
-    act(() => window.dispatchEvent(new Event("focus")));
+    act(() => void window.dispatchEvent(new Event("focus")));
     expect(screen.getByText("Yesterday")).toBeTruthy();
   });
 });

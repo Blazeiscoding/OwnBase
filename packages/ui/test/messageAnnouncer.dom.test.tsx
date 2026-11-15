@@ -79,16 +79,16 @@ describe("the new-message log", () => {
       announcer.hear(said("Priya Shah", "Bring snacks"));
     });
     expect(lines()).toHaveLength(1);
-    act(() => vi.advanceTimersByTime(2999));
+    act(() => void vi.advanceTimersByTime(2999));
     expect(lines()).toHaveLength(1);
-    act(() => vi.advanceTimersByTime(1));
+    act(() => void vi.advanceTimersByTime(1));
     expect(lines()).toEqual([
       "Priya Shah: Launch is on Friday",
       "2 new messages, from Sam Rivera and Priya Shah",
     ]);
 
     // Once it has been quiet long enough, the next is read as it arrives.
-    act(() => vi.advanceTimersByTime(3000));
+    act(() => void vi.advanceTimersByTime(3000));
     act(() => announcer.hear(said("Sam Rivera", "On it")));
     expect(lines().at(-1)).toBe("Sam Rivera: On it");
     // Only the last few stay for anyone reading back.
@@ -102,7 +102,7 @@ describe("the new-message log", () => {
     });
     act(() => announcer.forget());
     expect(lines()).toEqual([]);
-    act(() => vi.advanceTimersByTime(5000));
+    act(() => void vi.advanceTimersByTime(5000));
     expect(lines()).toEqual([]);
   });
 });

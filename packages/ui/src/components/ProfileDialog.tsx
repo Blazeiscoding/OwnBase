@@ -374,7 +374,7 @@ export function ProfileForm() {
       statusEmoji.trim() !== (self.statusEmoji ?? "") ||
       statusText.trim() !== (self.statusText ?? ""));
   return (
-    <form onSubmit={save} aria-label="Your profile" className="space-y-4">
+    <form onSubmit={(e) => void save(e)} aria-label="Your profile" className="space-y-4">
       <UnsavedGuard dirty={dirty && !busy} what="profile changes" />
       <div className="flex items-center gap-3">
         <Avatar user={self ?? undefined} size={48} />
