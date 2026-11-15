@@ -386,6 +386,8 @@ export function CameraPreview({
   const told = useEffectEvent(() => onOpened());
   useEffect(() => {
     if (!on) return;
+    // The video is shown while on, so it is there when this runs.
+    const element = video.current;
     let alive = true;
     let stream: MediaStream | null = null;
     setState("starting");
@@ -398,7 +400,7 @@ export function CameraPreview({
           return;
         }
         stream = opened;
-        if (video.current) video.current.srcObject = opened;
+        if (element) element.srcObject = opened;
         setState("showing");
         told();
       })
@@ -411,7 +413,7 @@ export function CameraPreview({
     return () => {
       alive = false;
       stream?.getTracks().forEach((track) => track.stop());
-      if (video.current) video.current.srcObject = null;
+      if (element) element.srcObject = null;
     };
   }, [on, cameraId]);
 
