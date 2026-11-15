@@ -503,6 +503,19 @@ h3 {
   padding-block: clamp(56px, 7vw, 96px) var(--section);
 }
 
+/* The demo video, just under the hero. It loads only when played. */
+.demo {
+  padding-block: clamp(56px, 7vw, 96px) 0;
+}
+.stage video {
+  display: block;
+  width: 100%;
+  height: auto;
+  aspect-ratio: 16 / 9;
+  border-radius: 6px;
+  background: #0b0a20;
+}
+
 .features {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));

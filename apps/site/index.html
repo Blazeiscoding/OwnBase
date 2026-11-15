@@ -41,7 +41,7 @@
       scripts/generate-palette.mjs, so it keeps its name.
     -->
     <link rel="icon" href="ownbase.svg?v=2" type="image/svg+xml" />
-    <link rel="stylesheet" href="site.css?v=6" />
+    <link rel="stylesheet" href="site.css?v=7" />
     <script src="scene.js?v=3" defer></script>
     <script src="download.js?v=4" defer></script>
   </head>
@@ -83,7 +83,7 @@
         </p>
         <div class="actions">
           <a class="btn btn-host" href="#download" data-get>Download OwnBase</a>
-          <a class="btn btn-glass" href="#host">See how hosting works</a>
+          <a class="btn btn-glass" href="#demo">Watch the demo</a>
           <p class="get-note" data-get-note hidden></p>
         </div>
       </div>
@@ -117,6 +117,40 @@
     </header>
 
     <main id="main">
+      <section class="demo wrap" id="demo" aria-labelledby="demo-title">
+        <div class="section-head">
+          <h2 id="demo-title">See it work in 90 seconds</h2>
+          <p>
+            Recorded in the app: host a workspace on this computer, invite the team, chat, jump on a
+            huddle, and open it up to the internet.
+          </p>
+        </div>
+        <figure class="stage stage-wide">
+          <video
+            controls
+            playsinline
+            preload="none"
+            width="1920"
+            height="1080"
+            poster="shots/demo-poster.webp"
+            aria-describedby="demo-desc"
+          >
+            <source
+              src="https://dl.ownbase.site/media/ownbase-demo-1.mp4"
+              type="video/mp4"
+            />
+            <a href="https://dl.ownbase.site/media/ownbase-demo-1.mp4"
+              >Download the demo video</a
+            >
+          </video>
+          <figcaption id="demo-desc" class="sr-only">
+            Maya hosts Rocket Team on her PC and invites Sam and Priya with a link. They chat, react
+            and reply in a thread, then Sam shares his screen in a huddle. Last, the hosting panel
+            shows the addresses teammates use, the public link and backups. No narration.
+          </figcaption>
+        </figure>
+      </section>
+
       <section class="showcase wrap" aria-labelledby="showcase-title">
         <div class="section-head">
           <h2 id="showcase-title">All of team chat, on a machine you own</h2>
