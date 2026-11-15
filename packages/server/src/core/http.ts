@@ -103,7 +103,9 @@ export async function createHttp(opts: HttpOptions): Promise<Http> {
     await app.register(fastifyStatic, {
       root,
       preCompressed: true,
-      setHeaders: (reply, file) => reply.header("cache-control", webCacheControl(root, file)),
+      setHeaders: (reply, file) => {
+        reply.header("cache-control", webCacheControl(root, file));
+      },
     });
   }
   app.setNotFoundHandler((req, reply) => {

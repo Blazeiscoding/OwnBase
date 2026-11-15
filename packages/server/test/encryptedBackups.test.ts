@@ -9,7 +9,7 @@ import {
   rmSync,
   writeFileSync,
 } from "node:fs";
-import { createServer, type IncomingMessage, type Server } from "node:http";
+import { createServer, type IncomingMessage, type Server, type ServerResponse } from "node:http";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -317,7 +317,7 @@ async function fakeBucket(): Promise<FakeBucket> {
     for await (const chunk of req) chunks.push(chunk as Buffer);
     return Buffer.concat(chunks);
   };
-  const http: Server = createServer(async (req, res) => {
+  const handle = async (req: IncomingMessage, res: ServerResponse) => {
     const url = new URL(req.url!, "http://local");
     const body = await read(req);
     const key = url.pathname.split("/").slice(2).map(decodeURIComponent).join("/");
@@ -338,6 +338,10 @@ async function fakeBucket(): Promise<FakeBucket> {
     } else {
       res.writeHead(400).end();
     }
+  };
+  // A mistake in the fake shows as a failed request, not an unhandled rejection.
+  const http: Server = createServer((req, res) => {
+    handle(req, res).catch((error: unknown) => res.destroy(error as Error));
   });
   await new Promise<void>((resolve) => http.listen(0, "127.0.0.1", resolve));
   const { port } = http.address() as { port: number };

@@ -8,7 +8,6 @@ import tseslint from "typescript-eslint";
 // Turned on one package at a time (G11). Each package's pull request removes
 // its line here and fixes what the rules find.
 const notYetLinted = [
-  "packages/server/**",
   "packages/ui/**",
   "ee/**",
   "apps/**",
@@ -66,7 +65,13 @@ export default defineConfig(
         "error",
         { considerDefaultExhaustiveForUnions: true },
       ],
-      // Hooks live in .ts files too (useSomething.ts).
+    },
+  },
+  {
+    // Where React is. Elsewhere a function named `use` is not a hook. Hooks
+    // live in .ts files too (useSomething.ts).
+    files: ["packages/ui/**/*.{ts,tsx}", "apps/web/**/*.{ts,tsx}", "apps/desktop/**/*.{ts,tsx}"],
+    rules: {
       "react-hooks/rules-of-hooks": "error",
       "react-hooks/exhaustive-deps": "error",
     },

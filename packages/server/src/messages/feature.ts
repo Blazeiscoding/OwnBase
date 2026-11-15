@@ -378,6 +378,8 @@ export function registerMessages(ctx: ServerContext) {
         throw new HttpError(409, "poll_not_editable", "A poll's question cannot be changed.");
       case "call_not_editable":
         throw new HttpError(409, "call_not_editable", "A note about a call cannot be changed.");
+      case null:
+        break;
     }
     // Words already the new ones are a retry whose answer was lost, not a conflict.
     if (existing.text !== body.expectedText && existing.text !== body.text) {
