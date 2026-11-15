@@ -3,6 +3,7 @@ import {
   ZOOM_LIMITS,
   nextZoomLevel,
   savedZoomLevel,
+  wheelZoomStep,
   zoomStep,
   type KeyInput,
 } from "../src/main/zoomKeys.js";
@@ -15,6 +16,15 @@ const key = (key: string, code: string, mods: Partial<KeyInput> = {}): KeyInput 
   meta: false,
   alt: false,
   ...mods,
+});
+
+describe("Ctrl and the mouse wheel", () => {
+  it("zoom by the same steps as the keys, as Electron reports the wheel turned", () => {
+    expect(wheelZoomStep("in")).toBe("in");
+    expect(wheelZoomStep("out")).toBe("out");
+    expect(wheelZoomStep("sideways")).toBeNull();
+    expect(nextZoomLevel(0, wheelZoomStep("in")!)).toBe(nextZoomLevel(0, "in"));
+  });
 });
 
 describe("zoom keys", () => {

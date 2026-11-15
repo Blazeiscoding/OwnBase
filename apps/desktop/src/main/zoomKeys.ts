@@ -2,7 +2,8 @@
  * Zooming the window from the keyboard, as a browser does: Ctrl and = or +
  * (on the main keys or the number pad) to zoom in, Ctrl and - to zoom out, and
  * Ctrl and 0 back to the usual size; Cmd on a Mac. Electron's own menu only
- * zooms in for Ctrl+Shift+=, which is not what anyone presses.
+ * zooms in for Ctrl+Shift+=, which is not what anyone presses. Ctrl and the
+ * mouse wheel zoom by the same steps.
  */
 
 export type ZoomStep = "in" | "out" | "reset";
@@ -31,6 +32,14 @@ export function zoomStep(input: KeyInput, platform: NodeJS.Platform): ZoomStep |
   if (input.code === "NumpadSubtract" || input.key === "-" || input.key === "_") return "out";
   if (input.code === "Digit0" || input.code === "Numpad0") return "reset";
   return null;
+}
+
+/**
+ * The step for Ctrl and the mouse wheel (or a pinch), which Electron reports
+ * as webContents' zoom-changed with a direction and does not act on itself.
+ */
+export function wheelZoomStep(direction: string): ZoomStep | null {
+  return direction === "in" || direction === "out" ? direction : null;
 }
 
 export function nextZoomLevel(current: number, step: ZoomStep): number {

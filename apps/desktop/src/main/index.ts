@@ -85,7 +85,14 @@ import { backupTrayItems } from "./trayBackups.js";
 import { loginItemOptions, loginItemProblem, openedAtLogin } from "./loginItem.js";
 import { isWindowTheme, themeOfAppearance, windowColours } from "./windowTheme.js";
 import { MIN_WINDOW_SIZE, WINDOW_PLACE_KEY, placeToOpen, placeToSave } from "./windowPlace.js";
-import { ZOOM_KEY, nextZoomLevel, savedZoomLevel, zoomStep } from "./zoomKeys.js";
+import {
+  ZOOM_KEY,
+  nextZoomLevel,
+  savedZoomLevel,
+  wheelZoomStep,
+  zoomStep,
+  type ZoomStep,
+} from "./zoomKeys.js";
 import { SavedDownloads } from "./savedDownloads.js";
 import { contextMenuItems } from "./contextMenu.js";
 import { appMenuTemplate } from "./appMenu.js";
@@ -1062,15 +1069,22 @@ function createWindow(): void {
     event.preventDefault();
   });
 
-  // Ctrl and =, - or 0 zoom as in a browser (zoomKeys.ts), and the zoom is
-  // kept for the next launch.
+  // Ctrl and =, - or 0, or Ctrl and the mouse wheel, zoom as in a browser
+  // (zoomKeys.ts), and the zoom is kept for the next launch.
+  const zoom = (step: ZoomStep) => {
+    savedZoom = nextZoomLevel(win.webContents.getZoomLevel(), step);
+    win.webContents.setZoomLevel(savedZoom);
+    keepWindowSetting(ZOOM_KEY, savedZoom);
+  };
   win.webContents.on("before-input-event", (event, input) => {
     const step = zoomStep(input, process.platform);
     if (!step) return;
     event.preventDefault();
-    savedZoom = nextZoomLevel(win.webContents.getZoomLevel(), step);
-    win.webContents.setZoomLevel(savedZoom);
-    keepWindowSetting(ZOOM_KEY, savedZoom);
+    zoom(step);
+  });
+  win.webContents.on("zoom-changed", (_event, direction) => {
+    const step = wheelZoomStep(direction);
+    if (step) zoom(step);
   });
   win.webContents.on("did-finish-load", () => {
     if (!win.isDestroyed()) win.webContents.setZoomLevel(savedZoom);
