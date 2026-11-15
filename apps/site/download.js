@@ -1,10 +1,10 @@
 // Offers the download that fits the visitor's system: the installer on
 // Windows, the server on Linux, and on a Mac or a phone, what they can use
-// instead. The files come from the latest published GitHub release, and
-// from Cloudflare (dl.ownbase.site) when that release has been copied there,
-// which is several times faster than GitHub's servers in some places. Without
-// this script, or when GitHub cannot be reached, every button still goes to
-// GitHub; when nothing has been released yet, the page says so.
+// instead. The files come from Cloudflare (dl.ownbase.site), several times
+// faster than GitHub's servers in some places, and from the latest GitHub
+// release only when dl.ownbase.site cannot be read. Without this script every
+// button goes to GitHub's release page; when nothing has been released yet,
+// the page says so.
 
 (() => {
   const REPO = "Blazeiscoding/OwnBase";
@@ -30,8 +30,10 @@
     return "other";
   }
 
-  // GitHub's answer is kept a while, not for the whole visit: a release
-  // published while the page was open shows up on the next page after that.
+  // GitHub's answer is kept a while, since it allows each address 60 asks an
+  // hour, but not for the whole visit. Only GitHub's: dl.ownbase.site is asked
+  // on every page (the browser keeps latest.json for a minute), so the page
+  // goes back to it as soon as it answers again.
   const KEEP_MS = 10 * 60 * 1000;
   const remember = (value) => {
     try {
@@ -49,27 +51,75 @@
     }
   };
 
+  // Which file of a release each row offers, by the name GitHub gives it.
+  const PATTERNS = {
+    windows: /Setup.*\.exe$/i,
+    mac: /-universal\.dmg$/i,
+    server: /^ownbase-server-.*\.tar\.gz$/i,
+  };
+  const versionOf = (tag) => String(tag ?? "").replace(/^v/, "");
+
+  /** A fetch that gives up after a few seconds. */
+  async function ask(url, init) {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 5000);
+    try {
+      return await fetch(url, { ...init, signal: controller.signal });
+    } finally {
+      clearTimeout(timer);
+    }
+  }
+
+  /**
+   * The release on dl.ownbase.site, or null when it cannot be read. Each
+   * release from main is copied there before latest.json names it, so it can
+   * trail GitHub by the minute or two the copy takes, offering the release
+   * before, but never a file that is missing.
+   */
+  async function fromMirror() {
+    try {
+      const res = await ask(MIRROR);
+      if (!res.ok) return null;
+      const { tag, files } = await res.json();
+      if (typeof tag !== "string" || !files || typeof files !== "object") return null;
+      const pick = (pattern) => {
+        const name = Object.keys(files).find((n) => pattern.test(n));
+        const file = name ? files[name] : null;
+        return file && /^https:\/\/dl\.ownbase\.site\//.test(file.url) && file.size > 0
+          ? { url: file.url, size: file.size }
+          : null;
+      };
+      const release = { version: versionOf(tag) };
+      for (const [row, pattern] of Object.entries(PATTERNS)) release[row] = pick(pattern);
+      return release.windows || release.mac || release.server ? release : null;
+    } catch {
+      return null;
+    }
+  }
+
   /**
    * The newest published release's files, `{ none: true }` when there is no
-   * release, or null when GitHub did not answer. Releases from main, alphas
-   * included (v0.2.0-alpha.30), are normal releases, so the newest that is not
-   * a pre-release wins: a pre-release can only be a draft published by hand.
+   * release, or null when neither dl.ownbase.site nor GitHub answered.
+   */
+  async function latestRelease() {
+    const copied = await fromMirror();
+    if (copied) return copied;
+    const known = remembered();
+    if (known) return known;
+    return fromGitHub();
+  }
+
+  /**
+   * GitHub's newest release. Releases from main, alphas included
+   * (v0.2.0-alpha.30), are normal releases, so the newest that is not a
+   * pre-release wins: a pre-release can only be a draft published by hand.
    * Releases before mid-November 2026 were all pre-releases, which is why the
    * list is read, with the newest of anything as the fallback.
    */
-  async function latestRelease() {
-    const known = remembered();
-    if (known) return known;
-    const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), 5000);
-    // Asked alongside GitHub; without it, the files come from GitHub.
-    const mirror = fetch(MIRROR, { signal: controller.signal })
-      .then((res) => (res.ok ? res.json() : null))
-      .catch(() => null);
+  async function fromGitHub() {
     try {
-      const res = await fetch(`https://api.github.com/repos/${REPO}/releases?per_page=20`, {
+      const res = await ask(`https://api.github.com/repos/${REPO}/releases?per_page=20`, {
         headers: { Accept: "application/vnd.github+json" },
-        signal: controller.signal,
       });
       // Rate limited or down: the GitHub links stay.
       if (!res.ok) return null;
@@ -85,30 +135,16 @@
         remember({ none: true });
         return { none: true };
       }
-      // Only a copy of this same release, so the buttons never offer an older one.
-      const copied = await mirror;
-      const copies = copied && copied.tag === data.tag_name ? (copied.files ?? {}) : {};
       const pick = (pattern) => {
         const asset = (data.assets ?? []).find((a) => pattern.test(a.name));
-        if (!asset) return null;
-        const copy = copies[asset.name];
-        const fast =
-          copy && /^https:\/\/dl\.ownbase\.site\//.test(copy.url) && copy.size === asset.size;
-        return { url: fast ? copy.url : asset.browser_download_url, size: asset.size };
+        return asset ? { url: asset.browser_download_url, size: asset.size } : null;
       };
-      const release = {
-        version: String(data.tag_name ?? "").replace(/^v/, ""),
-        page: data.html_url,
-        windows: pick(/Setup.*\.exe$/i),
-        mac: pick(/-universal\.dmg$/i),
-        server: pick(/^ownbase-server-.*\.tar\.gz$/i),
-      };
+      const release = { version: versionOf(data.tag_name) };
+      for (const [row, pattern] of Object.entries(PATTERNS)) release[row] = pick(pattern);
       remember(release);
       return release;
     } catch {
       return null;
-    } finally {
-      clearTimeout(timer);
     }
   }
 
