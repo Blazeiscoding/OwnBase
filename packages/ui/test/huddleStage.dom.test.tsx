@@ -518,11 +518,11 @@ describe("the huddle bar", () => {
       expect(notice.closest("[aria-live]")).toHaveAttribute("aria-live", "polite");
       // Someone else joining while it stays that big says nothing new: the notice
       // goes when its own five seconds are up, not five seconds after the join.
-      act(() => vi.advanceTimersByTime(4000));
+      act(() => void vi.advanceTimersByTime(4000));
       act(() =>
         client.store.setState({ huddle: { ...huddle(), peers: [...huddle().peers, peer("U_X")] } }),
       );
-      act(() => vi.advanceTimersByTime(1500));
+      act(() => void vi.advanceTimersByTime(1500));
       expect(screen.queryByText(/can stutter/)).toBeNull();
     } finally {
       vi.useRealTimers();

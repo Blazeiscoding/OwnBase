@@ -313,7 +313,7 @@ describe("notification settings", () => {
   it("does not speak for a star that was not saved, which says so where it was chosen", async () => {
     const { client, dialog, user } = details();
     vi.spyOn(client.api, "setChannelPrefs").mockRejectedValueOnce(new Error("offline"));
-    client.setChannelPrefs("C_DESIGN", { starred: true });
+    void client.setChannelPrefs("C_DESIGN", { starred: true });
     await vi.waitFor(() =>
       expect(client.state.prefsWrites.C_DESIGN).toEqual({
         saving: false,

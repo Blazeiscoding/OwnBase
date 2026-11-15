@@ -467,23 +467,25 @@ export function Sidebar(props: {
       icon: "trash",
       destructive: true,
       section: true,
-      onSelect: async () => {
-        const count = sectioned.get(section.id)?.length ?? 0;
-        const sure = await confirm({
-          title: `Delete ${section.name}?`,
-          body:
-            count === 0
-              ? "This removes the section from your sidebar."
-              : `Its ${count === 1 ? "conversation goes" : `${count} conversations go`} back to Channels and Direct messages.`,
-          confirmLabel: "Delete section",
-          destructive: true,
-        });
-        if (!sure) return;
-        const error = await client.deleteSidebarSection(section.id);
-        if (error) toast({ message: failureText("Could not delete that section.", error) });
-      },
+      onSelect: () => void deleteSection(),
     });
     return { label: section.name, items };
+
+    async function deleteSection() {
+      const count = sectioned.get(section.id)?.length ?? 0;
+      const sure = await confirm({
+        title: `Delete ${section.name}?`,
+        body:
+          count === 0
+            ? "This removes the section from your sidebar."
+            : `Its ${count === 1 ? "conversation goes" : `${count} conversations go`} back to Channels and Direct messages.`,
+        confirmLabel: "Delete section",
+        destructive: true,
+      });
+      if (!sure) return;
+      const error = await client.deleteSidebarSection(section.id);
+      if (error) toast({ message: failureText("Could not delete that section.", error) });
+    }
   }
 
   function roomRow(ch: Channel) {

@@ -8,7 +8,6 @@ import tseslint from "typescript-eslint";
 // Turned on one package at a time (G11). Each package's pull request removes
 // its line here and fixes what the rules find.
 const notYetLinted = [
-  "packages/ui/**",
   "apps/web/**",
   "apps/server-cli/**",
   "apps/site/**",
@@ -81,6 +80,17 @@ export default defineConfig(
     files: ["**/*.tsx"],
     rules: {
       ...jsxA11y.flatConfigs.recommended.rules,
+    },
+  },
+  {
+    // packages/ui comes in three pull requests (G11): promises first, then
+    // the hook dependencies, then accessibility. Each removes its line here.
+    files: ["packages/ui/**"],
+    rules: {
+      "react-hooks/exhaustive-deps": "off",
+      ...Object.fromEntries(
+        Object.keys(jsxA11y.flatConfigs.recommended.rules).map((rule) => [rule, "off"]),
+      ),
     },
   },
 );

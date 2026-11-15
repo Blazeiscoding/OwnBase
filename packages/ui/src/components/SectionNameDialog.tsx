@@ -44,7 +44,7 @@ export function SectionNameDialog({
 
   return (
     <Dialog title={title} onClose={onClose} width={400}>
-      <form noValidate onSubmit={submit} className="space-y-4">
+      <form noValidate onSubmit={(e) => void submit(e)} className="space-y-4">
         <div>
           <label htmlFor={fieldId} className="mb-1.5 block text-[13px] font-medium text-ink-dim">
             Name

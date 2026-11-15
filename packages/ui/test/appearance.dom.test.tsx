@@ -216,7 +216,7 @@ describe("the copy the next page is first painted with", () => {
     expect(root().theme).toBe("light");
     expect(root().density).toBe("compact");
     expect(kept()).toEqual({ theme: "light", density: "compact" });
-    await read();
+    read();
     await waitFor(() => expect(root().theme).toBe("dark"));
     expect(kept()).toEqual({ theme: "dark", density: "comfortable" });
   });

@@ -276,7 +276,7 @@ export function ChannelDetailsDialog(props: {
           <NotificationSettings channelId={props.channelId} />
         ) : tab === "about" ? (
           room ? (
-            <form onSubmit={saveAbout} noValidate className="space-y-3">
+            <form onSubmit={(e) => void saveAbout(e)} noValidate className="space-y-3">
               <TextField
                 ref={nameField}
                 label="Channel name"
@@ -727,8 +727,9 @@ function NotificationSettings({ channelId }: { channelId: ID }) {
               type="radio"
               name="notify-level"
               checked={isChosen(level.value)}
+              // A refused choice shows beside the channel with a retry (prefsWrites).
               onChange={() =>
-                client.setChannelPrefs(
+                void client.setChannelPrefs(
                   channelId,
                   level.value === "default"
                     ? { notifyChosen: false }

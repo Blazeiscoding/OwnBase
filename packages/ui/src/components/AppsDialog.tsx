@@ -258,6 +258,41 @@ export function AppsDialog({ onClose }: { onClose: () => void }) {
       },
     );
 
+  async function removeApp(a: AppDetail) {
+    const go = await confirm({
+      title: `Delete ${a.name}?`,
+      body: "Its tokens and webhooks stop working.",
+      confirmLabel: "Delete",
+      destructive: true,
+    });
+    if (!go) return;
+    setBusy(true);
+    setRotateError(null);
+    if (await client.apps.remove(a.id))
+      setRotateError(
+        "Could not confirm whether the app was deleted. OwnBase is loading the list again. Check it before you try again.",
+      );
+    load();
+    setBusy(false);
+  }
+
+  async function removeWebhook(webhookId: ID, room: string) {
+    const go = await confirm({
+      title: `Remove the webhook for #${room}?`,
+      body: "Anything posting to its address stops reaching the channel at once.",
+      confirmLabel: "Remove",
+      destructive: true,
+    });
+    if (!go) return;
+    const failed = await client.apps.removeWebhook(webhookId);
+    if (failed)
+      toast({
+        message: failureText(`Could not remove the webhook for #${room}.`, failed, "Try again."),
+        kind: "error",
+      });
+    else load();
+  }
+
   /** Returns the webhook's URL, which the server shows only this once. */
   async function addWebhook(appId: ID, channelId: ID): Promise<string | ApiError> {
     const r = await client.apps.createWebhook(appId, channelId);
@@ -289,7 +324,7 @@ export function AppsDialog({ onClose }: { onClose: () => void }) {
       <SlackDifferences />
 
       <h3 className="mb-2 mt-6 text-[13px] font-medium text-ink-dim">Your apps</h3>
-      <form onSubmit={create} noValidate className="mb-2 flex gap-2">
+      <form onSubmit={(e) => void create(e)} noValidate className="mb-2 flex gap-2">
         <input
           ref={nameInput}
           aria-label="App name"
@@ -359,23 +394,7 @@ export function AppsDialog({ onClose }: { onClose: () => void }) {
               </button>
               <button
                 disabled={busy}
-                onClick={async () => {
-                  const go = await confirm({
-                    title: `Delete ${a.name}?`,
-                    body: "Its tokens and webhooks stop working.",
-                    confirmLabel: "Delete",
-                    destructive: true,
-                  });
-                  if (!go) return;
-                  setBusy(true);
-                  setRotateError(null);
-                  if (await client.apps.remove(a.id))
-                    setRotateError(
-                      "Could not confirm whether the app was deleted. OwnBase is loading the list again. Check it before you try again.",
-                    );
-                  load();
-                  setBusy(false);
-                }}
+                onClick={() => void removeApp(a)}
                 className="rounded px-2 py-1 text-[11px] text-ink-faint transition-colors hover:text-alert disabled:opacity-40"
               >
                 Delete
@@ -404,27 +423,9 @@ export function AppsDialog({ onClose }: { onClose: () => void }) {
                       New URL
                     </button>
                     <button
-                      onClick={async () => {
-                        const room = channels[w.channelId]?.name ?? "unknown";
-                        const go = await confirm({
-                          title: `Remove the webhook for #${room}?`,
-                          body: "Anything posting to its address stops reaching the channel at once.",
-                          confirmLabel: "Remove",
-                          destructive: true,
-                        });
-                        if (!go) return;
-                        const failed = await client.apps.removeWebhook(w.id);
-                        if (failed)
-                          toast({
-                            message: failureText(
-                              `Could not remove the webhook for #${room}.`,
-                              failed,
-                              "Try again.",
-                            ),
-                            kind: "error",
-                          });
-                        else load();
-                      }}
+                      onClick={() =>
+                        void removeWebhook(w.id, channels[w.channelId]?.name ?? "unknown")
+                      }
                       className="text-ink-faint hover:text-alert"
                     >
                       Remove
@@ -705,7 +706,7 @@ function WebhookTemplate({
           ? "Tell a channel how each build went. Add the step below to the end of a GitHub Actions job."
           : "A webhook is a private web address. Anything that sends a request to it posts a message in the channel, such as a script, a scheduled job or another tool."}
       </p>
-      <form onSubmit={create} noValidate className="flex flex-wrap items-end gap-2">
+      <form onSubmit={(e) => void create(e)} noValidate className="flex flex-wrap items-end gap-2">
         {choice.channelField("Channel")}
         {choice.postAs}
         {!url && (
@@ -864,7 +865,7 @@ function CommandTemplate({
         example service below on a computer the workspace can reach. Then add the command with the
         service&rsquo;s web address.
       </p>
-      <form onSubmit={add} noValidate className="flex flex-wrap items-end gap-2">
+      <form onSubmit={(e) => void add(e)} noValidate className="flex flex-wrap items-end gap-2">
         <TextField
           size="small"
           label="Command"
@@ -1099,6 +1100,16 @@ function CommandList({ app, onChanged }: { app: AppDetail; onChanged: () => void
     onChanged();
   }
 
+  async function remove(c: AppDetail["commands"][number]) {
+    setError(null);
+    const failed = await client.apps.removeCommand(c.id);
+    if (failed) {
+      setError(failureText(`Could not remove /${c.command}.`, failed));
+      return;
+    }
+    onChanged();
+  }
+
   return (
     <>
       <ul className="space-y-1">
@@ -1108,25 +1119,18 @@ function CommandList({ app, onChanged }: { app: AppDetail; onChanged: () => void
             <span className="min-w-0 flex-1 truncate font-mono text-[11px] text-ink-faint">
               {c.url}
             </span>
-            <button
-              onClick={async () => {
-                setError(null);
-                const failed = await client.apps.removeCommand(c.id);
-                if (failed) {
-                  setError(failureText(`Could not remove /${c.command}.`, failed));
-                  return;
-                }
-                onChanged();
-              }}
-              className="text-ink-faint hover:text-alert"
-            >
+            <button onClick={() => void remove(c)} className="text-ink-faint hover:text-alert">
               Remove
             </button>
           </li>
         ))}
       </ul>
       {/* Never off until filled in: sent empty, it says what is missing. */}
-      <form onSubmit={add} noValidate className="mt-1.5 flex flex-wrap items-start gap-2">
+      <form
+        onSubmit={(e) => void add(e)}
+        noValidate
+        className="mt-1.5 flex flex-wrap items-start gap-2"
+      >
         <TextField
           ref={commandField}
           size="small"
@@ -1392,6 +1396,22 @@ function SubscriptionList({ app, onChanged }: { app: AppDetail; onChanged: () =>
     }
   }
 
+  async function retry(subscriptionId: ID) {
+    setRetrying(subscriptionId);
+    setError(null);
+    if (await client.apps.retrySubscription(subscriptionId))
+      setError("Could not retry those deliveries.");
+    else onChanged();
+    setRetrying(null);
+  }
+
+  async function remove(subscriptionId: ID) {
+    setError(null);
+    const failed = await client.apps.removeSubscription(subscriptionId);
+    if (failed) setError(failureText("Could not remove the subscription.", failed));
+    else onChanged();
+  }
+
   return (
     <>
       <ul className="space-y-1">
@@ -1407,26 +1427,14 @@ function SubscriptionList({ app, onChanged }: { app: AppDetail; onChanged: () =>
               {(sub.delivery?.failed ?? 0) > 0 && (
                 <button
                   disabled={retrying === sub.id}
-                  onClick={async () => {
-                    setRetrying(sub.id);
-                    setError(null);
-                    if (await client.apps.retrySubscription(sub.id))
-                      setError("Could not retry those deliveries.");
-                    else onChanged();
-                    setRetrying(null);
-                  }}
+                  onClick={() => void retry(sub.id)}
                   className="text-copper hover:underline disabled:opacity-40"
                 >
                   {retrying === sub.id ? "Retrying…" : "Retry failed"}
                 </button>
               )}
               <button
-                onClick={async () => {
-                  setError(null);
-                  const failed = await client.apps.removeSubscription(sub.id);
-                  if (failed) setError(failureText("Could not remove the subscription.", failed));
-                  else onChanged();
-                }}
+                onClick={() => void remove(sub.id)}
                 className="text-ink-faint hover:text-alert"
               >
                 Remove
@@ -1455,7 +1463,7 @@ function SubscriptionList({ app, onChanged }: { app: AppDetail; onChanged: () =>
           </li>
         ))}
       </ul>
-      <form onSubmit={add} noValidate className="mt-1.5">
+      <form onSubmit={(e) => void add(e)} noValidate className="mt-1.5">
         <div className="flex items-start gap-2">
           <TextField
             ref={urlField}
@@ -1549,7 +1557,7 @@ function InteractivityUrl({ app, onChanged }: { app: AppDetail; onChanged: () =>
   }
 
   return (
-    <form onSubmit={save} noValidate>
+    <form onSubmit={(e) => void save(e)} noValidate>
       <div className="flex items-start gap-2">
         <TextField
           ref={field}

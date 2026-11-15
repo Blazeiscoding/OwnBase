@@ -317,8 +317,8 @@ export function JoinScreen({
               hostingStatusLoading={hostingStatusLoading}
               lastHosted={lastHosted ?? null}
               platform={platform}
-              onSelect={probe}
-              onOpenSaved={openSaved}
+              onSelect={(input) => void probe(input)}
+              onOpenSaved={(saved) => void openSaved(saved)}
               onForget={onForget}
               onHostClick={onHostClick}
             />
@@ -462,6 +462,17 @@ function BrowseCard(props: {
       ? props.selfServed
       : null;
 
+  // Forgetting drops the saved sign-in: coming back needs the password.
+  async function forget(saved: SavedServer) {
+    const sure = await confirm({
+      title: `Forget ${saved.workspaceName}?`,
+      body: `This device stops keeping you signed in as @${saved.handle}. To come back you need its address and your password. Nothing in the workspace changes.`,
+      confirmLabel: "Forget",
+      destructive: true,
+    });
+    if (sure) props.onForget(saved.url);
+  }
+
   return (
     <div className="space-y-6">
       {props.error && (
@@ -519,16 +530,7 @@ function BrowseCard(props: {
                 meta={`@${s.handle}`}
                 busy={props.probing === s.url}
                 onClick={() => props.onOpenSaved(s)}
-                onForget={async () => {
-                  // Forgetting drops the saved sign-in: coming back needs the password.
-                  const sure = await confirm({
-                    title: `Forget ${s.workspaceName}?`,
-                    body: `This device stops keeping you signed in as @${s.handle}. To come back you need its address and your password. Nothing in the workspace changes.`,
-                    confirmLabel: "Forget",
-                    destructive: true,
-                  });
-                  if (sure) props.onForget(s.url);
-                }}
+                onForget={() => void forget(s)}
               />
             ))}
           </ul>
@@ -1165,7 +1167,7 @@ function AuthCard(props: {
             Someone else set that password for you. Choose your own to finish signing in. The
             workspace stays closed until you do.
           </p>
-          <form onSubmit={replacePassword} className={`space-y-4 ${shake}`}>
+          <form onSubmit={(e) => void replacePassword(e)} className={`space-y-4 ${shake}`}>
             <div>
               <label className={labelCls} htmlFor={`${id}-new-password`}>
                 New password
@@ -1236,7 +1238,7 @@ function AuthCard(props: {
               ? "Enter one of the recovery codes you saved when you set up two-step sign-in."
               : "This account has two-step sign-in. Enter the 6-digit code your authenticator app shows."}
           </p>
-          <form onSubmit={verify} noValidate className={`space-y-4 ${shake}`}>
+          <form onSubmit={(e) => void verify(e)} noValidate className={`space-y-4 ${shake}`}>
             <div>
               <label className={labelCls} htmlFor={`${id}-answer`}>
                 {useRecovery ? "Recovery code" : "Code"}
@@ -1366,7 +1368,7 @@ function AuthCard(props: {
 
           <div {...(hasUsers ? tabs.panelProps : {})}>
             {mode === "guest" ? (
-              <form onSubmit={submit} noValidate className={`space-y-4 ${shake}`}>
+              <form onSubmit={(e) => void submit(e)} noValidate className={`space-y-4 ${shake}`}>
                 <div>
                   <label className={labelCls} htmlFor={`${id}-guest-name`}>
                     Display name
@@ -1396,7 +1398,7 @@ function AuthCard(props: {
                 </button>
               </form>
             ) : (
-              <form onSubmit={submit} noValidate className={`space-y-4 ${shake}`}>
+              <form onSubmit={(e) => void submit(e)} noValidate className={`space-y-4 ${shake}`}>
                 <div>
                   <label className={labelCls} htmlFor={`${id}-handle`}>
                     Username
@@ -1581,6 +1583,8 @@ function errorMessage(err: unknown, mode: Mode, sent: { inviteCode?: boolean } =
             : "Check the username and password.";
       case "too_many_requests":
         return "Too many tries for now. Wait a minute, then try again.";
+      default:
+        break;
     }
     // The server answered, so it was reached: say what it said where it said something.
     if (err.message && err.message !== err.code) return err.message;

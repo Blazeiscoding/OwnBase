@@ -62,9 +62,9 @@ describe("shared notices", () => {
     fireEvent.click(screen.getByRole("button", { name: "Saved" }));
     expect(screen.getByText("Saved for later.")).toBeVisible();
 
-    act(() => vi.advanceTimersByTime(4999));
+    act(() => void vi.advanceTimersByTime(4999));
     expect(screen.getByText("Saved for later.")).toBeVisible();
-    act(() => vi.advanceTimersByTime(1));
+    act(() => void vi.advanceTimersByTime(1));
     expect(screen.queryByText("Saved for later.")).not.toBeInTheDocument();
   });
 
@@ -76,7 +76,7 @@ describe("shared notices", () => {
       </ToastProvider>,
     );
     fireEvent.click(screen.getByRole("button", { name: "Do it" }));
-    act(() => vi.advanceTimersByTime(60_000));
+    act(() => void vi.advanceTimersByTime(60_000));
     expect(screen.getByText("Could not pin that message.")).toBeVisible();
   });
 
@@ -88,19 +88,19 @@ describe("shared notices", () => {
       </ToastProvider>,
     );
     fireEvent.click(screen.getByRole("button", { name: "Do it" }));
-    act(() => vi.advanceTimersByTime(3000));
+    act(() => void vi.advanceTimersByTime(3000));
 
     const notice = noticeFor("Saved for later.");
     fireEvent.pointerEnter(notice);
-    act(() => vi.advanceTimersByTime(60_000));
+    act(() => void vi.advanceTimersByTime(60_000));
     expect(screen.getByText("Saved for later.")).toBeVisible();
 
     // Reading it does not extend it indefinitely: leaving picks the countdown
     // up where it stopped rather than starting a fresh one.
     fireEvent.pointerLeave(notice);
-    act(() => vi.advanceTimersByTime(1999));
+    act(() => void vi.advanceTimersByTime(1999));
     expect(screen.getByText("Saved for later.")).toBeVisible();
-    act(() => vi.advanceTimersByTime(1));
+    act(() => void vi.advanceTimersByTime(1));
     expect(screen.queryByText("Saved for later.")).not.toBeInTheDocument();
   });
 
@@ -116,11 +116,11 @@ describe("shared notices", () => {
     fireEvent.pointerEnter(notice);
     act(() => within(notice).getByRole("button", { name: "Dismiss" }).focus());
     fireEvent.pointerLeave(notice);
-    act(() => vi.advanceTimersByTime(60_000));
+    act(() => void vi.advanceTimersByTime(60_000));
     expect(screen.getByText("Saved for later.")).toBeVisible();
 
     act(() => screen.getByRole("button", { name: "Do it" }).focus());
-    act(() => vi.advanceTimersByTime(5000));
+    act(() => void vi.advanceTimersByTime(5000));
     expect(screen.queryByText("Saved for later.")).not.toBeInTheDocument();
   });
 
@@ -134,15 +134,15 @@ describe("shared notices", () => {
     fireEvent.click(screen.getByRole("button", { name: "Raise" }));
     const first = noticeFor("Problem 1.");
     fireEvent.pointerEnter(first);
-    act(() => vi.advanceTimersByTime(60_000));
+    act(() => void vi.advanceTimersByTime(60_000));
     expect(screen.getByText("Problem 2.")).toBeVisible();
 
     // A removed element gets no pointerleave. Were the hold not its own, the
     // other notice would never count down again.
     fireEvent.click(within(first).getByRole("button", { name: "Dismiss" }));
-    act(() => vi.advanceTimersByTime(4999));
+    act(() => void vi.advanceTimersByTime(4999));
     expect(screen.getByText("Problem 2.")).toBeVisible();
-    act(() => vi.advanceTimersByTime(1));
+    act(() => void vi.advanceTimersByTime(1));
     expect(screen.queryByText("Problem 2.")).not.toBeInTheDocument();
   });
 

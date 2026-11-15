@@ -61,7 +61,7 @@ export function HuddleButton({ channelId }: { channelId: ID }) {
   return (
     <Tooltip label={label}>
       <button
-        onClick={join}
+        onClick={() => void join()}
         disabled={huddle.starting}
         aria-label={label}
         className={`mr-1 flex h-8 items-center gap-1.5 rounded-full border px-3 text-[13px] font-medium transition-colors ${

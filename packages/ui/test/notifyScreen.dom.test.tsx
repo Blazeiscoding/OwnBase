@@ -140,7 +140,7 @@ describe("notifying about a message in the conversation on screen", () => {
     async function behind(view: { channelId: string; threadRootId?: string }, at = Date.now()) {
       const opened = await lookingAtGeneral();
       vi.mocked(document.hasFocus).mockReturnValue(false);
-      act(() => window.dispatchEvent(new Event("blur")));
+      act(() => void window.dispatchEvent(new Event("blur")));
       writeFocusedView(
         {
           account,
@@ -185,7 +185,7 @@ describe("notifying about a message in the conversation on screen", () => {
       const record = () => JSON.parse(localStorage.getItem(FOCUSED_VIEW_KEY) ?? "null");
       expect(record()).toMatchObject({ account, channelId: general.id, channelVisible: true });
       vi.mocked(document.hasFocus).mockReturnValue(false);
-      act(() => window.dispatchEvent(new Event("blur")));
+      act(() => void window.dispatchEvent(new Event("blur")));
       expect(record()).toBeNull();
     });
   });
@@ -239,7 +239,7 @@ describe("notifying about a message in the conversation on screen", () => {
       for (let n = 0; n < count; n++) screen.replay(missed(n));
       return screen;
     }
-    const settle = () => act(() => vi.advanceTimersByTime(1_000));
+    const settle = () => act(() => void vi.advanceTimersByTime(1_000));
 
     it("tells about a hundred missed messages once, when the replay is over", async () => {
       const { notify } = await caughtUp(100);

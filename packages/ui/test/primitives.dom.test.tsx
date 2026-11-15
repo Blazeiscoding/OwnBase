@@ -36,10 +36,10 @@ describe("an icon button", () => {
 
     fireEvent.pointerEnter(button, { pointerType: "mouse" });
     expect(screen.queryByRole("tooltip")).not.toBeInTheDocument();
-    act(() => vi.advanceTimersByTime(400));
+    act(() => void vi.advanceTimersByTime(400));
     expect(screen.getByRole("tooltip")).toHaveTextContent("Channel settings");
     fireEvent.pointerLeave(button, { pointerType: "mouse" });
-    act(() => vi.advanceTimersByTime(120));
+    act(() => void vi.advanceTimersByTime(120));
     expect(screen.queryByRole("tooltip")).not.toBeInTheDocument();
   });
 

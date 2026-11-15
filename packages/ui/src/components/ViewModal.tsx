@@ -363,7 +363,7 @@ function AppForm(props: {
     <Dialog title={view.title} onClose={closeAll} width={520} ownScroll>
       {/* An app decides how many fields there are; the buttons stay in sight
           under however many that is. */}
-      <form onSubmit={submit} className="flex min-h-0 flex-col">
+      <form onSubmit={(e) => void submit(e)} className="flex min-h-0 flex-col">
         <DialogScroll>
           <div className="space-y-3.5">
             {layout.map((block, index) => {

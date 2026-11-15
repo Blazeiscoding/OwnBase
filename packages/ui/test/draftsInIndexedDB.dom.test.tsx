@@ -105,8 +105,8 @@ describe("unsent work kept in IndexedDB (F01)", () => {
 
     // Two sends, the second asked for while the first's write is still out,
     // and both still out when the page closes.
-    act(() => client.send(design.id, "sent just before"));
-    act(() => client.send(design.id, "sent as the tab closed"));
+    act(() => void client.send(design.id, "sent just before"));
+    act(() => void client.send(design.id, "sent as the tab closed"));
     act(() => client.setDraft(launch.id, "typed as the tab closed"));
     let left: (readonly [string, string])[] = [];
     act(() => {
