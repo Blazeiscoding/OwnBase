@@ -64,7 +64,8 @@ describe("a connected client when retention removes old conversation", () => {
       alsoSendToChannel: true,
     });
     await client.loadThread(old.id, channelId);
-    client.setThreadFollow(old.id, true);
+    // Resolves with a refusal rather than rejecting; what shows meanwhile is checked.
+    void client.setThreadFollow(old.id, true);
     await client.toggleSaved(old.id, true);
     await expect.poll(() => client.state.mentionCounts[channelId]).toBe(1);
     await expect.poll(() => client.state.threadFollows[old.id]?.following).toBe(true);
