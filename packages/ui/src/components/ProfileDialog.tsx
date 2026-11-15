@@ -86,9 +86,7 @@ export function ProfileDialog(props: {
     if (press.current !== mine) return;
     setOpening(false);
     if (channel instanceof ApiError)
-      setDmError(
-        `Could not open a conversation with ${name}. Check your connection and try again.`,
-      );
+      setDmError(failureText(`Could not open a conversation with ${name}.`, channel, "Try again."));
     else props.onOpenDm(channel.id);
   }
 
@@ -361,7 +359,7 @@ export function ProfileForm() {
           ? "Your profile was not saved. A display name can be up to 80 characters and a status up to 120."
           : failure.code === "unauthorized"
             ? "You were signed out. Sign in again to change your profile."
-            : "Your profile was not saved. Check your connection and try again.",
+            : failureText("Your profile was not saved.", failure, "Try again."),
       );
       return;
     }

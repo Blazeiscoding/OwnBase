@@ -5,6 +5,7 @@ import { useClient, useWorkspace } from "../context.js";
 import { channelTitle } from "../lib/format.js";
 import { formatScheduleTime, localDateTime } from "../lib/schedule.js";
 import { Mrkdwn } from "./Mrkdwn.js";
+import { TimeField } from "./TimeField.js";
 import { Icon } from "./Icon.js";
 import { ListStatus } from "./ListStatus.js";
 import { PanelLink } from "./MessageListPanel.js";
@@ -400,18 +401,27 @@ export function ScheduledPanel(props: {
                       void change(s.id, time);
                     }}
                   >
-                    <label className="block text-xs text-ink-faint">
-                      New date and time
-                      <input
-                        type="datetime-local"
-                        required
-                        disabled={busy !== null}
-                        value={when}
-                        min={localDateTime(new Date())}
-                        onChange={(e) => setWhen(e.target.value)}
-                        className="mt-1 w-full min-w-0 rounded border border-edge bg-ground px-2 py-1 text-sm text-ink"
-                      />
-                    </label>
+                    <fieldset className="min-w-0">
+                      <legend className="text-xs text-ink-faint">New date and time</legend>
+                      <div className="mt-1 flex gap-2">
+                        <input
+                          type="date"
+                          aria-label="Date"
+                          required
+                          disabled={busy !== null}
+                          value={when.slice(0, 10)}
+                          min={localDateTime(new Date()).slice(0, 10)}
+                          onChange={(e) => setWhen(`${e.target.value}T${when.slice(11)}`)}
+                          className="w-full min-w-0 flex-1 rounded border border-edge bg-ground px-2 py-1 text-sm text-ink"
+                        />
+                        <TimeField
+                          label="Time"
+                          defaultValue={when.slice(11)}
+                          disabled={busy !== null}
+                          onChange={(time) => setWhen(`${when.slice(0, 10)}T${time}`)}
+                        />
+                      </div>
+                    </fieldset>
                     <p className="text-[11px] text-ink-faint">Uses your device's time zone.</p>
                     <div className="flex gap-3 text-xs">
                       <button disabled={busy !== null} className="text-copper" type="submit">

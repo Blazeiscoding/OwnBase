@@ -5,6 +5,7 @@ import type { Channel, ScheduledMessage, User } from "@ownbase/protocol";
 import { describe, expect, it, vi } from "vitest";
 import { ScheduledPanel } from "../src/components/ScheduledPanel.js";
 import { ClientContext } from "../src/context.js";
+import { chooseTime } from "./chooseTime.js";
 import { accessibilityProblems } from "./accessibility.js";
 
 /**
@@ -202,8 +203,8 @@ describe("the Scheduled panel", () => {
     }));
     await within(panel).findByText("Standup notes");
     await user.click(within(panel).getByRole("button", { name: "Change time" }));
-    const field = within(panel).getByLabelText("New date and time");
-    fireEvent.change(field, { target: { value: "2001-01-01T09:00" } });
+    const named = { name: "New date and time", inside: panel };
+    const field = await chooseTime("2001-01-01", "09:00", named);
     // The field's minimum stops a browser submitting this; the panel checks
     // again for one that does not validate, or a time that passed meanwhile.
     fireEvent.submit(field.closest("form")!);
@@ -212,7 +213,7 @@ describe("the Scheduled panel", () => {
     );
     expect(api.reschedule).not.toHaveBeenCalled();
 
-    fireEvent.change(field, { target: { value: "2099-01-05T09:00" } });
+    await chooseTime("2099-01-05", "09:00", named);
     await user.click(within(panel).getByRole("button", { name: "Save time" }));
     expect(api.reschedule).toHaveBeenCalledWith("S1", new Date("2099-01-05T09:00").getTime());
   });

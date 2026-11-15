@@ -6,8 +6,11 @@ import { useFileResource } from "./Attachments.js";
 import { Icon } from "./Icon.js";
 import { Modal } from "./Modal.js";
 
+// The backdrop is black in every theme, so what sits on it has the theme's
+// own solid surface: White's dark text on the backdrop could not be read.
 const STEP =
-  "grid size-10 shrink-0 place-items-center rounded-full border border-edge bg-black/40 text-ink-dim transition-colors hover:border-ink-faint/50 hover:text-ink";
+  "grid size-10 shrink-0 place-items-center rounded-full border border-edge bg-raised text-ink-dim transition-colors hover:border-ink-faint/50 hover:text-ink";
+const NOTE = "rounded-lg bg-raised px-4 py-3 text-center text-ink";
 
 /**
  * Full-size image viewer. Esc or a click outside closes it. Opened from a
@@ -66,7 +69,7 @@ export function LightboxView({
         )}
         <div className="flex min-w-0 flex-col items-center">
           {error && (
-            <div role="alert" className="text-center text-ink">
+            <div role="alert" className={NOTE}>
               <p>{error}</p>
               <button
                 onClick={retry}
@@ -77,12 +80,12 @@ export function LightboxView({
             </div>
           )}
           {!url && !error && (
-            <p role="status" className="text-ink">
+            <p role="status" className={NOTE}>
               Loading image…
             </p>
           )}
           {decodeFailed && (
-            <p role="status" className="text-ink">
+            <p role="status" className={NOTE}>
               This image cannot be previewed. You can still save the original file.
             </p>
           )}
@@ -102,7 +105,7 @@ export function LightboxView({
           </button>
         )}
       </div>
-      <div className="flex items-center gap-3 text-sm text-ink-dim">
+      <div className="flex max-w-full items-center gap-3 rounded-xl border border-edge bg-raised py-1.5 pl-3.5 pr-1.5 text-sm text-ink-dim shadow-lg">
         {several && (
           <span className="shrink-0 tabular-nums text-ink-faint">
             {at + 1} of {pictures.length}

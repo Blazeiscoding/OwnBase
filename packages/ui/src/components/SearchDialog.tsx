@@ -38,6 +38,7 @@ import { Menu, type MenuItem } from "./Menu.js";
 import { Popover } from "./Popover.js";
 import { Tooltip } from "./Tooltip.js";
 import { iconFor } from "./Attachments.js";
+import { failureText } from "../lib/failure.js";
 import { When } from "./When.js";
 
 /** How long typing pauses before what is typed is searched. */
@@ -330,7 +331,7 @@ export function SearchDialog(props: {
           setSearchError(
             found.code === "invalid_search_date"
               ? found.message
-              : "Could not search this workspace. Check your connection and try again.",
+              : failureText("Could not search this workspace.", found, "Try again."),
           );
         // A paged list keeps what it showed and offers Retry when a page fails.
         throw found;

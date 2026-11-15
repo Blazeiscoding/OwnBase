@@ -136,7 +136,7 @@ export function AppsDialog({ onClose }: { onClose: () => void }) {
         if (!alive.current || version !== loadVersion.current) return;
         if (listed instanceof ApiError) {
           // Keep the last good rows. A failed first load is not an empty list.
-          setLoadError("Could not load apps. Check your connection and try again.");
+          setLoadError(failureText("Could not load apps.", listed, "Try again."));
         } else {
           setApps(listed);
           setLoadError(null);
@@ -201,7 +201,7 @@ export function AppsDialog({ onClose }: { onClose: () => void }) {
     const made = await makeApp(name.trim(), scopes);
     setBusy(false);
     if (made instanceof ApiError) {
-      setCreateError("Could not create the app. Check your connection and try again.");
+      setCreateError(failureText("Could not create the app.", made, "Try again."));
       return;
     }
     setName("");
@@ -413,9 +413,14 @@ export function AppsDialog({ onClose }: { onClose: () => void }) {
                           destructive: true,
                         });
                         if (!go) return;
-                        if (await client.apps.removeWebhook(w.id))
+                        const failed = await client.apps.removeWebhook(w.id);
+                        if (failed)
                           toast({
-                            message: `Could not remove the webhook for #${room}. Check your connection and try again.`,
+                            message: failureText(
+                              `Could not remove the webhook for #${room}.`,
+                              failed,
+                              "Try again.",
+                            ),
                             kind: "error",
                           });
                         else load();
@@ -675,9 +680,10 @@ function WebhookTemplate({
     const target = await choice.ensureApp();
     const madeUrl = target instanceof ApiError ? target : await makeWebhook(target.id, channel.id);
     setBusy(false);
-    if (target instanceof ApiError || madeUrl instanceof ApiError)
-      setError("Could not create the webhook. Check your connection and try again.");
-    else setMade({ appId: target.id, channelId: channel.id, url: madeUrl });
+    if (madeUrl instanceof ApiError)
+      setError(failureText("Could not create the webhook.", madeUrl, "Try again."));
+    else if (!(target instanceof ApiError))
+      setMade({ appId: target.id, channelId: channel.id, url: madeUrl });
   }
 
   async function send() {
@@ -1265,10 +1271,11 @@ function AppScopes({ app, onChanged }: { app: AppDetail; onChanged: () => void }
     setShown(next);
     setError(null);
     const attempt = ++saving.current;
-    if (!(await client.apps.setScopes(app.id, next))) onChanged();
+    const failed = await client.apps.setScopes(app.id, next);
+    if (!failed) onChanged();
     else if (attempt === saving.current) {
       setShown(before);
-      setError("Could not change what it may do. Check your connection and try again.");
+      setError(failureText("Could not change what it may do.", failed, "Try again."));
     }
   }
 
@@ -1355,7 +1362,7 @@ function SubscriptionList({ app, onChanged }: { app: AppDetail; onChanged: () =>
       app.id,
       APP_SCOPES.filter((scope) => app.scopes.includes(scope) || missing.includes(scope)),
     );
-    if (failed) setError("Could not allow those. Check your connection and try again.");
+    if (failed) setError(failureText("Could not allow those.", failed, "Try again."));
     else onChanged();
   }
 

@@ -4,6 +4,7 @@ import { timelineMessages, type EphemeralMessage, type PendingMessage } from "@o
 import { useClient, useWorkspace } from "../context.js";
 import { formatDay, sameDay } from "../lib/format.js";
 import { MessageItem } from "./MessageItem.js";
+import { DeletedEditNote, placeDeletedEdits, useDeletedEdits } from "./DeletedEdit.js";
 import { ReplyQuote } from "./ReplyQuote.js";
 import { ForwardCard } from "./ForwardCard.js";
 import { PendingPoll } from "./PollCard.js";
@@ -165,6 +166,7 @@ export const MessageTimeline = memo(function MessageTimeline({
   }, [client, channelId, highlightMessageId]);
 
   const items = useWorkspace((s) => timelineMessages(s, channelId));
+  const deletedEdits = placeDeletedEdits(useDeletedEdits(channelId, items), items);
   // Where the New line goes is known only with something already read loaded
   // above it, or nothing older at all: otherwise the first unread may be
   // further up, and a line above the oldest loaded would say it was here.
@@ -602,6 +604,9 @@ export const MessageTimeline = memo(function MessageTimeline({
                   : undefined
               }
             >
+              {deletedEdits[i]!.map((gone) => (
+                <DeletedEditNote key={gone.id} channelId={channelId} messageId={gone.id} />
+              ))}
               {newDay && <DayDivider ts={msg.createdAt} />}
               {i === firstUnread && (
                 <div
@@ -628,6 +633,9 @@ export const MessageTimeline = memo(function MessageTimeline({
             </div>
           );
         })}
+        {deletedEdits[items.length]!.map((gone) => (
+          <DeletedEditNote key={gone.id} channelId={channelId} messageId={gone.id} />
+        ))}
         {timeline?.hasMoreNewer && (
           <button
             className="mx-auto my-2 block rounded-full border border-edge px-3 py-1 text-[12px] font-medium text-ink-dim transition-colors hover:bg-ink/[0.04] hover:text-ink disabled:opacity-40"

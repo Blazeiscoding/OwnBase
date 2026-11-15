@@ -20,13 +20,7 @@ import {
   type ID,
   type Message,
 } from "@ownbase/protocol";
-import {
-  ApiError,
-  draftKey,
-  forwardSource,
-  selfMay,
-  type ForwardSource,
-} from "@ownbase/client-core";
+import { ApiError, draftKey, forwardSource, selfMay } from "@ownbase/client-core";
 import { failureText } from "../lib/failure.js";
 import { OpenMessageContext, useClient, useWorkspace } from "../context.js";
 import { onlyEmoji } from "../lib/emoji.js";
@@ -58,6 +52,7 @@ import {
 import { CountBadge, useChanges } from "./Motion.js";
 import { ReplyQuote } from "./ReplyQuote.js";
 import { ForwardCard } from "./ForwardCard.js";
+import { useForward } from "./ForwardHost.js";
 import { LinkPreviews } from "./LinkPreviews.js";
 import { LinkedMessages } from "./LinkedMessages.js";
 import { PollCard } from "./PollCard.js";
@@ -74,10 +69,6 @@ const MessageEditor = lazy(() =>
 // So is a reaction beyond the three the toolbar offers, and so does its picker.
 const ReactionPicker = lazy(() =>
   import("./ReactionPicker.js").then((module) => ({ default: module.ReactionPicker })),
-);
-// And forwarding a message somewhere else.
-const ForwardDialog = lazy(() =>
-  import("./ForwardDialog.js").then((module) => ({ default: module.ForwardDialog })),
 );
 const TimePopover = lazy(() =>
   import("./TimePopover.js").then((module) => ({ default: module.TimePopover })),
@@ -159,8 +150,7 @@ const MessageRow = memo(function MessageRow({
   const mayPin = useWorkspace((s) => selfMay(s, "pinMessage"));
   const [editing, setEditing] = useState(false);
   const [picking, setPicking] = useState(false);
-  // What the dialog passes on, as it was when Forward was chosen.
-  const [forwarding, setForwarding] = useState<ForwardSource | null>(null);
+  const forwarding = useForward();
   const threadMuted = useWorkspace((s) => s.threadFollows[message.id]?.muted === true);
   const reminder = useWorkspace((s) => s.reminders[message.id] ?? null);
   const [reminding, setReminding] = useState(false);
@@ -182,7 +172,8 @@ const MessageRow = memo(function MessageRow({
    * Its menu, or a dialog opened from it, has the pointer and focus for now.
    * The toolbar stays meanwhile, so focus has its button to come back to.
    */
-  const away = moreOpen || picking || reminding || reporting || deleting || forwarding !== null;
+  const away =
+    moreOpen || picking || reminding || reporting || deleting || forwarding?.rowId === message.id;
   /** The touch menu, opened by its button or by holding the message. */
   const [touchMenu, setTouchMenu] = useState(false);
   /** The reactions it had when drawn; any other one pops in as it comes. */
@@ -375,7 +366,7 @@ const MessageRow = memo(function MessageRow({
     canReply,
     canDelete,
     canPin: mayPin,
-    canForward: !!forwarded,
+    canForward: !!forwarded && !!forwarding,
     saved: isSaved,
     threadMuted,
     reminder,
@@ -385,7 +376,8 @@ const MessageRow = memo(function MessageRow({
     pickReaction: () => setPicking(true),
     copyText,
     copyLink,
-    forward: () => forwarded && setForwarding(forwarded),
+    // What the dialog passes on, as it was when Forward was chosen.
+    forward: () => forwarded && forwarding?.open(message.id, forwarded),
     toggleSaved,
     remind: () => setReminding(true),
     finishReminder,
@@ -792,11 +784,6 @@ const MessageRow = memo(function MessageRow({
             />
           </Suspense>
         </ErrorBoundary>
-      )}
-      {forwarding && (
-        <LazyDialog loading="Loading Forward message" onClose={() => setForwarding(null)}>
-          <ForwardDialog source={forwarding} onClose={() => setForwarding(null)} />
-        </LazyDialog>
       )}
       {reporting && (
         <LazyDialog loading="Loading Report message" onClose={() => setReporting(false)}>

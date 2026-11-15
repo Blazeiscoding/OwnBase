@@ -1,4 +1,4 @@
-import { useId, useRef, useState, type FormEvent } from "react";
+import { useEffect, useId, useRef, useState, type FormEvent } from "react";
 import { MESSAGE_TEXT_MAX, type ID } from "@ownbase/protocol";
 import {
   ApiError,
@@ -52,6 +52,17 @@ export function ForwardDialog({ source, onClose }: { source: ForwardSource; onCl
   const [problem, setProblem] = useState<string | null>(null);
   const field = useRef<HTMLInputElement>(null);
   const problemId = useId();
+  const goneId = useId();
+  // Deleted by someone while the dialog is open: the server would refuse it.
+  // What was written stays, to copy elsewhere.
+  const [gone, setGone] = useState(false);
+  useEffect(
+    () =>
+      client.on("messageDeleted", (id) => {
+        if (id === source.id) setGone(true);
+      }),
+    [client, source.id],
+  );
 
   const startsDirect = useWorkspace((s) => selfMay(s, "createChannel"));
   const blocked = useWorkspace((s) => s.blocked);
@@ -103,7 +114,7 @@ export function ForwardDialog({ source, onClose }: { source: ForwardSource; onCl
 
   async function send(event: FormEvent) {
     event.preventDefault();
-    if (sending) return;
+    if (sending || gone) return;
     if (target === null) {
       setProblem("Choose where to forward it.");
       field.current?.focus();
@@ -212,14 +223,20 @@ export function ForwardDialog({ source, onClose }: { source: ForwardSource; onCl
           selfId={selfId}
           linked={false}
         />
-        <div className="dialog-foot flex justify-end gap-2">
+        <div className="dialog-foot flex items-center justify-end gap-2">
+          {gone && (
+            <p id={goneId} role="status" className="mr-auto text-xs text-ink-dim">
+              This message was deleted, so it can no longer be forwarded.
+            </p>
+          )}
           <button type="button" onClick={onClose} className={buttonClass("secondary")}>
             Cancel
           </button>
           <button
             type="submit"
-            aria-disabled={sending || undefined}
-            className={buttonClass("primary")}
+            aria-disabled={sending || gone || undefined}
+            aria-describedby={gone ? goneId : undefined}
+            className={`${buttonClass("primary")} ${gone ? "opacity-40" : ""}`}
           >
             {sending ? "Forwarding…" : "Forward"}
           </button>

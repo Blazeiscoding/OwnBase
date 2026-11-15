@@ -421,7 +421,7 @@
       "summary": "Owns application startup, remembered sign-ins and switching between workspaces.",
       "details": [
         "The Session union distinguishes loading, failed restore, joining and a connected workspace. Startup strictly parses saved credentials; a corrupt or unavailable store offers retry instead of turning saved sign-ins into an empty list.",
-        "Opening a workspace destroys the previous WorkspaceClient, creates a fresh one, connects it, and records the last-use ordering. Deep links can target an already open workspace or carry a pending message target through sign-in.",
+        "Opening a workspace destroys the previous WorkspaceClient, creates a fresh one, connects it, and records the last-use ordering. Deep links can target an already open workspace or carry a pending message target through sign-in. A link parseDeepLink cannot read leaves everything where it was and shows an error notice, \"That link is not an OwnBase link we can open.\", through RefusedLinkNotice inside the toast provider.",
         "Appearance, error boundaries, confirmations and toast providers wrap the app. JoinScreen and the desktop-only HostDialog load on demand rather than adding to every returning user's initial download.",
         "Invite people in Manage hosting closes it and asks the workspace on screen to open its invite dialog through that workspace's navigation (navigationOf). The line's onManage can name the internet tab, which HostDialog opens on (initialSection); the welcome step's Share on the internet asks for it.",
         "Navigation and save versions fence several stale completions inside this window. Since Q05 every change to the saved sign-ins is one read-change-write turn against the stored list, queued in this window and held under a Web Lock across tabs where the browser has one. A sign-in this window held that is no longer stored is not written back. Each change is data (SignInChange: use, forget or signOut), and where the platform has changeSignIns, as the web one does, the store makes it in one step. That is what keeps tabs from losing each other's changes over plain http, where browsers give no Web Lock.",
@@ -1755,7 +1755,7 @@
         "The toolbar is made only while the pointer is on the row or focus is in it (reached), and kept while its menu or a dialog opened from it is up (away), so focus has its button to come back to; the stylesheet still shows it on hover and focus. Made for every row, its nine buttons and six icons were two thirds of each row's elements and 22 MiB of a 300-message conversation (scripts/measure-memory.mts). A touch does not make it: a phone's actions are in the row's own menu.",
         "The hover toolbar draws its icons at 18 px with a stroke of 2, beside the reaction emoji, and marks each button icon-live so its icon moves when pointed at. A saved message's bookmark takes the accent colour alone; with two text colours on the button, the stylesheet's order had left it looking unsaved.",
         "A message of only a few emoji (onlyEmoji in lib/emoji.ts) is shown at 32 px, as Slack and Discord show one.",
-        "Forward… (E1) sits in the menu and the toolbar's More, offered only where the server forwards and where forwardSource finds something to pass on. It opens ForwardDialog, a lazy chunk, with the source as it was when chosen. A forward shows its ForwardCard under its files.",
+        "Forward… (E1) sits in the menu and the toolbar's More, offered only where the server forwards and where forwardSource finds something to pass on. It asks ForwardHost to open ForwardDialog, a lazy chunk, with the source as it was when chosen, and is not offered where no ForwardHost is mounted. A forward shows its ForwardCard under its files.",
         "A message's link previews show under its files through LinkPreviews, with Remove for its sender (E2).",
         "Under the previews, LinkedMessages shows a card for each message in this workspace the words link to. Both are hidden while the message is edited.",
         "Mute thread or Unmute thread (E3) sits in More actions and the touch menu of a thread's first message in the channel, offered where the server mutes threads, once the thread has replies or while it is muted. A muted thread's reply count shows a bell-off mark and is named \"N replies, muted\".",
@@ -1938,9 +1938,21 @@
         "Send later and reminders (E4) both choose with it. The caller names it (label, which also heads the list), gives the presets, and words the button under the field for the time chosen there or none yet.",
         "The whole popover mounts at once, so Popover measures and places it with its real height; the custom time lives here and is cleared when it closes.",
         "The button names the time chosen before it is used. The caller still owns the request, its recovery record and what it says once the server confirms.",
-        "The button is never greyed out: pressed with no date and time, or one already past, it says so under the field and puts focus there, and nothing reaches the caller."
+        "The button is never greyed out: pressed with no date and time, or one already past, it says so under the field and puts focus there (the date field, or the hour once a date is chosen), and nothing reaches the caller.",
+        "The custom time is a date field and TimeField, not datetime-local, whose time half followed Chromium's language and asked for AM or PM on a device set to 24-hour times."
       ],
       "concepts": ["scheduling", "reminders", "lazy loading", "local time"]
+    },
+    {
+      "path": "packages/ui/src/components/TimeField.tsx",
+      "plain": "The hour and minute boxes for choosing a time, written the way your device writes times: 14:30, or 2:30 PM.",
+      "summary": "An hour and minute field that follows the reader's 12- or 24-hour clock.",
+      "details": [
+        "It reads readerLocale, which the desktop app sets from the system's regional format, and asks Intl whether that locale writes a day period. On a 24-hour clock the hour runs 00 to 23 with no AM or PM; on a 12-hour clock it runs 1 to 12 with a button for the locale's own AM and PM words, placed first where the locale puts them first.",
+        "Each part is a spinbutton: the arrow keys step it around the clock, digits type it, the hour moves on to the minutes once nothing more can follow, colon or full stop moves on too, and A or P chooses the period. It reports HH:MM on the 24-hour clock once both parts are there, and empty until then.",
+        "TimePopover (Send later, reminders) and the Scheduled panel's New date and time use it beside a date field."
+      ],
+      "concepts": ["local time", "keyboard input", "scheduling"]
     },
     {
       "path": "packages/ui/src/components/RemindersList.tsx",
@@ -2012,6 +2024,16 @@
       "concepts": ["inline replies", "message context", "navigation"]
     },
     {
+      "path": "packages/ui/src/components/DeletedEdit.tsx",
+      "plain": "When someone else deletes a message you were editing, your unsaved words stay where the message was, to copy or throw away.",
+      "summary": "Keeps an unsaved edit visible after its message is deleted by someone else.",
+      "details": [
+        "The message row and its editor leave with the deleted message, so the timeline and the thread listen for deletions and remember each deleted message that still had an edit draft on this device.",
+        "The note sits between the messages it was sent between and offers Copy text and Discard. Discard clears the edit draft, and the note goes as soon as the draft does, wherever it was cleared."
+      ],
+      "concepts": ["changes under you", "drafts", "message editing"]
+    },
+    {
       "path": "packages/ui/src/components/ForwardCard.tsx",
       "plain": "The box under a forwarded message that shows the message it passes on: who wrote it, when, what it said and its files.",
       "summary": "Renders a forward's card and leads back to the original where the reader can open it.",
@@ -2031,9 +2053,20 @@
         "The list holds the conversations the person is in and every public channel, since posting joins one, and every other active person without a one-to-one DM (not for a guest, not someone blocked). Typing ranks it by name or handle with switcherRank's matchTier, at most eight rows show, and useListbox drives it as in the switcher. Enter picks the active row.",
         "Forwarding to a person with no DM yet opens one first through client.openDm; a failure says so in the dialog and sends nothing.",
         "MessageItem passes a ForwardSource: the message itself, or the original of a forward with no words or files of its own. The preview is forwardOf for the chosen conversation, so it hides a private original going elsewhere as the server will.",
-        "Forward goes through client.send, so the forward waits in the outbox like any message. Without a conversation it asks where and focuses the field; a full outbox keeps the dialog open and says why."
+        "Forward goes through client.send, so the forward waits in the outbox like any message. Without a conversation it asks where and focuses the field; a full outbox keeps the dialog open and says why.",
+        "When someone deletes the message being forwarded, the dialog stays open with what was written, says the message can no longer be forwarded beside the Forward button, and Forward sends nothing."
       ],
       "concepts": ["forwarding", "conversation picker", "outbox"]
+    },
+    {
+      "path": "packages/ui/src/components/ForwardHost.tsx",
+      "plain": "Keeps the Forward window open even if the message it came from disappears from the list.",
+      "summary": "Owns the Forward dialog above the message rows and tells a row whether it may offer Forward.",
+      "details": [
+        "A message row leaves the list when its message is deleted, and a dialog it owned would close with it, losing the words written there. WorkspaceScreen mounts the host around the layout, so the dialog outlives the row.",
+        "useForward gives a row a way to open the dialog and which row it is open for; that row keeps its toolbar so focus can return to the button. Where no host is mounted, the row does not offer Forward."
+      ],
+      "concepts": ["forwarding", "changes under you", "lazy loading"]
     },
     {
       "path": "packages/ui/src/components/LinkPreviews.tsx",
@@ -2345,7 +2378,7 @@
       "summary": "A settings window for the workspace's own name and join policy, for its owner and admins (UX-60).",
       "details": [
         "Drawn in the same SettingsWindow as Account settings, its sections (General, Who can join) on the left as tabs and the open one on the right. It loads on first use, so it adds nothing to the entry chunk.",
-        "General has the workspace's name in a TextField with Save. Save is never disabled: sent empty or with a tab or line break, the field says what is wrong and takes the cursor; a server refusal lands under the field too. While nothing is typed, a rename made elsewhere replaces what the field shows.",
+        "General has the workspace's name in a TextField with Save. Save is never disabled: sent empty or with a tab or line break, the field says what is wrong and takes the cursor; a server refusal lands under the field too. While nothing is typed, a rename made elsewhere replaces what the field shows. Once something is typed, a rename made elsewhere stops the next Save: the field names who renamed it (workspaceRenamedBy) and to what, and Save again keeps this name.",
         "Who can join is a radio group of the three policies, each with a plain explanation, saved the moment one is chosen through WorkspaceClient.setAccessPolicy. The title row says \"Saved\" for two seconds through savedNote. A failed change shows what the server has and says why.",
         "While guests are allowed a line says that choosing either other rule signs every guest out. When guests have joined, leaving guest_allowed asks first with useConfirm, since signed-out guests have to join again.",
         "When this desktop app hosts the workspace on screen (hostedHere), Who can join says that Open to all in Manage hosting chooses who can join for the public link, and that Manage hosting shows and changes the same setting while the link is open.",

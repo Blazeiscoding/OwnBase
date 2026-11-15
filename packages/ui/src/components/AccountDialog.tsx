@@ -731,7 +731,7 @@ function DefaultLevelSettings() {
   const client = useClient();
   const level = useWorkspace((s) => s.notifyDefault);
   const saved = useSaved();
-  const [failed, setFailed] = useState(false);
+  const [failed, setFailed] = useState<string | null>(null);
   return (
     <fieldset className="mt-6 border-t border-edge pt-5">
       <legend className="float-left w-full font-semibold">Notify me about</legend>
@@ -748,10 +748,10 @@ function DefaultLevelSettings() {
               className="mt-1"
               checked={level === option.value}
               onChange={() => {
-                setFailed(false);
+                setFailed(null);
                 void client.setNotifyDefault(option.value).then((error) => {
                   if (!error) saved();
-                  else setFailed(true);
+                  else setFailed(failureText("Your choice was not saved.", error, "Try again."));
                 });
               }}
             />
@@ -764,7 +764,7 @@ function DefaultLevelSettings() {
       </div>
       {failed && (
         <p role="alert" className="mt-2 text-sm text-alert">
-          Your choice was not saved. Check your connection and try again.
+          {failed}
         </p>
       )}
     </fieldset>

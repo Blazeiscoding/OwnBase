@@ -72,6 +72,25 @@ describe("following links from one workspace to another", () => {
   });
 });
 
+describe("a link the app cannot open", () => {
+  afterEach(() => vi.restoreAllMocks());
+
+  it("says so, and leaves the open workspace where it was", async () => {
+    const connect = vi.spyOn(WorkspaceClient.prototype, "connect").mockImplementation(() => {});
+    const destroy = vi.spyOn(WorkspaceClient.prototype, "destroy");
+    const { follow } = appWithLinks();
+    await waitFor(() => expect(connect).toHaveBeenCalledTimes(1));
+    for (const link of ["ownbase://open?host=127.0.0.1:9", "ownbase://join", "ownbase://%%"]) {
+      await follow(link);
+      expect(
+        await screen.findByText("That link is not an OwnBase link we can open."),
+      ).toBeInTheDocument();
+    }
+    expect(connect).toHaveBeenCalledTimes(1);
+    expect(destroy).not.toHaveBeenCalled();
+  });
+});
+
 describe("reopening a workspace this computer hosted", () => {
   afterEach(() => vi.restoreAllMocks());
 

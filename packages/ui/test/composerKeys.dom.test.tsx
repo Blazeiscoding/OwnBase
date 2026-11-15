@@ -1,4 +1,4 @@
-import { fireEvent, renderHook, screen, waitFor } from "@testing-library/react";
+import { fireEvent, renderHook, screen, waitFor, within } from "@testing-library/react";
 import { render } from "./render.js";
 import userEvent from "@testing-library/user-event";
 import { Api, ApiError, WorkspaceClient } from "@ownbase/client-core";
@@ -9,6 +9,7 @@ import { useEditRequest } from "../src/lib/editRequest.js";
 import { ClientContext, PlatformContext } from "../src/context.js";
 import type { Platform } from "../src/platform.js";
 import { held } from "./heldMessages.js";
+import { chooseTime } from "./chooseTime.js";
 import { QUEUED } from "./sendAnswers.js";
 
 /**
@@ -204,9 +205,7 @@ describe("a scheduled send that cannot upload its files", () => {
     expect(screen.getByText("numbers.csv")).toBeVisible();
 
     await user.click(screen.getByRole("button", { name: "Send later" }));
-    fireEvent.change(await screen.findByLabelText("Choose a date and time"), {
-      target: { value: "2099-01-05T09:00" },
-    });
+    await chooseTime("2099-01-05", "09:00");
     await user.click(screen.getByRole("button", { name: /^Schedule for .*2099 at / }));
 
     expect(await screen.findByRole("alert")).toHaveTextContent(
@@ -265,9 +264,7 @@ describe("scheduling a reply that is also for the channel", () => {
     const checkbox = screen.getByRole("checkbox", { name: "Also send to channel" });
     if (alsoToChannel) await user.click(checkbox);
     await user.click(screen.getByRole("button", { name: "Send later" }));
-    fireEvent.change(await screen.findByLabelText("Choose a date and time"), {
-      target: { value: "2099-01-05T09:00" },
-    });
+    await chooseTime("2099-01-05", "09:00");
     await user.click(screen.getByRole("button", { name: /^Schedule for .*2099 at / }));
     await waitFor(() => expect(schedule).toHaveBeenCalledOnce());
     return { body: schedule.mock.calls[0]![1], checkbox, box };
@@ -302,9 +299,7 @@ describe("a scheduled send past the queue's limit", () => {
       );
     await user.type(box, "One more for Friday");
     await user.click(screen.getByRole("button", { name: "Send later" }));
-    fireEvent.change(await screen.findByLabelText("Choose a date and time"), {
-      target: { value: "2099-01-05T09:00" },
-    });
+    await chooseTime("2099-01-05", "09:00");
     await user.click(screen.getByRole("button", { name: /^Schedule for .*2099 at / }));
 
     expect(await screen.findByRole("alert")).toHaveTextContent(
@@ -323,7 +318,8 @@ describe("Send later's own date and time", () => {
     const schedule = vi.spyOn(client.api, "scheduleMessage");
     await user.type(box, "See you Monday");
     await user.click(screen.getByRole("button", { name: "Send later" }));
-    const field = await screen.findByLabelText("Choose a date and time");
+    const group = await screen.findByRole("group", { name: "Choose a date and time" });
+    const field = within(group).getByLabelText("Date");
     const button = screen.getByRole("button", { name: "Schedule message" });
 
     // Pressed with nothing chosen, it asks for a time and puts focus there.
@@ -334,7 +330,7 @@ describe("Send later's own date and time", () => {
     expect(field).toHaveAccessibleDescription("Choose a date and time.");
 
     // A time already past is said there too, and nothing is scheduled.
-    fireEvent.change(field, { target: { value: "2001-01-05T09:00" } });
+    await chooseTime("2001-01-05", "09:00");
     expect(field).not.toHaveAttribute("aria-invalid");
     await user.click(screen.getByRole("button", { name: /^Schedule for .*2001 at / }));
     expect(field).toHaveAccessibleDescription("Choose a date and time in the future.");

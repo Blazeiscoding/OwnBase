@@ -105,3 +105,34 @@ describe("questions from the desktop app, in its own dialog", () => {
     expect(screen.getByText(/could not stop the workspace/)).toBeVisible();
   });
 });
+
+describe("a download the desktop app saved", () => {
+  it("says the file's name and offers to show it in its folder", async () => {
+    const saved = new Set<(file: { name: string; show: () => Promise<void> }) => void>();
+    const show = vi.fn(async () => {});
+    const platform: Platform = {
+      kind: "desktop",
+      storage: { get: async () => null, set: async () => {} },
+      notify: () => {},
+      downloads: {
+        onSaved: (cb) => {
+          saved.add(cb);
+          return () => saved.delete(cb);
+        },
+      },
+    };
+    render(
+      <PlatformContext.Provider value={platform}>
+        <ToastProvider>
+          <ConfirmProvider>
+            <WindowDialogs />
+          </ConfirmProvider>
+        </ToastProvider>
+      </PlatformContext.Provider>,
+    );
+    act(() => saved.forEach((cb) => cb({ name: "launch plan.pdf", show })));
+    expect(await screen.findByText("Saved launch plan.pdf")).toBeInTheDocument();
+    await userEvent.setup().click(screen.getByRole("button", { name: "Show in folder" }));
+    expect(show).toHaveBeenCalledOnce();
+  });
+});

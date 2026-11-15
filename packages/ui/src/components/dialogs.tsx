@@ -45,7 +45,7 @@ export function NewChannelDialog(props: { onClose: () => void; onCreated: (ch: C
     setError(
       channel.code === "name_taken"
         ? `#${slug} already exists. Choose another name.`
-        : "Couldn't create the channel. Check your connection and try again.",
+        : failureText("Could not create the channel.", channel, "Try again."),
     );
     nameInput.current?.focus();
   }
@@ -347,11 +347,12 @@ export function BrowseChannelsDialog(props: { onClose: () => void; onOpen: (id: 
     if (joining) return;
     setJoining(channel.id);
     setError(null);
-    if (!(await client.joinChannel(channel.id))) {
+    const failed = await client.joinChannel(channel.id);
+    if (!failed) {
       props.onOpen(channel.id);
       return;
     }
-    setError(`Could not join #${channel.name}. Check your connection and try again.`);
+    setError(failureText(`Could not join #${channel.name}.`, failed, "Try again."));
     setJoining(null);
   }
 
@@ -514,13 +515,7 @@ export function NewDmDialog(props: {
       if (mounted.current) props.onOpen(channel.id);
       return;
     }
-    // A refusal the server explained in words is said as it is; anything
-    // else (a code, a network error) in plain words.
-    setError(
-      channel.status !== 0 && /\s/.test(channel.message)
-        ? channel.message
-        : "Could not open the conversation. Check your connection and try again.",
-    );
+    setError(failureText("Could not open the conversation.", channel, "Try again."));
   }
 
   const search = useRef<HTMLInputElement>(null);

@@ -126,7 +126,7 @@ export function createWorkspace(ctx: ServerContext) {
         details: { from: previous, to: name },
       });
     });
-    gateway.tellEveryone({ type: "workspace.renamed", workspaceName: name });
+    gateway.tellEveryone({ type: "workspace.renamed", workspaceName: name, by });
     changed({ workspaceName: name, by });
     return name;
   };

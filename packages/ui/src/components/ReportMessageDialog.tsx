@@ -7,6 +7,7 @@ import { inputCls } from "./TextField.js";
 import { buttonClass } from "./Button.js";
 import { Swap } from "./Motion.js";
 import { useToast } from "./Toast.js";
+import { failureText } from "../lib/failure.js";
 import { REPORT_REASON_LABELS } from "../lib/blocking.js";
 
 const REASONS: { value: ReportReason; hint: string }[] = [
@@ -56,7 +57,7 @@ export function ReportMessageDialog({
     setError(
       refused.code === "message_not_found"
         ? "That message is gone, so there is nothing to report."
-        : "Your report was not sent. Check your connection and try again.",
+        : failureText("Your report was not sent.", refused, "Try again."),
     );
     setBusy(false);
   }

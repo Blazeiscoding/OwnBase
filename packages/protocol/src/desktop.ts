@@ -276,6 +276,17 @@ export interface RelayServer {
   credential?: string;
 }
 
+/**
+ * A file the desktop app finished saving, as the window is told of it. The
+ * window can ask for it to be shown in its folder by `id` alone: the main
+ * process keeps the path and never takes one from the window.
+ */
+export interface SavedDownload {
+  id: number;
+  /** The file name it was saved under, without its folder. */
+  name: string;
+}
+
 /** A screen or window the desktop app can share in a huddle. */
 export interface ShareableSource {
   id: string;

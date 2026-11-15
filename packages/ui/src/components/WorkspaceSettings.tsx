@@ -6,7 +6,7 @@ import {
   type SettingsPanel,
   type WorkspaceCopy,
 } from "@ownbase/protocol";
-import { ApiError } from "@ownbase/client-core";
+import { ApiError, type WorkspaceState } from "@ownbase/client-core";
 import { useClient, usePlatform, useWorkspace } from "../context.js";
 import { formatBytes, formatTime } from "../lib/format.js";
 import { failureText } from "../lib/failure.js";
@@ -128,6 +128,7 @@ function iconProblem(err: unknown): string {
       return "The server could not use that picture. Choose another PNG, JPEG or WebP.";
     if (err.code === "icon_too_large")
       return "That picture is too large for an icon. Choose a simpler one.";
+    return failureText("The icon was not changed.", err, "Try again.");
   }
   return "The icon was not changed. Check your connection and try again.";
 }
@@ -257,16 +258,27 @@ function renameProblem(err: ApiError): string {
   if (err.code === "invalid_request")
     return `A workspace name has 1 to ${WORKSPACE_NAME_MAX} characters, without tabs or line breaks.`;
   if (err.code === "admin_only") return "Only the workspace's owner and admins can rename it.";
-  return "Could not rename the workspace. Check your connection and try again.";
+  return failureText("Could not rename the workspace.", err, "Try again.");
 }
 
 /** The workspace's name: typed, checked when sent, and kept with Save. */
+/** Who renamed the workspace while this admin was editing its name, and what to do. */
+function renamedMeanwhile(state: WorkspaceState, name: string): string {
+  const by = state.workspaceRenamedBy;
+  if (by && by === state.self?.id)
+    return `You renamed this workspace to ${name} in another window. Save again to use this name instead.`;
+  const who = (by && state.users[by]?.displayName) || "Someone";
+  return `${who} renamed this workspace to ${name} while you were editing. Save again to use your name instead.`;
+}
+
 function NameSection() {
   const client = useClient();
   const saved = useSaved();
   const alive = useAlive();
   const name = useWorkspace((s) => s.workspaceName);
   const [draft, setDraft] = useState(name);
+  /** The name the edit started from, to tell when someone renamed it meanwhile. */
+  const [base, setBase] = useState(name);
   const [typed, setTyped] = useState(false);
   const [problem, setProblem] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -274,7 +286,9 @@ function NameSection() {
   // Renamed from elsewhere, by another admin or the host, while nothing is
   // typed here: the field shows the new name rather than an old one to save.
   useEffect(() => {
-    if (!typed) setDraft(name);
+    if (typed) return;
+    setDraft(name);
+    setBase(name);
   }, [name, typed]);
 
   async function save(event: React.FormEvent) {
@@ -291,6 +305,14 @@ function NameSection() {
       field.current?.focus();
       return;
     }
+    // The server keeps the last name saved, so two admins saving at once
+    // would lose one name without a word. This one is asked to save again.
+    if (name !== base && next !== name) {
+      setBase(name);
+      setProblem(renamedMeanwhile(client.state, name));
+      field.current?.focus();
+      return;
+    }
     setBusy(true);
     const kept = await client.renameWorkspace(next);
     if (!alive.current) return;
@@ -301,6 +323,7 @@ function NameSection() {
       return;
     }
     setDraft(kept);
+    setBase(kept);
     setTyped(false);
     saved();
   }
@@ -359,7 +382,7 @@ function PreviewsSection() {
       setError(
         refused.code === "admin_only"
           ? "Only the workspace's owner and admins can change link previews."
-          : "Link previews were not changed. Check your connection and try again.",
+          : failureText("Link previews were not changed.", refused, "Try again."),
       );
   }
 
@@ -614,7 +637,7 @@ function JoiningSection({ hostedHere }: { hostedHere: boolean }) {
       setError(
         refused.code === "admin_only"
           ? "Only the workspace's owner and admins can change who can join."
-          : "Who can join was not changed. Check your connection and try again.",
+          : failureText("Who can join was not changed.", refused, "Try again."),
       );
   }
 

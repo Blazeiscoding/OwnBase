@@ -123,6 +123,16 @@
       "concepts": ["atomic merge", "drafts", "acknowledgement"]
     },
     {
+      "path": "apps/desktop/src/main/savedDownloads.ts",
+      "plain": "After a download finishes, the app says where the file went and can open its folder.",
+      "summary": "Tracks files saved in this run and reveals one by the id the window was given.",
+      "details": [
+        "index.ts follows the window session's will-download once per session. When a DownloadItem finishes as completed, the save path is kept under a new id and the window is told file:saved with that id and the file name only; a cancelled or broken-off download says nothing.",
+        "file:showInFolder takes that id and calls shell.showItemInFolder on the kept path. The window never sends a path, so it cannot have the app reveal anything this run did not save; an unknown id is refused."
+      ],
+      "concepts": ["downloads", "ipc boundary", "least privilege"]
+    },
+    {
       "path": "apps/desktop/src/main/outboxStorage.ts",
       "plain": "Keeps the messages waiting to send saved on the device, so changes made at almost the same moment do not erase each other.",
       "summary": "Merges accepted pending sends without overwriting another caller's work.",

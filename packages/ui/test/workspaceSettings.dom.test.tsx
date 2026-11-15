@@ -2,7 +2,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { act, cleanup, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { ApiError, WorkspaceClient } from "@ownbase/client-core";
-import type { AccessPolicy, Channel, User } from "@ownbase/protocol";
+import type { AccessPolicy, Channel, ServerToClient, User } from "@ownbase/protocol";
 import { ClientContext, PlatformContext } from "../src/context.js";
 import { ConfirmProvider } from "../src/components/Confirm.js";
 import { ToastProvider } from "../src/components/Toast.js";
@@ -219,6 +219,69 @@ describe("the workspace's name", () => {
     // The page still names the workspace as it is now.
     await waitFor(() => expect(within(dialog).getByText("Red Team")).toBeVisible());
     expect(field).toHaveValue("Green Team!");
+  });
+});
+
+describe("a save the server could not finish", () => {
+  it("says the server had a problem, not that the connection did", async () => {
+    const { dialog, rename, user } = page();
+    rename.mockRejectedValueOnce(new ApiError(500, "internal"));
+    const field = within(dialog).getByLabelText("Workspace name");
+    await user.clear(field);
+    await user.type(field, "Blue Team");
+    await user.click(within(dialog).getByRole("button", { name: "Save" }));
+    expect(await within(dialog).findByRole("alert")).toHaveTextContent(
+      "Could not rename the workspace. The workspace's server ran into a problem. Try again in a moment.",
+    );
+  });
+
+  it("says the same when choosing who can join meets one", async () => {
+    const { dialog, choose, user } = page();
+    choose.mockRejectedValueOnce(new ApiError(503, "http_error"));
+    await user.click(within(dialog).getByRole("tab", { name: "Who can join" }));
+    await user.click(await within(dialog).findByRole("radio", { name: /People with an invite/ }));
+    expect(await within(dialog).findByRole("alert")).toHaveTextContent(
+      "Who can join was not changed. The workspace's server ran into a problem. Try again in a moment.",
+    );
+  });
+
+  it("still says to check the connection when the server never answered", async () => {
+    const { dialog, rename, user } = page();
+    rename.mockRejectedValueOnce(new ApiError(0, "network_error"));
+    const field = within(dialog).getByLabelText("Workspace name");
+    await user.clear(field);
+    await user.type(field, "Blue Team");
+    await user.click(within(dialog).getByRole("button", { name: "Save" }));
+    expect(await within(dialog).findByRole("alert")).toHaveTextContent(
+      "Could not rename the workspace. Check your connection and try again.",
+    );
+  });
+});
+
+describe("two admins renaming at once", () => {
+  it("says who renamed it while the name was being edited, and saves on the next Save", async () => {
+    const priya = person("U_PRIYA", "Priya Shah", "admin");
+    const { dialog, client, rename, user } = page({ others: [priya] });
+    const field = within(dialog).getByLabelText("Workspace name");
+    await user.clear(field);
+    await user.type(field, "Blue Team");
+    act(() =>
+      (client as unknown as { handleServerMessage(m: ServerToClient): void }).handleServerMessage({
+        type: "ephemeral",
+        event: { type: "workspace.renamed", workspaceName: "Green Team", by: priya.id },
+      }),
+    );
+    const save = within(dialog).getByRole("button", { name: "Save" });
+    await user.click(save);
+    expect(rename).not.toHaveBeenCalled();
+    expect(within(dialog).getByRole("alert")).toHaveTextContent(
+      "Priya Shah renamed this workspace to Green Team while you were editing. Save again to use your name instead.",
+    );
+    expect(field).toHaveValue("Blue Team");
+
+    await user.click(save);
+    expect(rename).toHaveBeenCalledWith("Blue Team");
+    expect(await within(dialog).findByText("Saved")).toBeVisible();
   });
 });
 

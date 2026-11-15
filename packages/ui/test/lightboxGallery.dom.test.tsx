@@ -35,6 +35,15 @@ function open(file: FileMeta, gallery?: FileMeta[]) {
 }
 
 describe("the image viewer", () => {
+  it("puts the name and its buttons on a solid bar, readable over the dimmed page in either theme", async () => {
+    open(first);
+    const bar = (await screen.findByRole("button", { name: "Save" })).parentElement!;
+    expect(bar).toHaveTextContent("before.png");
+    // The theme's own surface, so White's dark text never sits on the black backdrop.
+    expect(bar).toHaveClass("bg-raised");
+    expect(bar.className).not.toMatch(/bg-[a-z-]+\/\d/);
+  });
+
   it("steps through a message's pictures from the one opened, round from the last", async () => {
     const user = userEvent.setup();
     open(second, [first, second, third]);

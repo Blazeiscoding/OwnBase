@@ -100,6 +100,14 @@ export interface Platform {
   notify: (title: string, body: string, onClick?: () => void, options?: { tag?: string }) => void;
   /** Hand a scoped download URL to the browser/OS; completion is managed there. */
   downloadFile?: (url: string) => Promise<void>;
+  /**
+   * Files the desktop app finished saving, any download included, so the
+   * window can say where each went. `show` opens its folder. Desktop only:
+   * a browser shows its own downloads.
+   */
+  downloads?: {
+    onSaved: (cb: (file: { name: string; show: () => Promise<void> }) => void) => () => void;
+  };
   /** Paints the desktop window's own frame and title bar in the page's theme. */
   setWindowTheme?: (theme: "system" | "dark" | "light") => void;
   /**
