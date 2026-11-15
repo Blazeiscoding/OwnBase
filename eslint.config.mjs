@@ -9,7 +9,6 @@ import tseslint from "typescript-eslint";
 // its line here and fixes what the rules find.
 const notYetLinted = [
   "packages/ui/**",
-  "ee/**",
   "apps/**",
   "tests/**",
   "scripts/**",
