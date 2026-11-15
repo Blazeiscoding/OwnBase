@@ -41,7 +41,7 @@
       scripts/generate-palette.mjs, so it keeps its name.
     -->
     <link rel="icon" href="ownbase.svg?v=2" type="image/svg+xml" />
-    <link rel="stylesheet" href="site.css?v=5" />
+    <link rel="stylesheet" href="site.css?v=6" />
     <script src="scene.js?v=3" defer></script>
     <script src="download.js?v=4" defer></script>
   </head>
@@ -67,9 +67,7 @@
           <li><a href="#plans">Plans</a></li>
           <li><a href="https://github.com/Blazeiscoding/OwnBase">GitHub</a></li>
         </ul>
-        <a class="btn btn-small btn-light" href="https://github.com/Blazeiscoding/OwnBase"
-          >Get OwnBase</a
-        >
+        <a class="btn btn-small btn-light" href="#download">Get OwnBase</a>
       </nav>
 
       <div class="hero-copy wrap" data-scene-clear>
@@ -84,9 +82,7 @@
           from a link that opens in any browser.
         </p>
         <div class="actions">
-          <a class="btn btn-host" href="https://github.com/Blazeiscoding/OwnBase" data-get
-            >Get OwnBase on GitHub</a
-          >
+          <a class="btn btn-host" href="#download" data-get>Download OwnBase</a>
           <a class="btn btn-glass" href="#host">See how hosting works</a>
           <p class="get-note" data-get-note hidden></p>
         </div>
@@ -154,6 +150,30 @@
             <h3>No app needed</h3>
             <p>The server hands the whole app to any browser, phones included.</p>
           </li>
+          <li>
+            <h3>Move in from Slack</h3>
+            <p>
+              Import a Slack export with its threads, reactions and pins, or export to Slack's
+              format.
+            </p>
+          </li>
+          <li>
+            <h3>Guests for a day</h3>
+            <p>
+              Let someone in with only a name. Guests see public channels and leave after a day.
+            </p>
+          </li>
+          <li>
+            <h3>Notified with it closed</h3>
+            <p>Browsers can notify you with every tab shut, Android phones included.</p>
+          </li>
+          <li>
+            <h3>Updates itself</h3>
+            <p>
+              The Windows app fetches new versions and installs them on restart. The Mac app says
+              when one is out.
+            </p>
+          </li>
         </ul>
       </section>
 
@@ -195,7 +215,7 @@
               <span class="step-num" aria-hidden="true">2</span>
               <h3>Open it to the internet</h3>
               <p>
-                Open to all starts a Cloudflare Quick Tunnel: an HTTPS address, with no router
+                Get a public link starts a Cloudflare Quick Tunnel: an HTTPS address, with no router
                 settings and no account. Or bring your own address.
               </p>
               <p class="reach">
@@ -205,11 +225,11 @@
               <div class="step-shots">
                 <figure class="stage shot-open">
                   <img
-                    src="shots/open-to-all-2.webp"
-                    width="1144"
-                    height="1430"
+                    src="shots/public-link.webp"
+                    width="1168"
+                    height="1730"
                     loading="lazy"
-                    alt="The Manage hosting window on its Share on the internet tab, with the Open to all button and the options to require an account and an invite link."
+                    alt="The Manage hosting window on its Share on the internet tab: who can join, with People with an invite chosen, the Get a public link button, and a field for your own address."
                   />
                 </figure>
               </div>
@@ -274,7 +294,7 @@
                 data-asset="windows"
                 >Download for Windows</a
               >
-              <p class="platform-meta" data-meta="windows">From the latest release on GitHub</p>
+              <p class="platform-meta" data-meta="windows">The latest release</p>
             </div>
           </li>
           <li class="platform" data-platform="mac">
@@ -292,16 +312,15 @@
                 data-asset="mac"
                 >Download for Mac</a
               >
-              <p class="platform-meta" data-meta="mac">From the latest release on GitHub</p>
+              <p class="platform-meta" data-meta="mac">The latest release</p>
             </div>
           </li>
           <li class="platform platform-server" data-platform="server">
             <h3>Server, on Node 24 <span class="yours" hidden>This device</span></h3>
             <div class="platform-text">
               <p>
-                One JavaScript file for a VPS or home server, or use the
-                <a href="https://github.com/Blazeiscoding/OwnBase/tree/main/docker">Docker setup</a
-                >.
+                One JavaScript file for a VPS or home server, or the container image
+                <code>ghcr.io/blazeiscoding/ownbase</code>.
               </p>
               <pre tabindex="0"><code>node ownbase-server.js --data ./data</code></pre>
             </div>
@@ -312,7 +331,7 @@
                 data-asset="server"
                 >Download the server</a
               >
-              <p class="platform-meta" data-meta="server">From the latest release on GitHub</p>
+              <p class="platform-meta" data-meta="server">The latest release</p>
             </div>
           </li>
           <li class="platform platform-browser" data-platform="browser">
@@ -407,14 +426,16 @@
               <h3>Backups on a schedule</h3>
               <p>
                 <code>--backup-dir</code> backs up every 24 hours, checks each copy and keeps the
-                newest seven.
+                newest seven. A passphrase encrypts them, and <code>--backup-offsite</code> sends
+                each one to R2 or any S3 bucket.
               </p>
             </li>
             <li>
               <h3>Download a copy</h3>
               <p>
                 The owner downloads the workspace as one .zip, and
-                <code>restore --from</code> puts it back.
+                <code>restore --from</code> puts it back. <code>export</code> writes it in Slack's
+                format, to take anywhere.
               </p>
             </li>
           </ul>
@@ -451,8 +472,8 @@
             <h3>Enterprise</h3>
             <p class="price">Annual contract</p>
             <p>
-              Single sign-on, SCIM, an audit log and an SLA, on your servers or a dedicated one we
-              run.
+              Single sign-on with OpenID Connect or SAML, SCIM, an audit log, compliance export and
+              legal hold, and an SLA, on your servers or a dedicated one we run.
             </p>
             <p class="soon">Not on sale yet</p>
           </article>
@@ -466,9 +487,7 @@
         <div class="end-copy wrap" data-scene-clear>
           <h2>Start a workspace on your own computer</h2>
           <div class="actions">
-            <a class="btn btn-host" href="https://github.com/Blazeiscoding/OwnBase" data-get
-              >Get OwnBase on GitHub</a
-            >
+            <a class="btn btn-host" href="#download" data-get>Download OwnBase</a>
             <a class="btn btn-glass" href="/docs/hosting/">Read the deployment guide</a>
           </div>
         </div>
