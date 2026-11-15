@@ -8,7 +8,6 @@ import tseslint from "typescript-eslint";
 // Turned on one package at a time (G11). Each package's pull request removes
 // its line here and fixes what the rules find.
 const notYetLinted = [
-  "packages/client-core/**",
   "packages/server/**",
   "packages/ui/**",
   "ee/**",

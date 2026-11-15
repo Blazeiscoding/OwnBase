@@ -96,13 +96,14 @@ describe("the default for what notifies", () => {
 
   it("is left by a conversation given a level of its own, at once, and taken up again", async () => {
     const client = await online();
-    client.setChannelPrefs(general, { notifyLevel: "all" });
+    // Resolves with a refusal rather than rejecting; what shows meanwhile is checked.
+    void client.setChannelPrefs(general, { notifyLevel: "all" });
     expect(client.state.prefs[general]).toMatchObject({ notifyLevel: "all", notifyChosen: true });
     await until(client, (s) => !s.prefsWrites[general], "the save");
     expect(server.store.channels.prefs(general, client.state.self!.id)).toMatchObject({
       notifyChosen: true,
     });
-    client.setChannelPrefs(general, { notifyChosen: false });
+    void client.setChannelPrefs(general, { notifyChosen: false });
     await until(client, (s) => !s.prefsWrites[general], "the save back");
     expect(client.state.prefs[general]).toMatchObject({ notifyChosen: false });
   });

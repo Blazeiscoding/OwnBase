@@ -4,6 +4,10 @@ import type { ChannelPrefs, Message } from "@ownbase/protocol";
 import { Api, WorkspaceClient, ApiError } from "../src/index.js";
 import { timelineMessages } from "../src/messageCache.js";
 
+// The client's optimistic writes show at once and resolve with the server's
+// refusal rather than reject, so tests start them with `void` to look at what
+// shows meanwhile.
+
 let server: WorkspaceServer;
 let client: WorkspaceClient;
 /** The same account on another device. */
@@ -68,8 +72,8 @@ describe("a notification choice for a channel", () => {
   it("keeps a later choice when an earlier one fails", async () => {
     expect(shown()?.notifyLevel).toBe("mentions");
     const first = holdNextPrefsRequest();
-    client.setChannelPrefs(channelId, { notifyLevel: "all" });
-    client.setChannelPrefs(channelId, { notifyLevel: "nothing" });
+    void client.setChannelPrefs(channelId, { notifyLevel: "all" });
+    void client.setChannelPrefs(channelId, { notifyLevel: "nothing" });
     expect(shown()?.notifyLevel).toBe("nothing");
 
     // The first request fails after the second was chosen. It used to put
@@ -83,9 +87,9 @@ describe("a notification choice for a channel", () => {
   it("saves choices in the order they were made", async () => {
     const first = holdNextPrefsRequest();
     const sent = vi.spyOn(client.api, "setChannelPrefs");
-    client.setChannelPrefs(channelId, { notifyLevel: "all" });
-    client.setChannelPrefs(channelId, { notifyLevel: "nothing" });
-    client.setChannelPrefs(channelId, { muted: true });
+    void client.setChannelPrefs(channelId, { notifyLevel: "all" });
+    void client.setChannelPrefs(channelId, { notifyLevel: "nothing" });
+    void client.setChannelPrefs(channelId, { muted: true });
     // Nothing else goes out while the first is unanswered, so it cannot be
     // applied after the ones chosen later.
     expect(sent).toHaveBeenCalledTimes(1);
@@ -113,7 +117,7 @@ describe("a notification choice for a channel", () => {
 
   it("shows what the server has after a refusal, and keeps the choice to try again", async () => {
     const refused = holdNextPrefsRequest();
-    client.setChannelPrefs(channelId, { muted: true });
+    void client.setChannelPrefs(channelId, { muted: true });
     expect(shown()?.muted).toBe(true);
     refused.fail();
 
@@ -131,7 +135,7 @@ describe("a notification choice for a channel", () => {
 
   it("keeps a choice being saved over another device's, and falls back to that one if it fails", async () => {
     const mine = holdNextPrefsRequest();
-    client.setChannelPrefs(channelId, { notifyLevel: "all" });
+    void client.setChannelPrefs(channelId, { notifyLevel: "all" });
     await elsewhere.setChannelPrefs(channelId, {
       notifyLevel: "nothing",
       notifyChosen: true,
@@ -160,14 +164,14 @@ describe("a notification choice for a channel", () => {
   it("sends nothing more from a closed client, so its replacement's choice stands (REV-11)", async () => {
     const first = holdNextPrefsRequest();
     const sent = vi.spyOn(client.api, "setChannelPrefs");
-    client.setChannelPrefs(channelId, { notifyLevel: "all" });
-    client.setChannelPrefs(channelId, { muted: true });
+    void client.setChannelPrefs(channelId, { notifyLevel: "all" });
+    void client.setChannelPrefs(channelId, { muted: true });
     client.destroy();
     const replacement = new WorkspaceClient(base, memberToken);
     replacement.connect();
     try {
       await expect.poll(() => replacement.state.status).toBe("online");
-      replacement.setChannelPrefs(channelId, { muted: false, notifyLevel: "nothing" });
+      void replacement.setChannelPrefs(channelId, { muted: false, notifyLevel: "nothing" });
       await expect
         .poll(() => stored())
         .toEqual({
@@ -200,7 +204,7 @@ describe("a notification choice for a channel", () => {
           fail = () => reject(new Error("offline"));
         }),
     );
-    client.setChannelPrefs(channel.id, { muted: true });
+    void client.setChannelPrefs(channel.id, { muted: true });
     await elsewhere.leaveChannel(channel.id);
     await expect.poll(() => client.state.prefs[channel.id]).toBeUndefined();
 
@@ -216,7 +220,7 @@ describe("a star on a conversation", () => {
   it("shows at once and is saved", async () => {
     expect(shown()?.starred).toBe(false);
     const held = holdNextPrefsRequest();
-    client.setChannelPrefs(channelId, { starred: true });
+    void client.setChannelPrefs(channelId, { starred: true });
     expect(shown()?.starred).toBe(true);
     held.pass();
     await expect.poll(() => stored()?.starred).toBe(true);
@@ -233,7 +237,7 @@ describe("a star on a conversation", () => {
 
   it("goes back when the server refuses it, and can be tried again", async () => {
     const refused = holdNextPrefsRequest();
-    client.setChannelPrefs(channelId, { starred: true });
+    void client.setChannelPrefs(channelId, { starred: true });
     expect(shown()?.starred).toBe(true);
     refused.fail();
     await expect
@@ -266,8 +270,8 @@ describe("Do Not Disturb", () => {
     );
     const soon = Date.now() + 60_000;
     const later = Date.now() + 3_600_000;
-    client.snoozeNotificationsUntil(soon);
-    client.snoozeNotificationsUntil(later);
+    void client.snoozeNotificationsUntil(soon);
+    void client.snoozeNotificationsUntil(later);
     expect(client.state.self?.dndUntil).toBe(later);
 
     // The later one waits for the first, and goes once it has failed.
@@ -279,7 +283,7 @@ describe("Do Not Disturb", () => {
 
   it("goes back to what the server has when the latest snooze is refused", async () => {
     vi.spyOn(client.api, "updateMe").mockRejectedValueOnce(new Error("offline"));
-    client.snoozeNotificationsUntil(Date.now() + 60_000);
+    void client.snoozeNotificationsUntil(Date.now() + 60_000);
     await expect.poll(() => client.state.self?.dndUntil).toBeNull();
   });
 });
@@ -412,8 +416,8 @@ describe("choices that reach the server out of order, or not at all", () => {
     const soon = Date.now() + 60_000;
     const later = Date.now() + 3_600_000;
     const first = holdNext("updateMe");
-    client.snoozeNotificationsUntil(soon);
-    client.snoozeNotificationsUntil(later);
+    void client.snoozeNotificationsUntil(soon);
+    void client.snoozeNotificationsUntil(later);
     await settle();
     expect((await elsewhere.me()).user.dndUntil).toBeNull();
     first.forward();
@@ -535,15 +539,15 @@ describe("choices that reach the server out of order, or not at all", () => {
   it("does not let a closed client undo its replacement's snooze (REV-11)", async () => {
     const old = holdNext("updateMe");
     const sent = vi.spyOn(client.api, "updateMe");
-    client.snoozeNotificationsUntil(Date.now() + 60_000);
-    client.snoozeNotificationsUntil(null);
+    void client.snoozeNotificationsUntil(Date.now() + 60_000);
+    void client.snoozeNotificationsUntil(null);
     client.destroy();
     const until = Date.now() + 3_600_000;
     const replacement = new WorkspaceClient(base, memberToken);
     replacement.connect();
     try {
       await expect.poll(() => replacement.state.status).toBe("online");
-      replacement.snoozeNotificationsUntil(until);
+      void replacement.snoozeNotificationsUntil(until);
       await expect.poll(async () => (await elsewhere.me()).user.dndUntil).toBe(until);
       old.forward();
       await settle();
