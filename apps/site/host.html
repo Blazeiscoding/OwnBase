@@ -31,7 +31,7 @@
     />
     <!-- Named from the root, as 404.html is, so /host and /host.html load alike. -->
     <link rel="icon" href="/ownbase.svg?v=2" type="image/svg+xml" />
-    <link rel="stylesheet" href="/site.css?v=5" />
+    <link rel="stylesheet" href="/site.css?v=6" />
   </head>
   <body>
     <a class="skip" href="#main">Skip to content</a>
@@ -119,9 +119,9 @@
           </div>
           <figure class="stage guide-shot">
             <img
-              src="/shots/host-dialog.webp"
-              width="1024"
-              height="744"
+              src="/shots/host-dialog-2.webp"
+              width="1048"
+              height="767"
               loading="lazy"
               alt="The Host a workspace dialog with the name Pinecone Studio typed in, a Choose a port option, and a Start hosting button."
             />
@@ -133,7 +133,7 @@
             <span class="step-num" aria-hidden="true">3</span>
             <h2>Make your account first</h2>
             <p>
-              Press <strong>Open it</strong> and create an account: a username, the name people see,
+              OwnBase opens the new workspace. Create an account: a username, the name people see,
               and a password of at least 8 characters.
             </p>
             <p>
@@ -148,8 +148,9 @@
             <span class="step-num" aria-hidden="true">4</span>
             <h2>Bring in the people on your Wi&#8209;Fi</h2>
             <p>
-              <strong>Manage hosting</strong> shows the address teammates connect at, and a QR code
-              for phones.
+              Press <strong>Manage</strong> under the workspace's name.
+              <strong>Manage hosting</strong>
+              shows the address teammates connect at, and a QR code for phones.
             </p>
             <p>
               Anyone with the desktop app on the same network sees the workspace on their first
@@ -162,11 +163,11 @@
           </div>
           <figure class="stage guide-shot">
             <img
-              src="/shots/hosting-overview.webp"
-              width="1144"
-              height="1140"
+              src="/shots/hosting-overview-2.webp"
+              width="1168"
+              height="1162"
               loading="lazy"
-              alt="The Manage hosting window, Overview tab: Pinecone Studio is live, the addresses teammates can connect at, a QR code, and an Open it button."
+              alt="The Manage hosting window, Overview tab: Pinecone Studio is live, the addresses teammates can connect at, a QR code, and an Invite people button."
             />
           </figure>
         </li>
@@ -177,7 +178,7 @@
             <h2>Open it to the internet <span class="guide-optional">Optional</span></h2>
             <p>
               For people at home or on mobile data, open <strong>Share on the internet</strong> in
-              Manage hosting and press <strong>Open to all</strong>.
+              Manage hosting and press <strong>Get a public link</strong>.
             </p>
             <p>
               OwnBase starts a Cloudflare Quick Tunnel and gives the workspace an HTTPS address.
@@ -185,10 +186,11 @@
               doesn't have cloudflared yet, OwnBase offers to install it.
             </p>
             <p class="guide-note">
-              The address changes each time hosting restarts. For one that stays, enter your own,
-              such as a Tailscale Funnel or a reverse proxy. Keep
-              <strong>Require an invite link</strong> ticked, so only people you invite can make an
-              account.
+              The address changes each time you open the link. For one that stays, enter your own,
+              such as a Tailscale Funnel or a reverse proxy. Under <strong>Who can join</strong>,
+              keep <strong>People with an invite</strong>, so only people you invite can make an
+              account. <strong>Anyone, guests included</strong> also lets people in for a day with
+              only a name.
             </p>
             <p class="reach">
               <span>Reachable at</span>
@@ -197,11 +199,11 @@
           </div>
           <figure class="stage guide-shot">
             <img
-              src="/shots/open-to-all-2.webp"
-              width="1144"
-              height="1430"
+              src="/shots/public-link.webp"
+              width="1168"
+              height="1730"
               loading="lazy"
-              alt="The Manage hosting window, Share on the internet tab: Open to all, a field for your own address, and the options to require an account and an invite link."
+              alt="The Manage hosting window, Share on the internet tab: who can join, with People with an invite chosen, the Get a public link button, and a field for your own address."
             />
           </figure>
         </li>
@@ -211,8 +213,8 @@
             <span class="step-num" aria-hidden="true">6</span>
             <h2>Send an invite link</h2>
             <p>
-              In the workspace, open the menu under its name and choose
-              <strong>Invite people</strong>. Copy the link, or let someone scan the QR code.
+              Press <strong>Invite people</strong> in Manage hosting, or choose it from the menu
+              under the workspace's name. Copy the link, or let someone scan the QR code.
             </p>
             <p>
               The link opens in any browser, on a laptop or a phone, with the invite already filled
@@ -253,6 +255,12 @@
             <p>
               Turn on automatic backups under <strong>Backups</strong> in Manage hosting, daily or
               weekly. The whole workspace is one folder, so a backup is everything.
+            </p>
+            <p>
+              Under <strong>Advanced</strong>, tick both boxes: start hosting when OwnBase opens,
+              and open OwnBase when you sign in to this computer. The workspace then comes back by
+              itself after a restart. On Windows, OwnBase downloads updates on its own and installs
+              them when it next restarts.
             </p>
           </div>
         </li>

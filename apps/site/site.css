@@ -550,7 +550,7 @@ h3 {
   --to: #fb9a3c;
 }
 .step:nth-child(2) {
-  --r: 0.8;
+  --r: 0.675;
   --from: #fb9a3c;
   --to: var(--gold);
 }
