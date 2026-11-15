@@ -13,6 +13,7 @@ import type {
   DesktopUpdates,
   DiscoveredServer,
   HostingStatus,
+  SavedDownload,
   ShareableSource,
   SystemMicrophones,
   UpdateStatus,
@@ -50,6 +51,7 @@ export type UpdateCalls = Merged<ChannelsOf<DesktopUpdates, "updates">>;
 
 export interface Calls extends HostingCalls, UpdateCalls {
   "file:download": (url: string) => void;
+  "file:showInFolder": (id: number) => void;
   "storage:get": (key: string, options?: { strict?: boolean }) => unknown;
   "storage:set": (key: string, value: unknown) => void;
   "storage:initialize": (key: string, value: unknown) => unknown;
@@ -81,6 +83,8 @@ export interface Events {
   "lan:servers": DiscoveredServer[];
   "hosting:changed": HostingStatus;
   deeplink: string;
+  /** A download finished saving, for the window to say where it went. */
+  "file:saved": SavedDownload;
   "window:prepareClose": number;
   "updates:changed": UpdateStatus;
   /** A question for the window's own dialog, in place of a native box. */
@@ -117,6 +121,7 @@ export interface OwnBaseBridge {
  */
 const CALL_LIST = {
   "file:download": true,
+  "file:showInFolder": true,
   "storage:get": true,
   "storage:set": true,
   "storage:initialize": true,
@@ -181,6 +186,7 @@ const EVENT_LIST = {
   "lan:servers": true,
   "hosting:changed": true,
   deeplink: true,
+  "file:saved": true,
   "window:prepareClose": true,
   "updates:changed": true,
   "updates:restartAsked": true,

@@ -8,12 +8,34 @@ import { useToast } from "./Toast.js";
 /**
  * Asks what the desktop app's main process needs to know, such as whether to
  * stop hosting to quit, in the app's own dialog rather than a native box, and
- * says what went wrong away from the window in its notices. The main process
+ * says what went wrong away from the window in its notices, and where each
+ * download was saved. The main process
  * falls back to a native box only when the page cannot answer.
  */
 export function WindowDialogs() {
-  const dialogs = usePlatform().windowDialogs;
+  const { windowDialogs: dialogs, downloads } = usePlatform();
   const toast = useToast();
+  // The desktop app asks where to save and then says nothing more.
+  useEffect(
+    () =>
+      downloads?.onSaved((file) =>
+        toast({
+          message: `Saved ${file.name}`,
+          kind: "success",
+          action: {
+            label: "Show in folder",
+            run: () =>
+              file.show().catch(() => {
+                toast({
+                  message: "Could not show the file. It may have been moved or deleted.",
+                  kind: "error",
+                });
+              }),
+          },
+        }),
+      ),
+    [downloads, toast],
+  );
   const [queue, setQueue] = useState<AskedQuestion[]>([]);
   useEffect(() => {
     if (!dialogs) return;

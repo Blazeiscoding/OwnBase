@@ -14,6 +14,7 @@ import {
   powerMonitor,
   safeStorage,
   screen,
+  type Session,
   shell,
   Tray,
 } from "electron";
@@ -85,6 +86,7 @@ import { loginItemOptions, loginItemProblem, openedAtLogin } from "./loginItem.j
 import { isWindowTheme, themeOfAppearance, windowColours } from "./windowTheme.js";
 import { MIN_WINDOW_SIZE, WINDOW_PLACE_KEY, placeToOpen, placeToSave } from "./windowPlace.js";
 import { ZOOM_KEY, nextZoomLevel, savedZoomLevel, zoomStep } from "./zoomKeys.js";
+import { SavedDownloads } from "./savedDownloads.js";
 import { contextMenuItems } from "./contextMenu.js";
 import { appMenuTemplate } from "./appMenu.js";
 import { readerLocale, systemHourCycle } from "./regionalFormat.js";
@@ -533,6 +535,11 @@ const capabilities: Omit<DesktopCapabilities, "readerLocale"> = {
   updates: updateMode,
 };
 
+/** Files saved in this run, for the window to say where each went. */
+const savedDownloads = new SavedDownloads((path) => shell.showItemInFolder(path));
+/** Sessions already followed, since a window made again shares the one before. */
+const followedSessions = new WeakSet<Session>();
+
 // ---------- every call the window makes ----------
 
 const handlers: Handlers<IpcMainInvokeEvent> = {
@@ -540,6 +547,7 @@ const handlers: Handlers<IpcMainInvokeEvent> = {
     if (!mainWindow) throw new Error("Invalid download request");
     mainWindow.webContents.downloadURL(ticketDownloadUrl(value));
   },
+  "file:showInFolder": (_event, id) => savedDownloads.show(id),
   "storage:get": (_event, key, options) =>
     settings.get(settingKey(key), {
       strict: (options as { strict?: unknown } | undefined)?.strict === true,
@@ -1014,6 +1022,15 @@ function createWindow(): void {
   // screen; refused, its request never settles and the stage stays put.
   // Grant those to our own renderer; refuse everything else.
   const allowed = new Set(["media", "display-capture", "notifications", "fullscreen"]);
+  // Electron asks where to save and then says nothing, so the window says
+  // where it went and offers Show in folder.
+  const windowSession = mainWindow.webContents.session;
+  if (!followedSessions.has(windowSession)) {
+    followedSessions.add(windowSession);
+    windowSession.on("will-download", (_event, item) =>
+      savedDownloads.track(item, (file) => push("file:saved", file)),
+    );
+  }
   mainWindow.webContents.session.setPermissionRequestHandler(
     (wc, permission, callback, details) => {
       callback(

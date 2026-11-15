@@ -198,6 +198,12 @@ export function electronPlatform(bridge: OwnBaseBridge): Platform {
       };
     },
     downloadFile: (url) => call("file:download", url),
+    downloads: {
+      onSaved: (cb) =>
+        bridge.on("file:saved", (file) =>
+          cb({ name: file.name, show: () => call("file:showInFolder", file.id) }),
+        ),
+    },
     setWindowTheme: (theme) => void call("window:setTheme", theme).catch(() => {}),
     // One window, so nothing else changes what it stores: no watch* here.
     storage: {
