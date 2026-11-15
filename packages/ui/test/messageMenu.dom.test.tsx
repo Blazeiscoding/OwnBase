@@ -6,6 +6,7 @@ import type { Channel, Message, User } from "@ownbase/protocol";
 import { ClientContext, PlatformContext } from "../src/context.js";
 import type { Platform } from "../src/platform.js";
 import { MessageItem } from "../src/components/MessageItem.js";
+import { ForwardHost } from "../src/components/ForwardHost.js";
 import { ConfirmProvider } from "../src/components/Confirm.js";
 import { ToastProvider } from "../src/components/Toast.js";
 import { accessibilityProblems } from "./accessibility.js";
@@ -81,11 +82,13 @@ function messageFrom(author: User, self: User) {
       <ConfirmProvider>
         <PlatformContext.Provider value={platform}>
           <ClientContext.Provider value={client}>
-            <MessageItem
-              message={{ ...message, userId: author.id }}
-              compact={false}
-              onOpenThread={onOpenThread}
-            />
+            <ForwardHost>
+              <MessageItem
+                message={{ ...message, userId: author.id }}
+                compact={false}
+                onOpenThread={onOpenThread}
+              />
+            </ForwardHost>
           </ClientContext.Provider>
         </PlatformContext.Provider>
       </ConfirmProvider>

@@ -1755,7 +1755,7 @@
         "The toolbar is made only while the pointer is on the row or focus is in it (reached), and kept while its menu or a dialog opened from it is up (away), so focus has its button to come back to; the stylesheet still shows it on hover and focus. Made for every row, its nine buttons and six icons were two thirds of each row's elements and 22 MiB of a 300-message conversation (scripts/measure-memory.mts). A touch does not make it: a phone's actions are in the row's own menu.",
         "The hover toolbar draws its icons at 18 px with a stroke of 2, beside the reaction emoji, and marks each button icon-live so its icon moves when pointed at. A saved message's bookmark takes the accent colour alone; with two text colours on the button, the stylesheet's order had left it looking unsaved.",
         "A message of only a few emoji (onlyEmoji in lib/emoji.ts) is shown at 32 px, as Slack and Discord show one.",
-        "Forward… (E1) sits in the menu and the toolbar's More, offered only where the server forwards and where forwardSource finds something to pass on. It opens ForwardDialog, a lazy chunk, with the source as it was when chosen. A forward shows its ForwardCard under its files.",
+        "Forward… (E1) sits in the menu and the toolbar's More, offered only where the server forwards and where forwardSource finds something to pass on. It asks ForwardHost to open ForwardDialog, a lazy chunk, with the source as it was when chosen, and is not offered where no ForwardHost is mounted. A forward shows its ForwardCard under its files.",
         "A message's link previews show under its files through LinkPreviews, with Remove for its sender (E2).",
         "Under the previews, LinkedMessages shows a card for each message in this workspace the words link to. Both are hidden while the message is edited.",
         "Mute thread or Unmute thread (E3) sits in More actions and the touch menu of a thread's first message in the channel, offered where the server mutes threads, once the thread has replies or while it is muted. A muted thread's reply count shows a bell-off mark and is named \"N replies, muted\".",
@@ -2041,9 +2041,20 @@
         "The list holds the conversations the person is in and every public channel, since posting joins one, and every other active person without a one-to-one DM (not for a guest, not someone blocked). Typing ranks it by name or handle with switcherRank's matchTier, at most eight rows show, and useListbox drives it as in the switcher. Enter picks the active row.",
         "Forwarding to a person with no DM yet opens one first through client.openDm; a failure says so in the dialog and sends nothing.",
         "MessageItem passes a ForwardSource: the message itself, or the original of a forward with no words or files of its own. The preview is forwardOf for the chosen conversation, so it hides a private original going elsewhere as the server will.",
-        "Forward goes through client.send, so the forward waits in the outbox like any message. Without a conversation it asks where and focuses the field; a full outbox keeps the dialog open and says why."
+        "Forward goes through client.send, so the forward waits in the outbox like any message. Without a conversation it asks where and focuses the field; a full outbox keeps the dialog open and says why.",
+        "When someone deletes the message being forwarded, the dialog stays open with what was written, says the message can no longer be forwarded beside the Forward button, and Forward sends nothing."
       ],
       "concepts": ["forwarding", "conversation picker", "outbox"]
+    },
+    {
+      "path": "packages/ui/src/components/ForwardHost.tsx",
+      "plain": "Keeps the Forward window open even if the message it came from disappears from the list.",
+      "summary": "Owns the Forward dialog above the message rows and tells a row whether it may offer Forward.",
+      "details": [
+        "A message row leaves the list when its message is deleted, and a dialog it owned would close with it, losing the words written there. WorkspaceScreen mounts the host around the layout, so the dialog outlives the row.",
+        "useForward gives a row a way to open the dialog and which row it is open for; that row keeps its toolbar so focus can return to the button. Where no host is mounted, the row does not offer Forward."
+      ],
+      "concepts": ["forwarding", "changes under you", "lazy loading"]
     },
     {
       "path": "packages/ui/src/components/LinkPreviews.tsx",

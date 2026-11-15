@@ -8,6 +8,7 @@ import { ClientContext, PlatformContext } from "../src/context.js";
 import { webPlatform } from "../src/platform.js";
 import { HuddleBar } from "../src/components/HuddleBar.js";
 import { MessageItem } from "../src/components/MessageItem.js";
+import { ForwardHost } from "../src/components/ForwardHost.js";
 import { Modal } from "../src/components/Modal.js";
 import { Sidebar } from "../src/components/Sidebar.js";
 import { ConfirmProvider } from "../src/components/Confirm.js";
@@ -299,7 +300,9 @@ describe("message actions", () => {
         <ConfirmProvider>
           <PlatformContext.Provider value={platform}>
             <ClientContext.Provider value={client}>
-              <MessageItem message={message} compact={false} onOpenThread={vi.fn()} />
+              <ForwardHost>
+                <MessageItem message={message} compact={false} onOpenThread={vi.fn()} />
+              </ForwardHost>
             </ClientContext.Provider>
           </PlatformContext.Provider>
         </ConfirmProvider>

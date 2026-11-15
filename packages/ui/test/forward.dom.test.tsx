@@ -1,11 +1,12 @@
 import { describe, expect, it, vi } from "vitest";
-import { fireEvent, render, screen, within } from "@testing-library/react";
+import { act, fireEvent, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { ApiError, WorkspaceClient } from "@ownbase/client-core";
-import type { Channel, ForwardReference, Message, User } from "@ownbase/protocol";
+import type { Channel, ForwardReference, Message, ServerToClient, User } from "@ownbase/protocol";
 import { ClientContext, OpenMessageContext } from "../src/context.js";
 import { MessageItem } from "../src/components/MessageItem.js";
 import { ForwardCard } from "../src/components/ForwardCard.js";
+import { ForwardHost } from "../src/components/ForwardHost.js";
 import { ConfirmProvider } from "../src/components/Confirm.js";
 import { ToastProvider } from "../src/components/Toast.js";
 import { accessibilityProblems } from "./accessibility.js";
@@ -70,18 +71,37 @@ function shown(item: Message) {
     status: "online",
   });
   const send = vi.spyOn(client, "send").mockReturnValue(QUEUED);
-  render(
+  const view = (row: boolean) => (
     <ToastProvider>
       <ConfirmProvider>
         <ClientContext.Provider value={client}>
           <OpenMessageContext.Provider value={vi.fn()}>
-            <MessageItem message={item} compact={false} />
+            <ForwardHost>{row && <MessageItem message={item} compact={false} />}</ForwardHost>
           </OpenMessageContext.Provider>
         </ClientContext.Provider>
       </ConfirmProvider>
-    </ToastProvider>,
+    </ToastProvider>
   );
-  return { client, send, user: userEvent.setup() };
+  const { rerender } = render(view(true));
+  /** Someone else deletes the message: its row leaves the list. */
+  const deleteIt = () => {
+    act(() =>
+      (client as unknown as { handleServerMessage(m: ServerToClient): void }).handleServerMessage({
+        type: "event",
+        envelope: {
+          seq: 10,
+          event: {
+            type: "message.deleted",
+            messageId: item.id,
+            channelId: item.channelId,
+            threadRootId: null,
+          },
+        },
+      }),
+    );
+    rerender(view(false));
+  };
+  return { client, send, deleteIt, user: userEvent.setup() };
 }
 
 async function openForward(user: ReturnType<typeof userEvent.setup>) {
@@ -197,6 +217,28 @@ describe("forwarding a message", () => {
     const dialog = await openForward(user);
     await user.type(within(dialog).getByRole("combobox", { name: "Forward to" }), "Priya");
     expect(within(dialog).queryAllByRole("option")).toEqual([]);
+  });
+
+  it("stays open when the message is deleted, keeps the words, and says why it cannot send", async () => {
+    const { send, deleteIt, user } = shown(message());
+    const dialog = await openForward(user);
+    await user.type(within(dialog).getByRole("combobox", { name: "Forward to" }), "design");
+    await user.keyboard("{Enter}");
+    const words = within(dialog).getByRole("textbox", { name: "Add a message (optional)" });
+    await user.type(words, "Have a look");
+
+    deleteIt();
+    expect(screen.getByRole("dialog", { name: "Forward message" })).toBe(dialog);
+    expect(words).toHaveValue("Have a look");
+    expect(words).toBeEnabled();
+    const forward = within(dialog).getByRole("button", { name: "Forward" });
+    expect(forward).toHaveAttribute("aria-disabled", "true");
+    expect(forward).toHaveAccessibleDescription(
+      "This message was deleted, so it can no longer be forwarded.",
+    );
+    await user.click(forward);
+    expect(send).not.toHaveBeenCalled();
+    expect(screen.getByRole("dialog", { name: "Forward message" })).toBeInTheDocument();
   });
 
   it("asks where before it sends anything", async () => {
