@@ -180,7 +180,6 @@ function exchange(
         // Runs for the address the socket is about to use, so there is no gap
         // between "we checked it" and "we connected to it".
         lookup: (hostname, options, callback) => {
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
           const cb = callback as any;
           dnsLookup(hostname, options, (err, address, family) => {
             if (err) return cb(err);
