@@ -1098,7 +1098,10 @@ function createWindow(): void {
         win.webContents.session.addWordToSpellCheckerDictionary(word);
       },
       openLink: (url) => void shell.openExternal(url),
-      copyText: (text) => clipboard.writeText(text),
+      copyText: (text) =>
+        void clipboard.writeText(text).catch((error: unknown) => {
+          console.error("OwnBase: could not copy to the clipboard.", error);
+        }),
       copyImageAt: (x, y) => win.webContents.copyImageAt(x, y),
     });
     if (items.length && !win.isDestroyed()) Menu.buildFromTemplate(items).popup({ window: win });

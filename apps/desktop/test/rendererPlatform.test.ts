@@ -226,6 +226,18 @@ describe("handing over final local work before close", () => {
     );
     expect(oldAccount).not.toHaveBeenCalled();
   });
+
+  it("still saves the other owners when one throws before it returns a promise", async () => {
+    const { platform, prepared, prepare } = preparing();
+    platform.onPrepareClose!("persist", () => {
+      throw new Error("no storage");
+    });
+    const other = vi.fn(async () => {});
+    platform.onPrepareClose!("persist", other);
+    prepare(71);
+    await vi.waitFor(() => expect(prepared()).toEqual([[71, false]]));
+    expect(other).toHaveBeenCalledOnce();
+  });
 });
 
 /** The page reports where it is, and starts from where it was after a crash (F08). */
