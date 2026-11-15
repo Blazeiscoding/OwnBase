@@ -27,12 +27,12 @@ The browser suite is one file, and Playwright splits shards by file unless `full
 The `lint` job runs `pnpm lint`: ESLint with only rules that catch bugs, configured in `eslint.config.mjs` at the root. Formatting stays prettier's and types stay tsc's.
 
 - From typescript-eslint, with type information: `no-floating-promises`, `no-misused-promises`, `await-thenable` and `switch-exhaustiveness-check`. A `default` branch counts as covering the cases it takes.
-- From `eslint-plugin-react-hooks`: `rules-of-hooks` and `exhaustive-deps`.
-- From `eslint-plugin-jsx-a11y`: its recommended set, in `.tsx` files.
+- From `eslint-plugin-react-hooks`: `rules-of-hooks` and `exhaustive-deps`, in packages/ui, apps/web and apps/desktop.
+- From `eslint-plugin-jsx-a11y`: its recommended set, in `.tsx` files. Two options differ: an `article` may be a Tab stop (messages in a feed), and a label finds its text up to four levels down.
 
-The typed rules read each file's own package `tsconfig.json` (`projectService`), so the job builds nothing and needs no task cache. A disable comment the rules no longer need fails the job. Locally `pnpm lint` keeps ESLint's cache in `node_modules/.cache/eslint`. That cache knows only each file's own content, so a change to a type in one file can leave another file's stale result in place; CI starts with no cache and is the one to trust.
+The typed rules read each file's own package `tsconfig.json` (`projectService`). The Playwright suites, their configs and `scripts/*.mts` use `tsconfig.automation.json`, and the few package `vitest.config.ts` files that no package tsconfig includes use a default project. So the job builds nothing and needs no task cache. A disable comment the rules no longer need fails the job. Locally `pnpm lint` keeps ESLint's cache in `node_modules/.cache/eslint`. That cache knows only each file's own content, so a change to a type in one file can leave another file's stale result in place; CI starts with no cache and is the one to trust.
 
-The rules are turned on one package at a time. `notYetLinted` in `eslint.config.mjs` lists what is not linted yet.
+Every TypeScript file in the repo is linted. A rule is turned off only by a disable comment on the line, with its reason after `--`.
 
 ## WebKit and Firefox
 

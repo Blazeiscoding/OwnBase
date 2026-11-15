@@ -30,7 +30,7 @@ const delay = monitorEventLoopDelay({ resolution: 10 });
 delay.enable();
 const gc = (globalThis as { gc?: () => void }).gc;
 
-process.on("message", async (request: Request) => {
+process.on("message", (request: Request) => {
   if (request.type === "seed") {
     const store = server.store;
     const DAY = 86_400_000;
@@ -90,9 +90,16 @@ process.on("message", async (request: Request) => {
     });
     delay.reset();
   } else if (request.type === "stop") {
-    await server.stop();
-    send({ type: "stopped" });
-    process.disconnect();
+    server.stop().then(
+      () => {
+        send({ type: "stopped" });
+        process.disconnect();
+      },
+      (error: unknown) => {
+        console.error("The soak server did not stop cleanly.", error);
+        process.exit(1);
+      },
+    );
   }
 });
 send({ type: "ready", port: server.port, gc: Boolean(gc) });
