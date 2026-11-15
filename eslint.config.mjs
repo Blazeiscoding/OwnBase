@@ -87,7 +87,6 @@ export default defineConfig(
     // the hook dependencies, then accessibility. Each removes its line here.
     files: ["packages/ui/**"],
     rules: {
-      "react-hooks/exhaustive-deps": "off",
       ...Object.fromEntries(
         Object.keys(jsxA11y.flatConfigs.recommended.rules).map((rule) => [rule, "off"]),
       ),

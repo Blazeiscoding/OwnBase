@@ -82,13 +82,16 @@ export function ThreadPanel({
   const readContext = useRef<string | null>(null);
   const contextKey = `${channelId}:${rootId}:${targetId ?? ""}`;
 
-  function readVisibleReplies() {
+  const pageLoaded = page?.loaded;
+  const pageLoading = page?.loading;
+  const pageHasMoreNewer = page?.hasMoreNewer;
+  const readVisibleReplies = useCallback(() => {
     if (
       readContext.current !== contextKey ||
       !readActive ||
-      !page?.loaded ||
-      page.loading ||
-      page.hasMoreNewer ||
+      !pageLoaded ||
+      pageLoading ||
+      pageHasMoreNewer ||
       !follow.current ||
       !document.hasFocus() ||
       document.visibilityState !== "visible"
@@ -97,7 +100,7 @@ export function ThreadPanel({
     // Replies are read in their thread. The channel's own cursor stays where
     // its timeline left it, so a thread cannot acknowledge channel messages.
     client.markThreadRead(rootId);
-  }
+  }, [contextKey, readActive, pageLoaded, pageLoading, pageHasMoreNewer, client, rootId]);
 
   useEffect(() => {
     readVisibleReplies();
@@ -107,7 +110,7 @@ export function ThreadPanel({
       window.removeEventListener("focus", readVisibleReplies);
       document.removeEventListener("visibilitychange", readVisibleReplies);
     };
-  }, [client, channelId, replies, page?.loaded, page?.loading, page?.hasMoreNewer, readActive]);
+  }, [channelId, replies, readVisibleReplies]);
 
   function load(direction: "latest" | "older" | "newer") {
     const container = scroller.current;
@@ -160,7 +163,7 @@ export function ThreadPanel({
     anchor.current = null;
     void client.loadThread(rootId, channelId, "latest", targetId ?? position?.messageId);
     return () => client.focusThread(null);
-  }, [client, rootId, channelId, targetId]);
+  }, [client, rootId, channelId, targetId, contextKey]);
 
   useLayoutEffect(() => {
     const container = scroller.current;
@@ -202,7 +205,7 @@ export function ThreadPanel({
       if (element) container.scrollTop += element.getBoundingClientRect().top - saved.top;
       anchor.current = null;
     } else if (follow.current) container.scrollTop = container.scrollHeight;
-  }, [replies, page?.loading, pending.length, targetId]);
+  }, [replies, page?.loaded, page?.loading, pending.length, targetId]);
 
   return (
     <aside

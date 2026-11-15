@@ -153,7 +153,7 @@ export function AppsDialog({ onClose }: { onClose: () => void }) {
     load();
     return () => {
       alive.current = false;
-      loadVersion.current++;
+      loadVersion.current += 1;
       loadInFlight.current = false;
     };
   }, [load]);

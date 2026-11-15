@@ -107,7 +107,7 @@ export function InviteDialog(props: {
   useEffect(() => {
     void loadInvites();
     return () => {
-      listRequest.current++;
+      listRequest.current += 1;
     };
   }, [loadInvites, permissions]);
 

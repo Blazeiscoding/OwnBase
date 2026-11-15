@@ -40,7 +40,7 @@ export function useHostingStatus(hosting: Platform["hosting"]) {
     });
     void refresh();
     return () => {
-      revision.current++;
+      revision.current += 1;
       unsubscribe();
     };
   }, [hosting, refresh]);

@@ -271,6 +271,7 @@ function PaginationButton({
   useLayoutEffect(() => {
     const element = button.current;
     return () => {
+      // eslint-disable-next-line react-hooks/exhaustive-deps -- focus goes to the home node there is at unmount, not the one at mount
       if (document.activeElement === element) home.current?.focus({ preventScroll: true });
     };
   }, [home]);
