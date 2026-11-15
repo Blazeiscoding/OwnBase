@@ -109,7 +109,12 @@ export async function runAppCommand(
     }
     case "mute":
     case "unmute": {
-      client.setChannelPrefs(channelId, { muted: name === "mute" });
+      const error = await client.setChannelPrefs(channelId, { muted: name === "mute" });
+      if (error) {
+        const failure =
+          name === "mute" ? `${cap(where)} was not muted.` : `${cap(where)} is still muted.`;
+        return { ok: false, said: failureText(failure, error, offline) };
+      }
       return {
         ok: true,
         said: name === "mute" ? `${cap(where)} is muted.` : `${cap(where)} is no longer muted.`,

@@ -108,6 +108,19 @@ describe("the commands the app runs", () => {
     expect(prefs).toHaveBeenCalledWith("D1", { muted: true });
   });
 
+  it("say so when the server does not take a mute", async () => {
+    const client = workspace();
+    vi.spyOn(client, "setChannelPrefs").mockResolvedValue(
+      new ApiError(0, "network_error", "offline"),
+    );
+    const muting = await runAppCommand("mute", "", { client, channelId: "C1" });
+    expect(muting.ok).toBe(false);
+    expect(muting.said).toMatch(/^#design was not muted\./);
+    const unmuting = await runAppCommand("unmute", "", { client, channelId: "C1" });
+    expect(unmuting.ok).toBe(false);
+    expect(unmuting.said).toMatch(/^#design is still muted\./);
+  });
+
   it("show you away, and say so when that fails", async () => {
     const client = workspace();
     vi.spyOn(client, "setAway")
