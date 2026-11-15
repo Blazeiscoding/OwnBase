@@ -32,7 +32,7 @@ const TrayRestart = lazy(() =>
 );
 import { ErrorBoundary } from "./components/ErrorBoundary.js";
 import { ConfirmProvider } from "./components/Confirm.js";
-import { ToastProvider } from "./components/Toast.js";
+import { ToastProvider, useTryNotice } from "./components/Toast.js";
 import { WindowDialogs } from "./components/WindowDialogs.js";
 import {
   changeSavedServers,
@@ -101,6 +101,19 @@ function Appearance() {
   return null;
 }
 
+/**
+ * Says that a link handed to the app, an ownbase:// one the system passed on,
+ * was not one it can open. Otherwise clicking it would seem to do nothing.
+ */
+function RefusedLinkNotice({ count }: { count: number }) {
+  const notice = useTryNotice();
+  useEffect(() => {
+    if (count > 0)
+      notice.show({ message: "That link is not an OwnBase link we can open.", kind: "error" });
+  }, [count, notice]);
+  return null;
+}
+
 function AppBoundary({ children }: { children: ReactNode }) {
   return (
     <ErrorBoundary>
@@ -115,6 +128,8 @@ export function App({ platform }: { platform: Platform }) {
   const [savedServers, setSavedServers] = useState<SavedServer[]>([]);
   const savedServersRef = useRef<SavedServer[]>([]);
   const [session, setSession] = useState<Session>({ view: "loading" });
+  /** Links handed to the app that it could not read, each said once. */
+  const [refusedLinks, setRefusedLinks] = useState(0);
   /** Where the workspace on screen is, for Manage hosting's Invite people. */
   const workspaceNavigation = useRef<Navigation | null>(null);
   const keepNavigation = useCallback((navigation: Navigation | null) => {
@@ -294,7 +309,10 @@ export function App({ platform }: { platform: Platform }) {
   const handleDeepLink = useCallback(
     async (raw: string) => {
       const link = parseDeepLink(raw);
-      if (!link) return;
+      if (!link) {
+        setRefusedLinks((n) => n + 1);
+        return;
+      }
       if (forgetting.current) {
         deferredDeepLink.current = raw;
         return;
@@ -516,6 +534,7 @@ export function App({ platform }: { platform: Platform }) {
           </ErrorBoundary>
         )}
         <WindowDialogs />
+        <RefusedLinkNotice count={refusedLinks} />
         <div className="flex h-full flex-col">
           {platform.kind === "desktop" &&
             (saveErrorAbove || session.view === "loading" || session.view === "restore_failed") && (
