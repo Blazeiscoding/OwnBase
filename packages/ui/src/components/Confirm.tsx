@@ -146,6 +146,7 @@ function ConfirmDialog({
           type="button"
           // First in the DOM so a destructive action is not what focus lands
           // on, and so Tab reaches it before the button that cannot be undone.
+          // eslint-disable-next-line jsx-a11y/no-autofocus -- focus moves into the question as it opens, onto the choice that undoes nothing
           autoFocus={destructive}
           onClick={() => settle(false)}
           className={buttonClass("quiet")}
@@ -154,6 +155,7 @@ function ConfirmDialog({
         </button>
         <button
           type="button"
+          // eslint-disable-next-line jsx-a11y/no-autofocus -- focus moves into the question as it opens, onto its action when that is safe
           autoFocus={!destructive}
           onClick={() => settle(true)}
           className={destructive ? buttonClass("danger") : buttonClass("primary")}

@@ -656,6 +656,7 @@ export function ChannelDetailsDialog(props: {
                 candidates={notMembers}
                 where={room ? `#${channel.name}` : "the conversation"}
                 disabled={busy}
+                // eslint-disable-next-line jsx-a11y/no-autofocus -- opened on Members, the dialog starts in the box that finds people to add
                 autoFocus={props.initialTab === "members"}
                 onAdd={addMember}
               />

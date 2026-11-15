@@ -203,6 +203,7 @@ export function MessageEditor({ message, onClose }: { message: Message; onClose:
               dir="auto"
               ref={box}
               value={field.doc.shown}
+              // eslint-disable-next-line jsx-a11y/no-autofocus -- Edit swaps the message for this box, which takes focus in its place
               autoFocus
               aria-label="Edit message"
               {...suggestions.list.ownerProps}

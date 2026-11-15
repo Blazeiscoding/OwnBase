@@ -96,6 +96,7 @@ export function ShortcutsDialog({ onClose }: { onClose: () => void }) {
         <span className="sr-only">Find a shortcut</span>
         <input
           type="search"
+          // eslint-disable-next-line jsx-a11y/no-autofocus -- the dialog's first field: focus moves there as it opens
           autoFocus
           value={query}
           onChange={(event) => setQuery(event.target.value)}

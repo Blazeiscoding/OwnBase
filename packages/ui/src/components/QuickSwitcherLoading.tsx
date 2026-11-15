@@ -47,6 +47,7 @@ export function QuickSwitcherLoading(props: {
       <div className={SWITCHER_ROW}>
         <Icon name="search" size={18} className="text-ink-faint" />
         <input
+          // eslint-disable-next-line jsx-a11y/no-autofocus -- Ctrl+K opens straight into typing where to go, while the switcher loads
           autoFocus
           aria-label="Channel or person"
           aria-describedby={status}

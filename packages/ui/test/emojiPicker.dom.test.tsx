@@ -19,6 +19,7 @@ function picker(saved: unknown = null) {
   const onPick = vi.fn();
   const view = render(
     <PlatformContext.Provider value={platform}>
+      {/* eslint-disable-next-line jsx-a11y/no-autofocus -- the picker as the app opens it, into its search */}
       <EmojiPicker onPick={onPick} autoFocus />
     </PlatformContext.Provider>,
   );
@@ -26,6 +27,7 @@ function picker(saved: unknown = null) {
     view.unmount();
     render(
       <PlatformContext.Provider value={platform}>
+        {/* eslint-disable-next-line jsx-a11y/no-autofocus -- the picker as the app opens it, into its search */}
         <EmojiPicker onPick={onPick} autoFocus />
       </PlatformContext.Provider>,
     );

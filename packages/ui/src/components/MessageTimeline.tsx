@@ -549,6 +549,7 @@ export const MessageTimeline = memo(function MessageTimeline({
       {/* A short conversation sits on the composer, as in any chat, rather than
           at the top with an empty page between it and where you write. */}
       <div
+        role="presentation"
         ref={content}
         onFocus={roving.onFocus}
         onKeyDown={roving.onKeyDown}

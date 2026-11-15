@@ -181,6 +181,7 @@ export function ScheduledPanel(props: {
               Edit scheduled text
               <textarea
                 dir="auto"
+                // eslint-disable-next-line jsx-a11y/no-autofocus -- Edit swaps the scheduled message for this box, which takes focus in its place
                 autoFocus
                 value={editText}
                 disabled={busy !== null}

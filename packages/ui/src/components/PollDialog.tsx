@@ -139,6 +139,7 @@ export function PollDialog({
               <input
                 ref={questionField}
                 id={`${problemId}-question`}
+                // eslint-disable-next-line jsx-a11y/no-autofocus -- the dialog's first field: focus moves there as it opens
                 autoFocus
                 value={question}
                 maxLength={POLL_QUESTION_MAX}

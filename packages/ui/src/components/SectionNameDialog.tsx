@@ -51,6 +51,7 @@ export function SectionNameDialog({
           </label>
           <input
             id={fieldId}
+            // eslint-disable-next-line jsx-a11y/no-autofocus -- the dialog's first field: focus moves there as it opens
             autoFocus
             value={name}
             maxLength={SIDEBAR_SECTION_NAME_MAX}

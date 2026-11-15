@@ -80,16 +80,14 @@ export default defineConfig(
     files: ["**/*.tsx"],
     rules: {
       ...jsxA11y.flatConfigs.recommended.rules,
-    },
-  },
-  {
-    // packages/ui comes in three pull requests (G11): promises first, then
-    // the hook dependencies, then accessibility. Each removes its line here.
-    files: ["packages/ui/**"],
-    rules: {
-      ...Object.fromEntries(
-        Object.keys(jsxA11y.flatConfigs.recommended.rules).map((rule) => [rule, "off"]),
-      ),
+      // Messages are articles in a feed, each a Tab stop with arrow keys
+      // between them (WAI-ARIA feed pattern).
+      "jsx-a11y/no-noninteractive-tabindex": [
+        "error",
+        { tags: [], roles: ["tabpanel", "article"], allowExpressionValues: true },
+      ],
+      // A choice's title and hint sit in spans inside its label, for layout.
+      "jsx-a11y/label-has-associated-control": ["error", { depth: 4 }],
     },
   },
 );

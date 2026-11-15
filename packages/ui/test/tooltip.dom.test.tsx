@@ -140,6 +140,7 @@ describe("a tooltip", () => {
     const user = userEvent.setup();
     render(
       <Modal title="Preferences" onClose={close} className="p-4">
+        {/* eslint-disable-next-line jsx-a11y/no-autofocus -- a dialog with a field focused on open, as the app's dialogs are */}
         <input aria-label="Display name" autoFocus />
         <Tooltip label="More settings">
           <button aria-label="More settings">...</button>

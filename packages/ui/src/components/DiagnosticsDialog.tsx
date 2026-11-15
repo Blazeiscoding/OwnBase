@@ -115,6 +115,7 @@ export function DiagnosticsDialog({
       {report ? (
         <pre
           aria-label="Diagnostics report"
+          // eslint-disable-next-line jsx-a11y/no-noninteractive-tabindex -- a scrolling region takes a Tab stop so it can be scrolled from the keyboard
           tabIndex={0}
           className="mt-3 max-h-[50vh] overflow-auto whitespace-pre-wrap break-words rounded-lg border border-edge bg-ground p-3 font-mono text-xs text-ink-dim"
         >

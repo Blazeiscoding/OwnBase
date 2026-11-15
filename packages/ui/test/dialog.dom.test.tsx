@@ -20,6 +20,7 @@ function RenameChannel({ onClose }: { onClose?: () => void }) {
             setOpen(false);
           }}
         >
+          {/* eslint-disable-next-line jsx-a11y/no-autofocus -- a dialog with a field focused on open, as the app's dialogs are */}
           <input aria-label="Channel name" autoFocus />
           <button>Save</button>
         </Dialog>

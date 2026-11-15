@@ -346,6 +346,7 @@ function SpeakerTest({ speakerId }: { speakerId: string }) {
 
   return (
     <div className="mt-2 space-y-2">
+      {/* eslint-disable-next-line jsx-a11y/media-has-caption -- a test tone, with no words to caption */}
       <audio ref={sound} hidden />
       <button
         type="button"

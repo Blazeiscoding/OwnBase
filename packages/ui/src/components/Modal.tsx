@@ -508,6 +508,7 @@ export function Modal({
   }, []);
 
   return createPortal(
+    // eslint-disable-next-line jsx-a11y/no-static-element-interactions -- pressing the backdrop closes, as Escape does from the keyboard
     <div
       ref={root}
       data-ownbase-modal=""

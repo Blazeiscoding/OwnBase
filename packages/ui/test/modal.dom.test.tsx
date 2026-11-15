@@ -18,6 +18,7 @@ function Stacked({ removeLower = false }: { removeLower?: boolean }) {
       )}
       {upper && (
         <Modal title="App form" onClose={() => setUpper(false)}>
+          {/* eslint-disable-next-line jsx-a11y/no-autofocus -- the test is about how layers treat a field focused on open */}
           <input aria-label="App answer" autoFocus />
           <button
             onClick={() => {
@@ -122,6 +123,7 @@ describe("modal keyboard and focus ownership", () => {
           </div>
           {picking && (
             <Modal title="Add a reaction" onClose={() => setPicking(false)}>
+              {/* eslint-disable-next-line jsx-a11y/no-autofocus -- the test is about how layers treat a field focused on open */}
               <input aria-label="Search emoji" autoFocus />
             </Modal>
           )}
@@ -146,6 +148,7 @@ describe("modal keyboard and focus ownership", () => {
           {!picking && <button onClick={() => setPicking(true)}>Add a reaction</button>}
           {picking && (
             <Modal title="Add a reaction" onClose={() => setPicking(false)}>
+              {/* eslint-disable-next-line jsx-a11y/no-autofocus -- the test is about how layers treat a field focused on open */}
               <input aria-label="Search emoji" autoFocus />
             </Modal>
           )}
@@ -171,6 +174,7 @@ describe("modal keyboard and focus ownership", () => {
           </Modal>
           {notice && (
             <Modal title="Notice" onClose={() => setNotice(false)}>
+              {/* eslint-disable-next-line jsx-a11y/no-autofocus -- the test is about how layers treat a field focused on open */}
               <button autoFocus>Got it</button>
             </Modal>
           )}
@@ -191,6 +195,7 @@ describe("modal keyboard and focus ownership", () => {
     const { unmount, container } = render(
       <StrictMode>
         <Modal title="Edit details" onClose={() => {}}>
+          {/* eslint-disable-next-line jsx-a11y/no-autofocus -- the test is about autofocus under StrictMode */}
           <input aria-label="Details" autoFocus />
         </Modal>
       </StrictMode>,
@@ -207,6 +212,7 @@ describe("modal keyboard and focus ownership", () => {
       <Modal title="Edit details" onClose={close} dismissible={dismissible}>
         <input
           aria-label="Details"
+          // eslint-disable-next-line jsx-a11y/no-autofocus -- the test types into a field focused on open
           autoFocus
           onKeyDown={(event) => {
             if (consume && event.key === "Escape") event.preventDefault();
@@ -237,6 +243,7 @@ describe("modal keyboard and focus ownership", () => {
   it("wraps Tab past hidden, disabled, and negative-tabindex controls", async () => {
     render(
       <Modal title="Choose action" onClose={() => {}}>
+        {/* eslint-disable-next-line jsx-a11y/no-autofocus -- Tab order is counted from a control focused on open */}
         <button autoFocus>First</button>
         <button>Last</button>
         <button tabIndex={-1}>Programmatic only</button>
@@ -259,7 +266,9 @@ describe("modal keyboard and focus ownership", () => {
   it("uses positive tabindex order and treats a radio group as one tab stop", async () => {
     render(
       <Modal title="Preferences" onClose={() => {}}>
+        {/* eslint-disable-next-line jsx-a11y/tabindex-no-positive -- the test is about how the dialog follows positive tabindex order */}
         <button tabIndex={2}>Second</button>
+        {/* eslint-disable-next-line jsx-a11y/tabindex-no-positive, jsx-a11y/no-autofocus -- positive tabindex order, counted from the control focused on open */}
         <button tabIndex={1} autoFocus>
           First
         </button>
@@ -290,6 +299,7 @@ describe("modal keyboard and focus ownership", () => {
         <section tabIndex={-1} aria-label="Confirmation">
           <button>Cancel</button>
         </section>
+        {/* eslint-disable-next-line jsx-a11y/no-autofocus -- the test is about losing a control focused on open */}
         <button autoFocus disabled={disabled}>
           Apply
         </button>
@@ -315,6 +325,7 @@ describe("modal keyboard and focus ownership", () => {
     added.textContent = "Added outside";
     const { unmount } = render(
       <Modal title="Settings" onClose={() => {}}>
+        {/* eslint-disable-next-line jsx-a11y/no-autofocus -- a dialog with a control focused on open, as the app's dialogs are */}
         <button autoFocus>Inside</button>
       </Modal>,
     );
@@ -342,6 +353,7 @@ describe("modal keyboard and focus ownership", () => {
     call.append(join);
     const { unmount } = render(
       <Modal title="Settings" onClose={() => {}}>
+        {/* eslint-disable-next-line jsx-a11y/no-autofocus -- a dialog with a control focused on open, as the app's dialogs are */}
         <button autoFocus>First</button>
         <button>Last</button>
       </Modal>,

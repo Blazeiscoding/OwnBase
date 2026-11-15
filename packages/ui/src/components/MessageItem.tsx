@@ -394,6 +394,7 @@ const MessageRow = memo(function MessageRow({
   };
 
   return (
+    // eslint-disable-next-line jsx-a11y/no-noninteractive-element-interactions -- a message is a Tab stop in the feed and takes its own shortcut keys
     <div
       ref={row}
       role="article"

@@ -829,6 +829,7 @@ function WorkspaceLayout(props: { restore: boolean; banner?: ReactNode }) {
                     <Composer
                       channelId={channelId}
                       placeholder={room ? `Message #${title}` : `Message ${title}`}
+                      // eslint-disable-next-line jsx-a11y/no-autofocus -- opening a conversation starts in its composer, as Slack's does
                       autoFocus
                       onLeft={() => nav.navigate({ to: "left" })}
                     />

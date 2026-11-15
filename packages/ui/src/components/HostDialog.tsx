@@ -571,6 +571,7 @@ function PortForm(props: {
         <div className="w-24 shrink-0">
           <input
             ref={field}
+            // eslint-disable-next-line jsx-a11y/no-autofocus -- Change port swaps the line for this field, which takes focus in its place
             autoFocus
             inputMode="numeric"
             aria-label={`New port for ${props.name}`}
@@ -665,6 +666,7 @@ function RenameForm(props: {
       <div className="flex gap-2">
         <input
           ref={field}
+          // eslint-disable-next-line jsx-a11y/no-autofocus -- Rename swaps the line for this field, which takes focus in its place
           autoFocus
           aria-label={`New name for ${props.name}`}
           maxLength={WORKSPACE_NAME_MAX}
@@ -2160,6 +2162,7 @@ export function HostDialog(props: {
                   </span>
                   <input
                     ref={nameInput}
+                    // eslint-disable-next-line jsx-a11y/no-autofocus -- the dialog's first field: focus moves there as it opens
                     autoFocus
                     maxLength={WORKSPACE_NAME_MAX}
                     value={name}

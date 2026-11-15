@@ -101,6 +101,7 @@ export function NewChannelDialog(props: { onClose: () => void; onCreated: (ch: C
             <input
               id="new-channel-name"
               ref={nameInput}
+              // eslint-disable-next-line jsx-a11y/no-autofocus -- the dialog's first field: focus moves there as it opens
               autoFocus
               value={name}
               maxLength={80}
@@ -251,6 +252,7 @@ export function GuestAccountDialog(props: {
           label="Username"
           hint="Lowercase letters and numbers, such as maya or sam.r"
           error={problems.handle}
+          // eslint-disable-next-line jsx-a11y/no-autofocus -- the dialog's first field: focus moves there as it opens
           autoFocus
           value={handle}
           onChange={(e) => {
@@ -378,6 +380,7 @@ export function BrowseChannelsDialog(props: { onClose: () => void; onOpen: (id: 
       <div {...tabs.panelProps} className="flex min-h-0 flex-col">
         <div className="shrink-0 px-6 pb-2">
           <input
+            // eslint-disable-next-line jsx-a11y/no-autofocus -- the dialog's first field: focus moves there as it opens
             autoFocus
             aria-label="Filter channels"
             value={q}
@@ -578,6 +581,7 @@ export function NewDmDialog(props: {
             <input
               id="new-dm-search"
               ref={search}
+              // eslint-disable-next-line jsx-a11y/no-autofocus -- the dialog's first field: focus moves there as it opens
               autoFocus
               value={q}
               onChange={(e) => setQ(e.target.value)}

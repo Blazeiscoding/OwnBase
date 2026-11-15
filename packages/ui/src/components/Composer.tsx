@@ -738,6 +738,7 @@ export function Composer({ channelId, threadRootId, placeholder, autoFocus, onLe
           className="surface-float absolute bottom-full left-5 right-5 z-10 mb-2 max-h-80 origin-bottom-left animate-menu-in overflow-y-auto rounded-xl p-1"
         >
           {commandCandidates.map((c, i) => (
+            // eslint-disable-next-line jsx-a11y/click-events-have-key-events, jsx-a11y/no-noninteractive-element-interactions -- an option of a combobox: the field keeps focus and takes the keys (aria-activedescendant)
             <li
               key={c.command}
               {...commandList.optionProps(i)}
