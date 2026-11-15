@@ -612,8 +612,8 @@ export class HuddleSession {
   private async sendMicrophone(): Promise<void> {
     const track = this.sentMicrophone;
     await Promise.all(
-      [...this.peers.values()].map((peer) =>
-        peer.audioTx?.sender.replaceTrack(track).catch(() => {}),
+      [...this.peers.values()].flatMap((peer) =>
+        peer.audioTx ? [peer.audioTx.sender.replaceTrack(track).catch(() => {})] : [],
       ),
     );
   }
@@ -1486,8 +1486,10 @@ export class HuddleSession {
   /** Puts the share's sound, or none, in every connection's slot for it. */
   private async sendScreenSound(): Promise<void> {
     await Promise.all(
-      [...this.peers.values()].map((peer) =>
-        peer.screenSoundTx?.sender.replaceTrack(this.screenSoundTrack).catch(() => {}),
+      [...this.peers.values()].flatMap((peer) =>
+        peer.screenSoundTx
+          ? [peer.screenSoundTx.sender.replaceTrack(this.screenSoundTrack).catch(() => {})]
+          : [],
       ),
     );
   }
@@ -1501,12 +1503,11 @@ export class HuddleSession {
     if (track && slot === "camera") this.cameraUsed = true;
     if (track && slot === "screen") this.screenUsed = true;
     await Promise.all(
-      [...this.peers.values()].map((peer) =>
-        (slot === "camera" ? peer.cameraTx : peer.screenTx)?.sender
-          .replaceTrack(track)
-          // A peer that died mid-call must not stop the others updating.
-          .catch(() => {}),
-      ),
+      [...this.peers.values()].flatMap((peer) => {
+        const tx = slot === "camera" ? peer.cameraTx : peer.screenTx;
+        // A peer that died mid-call must not stop the others updating.
+        return tx ? [tx.sender.replaceTrack(track).catch(() => {})] : [];
+      }),
     );
     // A picture of another height is scaled to their tiles anew.
     this.sizeSenders();

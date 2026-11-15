@@ -84,7 +84,8 @@ describe("sidebar sections on the client", () => {
 
     // A conversation moved in shows there at once, and on the other device.
     const general = Object.values(laptop.state.channels).find((c) => c.name === "general")!;
-    laptop.setChannelPrefs(general.id, { sectionId: work.id, starred: false });
+    // Resolves with a refusal rather than rejecting; what shows meanwhile is checked.
+    void laptop.setChannelPrefs(general.id, { sectionId: work.id, starred: false });
     expect(laptop.state.prefs[general.id]?.sectionId).toBe(work.id);
     await until(phone, (s) => s.prefs[general.id]?.sectionId === work.id, "the move");
 

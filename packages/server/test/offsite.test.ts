@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { spawn } from "node:child_process";
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
-import { createServer, type IncomingMessage, type Server } from "node:http";
+import { createServer, type IncomingMessage, type Server, type ServerResponse } from "node:http";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -129,7 +129,7 @@ async function fakeBucket(name = "backups"): Promise<FakeBucket> {
     for await (const chunk of req) chunks.push(chunk as Buffer);
     return Buffer.concat(chunks);
   };
-  const server: Server = createServer(async (req, res) => {
+  const handle = async (req: IncomingMessage, res: ServerResponse) => {
     const url = new URL(req.url!, "http://local");
     const query = Object.fromEntries(url.searchParams);
     requests.push(`${req.method} ${url.pathname}${url.search}`);
@@ -208,6 +208,10 @@ async function fakeBucket(name = "backups"): Promise<FakeBucket> {
     } else {
       res.writeHead(400).end();
     }
+  };
+  // A mistake in the fake shows as a failed request, not an unhandled rejection.
+  const server: Server = createServer((req, res) => {
+    handle(req, res).catch((error: unknown) => res.destroy(error as Error));
   });
   await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
   const { port } = server.address() as { port: number };

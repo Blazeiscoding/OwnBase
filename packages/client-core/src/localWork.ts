@@ -787,7 +787,8 @@ export class LocalWork {
         });
       return restoring;
     };
-    restore();
+    // A failed read is reported above; nothing waits on the first one.
+    void restore();
 
     return {
       flush,

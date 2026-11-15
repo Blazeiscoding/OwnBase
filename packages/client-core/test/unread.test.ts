@@ -3,6 +3,10 @@ import { createWorkspaceServer, type WorkspaceServer } from "@ownbase/server";
 import { Api, WorkspaceClient, isMessageRead, unreadThreadCount } from "../src/index.js";
 import { timelineMessages } from "../src/messageCache.js";
 
+// The client's optimistic writes show at once and resolve with the server's
+// refusal rather than reject, so tests start them with `void` to look at what
+// shows meanwhile.
+
 let server: WorkspaceServer;
 let client: WorkspaceClient;
 let owner: Api;
@@ -386,8 +390,8 @@ describe("following a thread", () => {
         return send(rootId, following);
       });
 
-    client.setThreadFollow(root.id, true);
-    client.setThreadFollow(root.id, false);
+    void client.setThreadFollow(root.id, true);
+    void client.setThreadFollow(root.id, false);
     expect(client.state.threadFollows[root.id]?.following).toBe(false);
     await new Promise((resolve) => setTimeout(resolve, 50));
     expect(sent.mock.calls.map(([, following]) => following)).toEqual([true]);
@@ -408,8 +412,8 @@ describe("following a thread", () => {
       .spyOn(client.api, "setThreadFollow")
       .mockRejectedValueOnce(new Error("offline"));
 
-    client.setThreadFollow(root.id, true);
-    client.setThreadFollow(root.id, false);
+    void client.setThreadFollow(root.id, true);
+    void client.setThreadFollow(root.id, false);
     await expect.poll(() => sent.mock.calls.length).toBe(2);
     await sent.mock.results[1]!.value;
 
@@ -428,8 +432,8 @@ describe("following a thread", () => {
         }),
     );
 
-    client.setThreadFollow(root.id, true);
-    client.setThreadFollow(root.id, false);
+    void client.setThreadFollow(root.id, true);
+    void client.setThreadFollow(root.id, false);
     client.destroy();
     release();
     await new Promise((resolve) => setTimeout(resolve, 20));
@@ -443,18 +447,18 @@ describe("muting a thread", () => {
     const root = await incoming("Noisy thread");
     await client.loadThread(root.id, channelId, "latest");
     await incoming("chatter", root.id);
-    client.setThreadFollow(root.id, true);
+    void client.setThreadFollow(root.id, true);
     const other = new WorkspaceClient(client.baseUrl, member.token);
     try {
       other.connect();
       await expect.poll(() => other.state.threadFollows[root.id]?.following).toBe(true);
 
-      client.setThreadMute(root.id, true);
+      void client.setThreadMute(root.id, true);
       expect(client.state.threadFollows[root.id]).toMatchObject({ following: false, muted: true });
       await expect.poll(() => other.state.threadFollows[root.id]?.muted).toBe(true);
       expect(server.store.threads.follow(member.id, root.id)?.muted).toBe(true);
 
-      client.setThreadMute(root.id, false);
+      void client.setThreadMute(root.id, false);
       expect(client.state.threadFollows[root.id]?.muted).toBeUndefined();
       await expect.poll(() => other.state.threadFollows[root.id]?.muted).toBeUndefined();
       expect(other.state.threadFollows[root.id]?.following).toBe(false);
@@ -466,7 +470,7 @@ describe("muting a thread", () => {
   it("stays muted while the thread is read, before the server answers", async () => {
     const root = await incoming("Muted, then read");
     await client.loadThread(root.id, channelId, "latest");
-    client.setThreadMute(root.id, true);
+    void client.setThreadMute(root.id, true);
     await expect.poll(() => server.store.threads.follow(member.id, root.id)?.muted).toBe(true);
     await incoming("a reply", root.id);
 
@@ -499,8 +503,8 @@ describe("muting a thread", () => {
       });
     const followed = vi.spyOn(client.api, "setThreadFollow");
 
-    client.setThreadMute(root.id, true);
-    client.setThreadFollow(root.id, true);
+    void client.setThreadMute(root.id, true);
+    void client.setThreadFollow(root.id, true);
     await new Promise((resolve) => setTimeout(resolve, 50));
     expect(followed).not.toHaveBeenCalled();
 
@@ -515,11 +519,11 @@ describe("muting a thread", () => {
   it("puts the thread back as it was when the server refuses", async () => {
     const root = await incoming("Refused");
     await client.loadThread(root.id, channelId, "latest");
-    client.setThreadFollow(root.id, true);
+    void client.setThreadFollow(root.id, true);
     await expect.poll(() => server.store.threads.follow(member.id, root.id)?.following).toBe(true);
     vi.spyOn(client.api, "setThreadMute").mockRejectedValue(new Error("offline"));
 
-    client.setThreadMute(root.id, true);
+    void client.setThreadMute(root.id, true);
     expect(client.state.threadFollows[root.id]?.muted).toBe(true);
     await expect.poll(() => client.state.threadFollows[root.id]?.muted).toBeUndefined();
     expect(client.state.threadFollows[root.id]?.following).toBe(true);
