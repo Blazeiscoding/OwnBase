@@ -222,6 +222,42 @@ describe("the workspace's name", () => {
   });
 });
 
+describe("a save the server could not finish", () => {
+  it("says the server had a problem, not that the connection did", async () => {
+    const { dialog, rename, user } = page();
+    rename.mockRejectedValueOnce(new ApiError(500, "internal"));
+    const field = within(dialog).getByLabelText("Workspace name");
+    await user.clear(field);
+    await user.type(field, "Blue Team");
+    await user.click(within(dialog).getByRole("button", { name: "Save" }));
+    expect(await within(dialog).findByRole("alert")).toHaveTextContent(
+      "Could not rename the workspace. The workspace's server ran into a problem. Try again in a moment.",
+    );
+  });
+
+  it("says the same when choosing who can join meets one", async () => {
+    const { dialog, choose, user } = page();
+    choose.mockRejectedValueOnce(new ApiError(503, "http_error"));
+    await user.click(within(dialog).getByRole("tab", { name: "Who can join" }));
+    await user.click(await within(dialog).findByRole("radio", { name: /People with an invite/ }));
+    expect(await within(dialog).findByRole("alert")).toHaveTextContent(
+      "Who can join was not changed. The workspace's server ran into a problem. Try again in a moment.",
+    );
+  });
+
+  it("still says to check the connection when the server never answered", async () => {
+    const { dialog, rename, user } = page();
+    rename.mockRejectedValueOnce(new ApiError(0, "network_error"));
+    const field = within(dialog).getByLabelText("Workspace name");
+    await user.clear(field);
+    await user.type(field, "Blue Team");
+    await user.click(within(dialog).getByRole("button", { name: "Save" }));
+    expect(await within(dialog).findByRole("alert")).toHaveTextContent(
+      "Could not rename the workspace. Check your connection and try again.",
+    );
+  });
+});
+
 describe("two admins renaming at once", () => {
   it("says who renamed it while the name was being edited, and saves on the next Save", async () => {
     const priya = person("U_PRIYA", "Priya Shah", "admin");

@@ -128,6 +128,7 @@ function iconProblem(err: unknown): string {
       return "The server could not use that picture. Choose another PNG, JPEG or WebP.";
     if (err.code === "icon_too_large")
       return "That picture is too large for an icon. Choose a simpler one.";
+    return failureText("The icon was not changed.", err, "Try again.");
   }
   return "The icon was not changed. Check your connection and try again.";
 }
@@ -257,7 +258,7 @@ function renameProblem(err: ApiError): string {
   if (err.code === "invalid_request")
     return `A workspace name has 1 to ${WORKSPACE_NAME_MAX} characters, without tabs or line breaks.`;
   if (err.code === "admin_only") return "Only the workspace's owner and admins can rename it.";
-  return "Could not rename the workspace. Check your connection and try again.";
+  return failureText("Could not rename the workspace.", err, "Try again.");
 }
 
 /** The workspace's name: typed, checked when sent, and kept with Save. */
@@ -381,7 +382,7 @@ function PreviewsSection() {
       setError(
         refused.code === "admin_only"
           ? "Only the workspace's owner and admins can change link previews."
-          : "Link previews were not changed. Check your connection and try again.",
+          : failureText("Link previews were not changed.", refused, "Try again."),
       );
   }
 
@@ -636,7 +637,7 @@ function JoiningSection({ hostedHere }: { hostedHere: boolean }) {
       setError(
         refused.code === "admin_only"
           ? "Only the workspace's owner and admins can change who can join."
-          : "Who can join was not changed. Check your connection and try again.",
+          : failureText("Who can join was not changed.", refused, "Try again."),
       );
   }
 

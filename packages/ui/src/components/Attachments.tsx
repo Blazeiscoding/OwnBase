@@ -6,6 +6,7 @@ import { formatBytes } from "../lib/format.js";
 import { saveUrl } from "../lib/download.js";
 import { Icon, type IconName } from "./Icon.js";
 import { ErrorBoundary } from "./ErrorBoundary.js";
+import { failureText } from "../lib/failure.js";
 import { Modal } from "./Modal.js";
 
 /** Largest an inline image is drawn at; the real file opens in the lightbox. */
@@ -252,6 +253,7 @@ function fileError(err: unknown): string {
   if (err instanceof ApiError) {
     if (err.status === 401) return "Sign in again to download this file.";
     if (err.status === 403 || err.status === 404) return UNAVAILABLE;
+    return failureText("Could not download this file.", err, "Try again.");
   }
   if (err instanceof DOMException && err.name === "TimeoutError")
     return "The download timed out. Try again.";

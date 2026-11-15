@@ -1106,7 +1106,7 @@ export function AccountMenu(props: {
     void client.updateProfile({ statusEmoji, statusText, statusExpiresAt }).then((error) => {
       if (error)
         toast({
-          message: "Could not change your status. Check your connection and try again.",
+          message: failureText("Could not change your status.", error, "Try again."),
           kind: "error",
         });
     });
