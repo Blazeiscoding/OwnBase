@@ -1,7 +1,7 @@
-import { render, screen, waitFor, within } from "@testing-library/react";
+import { act, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { WorkspaceClient } from "@ownbase/client-core";
-import type { Channel, Message, ReplyReference, User } from "@ownbase/protocol";
+import type { Channel, Message, ReplyReference, ServerToClient, User } from "@ownbase/protocol";
 import { describe, expect, it, vi } from "vitest";
 import { Composer } from "../src/components/Composer.js";
 import { MessageItem } from "../src/components/MessageItem.js";
@@ -192,6 +192,40 @@ describe("answering a message in place", () => {
     await user.click(screen.getByRole("button", { name: "Cancel reply" }));
     expect(screen.queryByText("Replying to")).not.toBeInTheDocument();
     expect(box).toHaveFocus();
+  });
+
+  it("lets go of a message deleted while it is being answered, and keeps what was typed", async () => {
+    const original = message();
+    const { box, client, send, user } = await renderConversation([{ message: original }]);
+    pointAtMessage();
+    await user.click(screen.getByRole("button", { name: "Reply" }));
+    await user.type(box, "On it");
+    act(() =>
+      (client as unknown as { handleServerMessage(m: ServerToClient): void }).handleServerMessage({
+        type: "event",
+        envelope: {
+          seq: 10,
+          event: {
+            type: "message.deleted",
+            messageId: original.id,
+            channelId: general.id,
+            threadRootId: null,
+          },
+        },
+      }),
+    );
+    expect(screen.queryByText("Replying to")).not.toBeInTheDocument();
+    expect(box).toHaveValue("On it");
+    expect(
+      await screen.findByText("The message you were replying to was deleted."),
+    ).toBeInTheDocument();
+    await user.click(box);
+    await user.keyboard("{Enter}");
+    expect(send).toHaveBeenLastCalledWith(
+      general.id,
+      "On it",
+      expect.not.objectContaining({ replyTo: expect.anything() }),
+    );
   });
 
   it("offers no notification toggle when you answer yourself", async () => {

@@ -11,6 +11,11 @@ export interface ReplyTarget {
   ping: boolean;
   /** Counts each choice of Reply, so choosing it again brings the box back into focus. */
   asked: number;
+  /**
+   * Deleted by someone since Reply was chosen. The composer lets go of it and
+   * says so when it next shows, which may be later if it is not on screen.
+   */
+  deleted?: true;
 }
 
 type Targets = Record<string, ReplyTarget>;
@@ -20,7 +25,19 @@ const stores = new WeakMap<WorkspaceClient, StoreApi<Targets>>();
 
 function targets(client: WorkspaceClient) {
   let store = stores.get(client);
-  if (!store) stores.set(client, (store = createStore<Targets>(() => ({}))));
+  if (!store) {
+    const created = createStore<Targets>(() => ({}));
+    client.on("messageDeleted", (id) =>
+      created.setState((s) => {
+        const hit = Object.entries(s).filter(([, target]) => target.message.id === id);
+        if (hit.length === 0) return s;
+        return Object.fromEntries(
+          hit.map(([key, target]) => [key, { ...target, deleted: true as const }]),
+        );
+      }),
+    );
+    stores.set(client, (store = created));
+  }
   return store;
 }
 

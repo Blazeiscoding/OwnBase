@@ -84,7 +84,8 @@ export function Composer({ channelId, threadRootId, placeholder, autoFocus, onLe
   const [pollQuestion, setPollQuestion] = useState<string | null>(null);
   const draftKey = draftKeyOf(channelId, threadRootId);
   /** The message the next send answers in place, chosen with Reply. */
-  const replyTarget = useReplyTarget(client, draftKey);
+  const heldReply = useReplyTarget(client, draftKey);
+  const replyTarget = heldReply?.deleted ? undefined : heldReply;
   const replyName = replyTarget
     ? (users[replyTarget.message.userId]?.displayName ?? "unknown")
     : "";
@@ -385,6 +386,14 @@ export function Composer({ channelId, threadRootId, placeholder, autoFocus, onLe
     box.current?.focus();
     focusWanted.current = document.activeElement === box.current ? undefined : before;
   }, [autoFocus, channelId, threadRootId]);
+
+  // What was typed stays, to send as an ordinary message or change first.
+  const replyGone = heldReply?.deleted === true;
+  useEffect(() => {
+    if (!replyGone) return;
+    cancelReply(client, draftKey);
+    toast({ message: "The message you were replying to was deleted.", kind: "info" });
+  }, [replyGone, client, draftKey, toast]);
 
   // Choosing Reply, even again on the same message, brings the box to hand.
   const replyAsked = replyTarget ? `${replyTarget.message.id}:${replyTarget.asked}` : null;
