@@ -85,3 +85,8 @@ export function replyExcerpt(text: string): string {
   const open = cut.lastIndexOf("<");
   return open > cut.lastIndexOf(">") ? cut.slice(0, open) : cut;
 }
+
+export async function scratchLater(): Promise<void> {}
+export async function scratchNow(): Promise<void> {
+  scratchLater();
+}
