@@ -446,6 +446,7 @@ function TileVolume({ item }: { item: StageItem & { userId: ID } }) {
       />
       {open && (
         <div
+          role="presentation"
           // The slider takes focus as it opens, so the keyboard is already on it.
           ref={focusSlider}
           className="surface-float absolute inset-x-2 top-1/2 mx-auto max-w-64 -translate-y-1/2 rounded-xl px-2 py-1"
@@ -846,6 +847,7 @@ export function HuddleStage({
 
   return (
     <ReportDrawn.Provider value={reportDrawn}>
+      {/* eslint-disable-next-line jsx-a11y/no-noninteractive-element-interactions -- the call's shortcuts work from any of its controls */}
       <section
         ref={stage}
         aria-label="Huddle call"

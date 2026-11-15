@@ -36,11 +36,13 @@ export function ReactionPicker(props: {
         width={360}
         align={props.align}
       >
+        {/* eslint-disable-next-line jsx-a11y/no-autofocus -- a reaction picker opens into its search */}
         <EmojiPicker onPick={pick} autoFocus />
       </Popover>
     );
   return (
     <Dialog title={title} onClose={props.onClose} width={380}>
+      {/* eslint-disable-next-line jsx-a11y/no-autofocus -- a reaction picker opens into its search, but not on touch, where that raises the keyboard */}
       <EmojiPicker onPick={pick} autoFocus={!touch} />
     </Dialog>
   );

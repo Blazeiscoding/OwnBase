@@ -274,6 +274,7 @@ export function QuickSwitcher(props: {
       <div className={SWITCHER_ROW}>
         <Icon name="search" size={18} className="text-ink-faint" />
         <input
+          // eslint-disable-next-line jsx-a11y/no-autofocus -- Ctrl+K opens straight into typing where to go
           autoFocus
           {...list.comboboxProps}
           aria-label="Channel or person"
@@ -301,6 +302,7 @@ export function QuickSwitcher(props: {
       </div>
       {/* Scrolls when the actions run long, so a keyboard can reach it too. */}
       <div
+        // eslint-disable-next-line jsx-a11y/no-noninteractive-tabindex -- a scrolling region takes a Tab stop so it can be scrolled from the keyboard
         tabIndex={0}
         role="group"
         aria-label="Results"
@@ -337,6 +339,7 @@ export function QuickSwitcher(props: {
                     {section}
                   </li>
                 )}
+                {/* eslint-disable-next-line jsx-a11y/click-events-have-key-events, jsx-a11y/no-noninteractive-element-interactions -- an option of a combobox: the field keeps focus and takes the keys (aria-activedescendant) */}
                 <li
                   {...list.optionProps(i)}
                   aria-label={

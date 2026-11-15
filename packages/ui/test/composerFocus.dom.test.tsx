@@ -56,6 +56,7 @@ function renderSlowComposer() {
     <PlatformContext.Provider value={platform}>
       <ClientContext.Provider value={client}>
         <button>Search</button>
+        {/* eslint-disable-next-line jsx-a11y/no-autofocus -- the test is about the composer's autoFocus */}
         <Composer channelId={design.id} placeholder="Message #design" autoFocus />
       </ClientContext.Provider>
     </PlatformContext.Provider>,

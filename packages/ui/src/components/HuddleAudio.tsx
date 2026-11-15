@@ -141,6 +141,7 @@ function PeerAudio({
   }, [playing, boost, id, register, report]);
   return (
     <>
+      {/* eslint-disable-next-line jsx-a11y/media-has-caption -- a call's live sound: there is no caption track to give */}
       <audio ref={ref} autoPlay hidden />
       {boost && <audio ref={keeper} autoPlay muted hidden />}
     </>

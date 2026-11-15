@@ -90,6 +90,7 @@ function QuestionDialog({
           <button
             key={index}
             type="button"
+            // eslint-disable-next-line jsx-a11y/no-autofocus -- the button the question names takes focus as it opens
             autoFocus={index === question.focus}
             onClick={() => choose(index)}
             className={buttonClass(button.tone)}

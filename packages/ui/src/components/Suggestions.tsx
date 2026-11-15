@@ -267,6 +267,7 @@ export function SuggestionList({
       className={`surface-float absolute bottom-full z-10 mb-2 origin-bottom-left animate-menu-in overflow-hidden rounded-xl p-1 ${className}`}
     >
       {s.options.map((option, i) => (
+        // eslint-disable-next-line jsx-a11y/click-events-have-key-events, jsx-a11y/no-noninteractive-element-interactions -- an option of a combobox: the field keeps focus and takes the keys (aria-activedescendant)
         <li
           key={
             option.kind === "user"

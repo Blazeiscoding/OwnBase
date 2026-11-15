@@ -239,6 +239,7 @@ export function EmojiPicker(props: {
       <div className="px-3 pt-2.5">
         <input
           ref={search}
+          // eslint-disable-next-line jsx-a11y/no-autofocus -- only when the caller asks: a picker opened to choose starts in its search
           autoFocus={props.autoFocus}
           {...list.comboboxProps}
           aria-label="Search emoji"
@@ -275,6 +276,7 @@ export function EmojiPicker(props: {
       <div
         ref={scroller}
         onScroll={followScroll}
+        // eslint-disable-next-line jsx-a11y/no-noninteractive-tabindex -- a scrolling region takes a Tab stop so it can be scrolled from the keyboard
         tabIndex={0}
         role="group"
         aria-label="Emoji grid"
@@ -285,10 +287,12 @@ export function EmojiPicker(props: {
             No emoji matched. Try another word.
           </p>
         ) : (
+          // eslint-disable-next-line jsx-a11y/click-events-have-key-events, jsx-a11y/no-static-element-interactions -- the emoji listbox of the search field, which keeps focus and takes the keys (aria-activedescendant)
           <div
             {...list.listProps}
             aria-label="Emoji"
             onMouseDown={(e) => e.preventDefault()}
+            // eslint-disable-next-line jsx-a11y/mouse-events-have-key-events -- hover moves the highlight; from the keyboard the search field moves it
             onMouseOver={(e) => {
               const i = optionAt(e.target);
               if (i >= 0 && i !== list.active) list.choose(i);
@@ -327,6 +331,7 @@ export function EmojiPicker(props: {
                 role="radio"
                 aria-checked={tone === i}
                 aria-label={name}
+                // eslint-disable-next-line jsx-a11y/no-autofocus -- the tone row replaces the footer when opened, so focus moves to the tone in use
                 autoFocus={tone === i}
                 onClick={() => {
                   setTone(i);

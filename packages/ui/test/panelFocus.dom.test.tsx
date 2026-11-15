@@ -24,7 +24,7 @@ function Page(props: { takeFocus?: boolean; openerGoesAway?: boolean; openerRemo
   const [opened, setOpened] = useState(false);
   return (
     <>
-      <div tabIndex={0} aria-label="Message from Sam">
+      <div role="article" tabIndex={0} aria-label="Message from Sam">
         {!(props.openerRemoved && opened) && (
           <button
             disabled={props.openerGoesAway && opened}

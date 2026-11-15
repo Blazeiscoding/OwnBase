@@ -278,6 +278,7 @@ function ToastItem({
   return (
     <div className={`toast-slot ${leaving ? "is-leaving" : ""}`}>
       <div
+        role="presentation"
         ref={element}
         data-toast={id}
         onPointerEnter={() => hold(`pointer:${id}`, true)}

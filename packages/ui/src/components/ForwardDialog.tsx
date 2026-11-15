@@ -149,6 +149,7 @@ export function ForwardDialog({ source, onClose }: { source: ForwardSource; onCl
           <span className="mb-1.5 block text-[13px] font-medium text-ink-dim">Forward to</span>
           <input
             ref={field}
+            // eslint-disable-next-line jsx-a11y/no-autofocus -- the dialog's first field: focus moves there as it opens
             autoFocus
             value={query}
             placeholder="Search conversations and people"
@@ -180,6 +181,7 @@ export function ForwardDialog({ source, onClose }: { source: ForwardSource; onCl
             className="max-h-64 overflow-y-auto rounded-lg border border-edge p-1"
           >
             {results.map((place, i) => (
+              // eslint-disable-next-line jsx-a11y/click-events-have-key-events, jsx-a11y/no-noninteractive-element-interactions -- an option of a combobox: the field keeps focus and takes the keys (aria-activedescendant)
               <li
                 key={place.key}
                 {...list.optionProps(i)}

@@ -240,6 +240,7 @@ describe("the huddle bar", () => {
 
     const dialog = render(
       <Modal title="Settings" onClose={() => {}} backdropClassName="dialog-backdrop">
+        {/* eslint-disable-next-line jsx-a11y/no-autofocus -- a dialog with a field focused on open, as the app's dialogs are */}
         <button autoFocus>Close</button>
       </Modal>,
     );

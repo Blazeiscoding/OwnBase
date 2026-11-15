@@ -297,6 +297,7 @@ export function FormattingToolbar({
         </Tooltip>
       </div>
       {open && (
+        // eslint-disable-next-line jsx-a11y/no-noninteractive-element-interactions -- Escape from the chooser's search or buttons closes it
         <div
           ref={chooser}
           role="group"
@@ -331,6 +332,7 @@ export function FormattingToolbar({
             >
               {/* As wide as it floats in the composer, not the width of the edit box. */}
               <div className="max-w-[360px]">
+                {/* eslint-disable-next-line jsx-a11y/no-autofocus -- the emoji chooser opened from the toolbar starts in its search */}
                 <EmojiPicker onPick={insert} autoFocus />
               </div>
             </Suspense>

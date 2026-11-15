@@ -372,6 +372,7 @@ export function PeopleDialog({ onClose }: { onClose: () => void }) {
             <span className="sr-only">Find a person</span>
             <input
               type="search"
+              // eslint-disable-next-line jsx-a11y/no-autofocus -- the dialog's first field: focus moves there as it opens
               autoFocus
               value={query}
               maxLength={80}

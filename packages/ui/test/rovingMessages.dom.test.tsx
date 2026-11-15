@@ -30,7 +30,7 @@ function List(props: { from: string[]; editing?: string }) {
   const roving = useRovingMessages(list);
   return (
     <>
-      <div ref={list} onFocus={roving.onFocus} onKeyDown={roving.onKeyDown}>
+      <div role="presentation" ref={list} onFocus={roving.onFocus} onKeyDown={roving.onKeyDown}>
         {props.from.map((from) => (
           <Message key={from} from={from} editing={from === props.editing} />
         ))}

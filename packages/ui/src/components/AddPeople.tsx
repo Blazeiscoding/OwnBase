@@ -82,6 +82,7 @@ export function AddPeople({
           {...list.comboboxProps}
           aria-describedby={hintId}
           value={q}
+          // eslint-disable-next-line jsx-a11y/no-autofocus -- only when the caller asks, as Channel details opened on Members to add people does
           autoFocus={autoFocus}
           // Kept usable while one is added, so the next can be typed meanwhile.
           aria-disabled={disabled || undefined}
@@ -115,6 +116,7 @@ export function AddPeople({
       {shown.length > 0 && (
         <ul {...list.listProps} aria-label="People to add" className="mt-1 space-y-0.5">
           {shown.map((u, i) => (
+            // eslint-disable-next-line jsx-a11y/click-events-have-key-events, jsx-a11y/no-noninteractive-element-interactions -- an option of a combobox: the field keeps focus and takes the keys (aria-activedescendant)
             <li
               key={u.id}
               {...list.optionProps(i)}

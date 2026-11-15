@@ -294,6 +294,7 @@ export function ThreadPanel({
           <Icon name="close" size={16} />
         </button>
       </header>
+      {/* eslint-disable-next-line jsx-a11y/no-static-element-interactions -- focus and keys bubble up from the replies, for arrow keys between them */}
       <div
         ref={scroller}
         onFocus={roving.onFocus}
@@ -402,6 +403,7 @@ export function ThreadPanel({
         ))}
       </div>
       {root ? (
+        // eslint-disable-next-line jsx-a11y/no-autofocus -- opening a thread starts in its reply box
         <Composer channelId={channelId} threadRootId={rootId} placeholder="Reply…" autoFocus />
       ) : (
         page?.loaded &&

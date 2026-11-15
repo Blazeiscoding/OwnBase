@@ -110,6 +110,7 @@ export function SettingsWindow<S extends string>({
           <p className="mt-0.5 truncate text-xs text-ink-faint">{about}</p>
         </div>
         {search}
+        {/* eslint-disable-next-line jsx-a11y/interactive-supports-focus -- focus goes to its items, one Tab stop with arrow keys between them, not to the group itself */}
         <div
           role="tablist"
           aria-label={title}

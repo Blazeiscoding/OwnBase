@@ -277,6 +277,7 @@ function MenuPanel({
   }
 
   const menu = (
+    // eslint-disable-next-line jsx-a11y/interactive-supports-focus -- focus goes to its items, one Tab stop with arrow keys between them, not to the group itself
     <div
       ref={panel}
       role="menu"

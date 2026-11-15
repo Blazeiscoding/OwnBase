@@ -1174,6 +1174,7 @@ function AuthCard(props: {
               </label>
               <input
                 id={`${id}-new-password`}
+                // eslint-disable-next-line jsx-a11y/no-autofocus -- this step replaces the sign-in form, and its field takes focus in its place
                 autoFocus
                 type="password"
                 autoComplete="new-password"
@@ -1224,6 +1225,7 @@ function AuthCard(props: {
           </p>
           <button
             type="button"
+            // eslint-disable-next-line jsx-a11y/no-autofocus -- this step replaces the sign-in form, and its one button takes focus in its place
             autoFocus
             className={submitCls}
             onClick={() => props.onConnected(recoveryNote.server)}
@@ -1246,6 +1248,7 @@ function AuthCard(props: {
               <input
                 id={`${id}-answer`}
                 key={useRecovery ? "recovery" : "code"}
+                // eslint-disable-next-line jsx-a11y/no-autofocus -- this step replaces the sign-in form, and its field takes focus in its place
                 autoFocus
                 inputMode={useRecovery ? "text" : "numeric"}
                 autoComplete={useRecovery ? "off" : "one-time-code"}

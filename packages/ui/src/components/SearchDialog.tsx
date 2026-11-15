@@ -172,6 +172,7 @@ function DateFilter(props: {
             <div role="separator" className="mx-1.5 my-1 h-px bg-edge" />
             {/* A day counts as it is typed, so Enter only puts the choices away. */}
             <div
+              role="presentation"
               className="grid grid-cols-2 gap-2 px-1.5 pb-1.5 pt-1"
               onKeyDown={(e) => {
                 if (e.key !== "Enter" || isImeKey(e.nativeEvent)) return;
@@ -538,6 +539,7 @@ export function SearchDialog(props: {
         <div className="flex gap-2">
           <input
             ref={field}
+            // eslint-disable-next-line jsx-a11y/no-autofocus -- the dialog's first field: focus moves there as it opens
             autoFocus
             aria-label="Search messages"
             enterKeyHint="search"
@@ -734,6 +736,7 @@ export function SearchDialog(props: {
                 }
                 emptyIcon={tab === "files" ? "file" : "search"}
               />
+              {/* eslint-disable-next-line jsx-a11y/no-noninteractive-element-interactions -- arrow keys move between the results' buttons inside the list */}
               <ul
                 ref={list}
                 className="space-y-2"

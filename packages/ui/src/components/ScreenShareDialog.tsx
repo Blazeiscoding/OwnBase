@@ -214,6 +214,7 @@ export function ScreenShareDialog({ onClose }: { onClose: () => void }) {
     );
   } else {
     body = (
+      // eslint-disable-next-line jsx-a11y/interactive-supports-focus -- focus goes to its items, one Tab stop with arrow keys between them, not to the group itself
       <div
         ref={listRef}
         role="radiogroup"
