@@ -5,7 +5,7 @@ import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import test, { after } from "node:test";
 import { fileURLToPath } from "node:url";
-import { GUIDES, buildSite, renderMarkdown } from "./generate-docs-site.mjs";
+import { GUIDES, buildSite, buildSitemap, renderMarkdown } from "./generate-docs-site.mjs";
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const script = resolve(root, "scripts/generate-docs-site.mjs");
@@ -188,6 +188,31 @@ test("the pages need nothing the site's content security policy refuses", () => 
   }
 });
 
+test("the sitemap lists the home page, the hosting guide and every docs page once", () => {
+  const xml = buildSitemap(site, root);
+  assert.match(
+    xml,
+    /^<\?xml version="1\.0" encoding="UTF-8"\?>\n<urlset xmlns="http:\/\/www\.sitemaps\.org\/schemas\/sitemap\/0\.9">\n/,
+  );
+  assert.ok(xml.endsWith("</urlset>\n"));
+  // Well formed: every <url> holds one <loc> and nothing else.
+  const body = xml.split("\n").slice(2, -2);
+  for (const line of body)
+    assert.match(line, /^ {2}<url><loc>https:\/\/ownbase\.site\/[^<&]*<\/loc><\/url>$/);
+  const locs = body.map((line) => line.replace(/^ {2}<url><loc>|<\/loc><\/url>$/g, ""));
+  assert.equal(new Set(locs).size, locs.length, "no address twice");
+  // Each the address the page's own canonical link names.
+  const canonical = (html) => /<link rel="canonical" href="([^"]+)"/.exec(html)?.[1];
+  const expected = [
+    canonical(read("apps/site/index.html")),
+    canonical(read("apps/site/host.html")),
+    ...pages.map(([, html]) => canonical(html)),
+  ];
+  assert.deepEqual([...locs].sort(), [...expected].sort());
+  assert.equal(locs[0], "https://ownbase.site/");
+  assert.ok(new Set(locs).has("https://ownbase.site/docs/hosting/guests"));
+});
+
 test("--check passes on what it wrote and fails on a stale, missing or extra file", () => {
   const dir = mkdtempSync(join(realpathSync(tmpdir()), "ownbase-docs-"));
   after(() => rmSync(dir, { recursive: true, force: true }));
@@ -210,4 +235,23 @@ test("--check passes on what it wrote and fails on a stale, missing or extra fil
   assert.throws(() => run("--check"), /hosting\/old-section\.html/);
   run();
   assert.match(run("--check"), /current/);
+});
+
+test("--check fails on a stale or missing sitemap", () => {
+  const dir = mkdtempSync(join(realpathSync(tmpdir()), "ownbase-sitemap-"));
+  after(() => rmSync(dir, { recursive: true, force: true }));
+  const sitemap = join(dir, "sitemap.xml");
+  const run = (...args) =>
+    execFileSync(
+      process.execPath,
+      [script, "--out", join(dir, "docs"), "--sitemap", sitemap, ...args],
+      { cwd: root, encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] },
+    );
+  run();
+  assert.equal(readFileSync(sitemap, "utf8"), buildSitemap(site, root));
+  assert.match(run("--check"), /current/);
+  writeFileSync(sitemap, readFileSync(sitemap, "utf8").replace(/ {2}<url>.*\n/, ""));
+  assert.throws(() => run("--check"), /stale[^]*sitemap\.xml/);
+  rmSync(sitemap);
+  assert.throws(() => run("--check"), /sitemap\.xml/);
 });

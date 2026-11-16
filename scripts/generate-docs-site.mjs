@@ -1,9 +1,10 @@
 // Builds the docs at ownbase.site/docs from docs/DEPLOYMENT.md and
 // docs/INTEGRATIONS.md, which stay the only copy anyone edits:
 //
-//   node scripts/generate-docs-site.mjs            write apps/site/docs
-//   node scripts/generate-docs-site.mjs --check    fail if apps/site/docs is stale
-//   node scripts/generate-docs-site.mjs --out DIR  write somewhere else (the tests)
+//   node scripts/generate-docs-site.mjs            write apps/site/docs and apps/site/sitemap.xml
+//   node scripts/generate-docs-site.mjs --check    fail if either is stale
+//   node scripts/generate-docs-site.mjs --out DIR [--sitemap FILE]
+//                                                  write somewhere else (the tests)
 //
 // The site is served by Cloudflare Pages with no build step, so the pages are
 // committed. Pull requests do not commit them: the Atlas workflow rebuilds them
@@ -899,6 +900,36 @@ ${guides
   return out;
 }
 
+/** The site's sitemap, written beside the pages and committed with them. */
+export const SITEMAP = "apps/site/sitemap.xml";
+
+/**
+ * The sitemap for search engines: the hand-written pages, then every docs
+ * page, each by the address its own canonical link names. No dates, so it
+ * changes only when a page comes or goes.
+ */
+export function buildSitemap(site, root = repoRoot) {
+  const canonical = (html, where) => {
+    const href = /<link rel="canonical" href="([^"]+)"/.exec(html)?.[1];
+    if (!href) throw new Error(`${where} has no canonical link.`);
+    return href;
+  };
+  const handWritten = ["apps/site/index.html", "apps/site/host.html"].map((path) =>
+    canonical(readFileSync(resolve(root, path), "utf8"), path),
+  );
+  const docs = [...site]
+    .filter(([path]) => path.endsWith(".html"))
+    .sort(([a], [b]) => (a === "index.html" ? -1 : b === "index.html" ? 1 : 0))
+    .map(([path, html]) => canonical(html, `${OUTPUT}/${path}`));
+  return [
+    '<?xml version="1.0" encoding="UTF-8"?>',
+    '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">',
+    ...[...handWritten, ...docs].map((url) => `  <url><loc>${escapeHtml(url)}</loc></url>`),
+    "</urlset>",
+    "",
+  ].join("\n");
+}
+
 /** Every file under `dir`, as paths relative to `base` with forward slashes. */
 function listFiles(dir, base = dir) {
   if (!existsSync(dir)) return [];
@@ -934,9 +965,20 @@ if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.ur
   const args = process.argv.slice(2);
   const outAt = args.indexOf("--out");
   const dir = outAt >= 0 ? resolve(args[outAt + 1]) : resolve(repoRoot, OUTPUT);
+  // Pages written somewhere else (--out) get a sitemap only when asked for one.
+  const sitemapAt = args.indexOf("--sitemap");
+  const sitemapPath =
+    sitemapAt >= 0 ? resolve(args[sitemapAt + 1]) : outAt >= 0 ? null : resolve(repoRoot, SITEMAP);
   const site = buildSite();
+  const sitemap = sitemapPath ? buildSitemap(site) : null;
   if (args.includes("--check")) {
     const stale = staleFiles(site, dir);
+    if (
+      sitemapPath &&
+      (!existsSync(sitemapPath) ||
+        readFileSync(sitemapPath, "utf8").replace(/\r\n/g, "\n") !== sitemap)
+    )
+      stale.push(relative(repoRoot, sitemapPath).replaceAll("\\", "/"));
     if (stale.length) {
       console.error(`The docs pages are stale. Run pnpm docs:build.\n  ${stale.join("\n  ")}`);
       process.exit(1);
@@ -944,6 +986,7 @@ if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.ur
     console.log(`The docs pages are current: ${site.size} files.`);
   } else {
     writeSite(site, dir);
+    if (sitemapPath) writeFileSync(sitemapPath, sitemap);
     const bytes = [...site.values()].reduce((sum, text) => sum + Buffer.byteLength(text), 0);
     console.log(
       `Wrote ${site.size} files to ${relative(repoRoot, dir) || "."}: ${(bytes / 1024).toFixed(0)} KiB.`,
