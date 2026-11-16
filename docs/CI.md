@@ -121,6 +121,8 @@ An advisory published upstream turns every open pull request red at once. That i
 
 Findings appear on the pull request, as annotations and a `CodeQL` check that fails when the pull request adds an alert (by default a high or critical security alert, or an error), and in the Security tab under Code scanning. Fix a finding, or dismiss it in the Security tab with the reason. Dependabot's actions updates run it too: their token is read-only by default, and the job's `permissions` raises it to `security-events: write` to upload.
 
+The check fails only on alerts a pull request adds, so an alert that a scan of `main` opens (a new query, say) fails nothing and has to be read on purpose. Read open alerts when they appear and fix or dismiss each, so the list stays empty and a new entry means something new. To list them: `gh api "repos/Blazeiscoding/OwnBase/code-scanning/alerts?state=open&per_page=50" --jq '.[] | "\(.number) \(.rule.id) \(.most_recent_instance.location.path):\(.most_recent_instance.location.start_line)"'`. A dismissal comment is cut at 280 characters.
+
 ## Repository settings
 
 These are on in the repository's settings rather than in a file, so they are listed here:
