@@ -61,7 +61,7 @@ describe("connection recovery", () => {
     const invalidate = vi.spyOn(client.files, "invalidateMessage").mockImplementation(() => {
       throw new Error("a fault in this client");
     });
-    vi.spyOn(console, "error").mockImplementation(() => {});
+    const failed = vi.spyOn(console, "error").mockImplementation(() => {});
     const connection = client as unknown as {
       reconnectDelay: number;
       applyReady(snapshot: { replayFrom: number | null }): void;
@@ -80,6 +80,12 @@ describe("connection recovery", () => {
     await new Promise((resolve) => setTimeout(resolve, 200));
     expect(invalidate).toHaveBeenCalledOnce();
     expect(ready).toHaveBeenCalledOnce();
+    // The server's text goes in as an argument, never into the format string.
+    expect(failed).toHaveBeenCalledWith(
+      "Could not apply the server's %s message.",
+      "event",
+      expect.any(Error),
+    );
   });
 
   it("sends from plain HTTP origins without the secure-context randomUUID API", async () => {
