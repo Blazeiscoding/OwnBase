@@ -92,7 +92,7 @@ jobs:
           fi
           if [ "$DOCS_STALE" = "true" ]; then
             # -A: a section renamed or removed leaves a page to delete.
-            git add -A apps/site/docs
+            git add -A apps/site/docs apps/site/sitemap.xml
             git commit --quiet -m "docs(site): rebuild the docs pages for ${GITHUB_SHA::7}"
           fi
           if git push origin "HEAD:$GITHUB_REF_NAME"; then exit 0; fi
