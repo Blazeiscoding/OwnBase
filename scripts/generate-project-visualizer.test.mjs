@@ -1,7 +1,15 @@
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
 import { createHash } from "node:crypto";
-import { mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from "node:fs";
+import {
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  realpathSync,
+  rmSync,
+  writeFileSync,
+} from "node:fs";
 import { createRequire } from "node:module";
 import { tmpdir } from "node:os";
 import { dirname, isAbsolute, relative, resolve } from "node:path";
@@ -18,8 +26,7 @@ const git = (base, ...args) =>
   execFileSync("git", args, { cwd: base, encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] });
 
 // These check what the generator makes from this checkout now, built here,
-// not the copy in docs/: that one lags the code between rebuilds, and whether
-// it is current is pnpm visualizer:check's question.
+// not a local copy in docs/, which may be from any earlier checkout.
 const built = mkdtempSync(resolve(realpathSync(tmpdir()), "ownbase-visualizer-"));
 after(() => rmSync(built, { recursive: true, force: true }));
 execFileSync(
@@ -341,7 +348,10 @@ function fixtureCheckout(entries) {
   return { fixture, write, commit, runGenerator, snapshot, remove };
 }
 
-test("freshness survives commit/capture metadata changes but rejects changed source", () => {
+// The page is published, not committed, so --check has no copy to compare
+// with: it builds the page in memory, writes nothing, and fails on a broken
+// input.
+test("--check builds the page without a copy on disk, writes none, and refuses a broken input", () => {
   const { fixture, write, commit, runGenerator, snapshot, remove } = fixtureCheckout([
     {
       path: "packages/server/src/index.ts",
@@ -356,36 +366,19 @@ test("freshness survives commit/capture metadata changes but rejects changed sou
     write("packages/server/src/index.ts", `export const marker = ${JSON.stringify(literal)};\n`);
     git(fixture, "-c", "core.autocrlf=false", "add", "packages/server/src/index.ts");
     commit("Initial synthetic source");
+    assert.match(runGenerator("--check"), /Visualizer builds/);
+    assert.ok(!existsSync(resolve(fixture, outputPath)), "--check must write no page.");
     runGenerator();
-    const captured = read(outputPath, fixture);
-    const capturedData = snapshot();
     assert.equal(
-      capturedData.files.find((file) => file.path === "packages/server/src/index.ts").source,
+      snapshot().files.find((file) => file.path === "packages/server/src/index.ts").source,
       read("packages/server/src/index.ts", fixture),
     );
-    assert.match(runGenerator("--check"), /Visualizer is current/);
-    git(fixture, "-c", "core.autocrlf=false", "add", ".");
-    commit("Commit unchanged atlas inputs and output");
-    assert.notEqual(git(fixture, "rev-parse", "HEAD").trim(), capturedData.meta.revision);
-    assert.ok(
-      git(fixture, "ls-files", "-z").split("\0").filter(Boolean).length - 1 >
-        capturedData.meta.trackedCount,
-    );
-    assert.match(runGenerator("--check"), /Visualizer is current/);
-    assert.equal(
-      read(outputPath, fixture),
-      captured,
-      "Freshness checking must not rewrite capture metadata.",
-    );
-    write(
-      "packages/server/src/index.ts",
-      `${read("packages/server/src/index.ts", fixture)}export const changed = true;\n`,
-    );
-    assert.throws(() => runGenerator("--check"), /visualizer is stale/i);
-    assert.equal(
-      read(outputPath, fixture),
-      captured,
-      "A refused freshness check must not rewrite the artifact.",
+    // An explanation of a file that is gone breaks the build.
+    git(fixture, "rm", "--quiet", "packages/server/src/index.ts");
+    commit("Remove the explained file");
+    assert.throws(
+      () => runGenerator("--check"),
+      /Explanation references missing file: packages\/server\/src\/index\.ts/,
     );
   } finally {
     remove();
