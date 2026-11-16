@@ -26,14 +26,12 @@ on:
       - "**/*.cjs"
       - "**/*.jsx"
       - "**/*.html"
-      - "!docs/PROJECT-VISUALIZER.html"
       - ".github/workflows/**"
       - ".github/actions/**"
       - ".github/codeql/**"
   push:
     branches: [main]
     paths-ignore:
-      - "docs/PROJECT-VISUALIZER.html"
       - "**/*.md"
   schedule:
     # Mondays 04:30 IST, before Dependabot's 06:00 run.

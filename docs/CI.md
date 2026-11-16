@@ -117,7 +117,7 @@ An advisory published upstream turns every open pull request red at once. That i
 
 ## Code scanning
 
-`.github/workflows/codeql.yml` runs GitHub's CodeQL on the TypeScript and JavaScript sources and on the workflows, as two jobs, `analyze (javascript-typescript)` and `analyze (actions)`. It runs on a pull request that changes a source file, a workflow or the composite actions, on every push to `main` and every Monday morning, so a new CodeQL query reaches code nobody has touched. Nothing is built: both languages are read from the source (`build-mode: none`). `.github/codeql/config.yml` leaves out generated files, the atlas page above all, which embeds every source file and would report each finding twice.
+`.github/workflows/codeql.yml` runs GitHub's CodeQL on the TypeScript and JavaScript sources and on the workflows, as two jobs, `analyze (javascript-typescript)` and `analyze (actions)`. It runs on a pull request that changes a source file, a workflow or the composite actions, on every push to `main` and every Monday morning, so a new CodeQL query reaches code nobody has touched. Nothing is built: both languages are read from the source (`build-mode: none`). `.github/codeql/config.yml` leaves out generated files.
 
 Findings appear on the pull request, as annotations and a `CodeQL` check that fails when the pull request adds an alert (by default a high or critical security alert, or an error), and in the Security tab under Code scanning. Fix a finding, or dismiss it in the Security tab with the reason. Dependabot's actions updates run it too: their token is read-only by default, and the job's `permissions` raises it to `security-events: write` to upload.
 
@@ -127,6 +127,10 @@ The check fails only on alerts a pull request adds, so an alert that a scan of `
 
 A release's notes open with "What changed": one line for each pull request merged into `main` since the newest release the released commit contains, then a link that compares the two tags, then the artifacts and checksums. The Release workflow's `manifest` job lists them with `scripts/release-changes.mjs` (the merge commits on `main`'s first-parent line, each pull request's title read with `gh`) and `scripts/release-manifest.mjs` writes them into the notes. A pull request's title is what people read there, as it is written, so make it one plain sentence about what changed for someone using OwnBase. If the list cannot be made, the release goes out without it and the run shows a warning.
 
+## The Atlas workflow
+
+`.github/workflows/atlas.yml` runs after every push to `main`. It builds the project atlas and uploads it to `https://dl.ownbase.site/atlas/index.html` in the R2 bucket the downloads use, with the release's R2 keys, overwriting the copy before. The atlas is 17 MB and changes with any file, so it is not in the repository: until 2026-11-17 a copy was committed after every merge, and those copies are most of the repository's size. `pnpm visualizer:build` makes a local copy at `docs/PROJECT-VISUALIZER.html`, which git ignores. The same run rebuilds the docs pages in `apps/site/docs` and `apps/site/sitemap.xml` and commits them to `main` when they changed, without `[skip ci]`, so Cloudflare Pages deploys them.
+
 ## Repository settings
 
 These are on in the repository's settings rather than in a file, so they are listed here:
@@ -134,6 +138,6 @@ These are on in the repository's settings rather than in a file, so they are lis
 - **Dependabot alerts.** GitHub reports a known advisory in the lockfile in the Security tab, beside the audit step in Checks, which fails a pull request on a high or critical one.
 - **Secret scanning with push protection.** A push that contains something shaped like a known provider's key is refused. If a test needs a secret, build it from plain words (`"test-secret-" + "a".repeat(8)`); GitGuardian also scans every pull request.
 - **Private vulnerability reporting.** Security reports come in through the Security tab's "Report a vulnerability" form, which `SECURITY.md` and the issue forms point to.
-- **A rule on `main`** that refuses force-pushes and deleting the branch. Ordinary pushes, such as the Atlas workflow's commit, still go through.
+- **A rule on `main`** that refuses force-pushes and deleting the branch. Ordinary pushes, such as the Atlas workflow's commit of the docs pages, still go through.
 
 Issue forms live in `.github/ISSUE_TEMPLATE/`: a bug report and a feature request. Blank issues are still allowed, and the chooser links the private security form.

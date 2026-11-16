@@ -16,12 +16,11 @@ export const EARLIER_NAMES = /slackoss|gatherline|tandem/gi;
 const TEXT = /\.(?:m?js|html|css|json|webmanifest|svg|txt)$/;
 /**
  * Tracked files that name the earlier names on purpose: this check and its
- * test, and the atlas, which embeds them.
+ * test.
  */
 const NAMES_THEM = new Set([
   "scripts/check-product-name.mjs",
   "scripts/check-product-name.test.mjs",
-  "docs/PROJECT-VISUALIZER.html",
 ]);
 
 /** Each earlier name in `text`, as `<where>:<line>: <around it>`. */

@@ -1,7 +1,7 @@
 # OwnBase project atlas
 
-Open [PROJECT-VISUALIZER.html](../PROJECT-VISUALIZER.html) in a browser. It is one
-offline HTML file containing the inventory, reviewed runtime explanations,
+Open [the atlas](https://dl.ownbase.site/atlas/index.html) in a browser, or save it
+and open it offline. It is one HTML file containing the inventory, reviewed runtime explanations,
 complete text source, declaration/import indexes, guided flows and improvement
 evidence. No server, CDN, login or application data is needed.
 
@@ -62,11 +62,14 @@ reading guide and scope. Update these alongside a changed runtime file. Keep
 unimplemented findings marked `follow-up`; do not turn a plan or diagnostic into
 a completed optimization.
 
-The Atlas workflow (`.github/workflows/atlas.yml`) rebuilds
-`docs/PROJECT-VISUALIZER.html` after every push to `main` and commits it there
-when it changed, so a pull request changes the sources above and leaves the
-page alone. A pull request that does rebuild it only collides with the
-workflow's commits; take `main`'s copy when merging `main` in.
+The Atlas workflow (`.github/workflows/atlas.yml`) rebuilds the page after
+every push to `main` and uploads it to
+`https://dl.ownbase.site/atlas/index.html`, so a pull request changes the
+sources above and nothing else. The page is not in the repository.
+`pnpm visualizer:build` writes a local copy to `docs/PROJECT-VISUALIZER.html`,
+which git ignores. `pnpm visualizer:check` builds it without writing anything,
+and fails on a broken input such as an explanation of a file that no longer
+exists.
 
 The pages people read first are written for someone who does not write code.
 Journey titles, summaries and steps, improvement titles, summaries, before and

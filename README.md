@@ -18,8 +18,8 @@ Salesforce.
   pages you can search
 - [Deployment and backups](docs/DEPLOYMENT.md)
 - [Integration API contract](docs/INTEGRATIONS.md)
-- [Project atlas](docs/PROJECT-VISUALIZER.html), an offline, interactive guide to
-  the code
+- [Project atlas](https://dl.ownbase.site/atlas/index.html), an interactive guide
+  to the code that also works offline
 - [Contributing](CONTRIBUTING.md), [security](SECURITY.md) and the [code of conduct](CODE_OF_CONDUCT.md)
 
 The name OwnBase has not been trademark-cleared yet.
@@ -568,11 +568,12 @@ pnpm typecheck
 | `ee`                   | Enterprise edition: license keys, SSO, SCIM, compliance  |
 | `ee/cloud`             | `ownbase-cloud`, the control plane for hosted workspaces |
 
-The [project atlas](docs/PROJECT-VISUALIZER.html) is one offline HTML file that
+The [project atlas](https://dl.ownbase.site/atlas/index.html) is one HTML file that
 covers every tracked file, the architecture and flows, implemented improvements,
-measured optimizations and open findings. Download it and open it in a browser,
-or run `pnpm visualizer:serve`. The [atlas guide](docs/visualizer/README.md)
-says how to regenerate it.
+measured optimizations and open findings. Open it, or save it to read offline.
+`pnpm visualizer:build` makes a local copy at `docs/PROJECT-VISUALIZER.html`,
+which git ignores, and `pnpm visualizer:serve` serves it. The
+[atlas guide](docs/visualizer/README.md) has the rest.
 
 ### How sync works
 
