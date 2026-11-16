@@ -323,12 +323,15 @@ const REPOSITORY = "https://github.com/Blazeiscoding/OwnBase";
  */
 function safeTitle(title) {
   const text = String(title).replace(/\s+/g, " ").trim();
-  const prose = (part) =>
-    part.replace(/\|/g, "\\|").replace(/(^|[^\w`.-])@([A-Za-z0-9][\w-]*)/g, "$1`@$2`");
-  if ((text.match(/`/g) ?? []).length % 2 === 1) return prose(text.replace(/`/g, "\\`"));
+  // Backslashes first, or one in the title would undo the escape after it.
+  const prose = (part, ticks) =>
+    part
+      .replace(ticks ? /[\\|`]/g : /[\\|]/g, "\\$&")
+      .replace(/(^|[^\w`.\\-])@([A-Za-z0-9][\w-]*)/g, "$1`@$2`");
+  if ((text.match(/`/g) ?? []).length % 2 === 1) return prose(text, true);
   return text
     .split(/(`[^`]*`)/)
-    .map((part, index) => (index % 2 === 1 ? part : prose(part)))
+    .map((part, index) => (index % 2 === 1 ? part : prose(part, false)))
     .join("");
 }
 

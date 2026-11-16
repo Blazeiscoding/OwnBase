@@ -445,6 +445,9 @@ test("what changed keeps titles from breaking the notes or notifying anyone", ()
   const line = (title) =>
     whatChanged({ changes: [{ number: 7, title }], previousTag: "v1", tag: "v2" }).split("\n")[2];
   assert.equal(line("a | b"), String.raw`- a \| b (#7)`);
+  // A backslash of its own cannot undo the escape that follows it.
+  assert.equal(line(String.raw`a \| b`), String.raw`- a \\\| b (#7)`);
+  assert.equal(line("a \\"), "- a \\\\ (#7)");
   // An open backtick would turn the rest of the notes into code.
   assert.equal(line("run `pnpm build"), String.raw`- run \`pnpm build (#7)`);
   // A closed one stays code, with a pipe inside it left alone.
