@@ -209,8 +209,8 @@ test("the sitemap lists the home page, the hosting guide and every docs page onc
     ...pages.map(([, html]) => canonical(html)),
   ];
   assert.deepEqual([...locs].sort(), [...expected].sort());
-  assert.ok(locs.includes("https://ownbase.site/"));
-  assert.ok(locs.includes("https://ownbase.site/docs/hosting/guests"));
+  assert.equal(locs[0], "https://ownbase.site/");
+  assert.ok(new Set(locs).has("https://ownbase.site/docs/hosting/guests"));
 });
 
 test("--check passes on what it wrote and fails on a stale, missing or extra file", () => {
