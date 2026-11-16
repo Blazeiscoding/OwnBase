@@ -26,30 +26,18 @@ The name OwnBase has not been trademark-cleared yet.
 
 ## Try it
 
-Each of these gives you a workspace at `http://localhost:8543`. Work from a
-clone:
+Each of these gives you a workspace of your own. The first two need no clone and
+no build.
 
-```sh
-git clone https://github.com/Blazeiscoding/OwnBase.git
-cd OwnBase
-```
-
-The first two need Node 24+, pnpm 10 and one `pnpm install`.
-
-**In a browser.** Build the standalone server and start it:
-
-```sh
-pnpm build
-node apps/server-cli/dist/ownbase-server.js --data ./demo-data --name "Demo Team"
-```
-
-**In the desktop app.** On Windows, run `pnpm build:win`, install
-`apps/desktop/release/OwnBase-Setup-0.2.0.exe`, and choose
-**Host a workspace on this computer**. On a Mac, `pnpm build:mac` builds one
-DMG for Apple silicon and Intel. Releases include it, after a macOS runner has
-booted it, hosted a workspace and joined a huddle. It is signed ad hoc, not with
-an Apple Developer ID, so the first time it opens, allow it under System
-Settings → Privacy & Security → Open Anyway.
+**The desktop app.** Download it for Windows or Mac from
+[ownbase.site](https://ownbase.site), install it, and choose **Host a workspace
+on this computer**. The Windows installer is not code-signed, so Windows
+SmartScreen may warn before it runs. Check its SHA-256 against the `SHA256SUMS`
+in [the release](https://github.com/Blazeiscoding/OwnBase/releases/latest)
+first. The Mac app is one DMG for Apple silicon and Intel. Releases include it
+after a macOS runner has booted it, hosted a workspace and joined a huddle. It is
+signed ad hoc, not with an Apple Developer ID, so the first time it opens, allow
+it under System Settings → Privacy & Security → Open Anyway.
 
 The Windows app from a release updates itself: it downloads each new release in
 the background and installs it when you restart or quit OwnBase, never during a
@@ -58,17 +46,30 @@ since macOS lets only an app with a Developer ID signature replace itself. Turn
 either off under Account settings → Updates. Builds made on your own computer
 never look for updates.
 
-**With Docker.** No clone needed:
+**In a browser, with Docker.**
 
 ```sh
 docker run -d --name ownbase -p 8543:8543 -v ownbase-data:/data ghcr.io/blazeiscoding/ownbase
 ```
 
 Open http://localhost:8543 and sign up with the claim code from
-`docker logs ownbase`. [Docker](#docker) has the compose file and building from source.
+`docker logs ownbase`. [Docker](#docker) has the compose file.
 
-A new workspace is empty. To have a team to look at, run this in another
-terminal before anyone signs up:
+**From source.** With Node 24+ and pnpm 10:
+
+```sh
+git clone https://github.com/Blazeiscoding/OwnBase.git
+cd OwnBase
+pnpm install
+pnpm build
+node apps/server-cli/dist/ownbase-server.js --data ./demo-data --name "Demo Team"
+```
+
+Then open http://localhost:8543. `pnpm build:win` and `pnpm build:mac` build the
+desktop app. [Development](#development) has the rest.
+
+A new workspace is empty. To have a team to look at, run this from a clone in
+another terminal before anyone signs up:
 
 ```sh
 node scripts/seed-demo.mjs
@@ -180,6 +181,13 @@ hours, verifies each copy before keeping it, and keeps the newest seven.
 `--backup-offsite <url>` also sends each backup to an S3-compatible bucket, such
 as Cloudflare R2, so a lost disk does not take the backups with it. See
 [Backups somewhere else](docs/DEPLOYMENT.md#backups-somewhere-else).
+Given a backup passphrase in `OWNBASE_BACKUP_PASSPHRASE` or
+`--backup-passphrase-file`, every backup is one encrypted file nobody can read
+without it. See [Encrypted backups](docs/DEPLOYMENT.md#encrypted-backups).
+
+`--metrics-token <token>` serves `GET /metrics` in Prometheus's text format to
+requests that carry the token. See
+[Metrics for Prometheus](docs/DEPLOYMENT.md#metrics-for-prometheus).
 
 To run the server as a service that starts with the machine and restarts after a
 crash, follow [A Linux server with systemd](docs/DEPLOYMENT.md#a-linux-server-with-systemd)
@@ -267,7 +275,9 @@ Free text matches what messages say and the names of files attached to them, so
 `budget` finds `Q3 Budget.xlsx`. `type:` asks for one kind of file: `image`,
 `video`, `audio`, `pdf`, `document`, `spreadsheet`, `presentation` or `archive`.
 Modifiers combine with each other and with free text. They never widen what you
-are allowed to see, so naming a channel you are not in returns nothing.
+are allowed to see, so naming a channel you are not in returns nothing. In
+Chinese, Japanese, Korean and Thai, which do not put spaces between words, it
+finds the characters typed anywhere in a message.
 
 Search hits, pins and saved items open the channel scrolled to that message,
 with the surrounding history loaded around it. Every message has a link,
@@ -383,7 +393,9 @@ Apps can also respond to what people do:
   `trigger_id`, and renders the reply. `response_type: "in_channel"` posts to
   everyone, and anything else stays private to whoever typed it. The
   `response_url` accepts late replies for 30 minutes and five uses, so a slow
-  job can answer when it finishes. `/shrug` and `/me` are built in.
+  job can answer when it finishes. `/shrug` and `/me` are built in, and so are
+  the app's own `/poll`, `/away`, `/active`, `/status`, `/topic`, `/invite`,
+  `/leave`, `/mute` and `/unmute`. No app can take those names.
 - **Event subscriptions.** Point a URL at the workspace and matching events
   arrive as `{type: "event_callback", event: {...}}`, with OwnBase's own event
   alongside Slack's shape. The URL has to echo a `url_verification` challenge
@@ -495,6 +507,18 @@ Security. The owner can let the provider create accounts for verified addresses
 at chosen domains. The owner can also require single sign-on, after which only
 the owner signs in with a password. The desktop app signs in through the
 system's browser. See [Single sign-on](docs/DEPLOYMENT.md#single-sign-on).
+The same feature covers SAML 2.0, for providers set up that way, and both can be
+on at once. See [Single sign-on with SAML](docs/DEPLOYMENT.md#single-sign-on-with-saml).
+
+**SCIM provisioning.** A license with `scim` lets the company's identity provider
+add people over SCIM 2.0, keep their names current, and deactivate them when
+they leave. Nobody is deleted, so their messages stay. See
+[SCIM provisioning](docs/DEPLOYMENT.md#scim-provisioning).
+
+**Compliance.** A license with `compliance` gives the owner legal hold on people
+and channels, an export of a range of days as a zip, and the administrative
+record sent to a webhook or syslog as it is written. See
+[Compliance](docs/DEPLOYMENT.md#compliance-legal-hold-export-and-sending-the-record).
 
 ## The interface
 
@@ -541,7 +565,7 @@ pnpm typecheck
 | `apps/desktop`         | Electron app (electron-vite, React 19, Tailwind 4)       |
 | `apps/web`             | Browser client, served by the server itself              |
 | `apps/server-cli`      | Bundles the server into one runnable file                |
-| `ee`                   | Enterprise edition: license keys and single sign-on      |
+| `ee`                   | Enterprise edition: license keys, SSO, SCIM, compliance  |
 | `ee/cloud`             | `ownbase-cloud`, the control plane for hosted workspaces |
 
 The [project atlas](docs/PROJECT-VISUALIZER.html) is one offline HTML file that
@@ -606,10 +630,12 @@ icons. Normal packaging uses the checked-in assets and does not need this step.
 ## Roadmap
 
 - **Done lately.** Browser notifications while OwnBase is closed, moving in from
-  Slack and taking a workspace out in Slack's format, and a Windows app that
-  updates itself.
-- **Later.** SCIM and SAML in the Enterprise edition, an SFU for larger
-  huddles, and optional Postgres and S3.
+  Slack and taking a workspace out in Slack's format, a Windows app that updates
+  itself, encrypted backups, search in Chinese, Japanese, Korean and Thai, a
+  tested container image for amd64 and arm64, [the docs site](https://ownbase.site/docs/),
+  and SCIM, SAML and compliance tools in the Enterprise edition.
+- **Later.** An SFU for larger huddles, optional Postgres and S3, signed builds,
+  a Linux desktop app, email, and translations.
 
 [Current boundaries](docs/DEPLOYMENT.md#current-boundaries) lists what is missing
 today.
