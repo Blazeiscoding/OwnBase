@@ -121,6 +121,10 @@ An advisory published upstream turns every open pull request red at once. That i
 
 Findings appear on the pull request, as annotations and a `CodeQL` check that fails when the pull request adds an alert (by default a high or critical security alert, or an error), and in the Security tab under Code scanning. Fix a finding, or dismiss it in the Security tab with the reason. Dependabot's actions updates run it too: their token is read-only by default, and the job's `permissions` raises it to `security-events: write` to upload.
 
+## Release notes
+
+A release's notes open with "What changed": one line for each pull request merged into `main` since the newest release the released commit contains, then a link that compares the two tags, then the artifacts and checksums. The Release workflow's `manifest` job lists them with `scripts/release-changes.mjs` (the merge commits on `main`'s first-parent line, each pull request's title read with `gh`) and `scripts/release-manifest.mjs` writes them into the notes. A pull request's title is what people read there, as it is written, so make it one plain sentence about what changed for someone using OwnBase. If the list cannot be made, the release goes out without it and the run shows a warning.
+
 ## Repository settings
 
 These are on in the repository's settings rather than in a file, so they are listed here:
