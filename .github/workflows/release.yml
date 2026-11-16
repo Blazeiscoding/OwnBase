@@ -387,19 +387,38 @@ jobs:
   manifest:
     needs: [plan, server, image, unit, browser, windows, mac]
     runs-on: ubuntu-latest
+    # gh reads the merged pull requests' titles for the notes.
+    permissions:
+      contents: read
+      pull-requests: read
     outputs:
       tag: ${{ needs.plan.outputs.tag }}
     steps:
       - uses: actions/checkout@v7
+        with:
+          # The history and tags back to the release before, for what changed.
+          fetch-depth: 0
       - uses: actions/download-artifact@v8
         with:
           pattern: release-*
           path: release
           merge-multiple: true
-      - run: node --test scripts/release-manifest.test.mjs
-      - run: node scripts/release-manifest.mjs release --revision "$GITHUB_SHA" --tag "$TAG" --notes release/notes.md
+      - run: node --test scripts/release-manifest.test.mjs scripts/release-changes.test.mjs
+      # The notes open with the pull requests merged since the release before.
+      # The list is kept outside release/, where every file must be one a build
+      # staged, and a release goes out without it rather than not at all.
+      - name: Write the notes and sums
         env:
+          GH_TOKEN: ${{ github.token }}
           TAG: ${{ needs.plan.outputs.tag }}
+        run: |
+          changes=()
+          if node scripts/release-changes.mjs --revision "$GITHUB_SHA" --tag "$TAG" --out changes.json; then
+            changes=(--changes changes.json)
+          else
+            echo "::warning::Could not list the pull requests since the release before; the notes leave out what changed."
+          fi
+          node scripts/release-manifest.mjs release --revision "$GITHUB_SHA" --tag "$TAG" --notes release/notes.md "${changes[@]}"
       - uses: actions/upload-artifact@v7
         with:
           name: release-manifest

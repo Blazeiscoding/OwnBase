@@ -123,6 +123,10 @@ Findings appear on the pull request, as annotations and a `CodeQL` check that fa
 
 The check fails only on alerts a pull request adds, so an alert that a scan of `main` opens (a new query, say) fails nothing and has to be read on purpose. Read open alerts when they appear and fix or dismiss each, so the list stays empty and a new entry means something new. To list them: `gh api "repos/Blazeiscoding/OwnBase/code-scanning/alerts?state=open&per_page=50" --jq '.[] | "\(.number) \(.rule.id) \(.most_recent_instance.location.path):\(.most_recent_instance.location.start_line)"'`. A dismissal comment is cut at 280 characters.
 
+## Release notes
+
+A release's notes open with "What changed": one line for each pull request merged into `main` since the newest release the released commit contains, then a link that compares the two tags, then the artifacts and checksums. The Release workflow's `manifest` job lists them with `scripts/release-changes.mjs` (the merge commits on `main`'s first-parent line, each pull request's title read with `gh`) and `scripts/release-manifest.mjs` writes them into the notes. A pull request's title is what people read there, as it is written, so make it one plain sentence about what changed for someone using OwnBase. If the list cannot be made, the release goes out without it and the run shows a warning.
+
 ## Repository settings
 
 These are on in the repository's settings rather than in a file, so they are listed here:

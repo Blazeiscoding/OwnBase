@@ -1,3 +1,5 @@
+<!-- The title is what the release notes list for this change: one plain sentence about what changed for someone using OwnBase. -->
+
 ## What changes
 
 <!-- What someone using OwnBase will notice, then what changed underneath. -->

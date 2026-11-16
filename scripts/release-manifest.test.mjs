@@ -14,6 +14,7 @@ import {
   sha256,
   sha512,
   tagVersion,
+  whatChanged,
 } from "./release-manifest.mjs";
 
 const REVISION = "0123456789abcdef0123456789abcdef01234567";
@@ -399,5 +400,96 @@ test("reads one file out of a server archive", () => {
     assert.equal(readTarGzFile(join(dir, "a.tar.gz"), "missing.json"), null);
   } finally {
     rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+const COMPARE = "https://github.com/Blazeiscoding/OwnBase/compare";
+
+test("what changed lists each pull request by its title and links the comparison", () => {
+  const section = whatChanged({
+    changes: [
+      { number: 511, title: "feat(emoji): custom emoji" },
+      { number: 512, title: "fix(lightbox): the viewer's buttons sit on a solid bar" },
+    ],
+    previousTag: "v0.2.0-alpha.33",
+    tag: "v0.2.0-alpha.34",
+  });
+  assert.equal(
+    section,
+    [
+      "## What changed",
+      "",
+      "- feat(emoji): custom emoji (#511)",
+      "- fix(lightbox): the viewer's buttons sit on a solid bar (#512)",
+      "",
+      `Every commit: ${COMPARE}/v0.2.0-alpha.33...v0.2.0-alpha.34`,
+      "",
+    ].join("\n"),
+  );
+});
+
+test("what changed says so when no pull request was merged", () => {
+  const section = whatChanged({
+    changes: [],
+    previousTag: "v0.2.0-alpha.33",
+    tag: "v0.2.0-alpha.34",
+  });
+  assert.match(
+    section,
+    /^## What changed\n\nNothing changed in the app since v0\.2\.0-alpha\.33\.\n/,
+  );
+  assert.match(section, /compare\/v0\.2\.0-alpha\.33\.\.\.v0\.2\.0-alpha\.34/);
+});
+
+test("what changed keeps titles from breaking the notes or notifying anyone", () => {
+  const line = (title) =>
+    whatChanged({ changes: [{ number: 7, title }], previousTag: "v1", tag: "v2" }).split("\n")[2];
+  assert.equal(line("a | b"), String.raw`- a \| b (#7)`);
+  // A backslash of its own cannot undo the escape that follows it.
+  assert.equal(line(String.raw`a \| b`), String.raw`- a \\\| b (#7)`);
+  assert.equal(line("a \\"), "- a \\\\ (#7)");
+  // An open backtick would turn the rest of the notes into code.
+  assert.equal(line("run `pnpm build"), String.raw`- run \`pnpm build (#7)`);
+  // A closed one stays code, with a pipe inside it left alone.
+  assert.equal(line("run `a | b` first"), "- run `a | b` first (#7)");
+  assert.equal(line("thanks @someone"), "- thanks `@someone` (#7)");
+  assert.equal(line("@someone fixed it"), "- `@someone` fixed it (#7)");
+  // An address is not a mention.
+  assert.equal(line("write to me@example.com"), "- write to me@example.com (#7)");
+});
+
+test("the notes open with what changed when given the list, and are as before without it", () => {
+  const dir = release();
+  try {
+    const plain = prepareRelease({ dir, revision: REVISION, tag: "v0.2.0" }).notes;
+    assert.match(plain, /^Built and tested from /);
+    const changes = { previousTag: "v0.1.0", changes: [{ number: 3, title: "fix: a thing" }] };
+    const notes = prepareRelease({ dir, revision: REVISION, tag: "v0.2.0", changes }).notes;
+    assert.match(notes, /^## What changed\n\n- fix: a thing \(#3\)\n/);
+    assert.ok(notes.endsWith(plain), "the rest of the notes is as before");
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("the command reads the list from --changes", () => {
+  const dir = release();
+  const notes = join(dir, "..", `notes-${Date.now()}.md`);
+  const changes = join(dir, "..", `changes-${Date.now()}.json`);
+  try {
+    writeFileSync(
+      changes,
+      JSON.stringify({ previousTag: "v0.1.0", changes: [{ number: 9, title: "docs: a line" }] }),
+    );
+    const args = ["--revision", REVISION, "--tag", "v0.2.0", "--notes", notes];
+    const run = spawnSync(process.execPath, [SCRIPT, dir, ...args, "--changes", changes], {
+      encoding: "utf8",
+    });
+    assert.equal(run.status, 0, run.stderr);
+    assert.match(readFileSync(notes, "utf8"), /^## What changed\n\n- docs: a line \(#9\)/);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+    rmSync(notes, { force: true });
+    rmSync(changes, { force: true });
   }
 });
