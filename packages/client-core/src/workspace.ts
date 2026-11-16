@@ -905,7 +905,7 @@ export class WorkspaceClient {
    * reported; the connection goes on.
    */
   private recoverFrom(ws: WebSocket, msg: ServerToClient, error: unknown): void {
-    console.error(`Could not apply the server's "${msg.type}" message.`, error);
+    console.error("Could not apply the server's %s message.", msg.type, error);
     if (msg.type !== "event") return;
     this.wantsSnapshot = true;
     ws.close(1000, "resync");
