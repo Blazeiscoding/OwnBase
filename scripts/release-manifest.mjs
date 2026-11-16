@@ -5,7 +5,7 @@
  * source, or from a version the tag does not name, so a downloaded build
  * always identifies the revision its tests ran against.
  *
- *   node scripts/release-manifest.mjs <dir> --revision <sha> --tag <tag> --notes <file> [--signed]
+ *   node scripts/release-manifest.mjs <dir> --revision <sha> --tag <tag> --notes <file> [--signed] [--changes <file>]
  *   node scripts/release-manifest.mjs bind <dir> <artifact> <file>...
  *
  * In <dir>, each `<artifact>.build.json` is the identity an artifact was built
@@ -20,6 +20,9 @@
  * file of the release; the notes give its digest. Folders in <dir> are skipped.
  * `SHA256SUMS` is written into <dir>, the notes to <file>, which is never
  * itself counted as a file to publish, so preparing twice gives the same sums.
+ * `--changes` names a JSON file, `{ previousTag, changes: [{ number, title }] }`
+ * as scripts/release-changes.mjs writes it, outside <dir>; the notes then open
+ * with the pull requests merged since the release before.
  */
 import { createHash } from "node:crypto";
 import { readFileSync, readdirSync, statSync, writeFileSync } from "node:fs";
@@ -161,7 +164,14 @@ function readBinding(name, value) {
  * Throws with every problem at once. `notes` is the notes file's name when it
  * is kept in `dir`: an earlier run's notes are output, never input.
  */
-export function prepareRelease({ dir, revision, tag, signed = false, notes: notesName = null }) {
+export function prepareRelease({
+  dir,
+  revision,
+  tag,
+  signed = false,
+  notes: notesName = null,
+  changes = null,
+}) {
   const version = tagVersion(tag);
   const problems = [];
   if (!version) problems.push(`tag ${tag} names no version (expected v1.2.3 or v1.2.3-rc.1)`);
@@ -269,6 +279,7 @@ export function prepareRelease({ dir, revision, tag, signed = false, notes: note
 
   const sums = files.map((file) => `${sha256(join(dir, file))}  ${file}`).join("\n") + "\n";
   const notes = [
+    ...(changes ? [whatChanged({ ...changes, tag })] : []),
     `Built and tested from ${revision}.`,
     "",
     "| Artifact | Version | Revision | Source inputs |",
@@ -303,6 +314,42 @@ export function prepareRelease({ dir, revision, tag, signed = false, notes: note
   return { sums, notes, files };
 }
 
+const REPOSITORY = "https://github.com/Blazeiscoding/OwnBase";
+
+/**
+ * A pull request's title as one line of Markdown. Titles are whatever their
+ * authors typed: an unpaired backtick would turn the rest of the notes into
+ * code, and GitHub notifies anyone named with an @ in a release's notes.
+ */
+function safeTitle(title) {
+  const text = String(title).replace(/\s+/g, " ").trim();
+  const prose = (part) =>
+    part.replace(/\|/g, "\\|").replace(/(^|[^\w`.-])@([A-Za-z0-9][\w-]*)/g, "$1`@$2`");
+  if ((text.match(/`/g) ?? []).length % 2 === 1) return prose(text.replace(/`/g, "\\`"));
+  return text
+    .split(/(`[^`]*`)/)
+    .map((part, index) => (index % 2 === 1 ? part : prose(part)))
+    .join("");
+}
+
+/**
+ * The "What changed" section that opens a release's notes: the pull requests
+ * merged since `previousTag`, by title, and a link to every commit between.
+ */
+export function whatChanged({ changes, previousTag, tag }) {
+  const lines = changes.length
+    ? changes.map(({ number, title }) => `- ${safeTitle(title)} (#${number})`)
+    : [`Nothing changed in the app since ${previousTag}.`];
+  return [
+    "## What changed",
+    "",
+    ...lines,
+    "",
+    `Every commit: ${REPOSITORY}/compare/${previousTag}...${tag}`,
+    "",
+  ].join("\n");
+}
+
 /** Records the files a job staged for `artifact`, with their SHA-256, in `dir`. */
 export function bindAssets(dir, artifact, paths) {
   const files = Object.fromEntries(paths.map((path) => [basename(path), sha256(path)]));
@@ -334,9 +381,10 @@ if (import.meta.url === pathToFileURL(process.argv[1] ?? "").href && process.arg
   const revision = option("revision");
   const tag = option("tag");
   const notesPath = option("notes");
+  const changesPath = option("changes");
   if (!dir || !revision || !tag || !notesPath) {
     console.error(
-      "usage: release-manifest.mjs <dir> --revision <sha> --tag <tag> --notes <file> [--signed]",
+      "usage: release-manifest.mjs <dir> --revision <sha> --tag <tag> --notes <file> [--signed] [--changes <file>]",
     );
     process.exit(2);
   }
@@ -347,6 +395,7 @@ if (import.meta.url === pathToFileURL(process.argv[1] ?? "").href && process.arg
       tag,
       signed: rest.includes("--signed"),
       notes: dirname(resolve(notesPath)) === resolve(dir) ? basename(notesPath) : null,
+      changes: changesPath ? JSON.parse(readFileSync(resolve(changesPath), "utf8")) : null,
     });
     writeFileSync(join(resolve(dir), SUMS), sums);
     writeFileSync(resolve(notesPath), notes);
