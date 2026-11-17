@@ -4,6 +4,10 @@ name: Soak
 # standard runner (the repository is public, so the minutes are free). The
 # results are in the log: one line a minute, then whether each line climbed.
 # Nothing is uploaded.
+#
+# `measure: snapshot` runs scripts/measure-snapshot.mts instead: what the
+# handshake costs for a workspace of `members` people and `channels`
+# channels, once and for 100 people arriving at once, as after a restart.
 on:
   workflow_dispatch:
     inputs:
@@ -13,6 +17,23 @@ on:
       rate:
         description: How often everyone acts, as a multiple of the script's pace
         default: "1"
+      people:
+        description: How many people, in blocks of 20 (scripts/soak-cast.mjs)
+        default: "20"
+      history:
+        description: Messages already in the workspace when the run starts
+        default: "20000"
+      measure:
+        description: The soak, or the handshake snapshot alone
+        type: choice
+        options: [soak, snapshot]
+        default: soak
+      members:
+        description: "Snapshot only: members in the workspace"
+        default: "2000"
+      channels:
+        description: "Snapshot only: public channels in the workspace"
+        default: "300"
 permissions:
   contents: read
 jobs:
@@ -36,7 +57,20 @@ jobs:
           free -m
           df -h "$RUNNER_TEMP"
       - name: Soak
+        if: inputs.measure != 'snapshot'
         env:
           MINUTES: ${{ inputs.minutes }}
           RATE: ${{ inputs.rate }}
-        run: pnpm --filter @ownbase/server exec tsx ../../scripts/measure-soak.mts --minutes="$MINUTES" --rate="$RATE"
+          PEOPLE: ${{ inputs.people }}
+          HISTORY: ${{ inputs.history }}
+        run: >-
+          pnpm --filter @ownbase/server exec tsx ../../scripts/measure-soak.mts
+          --minutes="$MINUTES" --rate="$RATE" --people="$PEOPLE" --history="$HISTORY"
+      - name: Handshake snapshot
+        if: inputs.measure == 'snapshot'
+        env:
+          MEMBERS: ${{ inputs.members }}
+          CHANNELS: ${{ inputs.channels }}
+        run: >-
+          pnpm --filter @ownbase/server exec tsx ../../scripts/measure-snapshot.mts
+          --members="$MEMBERS" --channels="$CHANNELS"
