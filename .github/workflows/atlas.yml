@@ -1,13 +1,17 @@
 name: Atlas
-# Rebuilds the two pages generated from the repository after every push to
-# main, and commits each to main when it changed, so the copies there follow
-# the sources and a pull request need not rebuild them:
+# After every push to main, rebuilds the two pages generated from the
+# repository:
 #
-# - the project atlas, docs/PROJECT-VISUALIZER.html. It embeds every tracked
-#   file, so any change can change it.
-# - the docs at ownbase.site/docs, apps/site/docs, from docs/DEPLOYMENT.md and
-#   docs/INTEGRATIONS.md by scripts/generate-docs-site.mjs. They change with
-#   the guides, the generator, and the site's style sheets and script.
+# - the project atlas, from every tracked file. It is 17 MB and any change can
+#   change it, so it is not committed: each run uploads it to
+#   https://dl.ownbase.site/atlas/index.html, the R2 bucket the downloads use,
+#   overwriting the one before. `pnpm visualizer:build` makes a local copy at
+#   docs/PROJECT-VISUALIZER.html, which git ignores.
+# - the docs at ownbase.site/docs, apps/site/docs, and the site's sitemap, from
+#   docs/DEPLOYMENT.md and docs/INTEGRATIONS.md by
+#   scripts/generate-docs-site.mjs. They change with the guides, the generator,
+#   and the site's style sheets and script, and are committed to main when they
+#   changed, so a pull request need not rebuild them.
 #
 # A file of app code nobody has written an explanation for yet is explained
 # from its own comments, and the page says so; the checks job names the ones a
@@ -15,18 +19,10 @@ name: Atlas
 # that no longer exists, fails the pull request's checks before it gets here,
 # as does Markdown the docs generator cannot show.
 #
-# One job does both, one after the other, and pushes once. Two workflows would
-# race to push to main, and the one that lost would leave its page stale: it
-# expects the run for the newer commit to rebuild it, but a commit pushed with
-# the workflow's own token starts no workflow.
-#
-# That token is also why the docs commit cannot loop: it starts no run of this
-# or any other workflow. It carries no [skip ci], because Cloudflare Pages
-# skips deploying a push whose newest commit says [skip ci], and the docs must
-# deploy. The atlas commit says [skip ci] so the unchanged landing page is not
-# redeployed for it, and goes first, so that when both change the docs commit
-# is the newest and Pages deploys it. The atlas leaves out apps/site/docs, so
-# committing the docs after it leaves it current.
+# The docs commit is pushed with the workflow's own token, which starts no run
+# of this or any other workflow, so it cannot loop. It carries no [skip ci],
+# because Cloudflare Pages skips deploying a push whose newest commit says
+# [skip ci], and the docs must deploy.
 on:
   push:
     branches: [main]
@@ -56,14 +52,6 @@ jobs:
       - run: pnpm install --frozen-lockfile
         env:
           ELECTRON_SKIP_BINARY_DOWNLOAD: 1
-      - name: Check whether the atlas follows this commit
-        id: atlas
-        run: |
-          if pnpm --silent visualizer:check; then
-            echo "stale=false" >> "$GITHUB_OUTPUT"
-          else
-            echo "stale=true" >> "$GITHUB_OUTPUT"
-          fi
       - name: Check whether the docs pages follow this commit
         id: docs
         run: |
@@ -73,30 +61,47 @@ jobs:
             echo "stale=true" >> "$GITHUB_OUTPUT"
           fi
       - name: Rebuild the atlas
-        if: steps.atlas.outputs.stale == 'true'
         run: pnpm --silent visualizer:build | tee -a "$GITHUB_STEP_SUMMARY"
+      # The same bucket and keys as the release's downloads. The release's
+      # clean-up removes only folders named for a version (v...), never atlas/.
+      # R2 does not answer a folder's address with its index.html, so links
+      # name the file.
+      - name: Publish the atlas
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.R2_DOWNLOADS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.R2_DOWNLOADS_SECRET_ACCESS_KEY }}
+          AWS_DEFAULT_REGION: auto
+          # R2 does not take the newer CLI's default checksums.
+          AWS_REQUEST_CHECKSUM_CALCULATION: when_required
+          AWS_RESPONSE_CHECKSUM_VALIDATION: when_required
+          ENDPOINT: https://35d320dcda363c47cabe859d44e84243.r2.cloudflarestorage.com
+          BUCKET: ownbase-downloads
+        run: |
+          if [ -z "$AWS_ACCESS_KEY_ID" ]; then
+            echo "::notice::No R2 keys, so the atlas at dl.ownbase.site is the one before."
+            exit 0
+          fi
+          s3() { aws s3 --endpoint-url "$ENDPOINT" "$@"; }
+          s3 cp docs/PROJECT-VISUALIZER.html "s3://$BUCKET/atlas/index.html" --only-show-errors \
+            --content-type "text/html; charset=utf-8" --cache-control "public, max-age=300"
+          echo "https://dl.ownbase.site/atlas/index.html is the atlas for ${GITHUB_SHA::7}" | tee -a "$GITHUB_STEP_SUMMARY"
       - name: Rebuild the docs pages
         if: steps.docs.outputs.stale == 'true'
         run: pnpm --silent docs:build | tee -a "$GITHUB_STEP_SUMMARY"
-      - name: Commit them to ${{ github.ref_name }}
-        if: steps.atlas.outputs.stale == 'true' || steps.docs.outputs.stale == 'true'
+      - name: Commit the docs pages to ${{ github.ref_name }}
+        if: steps.docs.outputs.stale == 'true'
         env:
-          ATLAS_STALE: ${{ steps.atlas.outputs.stale }}
           DOCS_STALE: ${{ steps.docs.outputs.stale }}
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898283+github-actions[bot]@users.noreply.github.com"
-          if [ "$ATLAS_STALE" = "true" ]; then
-            git add docs/PROJECT-VISUALIZER.html
-            git commit --quiet -m "docs(atlas): rebuild for ${GITHUB_SHA::7} [skip ci]"
-          fi
           if [ "$DOCS_STALE" = "true" ]; then
             # -A: a section renamed or removed leaves a page to delete.
             git add -A apps/site/docs apps/site/sitemap.xml
             git commit --quiet -m "docs(site): rebuild the docs pages for ${GITHUB_SHA::7}"
           fi
           if git push origin "HEAD:$GITHUB_REF_NAME"; then exit 0; fi
-          # A newer commit landed while this ran: its own run rebuilds both.
+          # A newer commit landed while this ran: its own run rebuilds the pages.
           git fetch --quiet origin "$GITHUB_REF_NAME"
           if [ "$(git rev-parse FETCH_HEAD)" != "$GITHUB_SHA" ]; then
             echo "::notice::$GITHUB_REF_NAME moved on while this ran; the run for its newest commit rebuilds the pages."

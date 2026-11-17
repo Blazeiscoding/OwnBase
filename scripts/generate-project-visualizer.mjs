@@ -9,8 +9,7 @@ const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const outputPath = "docs/PROJECT-VISUALIZER.html";
 /**
  * The docs pages, written from docs/*.md by scripts/generate-docs-site.mjs.
- * Left out so the atlas does not hold the guides twice, and so committing
- * rebuilt pages leaves the atlas current.
+ * Left out so the atlas does not hold the guides twice.
  */
 const isDocsPage = (path) => path.startsWith("apps/site/docs/");
 const git = (...args) => execFileSync("git", args, { cwd: root, encoding: "utf8" }).trim();
@@ -467,26 +466,14 @@ const data = {
   optimizations,
   areas: catalogs.map(({ area, overview }) => ({ area, overview })),
 };
+// The page is published to dl.ownbase.site after each merge, not committed,
+// so --check has nothing to compare with: it builds the page, which fails on
+// a broken input, and writes nothing.
 const checking = process.argv.includes("--check");
-// Somewhere else to write the page: its tests build a fresh one with --out,
-// since the copy in docs/ lags the code between rebuilds.
+// Somewhere else to write the page: its tests build a fresh one with --out.
 const outAt = process.argv.indexOf("--out");
 if (outAt >= 0 && !process.argv[outAt + 1]) throw new Error("--out needs a path to write to.");
 const written = outAt >= 0 ? resolve(process.argv[outAt + 1]) : resolve(root, outputPath);
-let existing;
-if (checking) {
-  existing = read(outputPath);
-  const embedded = JSON.parse(
-    existing.match(
-      /<script id="project-data" type="application\/json">([\s\S]*?)<\/script>/,
-    )?.[1] ?? "null",
-  );
-  if (!embedded?.meta) throw new Error("Missing visualizer snapshot metadata.");
-  // A commit changes HEAD and tracked status without changing source. Freshness
-  // compares actual input bytes and generated content, retaining capture metadata.
-  for (const key of ["revision", "revisionDate", "trackedCount"])
-    data.meta[key] = embedded.meta[key];
-}
 // The page carries OwnBase's own faces so it looks the same offline. They come
 // from the web app's installed packages; a checkout without apps/web (the
 // freshness fixture) falls back to system fonts.
@@ -523,9 +510,8 @@ const html = read("docs/visualizer/template.html").replace(
   (_marker, key) => parts[key],
 );
 if (checking) {
-  if (existing !== html) throw new Error("Project visualizer is stale. Run pnpm visualizer:build.");
   console.log(
-    `Visualizer is current: ${files.length} files, ${flows.length} flows, ${optimizations.length} improvements; ${explanations}.`,
+    `Visualizer builds: ${files.length} files, ${flows.length} flows, ${optimizations.length} improvements; ${explanations}.`,
   );
 } else {
   writeFileSync(written, html);

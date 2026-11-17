@@ -123,12 +123,13 @@ request. CI checks
 formatting, so an unformatted file fails the build rather than starting an
 argument in review.
 
-The project atlas, `docs/PROJECT-VISUALIZER.html`, explains every runtime file
-and embeds the text of every tracked one. Give a new file under `apps/*/src` or
+The [project atlas](https://dl.ownbase.site/atlas/index.html) explains every
+runtime file and embeds the text of every tracked one. Give a new file under `apps/*/src` or
 `packages/*/src` an entry in `docs/visualizer/content/*.json`. Without one the
 atlas explains it from its own comments, and the checks name it in a notice.
-Leave the page itself alone: the Atlas workflow rebuilds it after every merge.
-`pnpm visualizer:build` builds it locally to look at. The
+The Atlas workflow builds and publishes the page after every merge, and it is
+not in the repository. `pnpm visualizer:build` makes a local copy to look at,
+`docs/PROJECT-VISUALIZER.html`, which git ignores. The
 [atlas guide](docs/visualizer/README.md) has the rest.
 
 Browser checks: `pnpm exec playwright install chromium webkit firefox`, then
