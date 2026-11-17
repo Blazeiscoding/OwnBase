@@ -64,6 +64,38 @@ describe("the image viewer", () => {
     expect(screen.getByText("3 of 3")).toBeTruthy();
   });
 
+  // The desktop app and the browser both take this road: an anchor with a
+  // download name. In the desktop app that opens the Save dialog with the name
+  // filled in, and the window says "Saved" once the file is written.
+  it("saves the picture on show, under its own name, even one that cannot be previewed", async () => {
+    const user = userEvent.setup();
+    const saved: { href: string; download: string }[] = [];
+    vi.spyOn(HTMLAnchorElement.prototype, "click").mockImplementation(function (
+      this: HTMLAnchorElement,
+    ) {
+      saved.push({ href: this.href, download: this.download });
+    });
+    open(first, [first, second]);
+    expect(await screen.findByRole("img", { name: "before.png" })).toBeTruthy();
+    await user.click(screen.getByRole("button", { name: "Next image" }));
+    const shown = await screen.findByRole("img", { name: "after.png" });
+    await user.click(screen.getByRole("button", { name: "Save" }));
+    expect(saved).toEqual([{ href: "blob:test/1", download: "after.png" }]);
+
+    // A picture the browser cannot draw is still the file someone sent.
+    shown.dispatchEvent(new Event("error"));
+    expect(
+      await screen.findByText(
+        "This image cannot be previewed. You can still save the original file.",
+      ),
+    ).toBeTruthy();
+    await user.click(screen.getByRole("button", { name: "Save" }));
+    expect(saved).toEqual([
+      { href: "blob:test/1", download: "after.png" },
+      { href: "blob:test/1", download: "after.png" },
+    ]);
+  });
+
   it("shows one picture alone, with no arrows", async () => {
     open(first, [first]);
     expect(await screen.findByRole("img", { name: "before.png" })).toBeTruthy();
