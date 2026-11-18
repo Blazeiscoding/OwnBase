@@ -131,6 +131,19 @@ A release's notes open with "What changed": one line for each pull request merge
 
 `.github/workflows/atlas.yml` runs after every push to `main`. It builds the project atlas and uploads it to `https://dl.ownbase.site/atlas/index.html` in the R2 bucket the downloads use, with the release's R2 keys, overwriting the copy before. The atlas is 17 MB and changes with any file, so it is not in the repository: until 2026-11-17 a copy was committed after every merge, and those copies are most of the repository's size. `pnpm visualizer:build` makes a local copy at `docs/PROJECT-VISUALIZER.html`, which git ignores. The same run rebuilds the docs pages in `apps/site/docs` and `apps/site/sitemap.xml` and commits them to `main` when they changed, without `[skip ci]`, so Cloudflare Pages deploys them.
 
+## Soak
+
+`.github/workflows/soak.yml` measures one server under steady use: `scripts/measure-soak.mts` starts a server and scripted people who post, reply, react, upload, join and leave, drop and reconnect, sign in and out and start huddles, and prints the server's memory, event loop delay and send-to-receive time once a minute, then whether any line climbed. It runs only when started by hand, on a standard runner, and uploads nothing: the results are in the log. A run that has a failed action ends red.
+
+Start it with `gh workflow run soak.yml -f minutes=60 -f people=50 -f history=50000`. Its inputs:
+
+- `minutes` (60) and `rate` (1, a multiple of how often everyone acts).
+- `people` (20). People come in blocks of 20 (`scripts/soak-cast.mjs`): every full block plays the whole cast again with its own huddle channel, and anyone after the last full block only listens. 18 is the least.
+- `history` (20000): messages in the workspace before the run starts. 200 people and 200,000 messages take about two minutes to set up before the timed run.
+- `measure`: `soak`, or `snapshot` to run `scripts/measure-snapshot.mts` instead, which times the handshake for a workspace of `members` (2000) people and `channels` (300) public channels, once and for 100 people arriving at once.
+
+The first step prints the runner's CPU and memory; they vary between runs, so quote them with the results. [How many people a server holds](DEPLOYMENT.md#how-many-people-a-server-holds) gives the published runs.
+
 ## Repository settings
 
 These are on in the repository's settings rather than in a file, so they are listed here:
