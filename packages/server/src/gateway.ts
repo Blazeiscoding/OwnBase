@@ -77,6 +77,9 @@ export class Gateway implements OutboxSink {
   /** Connections holding frames this turn, and the turn's end that sends them. */
   private held = new Set<Duplex>();
   private releasing: NodeJS.Immediate | null = null;
+  /** Sessions asked about in this turn of the event loop; see `sessionCheck`. */
+  private sessionsThisTurn = new Map<string, boolean | "unreadable">();
+  private forgetSessions: NodeJS.Immediate | null = null;
   private closing = false;
   private closePromise: Promise<void> | null = null;
   private featureSnapshot: (user: User) => FeatureSnapshot = () => {
@@ -199,6 +202,8 @@ export class Gateway implements OutboxSink {
     this.closing = true;
     clearInterval(this.heartbeat);
     this.release();
+    if (this.forgetSessions) clearImmediate(this.forgetSessions);
+    this.forgetSessions = null;
     this.liveHuddles?.close();
     this.closePromise = Promise.all(
       [...this.sockets].map(
@@ -556,13 +561,19 @@ export class Gateway implements OutboxSink {
 
   /**
    * Whether a socket's session is still signed in, asked once per session in
-   * one fan-out however many of its devices it reaches (REV-06). An ended
-   * session closes each of its sockets as it is met, as `authorized` does, so
-   * revocation and expiry act as soon as before; the answer lives only as
-   * long as the fan-out that asked.
+   * a turn of the event loop however many fan-outs and devices reach it
+   * (REV-06, J19). An ended session closes each of its sockets as it is met,
+   * as `authorized` does. Signing out, revoking and deactivating tell the
+   * gateway at once (`disconnectSession`, `disconnectUser`), which takes the
+   * sockets out before any check; what only the database knows, a session
+   * that expired, is caught when the turn that asked has ended.
    */
   private sessionCheck(): (client: Client) => boolean {
-    const known = new Map<string, boolean | "unreadable">();
+    const known = this.sessionsThisTurn;
+    this.forgetSessions ??= setImmediate(() => {
+      this.forgetSessions = null;
+      this.sessionsThisTurn.clear();
+    });
     return (client) => {
       if (!this.clients.has(client)) return false;
       const key = `${client.tokenHash}\n${client.userId}`;
