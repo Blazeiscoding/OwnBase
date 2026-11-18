@@ -20,6 +20,7 @@ import { Icon, type IconName } from "./Icon.js";
 import { Tooltip } from "./Tooltip.js";
 import { screenSoundKey, useCallVolumes, type PersonVolume as Volume } from "../lib/callVolumes.js";
 import { PersonVolume } from "./PersonVolume.js";
+import { attachStream } from "../lib/attachStream.js";
 
 /** Cameras send 16:9, so tiles keep that shape and nobody's head is cropped off. */
 const ASPECT = 16 / 9;
@@ -267,8 +268,7 @@ function Video({
   useEffect(() => {
     const el = ref.current;
     if (!el) return;
-    el.srcObject = stream;
-    void el.play()?.catch(() => {});
+    const detach = attachStream(el, stream);
     const measure = () => {
       if (el.videoWidth > 0 && el.videoHeight > 0) report.current?.(el.videoWidth / el.videoHeight);
     };
@@ -278,7 +278,7 @@ function Video({
     return () => {
       el.removeEventListener("loadedmetadata", measure);
       el.removeEventListener("resize", measure);
-      el.srcObject = null;
+      detach();
     };
   }, [stream]);
   return (

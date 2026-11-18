@@ -11,6 +11,9 @@ import { HuddleStage } from "../src/components/HuddleStage.js";
 import type { Platform } from "../src/platform.js";
 import { accessibilityProblems } from "./accessibility.js";
 
+// A stream with no video tracks: jsdom has no MediaStream.
+const noVideo = { getVideoTracks: () => [] } as unknown as MediaStream;
+
 // jsdom has no media pipeline: a video only needs somewhere to put a stream.
 beforeAll(() => {
   HTMLMediaElement.prototype.play = () => Promise.resolve();
@@ -183,9 +186,7 @@ describe("compact controls explain themselves with the shared tooltip", () => {
         localScreenStream: null,
         speaking: false,
         micLost: false,
-        peers: [
-          peer("U_PRIYA", { cameraStream: {} as MediaStream, screenStream: {} as MediaStream }),
-        ],
+        peers: [peer("U_PRIYA", { cameraStream: noVideo, screenStream: noVideo })],
       },
     });
     // Where how loud each person is to you is kept.

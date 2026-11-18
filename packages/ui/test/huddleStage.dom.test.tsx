@@ -19,7 +19,8 @@ const platform = webPlatform();
 beforeAll(() => {
   HTMLMediaElement.prototype.play = () => Promise.resolve();
 });
-const stream = () => ({}) as MediaStream;
+// A stream with no video tracks: jsdom has no MediaStream.
+const stream = () => ({ getVideoTracks: () => [] }) as unknown as MediaStream;
 
 const person = (id: string, displayName: string): User => ({
   id,

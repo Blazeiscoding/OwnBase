@@ -9,6 +9,9 @@ import { writeRoute } from "../src/lib/route.js";
 import type { Platform } from "../src/platform.js";
 import { AppNotices } from "./workspaceParts.js";
 
+// A stream with no video tracks: jsdom has no MediaStream.
+const noVideo = { getVideoTracks: () => [] } as unknown as MediaStream;
+
 /**
  * Where the call goes in the workspace, as Discord lays out a voice channel:
  * beside the chat where there is room for both, over it where there is not.
@@ -60,7 +63,7 @@ const inCall = (media: Partial<HuddleState> = {}): HuddleState => ({
   localScreenStream: null,
   speaking: false,
   micLost: false,
-  peers: [peer(maya.id, { cameraStream: {} as MediaStream })],
+  peers: [peer(maya.id, { cameraStream: noVideo })],
   ...media,
 });
 
