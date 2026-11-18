@@ -131,6 +131,22 @@ describe("an entry, as an administrator would say it", () => {
     ).toBe("The host removed the workspace's icon");
   });
 
+  it("says which custom emoji was added or removed, and who may add them", () => {
+    const emoji = { targetType: "emoji" as const, targetId: "E1" };
+    expect(say(entry("emoji.added", { ...emoji, details: { name: "party-parrot" } }))).toBe(
+      "Alice added the emoji :party-parrot:",
+    );
+    expect(say(entry("emoji.removed", { ...emoji, details: { name: "party-parrot" } }))).toBe(
+      "Alice removed the emoji :party-parrot:",
+    );
+    expect(say(entry("workspace.emoji_adding_changed", { details: { adminsOnly: true } }))).toBe(
+      "Alice kept adding emoji to admins",
+    );
+    expect(say(entry("workspace.emoji_adding_changed", { details: { adminsOnly: false } }))).toBe(
+      "Alice let every member add emoji",
+    );
+  });
+
   it("says who made and downloaded a copy of the workspace", () => {
     const copy = { targetType: "workspace" as const, targetId: null };
     expect(say(entry("workspace.copy_made", copy))).toBe(
@@ -182,6 +198,9 @@ describe("an entry, as an administrator would say it", () => {
       "workspace.access_policy_changed",
       "workspace.icon_changed",
       "workspace.link_previews_changed",
+      "workspace.emoji_adding_changed",
+      "emoji.added",
+      "emoji.removed",
       "workspace.copy_made",
       "workspace.copy_downloaded",
       "app.created",

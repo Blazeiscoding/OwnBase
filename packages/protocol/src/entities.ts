@@ -148,6 +148,18 @@ export interface SidebarSection {
 }
 
 /**
+ * A picture the workspace's members added under a name (J12). Messages and
+ * reactions write it as `:name:`; its picture is fetched by `id`, so a name
+ * removed and added again has a new address.
+ */
+export interface CustomEmoji {
+  id: ID;
+  name: string;
+  /** Who added it, who may remove it as admins can. */
+  createdBy: ID;
+}
+
+/**
  * How loudly a conversation notifies: its own level when one was chosen for
  * it, else the account's default (or "mentions", where the server keeps none).
  */
@@ -438,6 +450,9 @@ export type AuditAction =
   | "workspace.access_policy_changed"
   | "workspace.icon_changed"
   | "workspace.link_previews_changed"
+  | "workspace.emoji_adding_changed"
+  | "emoji.added"
+  | "emoji.removed"
   | "workspace.copy_made"
   | "workspace.copy_downloaded"
   | "app.created"
@@ -464,7 +479,7 @@ export type AuditAction =
   | "extension.action";
 
 export type AuditTargetType =
-  "user" | "app" | "webhook" | "command" | "subscription" | "invite" | "workspace";
+  "user" | "app" | "webhook" | "command" | "subscription" | "invite" | "workspace" | "emoji";
 
 /**
  * One entry in the administrative record. Never holds a credential, a URL an

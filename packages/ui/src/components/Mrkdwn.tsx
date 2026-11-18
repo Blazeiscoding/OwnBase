@@ -1,7 +1,8 @@
 import { Fragment, useContext, type ReactNode } from "react";
 import { broadcastLabel, type ID, type User } from "@ownbase/protocol";
-import type { Channel } from "@ownbase/protocol";
+import type { Channel, CustomEmoji } from "@ownbase/protocol";
 import { OpenMessageContext } from "../context.js";
+import { CustomEmojiImage, customEmojiFor, useCustomEmoji } from "./CustomEmoji.js";
 import { parseDeepLink } from "../lib/deeplink.js";
 import { channelMentionLabel, userMentionLabel } from "../lib/mentionDocument.js";
 import { useOwnAddress } from "./ShareableServer.js";
@@ -19,7 +20,8 @@ interface Props {
  * Renders Slack-mrkdwn-compatible message text:
  * ```blocks```, `code`, *bold*, _italic_, ~strike~, <@USER>, <#CHANNEL>, URLs,
  * <https://url|labelled links>, > quoted lines, and lists: lines starting
- * "- ", "* " or "• ", or "1. " or "1) ", as Discord reads them.
+ * "- ", "* " or "• ", or "1. " or "1) ", as Discord reads them. `:name:`
+ * draws the workspace's custom emoji of that name and stays text otherwise.
  */
 export function Mrkdwn({
   text,
@@ -31,6 +33,7 @@ export function Mrkdwn({
 }: Props) {
   const openMessage = useContext(OpenMessageContext);
   const ours = useOwnAddress();
+  const customEmoji = useCustomEmoji();
   const blocks = text.split(/```/);
   const terms = [...new Set(highlightTerms.filter((term) => term.trim().length > 0))].sort(
     (a, b) => b.length - a.length,
@@ -77,6 +80,7 @@ export function Mrkdwn({
                   openMessage,
                   ours,
                   highlight,
+                  customEmoji,
                 });
               switch (run.kind) {
                 case "quote":
@@ -199,9 +203,10 @@ function disguisedHost(url: string, label: string): string | null {
 // rule can pair that underscore with a later one. Without it ¯\_(ツ)_/¯ arrives
 // italicised and missing both underscores.
 // A link in angle brackets, labelled or not, is Slack's own form, and the one
-// apps send; only web addresses are made links.
+// apps send; only web addresses are made links. A custom emoji's `:name:` is
+// not read against a letter, digit or colon, so 10:30:45 stays a time.
 const INLINE_RE =
-  /(\\[*_~`\\])|(`[^`\n]+`)|(\*[^*\n]+\*)|(_[^_\n]+_)|(~[^~\n]+~)|(<@[A-Za-z0-9_-]+>)|(<#[A-Za-z0-9_-]+>)|(<!(?:channel|here|everyone)>)|(https?:\/\/[^\s<>]+)|<(https?:\/\/[^\s|<>]+)(?:\|([^<>\n]+))?>/g;
+  /(\\[*_~`\\])|(`[^`\n]+`)|(\*[^*\n]+\*)|(_[^_\n]+_)|(~[^~\n]+~)|(<@[A-Za-z0-9_-]+>)|(<#[A-Za-z0-9_-]+>)|(<!(?:channel|here|everyone)>)|(https?:\/\/[^\s<>]+)|<(https?:\/\/[^\s|<>]+)(?:\|([^<>\n]+))?>|(?<![A-Za-z0-9:])(:[a-z0-9_-]{1,32}:)(?![A-Za-z0-9])/g;
 
 function renderInline(
   text: string,
@@ -210,6 +215,7 @@ function renderInline(
     /** Whether an address is this workspace's; only its links open here. */
     ours?: (serverUrl: string) => boolean;
     highlight: (value: string) => ReactNode;
+    customEmoji: Record<string, CustomEmoji>;
   },
 ): ReactNode[] {
   const out: ReactNode[] = [];
@@ -281,6 +287,9 @@ function renderInline(
       const url = m[9] ?? m[10]!;
       const label = m[11]?.trim();
       out.push(renderLink(url, label && label !== url ? label : null, key++, ctx));
+    } else if (m[12]) {
+      const emoji = customEmojiFor(ctx.customEmoji, tok);
+      out.push(emoji ? <CustomEmojiImage key={key++} emoji={emoji} /> : ctx.highlight(tok));
     }
     last = m.index + tok.length;
   }

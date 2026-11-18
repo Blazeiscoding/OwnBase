@@ -108,6 +108,15 @@ describe("a message of emoji alone", () => {
     for (const text of ["hi 🎉", "123", "#1", "", "  ", "🎉".repeat(40)])
       expect(onlyEmoji(text), text).toBe(false);
   });
+
+  it("counts the workspace's own emoji, and only those it has (J12)", () => {
+    const custom = { "party-parrot": {}, ok: {} };
+    for (const text of [":party-parrot:", ":party-parrot: :ok:", "🎉:ok:"])
+      expect(onlyEmoji(text, custom), text).toBe(true);
+    for (const text of [":gone:", "hi :ok:", ":ok:hi", ":constructor:"])
+      expect(onlyEmoji(text, custom), text).toBe(false);
+    expect(onlyEmoji(":party-parrot:")).toBe(false);
+  });
 });
 
 describe("the emoji files", () => {

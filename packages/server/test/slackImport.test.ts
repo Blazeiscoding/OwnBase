@@ -181,8 +181,10 @@ describe("importing a Slack export", () => {
       expect(timeline.map((m) => idTime(m.id))).toEqual(timeline.map((m) => m.createdAt));
       expect(first!.createdAt).toBe(second!.createdAt);
       expect(first!.id < second!.id).toBe(true);
+      // A custom emoji's reaction is kept as its :name:, shown once one of that name is added (J12).
       expect(root!.reactions).toEqual([
         { emoji: "👍", userIds: [people.bob, people.carol] },
+        { emoji: ":partyparrot:", userIds: [people.bob] },
         { emoji: "👋🏼", userIds: [people.alice] },
       ]);
       expect(broadcast).toMatchObject({
@@ -216,10 +218,11 @@ describe("importing a Slack export", () => {
         .get() as { n: number };
       expect(hits.n).toBe(1);
 
-      expect(result.counts).toMatchObject({ messages: 13, replies: 3, reactions: 3, pins: 2 });
+      expect(result.counts).toMatchObject({ messages: 13, replies: 3, reactions: 4, pins: 2 });
+      expect(result.customEmoji).toEqual(["partyparrot"]);
       const skipped = Object.fromEntries(result.skipped.map((s) => [s.reason, s.count]));
       expect(skipped["join and leave notices"]).toBe(1);
-      expect(skipped["reactions with a custom emoji"]).toBe(1);
+      expect(Object.keys(skipped).some((reason) => reason.includes("emoji"))).toBe(false);
       expect(skipped["files Slack had deleted or hidden"]).toBe(1);
       expect(
         skipped["files left as their names (run again with --fetch-files to bring them)"],
@@ -476,6 +479,8 @@ describe("an older Slack export", () => {
       expect(cheer!.text).toBe(
         "Excited 😃 👏🏼 🙂 :partyparrot: `:smiley:` <https://x.example/:smiley:|:smiley:>",
       );
+      // The custom one in its words is reported to add; the one in code is not.
+      expect(result.customEmoji).toEqual(["partyparrot"]);
       expect(share).toMatchObject({ userId: people.alice, pinned: true });
       expect(share!.files.map((f) => f.name)).toEqual(["chart.png"]);
       expect(comment).toMatchObject({ userId: people.bob, files: [] });

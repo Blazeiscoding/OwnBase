@@ -2103,6 +2103,43 @@
       "concepts": ["forwarding", "conversation picker", "outbox"]
     },
     {
+      "path": "packages/ui/src/components/CustomEmoji.tsx",
+      "plain": "Draws one of the workspace's own emoji the size of the words around it.",
+      "summary": "useCustomEmoji, customEmojiFor, useMayAddEmoji and CustomEmojiImage: the list by name, a :name: token's emoji, who may add, and the picture fetched with the session and kept as an object URL (J12).",
+      "details": [
+        "First-screen code, since messages draw it, so it stays small; the picker and the Custom emoji window load on first use.",
+        "The picture is fetched as profile pictures are, since an <img> cannot send the session; an animated one plays as its file says, also under reduced motion."
+      ],
+      "concepts": ["custom emoji", "images"]
+    },
+    {
+      "path": "packages/ui/src/components/CustomEmojiDialog.tsx",
+      "plain": "The Custom emoji window: add a picture under a name, see the list, and remove one.",
+      "summary": "Adds a custom emoji with a preview and a name taken from the file's, and lists them with Remove for whoever added each and for admins (J12).",
+      "details": [
+        "Loaded on first use. A larger still picture is made smaller in the browser first (lib/emojiImage.ts); the server's refusal is shown as it says it."
+      ],
+      "concepts": ["custom emoji", "dialogs", "lazy loading"]
+    },
+    {
+      "path": "packages/ui/src/components/CustomEmojiHost.tsx",
+      "plain": "Keeps the Custom emoji window open while the emoji picker that opened it closes.",
+      "summary": "Holds the lazy Custom emoji window for the workspace on screen; openCustomEmoji opens it from anywhere (J12).",
+      "details": [
+        "The picker lives in a popover that closes as the window opens, so the window is held by WorkspaceScreen, above both."
+      ],
+      "concepts": ["custom emoji", "lazy loading"]
+    },
+    {
+      "path": "packages/ui/src/lib/emojiImage.ts",
+      "plain": "Gets a chosen picture ready to become a custom emoji.",
+      "summary": "prepareEmojiPicture: sends a picture the server takes as it is, keeping any animation, and shrinks a larger still one to 256 pixels as PNG (J12).",
+      "details": [
+        "A GIF cannot be shrunk here without losing its frames, so a large one is refused with what to do instead."
+      ],
+      "concepts": ["custom emoji", "images"]
+    },
+    {
       "path": "packages/ui/src/components/ForwardHost.tsx",
       "plain": "Keeps the Forward window open even if the message it came from disappears from the list.",
       "summary": "Owns the Forward dialog above the message rows and tells a row whether it may offer Forward.",

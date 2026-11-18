@@ -34,6 +34,7 @@ import { useFocusAfterRender } from "../lib/keys.js";
 import { Avatar } from "./Avatar.js";
 import { MessageAttachments } from "./Attachments.js";
 import { Mrkdwn } from "./Mrkdwn.js";
+import { CustomEmojiImage, customEmojiFor, useCustomEmoji } from "./CustomEmoji.js";
 import { useShareableServer } from "./ShareableServer.js";
 import { Dialog } from "./Dialog.js";
 import { ErrorBoundary } from "./ErrorBoundary.js";
@@ -146,6 +147,7 @@ const MessageRow = memo(function MessageRow({
   // render it again; your own role decides what you may do to it.
   const { users, channels } = useMessageReferences(message);
   const selfId = useWorkspace((s) => s.self?.id);
+  const customEmoji = useCustomEmoji();
   const canDelete = useWorkspace((s) => canDeleteMessage(s.self, message));
   const mayPin = useWorkspace((s) => selfMay(s, "pinMessage"));
   const [editing, setEditing] = useState(false);
@@ -542,7 +544,7 @@ const MessageRow = memo(function MessageRow({
             message.text && (
               <div
                 className={`message-text text-[16px] leading-[1.375] text-ink/90 ${
-                  onlyEmoji(message.text) ? "message-jumbo" : ""
+                  onlyEmoji(message.text, customEmoji) ? "message-jumbo" : ""
                 }`}
               >
                 <Mrkdwn
@@ -813,6 +815,9 @@ function ReactionChip({
   fresh: boolean;
 } & ComponentProps<"button">) {
   const pressed = useChanges(reacted);
+  const custom = useCustomEmoji();
+  // A reaction of the form :name: shows that emoji's picture while it exists (J12).
+  const known = customEmojiFor(custom, emoji);
   return (
     <button
       {...button}
@@ -825,7 +830,7 @@ function ReactionChip({
       } ${fresh ? "animate-badge-in" : ""}`}
     >
       <span key={pressed} className={reacted && pressed ? "inline-block animate-press" : undefined}>
-        {emoji}
+        {known ? <CustomEmojiImage emoji={known} /> : emoji}
       </span>
       <CountBadge
         count={count}

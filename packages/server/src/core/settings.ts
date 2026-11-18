@@ -44,6 +44,7 @@ interface SettingValues {
   accessPolicy: AccessPolicy;
   inviteOnlyBefore: boolean;
   linkPreviews: boolean;
+  emojiAddingAdminsOnly: boolean;
   claimCode: string | null;
   icon: WorkspaceIcon | null;
   pushKeys: VapidKeys;
@@ -93,6 +94,15 @@ export const SETTINGS: { [K in keyof SettingValues]: Setting<SettingValues[K]> }
     },
     write: (on) => [["link_previews", on ? "on" : "off"]],
     fallback: true,
+  },
+  /** Whether only the owner and admins may add custom emoji (J12): any member may until one says. */
+  emojiAddingAdminsOnly: {
+    read: (row) => {
+      const value = row("emoji_adding");
+      return value === null ? null : value === "admins";
+    },
+    write: (adminsOnly) => [["emoji_adding", adminsOnly ? "admins" : "members"]],
+    fallback: false,
   },
   /**
    * The code that claims a workspace nobody owns yet; null once claimed. The

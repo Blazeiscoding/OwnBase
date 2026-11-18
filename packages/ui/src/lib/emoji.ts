@@ -40,8 +40,12 @@ const EMOJI_ALONE =
 
 /**
  * A message of nothing but a few emoji, which Slack and Discord show large.
- * A long run of them stays the size of text.
+ * A long run of them stays the size of text. A workspace's own emoji, named
+ * in `custom`, count as one each (J12).
  */
-export function onlyEmoji(text: string): boolean {
-  return text.length <= 64 && EMOJI_ALONE.test(text) && /[^\s️]/u.test(text);
+export function onlyEmoji(text: string, custom: Readonly<Record<string, unknown>> = {}): boolean {
+  const plain = text.replace(/:([a-z0-9_-]{1,32}):/g, (token, name: string) =>
+    Object.hasOwn(custom, name) ? "\u{1F642}" : token,
+  );
+  return plain.length <= 64 && EMOJI_ALONE.test(plain) && /[^\s️]/u.test(plain);
 }

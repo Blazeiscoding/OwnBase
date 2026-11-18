@@ -2,8 +2,11 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { renderToStaticMarkup } from "react-dom/server";
+import { createStore } from "zustand/vanilla";
+import type { WorkspaceClient } from "@ownbase/client-core";
 import { escapeMrkdwn, type Channel, type ID, type User } from "@ownbase/protocol";
 import { Mrkdwn } from "../src/components/Mrkdwn.js";
+import { ClientContext } from "../src/context.js";
 
 const users: Record<ID, User> = {
   U1: {
@@ -196,5 +199,59 @@ describe("Mrkdwn in Hebrew or Arabic", () => {
     // jsdom applies no stylesheet; what a browser would do is read from theme.css.
     const css = readFileSync(join(process.cwd(), "src/theme.css"), "utf8");
     expect(css).toMatch(/\.message-text,\s*\.bidi-text\s*\{\s*unicode-bidi: plaintext;/);
+  });
+});
+
+describe("Mrkdwn with a workspace's own emoji (J12)", () => {
+  const parrot = { id: "E1", name: "party-parrot", createdBy: "U1" };
+  // Just what drawing an emoji reads of a client: the list, and its pictures.
+  const client = {
+    // An emoji named 30 too, which a time must not show.
+    store: createStore(() => ({
+      customEmoji: { "party-parrot": parrot, "30": { id: "E2", name: "30", createdBy: "U1" } },
+    })),
+    emojiPictures: { peek: () => "blob:parrot", load: async () => "blob:parrot" },
+  } as unknown as WorkspaceClient;
+  const draw = (text: string) =>
+    renderToStaticMarkup(
+      <ClientContext.Provider value={client}>
+        <Mrkdwn text={text} users={users} channels={channels} />
+      </ClientContext.Provider>,
+    );
+
+  it("draws a known name as its picture, named :name:", () => {
+    const html = draw("ship it :party-parrot:");
+    expect(html).toContain('<img src="blob:parrot" alt=":party-parrot:"');
+    expect(html).not.toContain("ship it :party-parrot:");
+  });
+
+  it("leaves an unknown name as text", () => {
+    const html = draw("ship it :no-such-emoji:");
+    expect(html).toContain("ship it :no-such-emoji:");
+    expect(html).not.toContain("<img");
+  });
+
+  it("leaves a time alone", () => {
+    const html = draw("at 10:30:45 sharp");
+    expect(html).toContain("at 10:30:45 sharp");
+    expect(html).not.toContain("<img");
+  });
+
+  it("leaves a link's port alone", () => {
+    const html = draw("see http://x:8080/ now");
+    expect(html).toContain('href="http://x:8080/"');
+    expect(html).not.toContain("<img");
+  });
+
+  it("leaves a name inside code as text", () => {
+    const html = draw("`:party-parrot:` and ```:party-parrot:```");
+    expect(html).not.toContain("<img");
+    expect(html.match(/:party-parrot:/g)).toHaveLength(2);
+  });
+
+  it("is text everywhere without a workspace", () => {
+    expect(render(":party-parrot:")).toBe(
+      '<span class="whitespace-pre-wrap break-words leading-[1.45]">:party-parrot:</span>',
+    );
   });
 });

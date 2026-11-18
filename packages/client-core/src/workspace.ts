@@ -8,6 +8,7 @@ import {
   type AccessPolicy,
   type Channel,
   type ChannelPrefs,
+  type CustomEmoji,
   type NotifyLevel,
   type EphemeralEvent,
   type EventEnvelope,
@@ -459,6 +460,10 @@ export interface WorkspaceState extends MessageCache {
    * is none; undefined until the first snapshot says which.
    */
   iconVersion: string | null | undefined;
+  /** The workspace's own emoji, by name (J12). */
+  customEmoji: Record<string, CustomEmoji>;
+  /** Whether only the owner and admins may add custom emoji, as the server last said. */
+  emojiAddingAdminsOnly: boolean;
   /**
    * Counts up whenever this account's scheduled queue may have changed: the
    * server said so, or this client connected and could have missed it saying so.
@@ -576,6 +581,8 @@ const initialState: WorkspaceState = {
   accessPolicy: null,
   linkPreviews: null,
   iconVersion: undefined,
+  customEmoji: {},
+  emojiAddingAdminsOnly: false,
   scheduledChanges: 0,
   self: null,
   users: {},
@@ -656,6 +663,8 @@ export class WorkspaceClient {
   readonly files: FileCache;
   /** Profile pictures, fetched with this session and kept as object URLs (E9). */
   readonly avatars: AvatarCache;
+  /** Custom emoji pictures, by emoji id, which names one picture for good (J12). */
+  readonly emojiPictures: AvatarCache;
   readonly account: AccountActions;
   readonly admin: AdminActions;
   readonly apps: AppActions;
@@ -725,6 +734,7 @@ export class WorkspaceClient {
     this.api = new Api(baseUrl, token);
     this.files = new FileCache(this.api, undefined, (fileId) => this.fileOwner(fileId));
     this.avatars = new AvatarCache((userId, version) => this.api.fetchAvatar(userId, version));
+    this.emojiPictures = new AvatarCache((id) => this.api.fetchCustomEmoji(id));
     this.store = createStore<WorkspaceState>(() => ({ ...initialState }));
     this.account = new AccountActions(this.api);
     this.admin = new AdminActions(this.api, (users) =>
@@ -800,6 +810,7 @@ export class WorkspaceClient {
   destroy(): void {
     this.stopped = true;
     this.avatars.clear();
+    this.emojiPictures.clear();
     // Writes still out answer to nobody now; none may correct the server,
     // and none waiting behind them may go (REV-11).
     this.writes.close();
@@ -1014,6 +1025,8 @@ export class WorkspaceClient {
       accessPolicy: snap.accessPolicy,
       linkPreviews: snap.linkPreviews,
       iconVersion: snap.iconVersion,
+      customEmoji: Object.fromEntries(snap.customEmoji.map((emoji) => [emoji.name, emoji])),
+      emojiAddingAdminsOnly: snap.emojiAddingAdminsOnly,
       // Whatever was said while this client was away was not heard.
       scheduledChanges: prev.scheduledChanges + 1,
       self: snap.self,
@@ -1409,6 +1422,15 @@ export class WorkspaceClient {
         break;
       case "workspace.icon":
         this.store.setState({ iconVersion: event.iconVersion });
+        break;
+      case "emoji.added":
+        this.keepEmoji(event.emoji);
+        break;
+      case "emoji.removed":
+        this.forgetEmoji(event.id, event.name);
+        break;
+      case "workspace.emojiAdding":
+        this.store.setState({ emojiAddingAdminsOnly: event.adminsOnly });
         break;
       case "channel.access": {
         if (!event.channel) {
@@ -3083,6 +3105,51 @@ export class WorkspaceClient {
     if (this.stopped) return;
     if (!this.writes.heard({ kind: "sectionOrder" }, sections))
       this.store.setState({ sidebarSections: sections });
+  }
+
+  /**
+   * Adds a custom emoji under `name` (J12): a PNG, GIF or WebP picture,
+   * shown here as soon as the server keeps it. Gives the emoji, or the
+   * refusal, such as a name already taken.
+   */
+  addCustomEmoji(name: string, image: Blob): Promise<CustomEmoji | ApiError> {
+    return answerOf(async () => {
+      const { emoji } = await this.api.addCustomEmoji(name, image);
+      this.keepEmoji(emoji);
+      return emoji;
+    });
+  }
+
+  /** Removes a custom emoji, for whoever added it and for admins, at once here too. */
+  removeCustomEmoji(emoji: CustomEmoji): Promise<ApiError | null> {
+    return doneOf(async () => {
+      await this.api.removeCustomEmoji(emoji.id);
+      this.forgetEmoji(emoji.id, emoji.name);
+    });
+  }
+
+  /** Keeps adding custom emoji to the owner and admins, or opens it to every member. */
+  setEmojiAdding(adminsOnly: boolean): Promise<ApiError | null> {
+    return doneOf(async () => {
+      const answer = await this.api.setEmojiAdding(adminsOnly);
+      if (!this.stopped) this.store.setState({ emojiAddingAdminsOnly: answer.adminsOnly });
+    });
+  }
+
+  private keepEmoji(emoji: CustomEmoji): void {
+    if (this.stopped) return;
+    const known = this.state.customEmoji;
+    if (known[emoji.name]?.id === emoji.id) return;
+    this.store.setState({ customEmoji: { ...known, [emoji.name]: emoji } });
+  }
+
+  /** Forgets one, unless the name already belongs to a newer emoji. */
+  private forgetEmoji(id: ID, name: string): void {
+    if (this.stopped) return;
+    const known = this.state.customEmoji;
+    if (known[name]?.id !== id) return;
+    const { [name]: _gone, ...rest } = known;
+    this.store.setState({ customEmoji: rest });
   }
 
   /** Removes the workspace's icon, for its owner and admins, at once here too. */

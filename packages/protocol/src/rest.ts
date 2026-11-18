@@ -485,6 +485,24 @@ export const WORKSPACE_ICON_MAX_BYTES = 256 * 1024;
 /** How many pixels square a client makes an icon before sending it. */
 export const WORKSPACE_ICON_PIXELS = 256;
 
+/**
+ * The image types a custom emoji may be (J12). GIF, since emoji move; no
+ * SVG, which can carry script; no JPEG, which has no transparency.
+ */
+export const CUSTOM_EMOJI_TYPES = ["image/png", "image/gif", "image/webp"] as const;
+export type CustomEmojiType = (typeof CUSTOM_EMOJI_TYPES)[number];
+/** The most bytes a custom emoji's picture may have. */
+export const CUSTOM_EMOJI_MAX_BYTES = 256 * 1024;
+/** The most pixels either side of a custom emoji's picture may have. */
+export const CUSTOM_EMOJI_MAX_SIDE = 256;
+/** The most custom emoji a workspace holds. */
+export const CUSTOM_EMOJI_LIMIT = 1000;
+
+/** Which custom emoji to add: its name, since the body is the picture itself. */
+export const addCustomEmojiQuery = z.object({ name: z.string().max(64) });
+
+export const emojiAddingBody = z.object({ adminsOnly: z.boolean() });
+
 export const auditQuery = z.object({
   before: z.string().max(40).optional(),
   limit: z.coerce.number().int().positive().max(200).default(50),

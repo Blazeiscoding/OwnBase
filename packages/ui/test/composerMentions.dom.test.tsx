@@ -367,3 +367,21 @@ describe("a mention in a message being edited", () => {
     );
   });
 });
+
+describe("a custom emoji in the composer (J12)", () => {
+  it("is offered after a colon and two letters, and sent as its :name:", async () => {
+    const { box, client, send, user } = await renderComposer();
+    act(() =>
+      client.store.setState({
+        customEmoji: { "party-parrot": { id: "E1", name: "party-parrot", createdBy: sam.id } },
+      }),
+    );
+    await user.type(box, "ship it :pa");
+    const option = screen.getByRole("option", { name: /:party-parrot:/ });
+    expect(option).toBeInTheDocument();
+    await user.keyboard("{Tab}");
+    expect(box).toHaveValue("ship it :party-parrot: ");
+    await user.keyboard("{Enter}");
+    expect(sent(send)).toBe("ship it :party-parrot:");
+  });
+});

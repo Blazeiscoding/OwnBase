@@ -102,6 +102,7 @@ export function WorkspaceSettings({
             <IconSection />
             <NameSection />
             <PreviewsSection />
+            <EmojiAddingSection />
             <PlanSection />
             <CopySection />
           </>
@@ -405,6 +406,60 @@ function PreviewsSection() {
             site. It never fetches addresses on a private or local network. If you turn this off,
             new messages get no previews. Previews already shown stay until their sender removes
             them.
+          </span>
+        </span>
+      </label>
+      {error && (
+        <p role="alert" className="mt-3 text-sm text-alert">
+          {error}
+        </p>
+      )}
+    </section>
+  );
+}
+
+/**
+ * Who may add custom emoji (J12): every member, or only the owner and
+ * admins. Saved as soon as it changes.
+ */
+function EmojiAddingSection() {
+  const client = useClient();
+  const saved = useSaved();
+  const alive = useAlive();
+  const current = useWorkspace((s) => s.emojiAddingAdminsOnly);
+  const [choosing, setChoosing] = useState<boolean | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const request = useRef(0);
+  const shown = choosing ?? current;
+
+  async function change(adminsOnly: boolean) {
+    const ticket = ++request.current;
+    setChoosing(adminsOnly);
+    setError(null);
+    const refused = await client.setEmojiAdding(adminsOnly);
+    if (!alive.current || ticket !== request.current) return;
+    setChoosing(null);
+    if (!refused) saved();
+    else setError(failureText("Who can add emoji was not changed.", refused, "Try again."));
+  }
+
+  return (
+    <section aria-labelledby="workspace-emoji-title" className="mt-8">
+      <h4 id="workspace-emoji-title" className="mb-1.5 text-[13px] font-medium text-ink-dim">
+        Custom emoji
+      </h4>
+      <label className="flex items-start gap-2 text-sm text-ink">
+        <input
+          type="checkbox"
+          className="mt-1"
+          checked={shown}
+          onChange={(event) => void change(event.target.checked)}
+        />
+        <span>
+          Only admins can add custom emoji
+          <span className="block text-[13px] text-ink-dim">
+            Everyone can still use the emoji already added. Whoever added one can remove it, and so
+            can admins.
           </span>
         </span>
       </label>

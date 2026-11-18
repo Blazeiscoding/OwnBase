@@ -821,6 +821,19 @@ const MIGRATIONS: string[] = [
     INSERT INTO messages_fts(rowid, text) VALUES (new.rowid, ownbase_search_text(new.text));
   END;
   `,
+  // v59 — custom emoji (J12): a picture under a name, its bytes kept here as
+  // a profile picture's are. Text and reactions name it as `:name:`, so
+  // removing one rewrites nothing else.
+  `
+  CREATE TABLE custom_emoji (
+    id TEXT PRIMARY KEY,
+    name TEXT NOT NULL UNIQUE,
+    type TEXT NOT NULL,
+    bytes BLOB NOT NULL,
+    created_by TEXT NOT NULL REFERENCES users(id),
+    created_at INTEGER NOT NULL
+  );
+  `,
 ];
 
 /** The schema this build understands. A workspace above it cannot be opened. */

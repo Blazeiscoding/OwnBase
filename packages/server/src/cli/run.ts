@@ -387,6 +387,12 @@ ${extensions.map((extension) => `\n${extension.help.replace(/\n+$/, "")}\n`).joi
         console.log("\n  Left out:");
         for (const { reason, count } of result.skipped) console.log(`    ${n(count)} ${reason}`);
       }
+      if (result.customEmoji.length)
+        console.log(`
+  Messages and reactions use custom emoji the export has no pictures for.
+  Each shows as :name: until an emoji of that name is added, then as its
+  picture. Add them under these names:
+    ${result.customEmoji.join(", ")}`);
       console.log(`
   The owner, ${result.owner.displayName} (${result.owner.handle}), signs in with this
   temporary password and then chooses their own:
@@ -424,7 +430,7 @@ ${extensions.map((extension) => `\n${extension.help.replace(/\n+$/, "")}\n`).joi
       console.log(`
   Exported to ${resolve(values.to)} (${n(Math.ceil(result.bytes / 1024))} kB)
   ${of(result.people, "person", "people")}, ${of(result.channels, "channel")}, ${of(result.directMessages, "direct or group message")}
-  ${of(result.messages, "message")}, ${of(result.files, "file")}`);
+  ${of(result.messages, "message")}, ${of(result.files, "file")}, ${of(result.emoji, "custom emoji", "custom emoji")}`);
       if (result.skipped.length) {
         console.log("\n  Left out:");
         for (const { reason, count } of result.skipped) console.log(`    ${n(count)} ${reason}`);

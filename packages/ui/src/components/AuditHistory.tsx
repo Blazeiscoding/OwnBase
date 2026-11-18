@@ -80,6 +80,14 @@ export function describeAuditEntry(
       return d.to === false
         ? `${actor} turned off link previews`
         : `${actor} turned on link previews`;
+    case "workspace.emoji_adding_changed":
+      return d.adminsOnly === true
+        ? `${actor} kept adding emoji to admins`
+        : `${actor} let every member add emoji`;
+    case "emoji.added":
+      return has("name") ? `${actor} added the emoji :${d.name}:` : `${actor} added an emoji`;
+    case "emoji.removed":
+      return has("name") ? `${actor} removed the emoji :${d.name}:` : `${actor} removed an emoji`;
     case "workspace.copy_made":
       return `${actor} made a copy of the workspace to download`;
     case "workspace.copy_downloaded":

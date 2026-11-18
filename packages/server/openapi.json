@@ -40,6 +40,10 @@
       "description": "What the list of direct messages shows under each name."
     },
     {
+      "name": "emoji",
+      "description": "The workspace's own emoji: adding, removing and their pictures."
+    },
+    {
       "name": "files",
       "description": "Uploads, downloads and the files shared in conversations."
     },
@@ -2451,6 +2455,145 @@
         }
       }
     },
+    "/api/emoji": {
+      "get": {
+        "operationId": "getEmoji",
+        "tags": [
+          "emoji"
+        ],
+        "summary": "The workspace's own emoji, by name.",
+        "description": "The workspace's own emoji, by name.\n\nNeeds a signed-in account. Guests may call it too.",
+        "x-access": "member",
+        "x-guests": true,
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Done."
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      },
+      "post": {
+        "operationId": "postEmoji",
+        "tags": [
+          "emoji"
+        ],
+        "summary": "Adds a custom emoji under `?name=`, sent whole as the picture itself: a PNG, GIF or WebP of at most 256 KB and 256 pixels a side.",
+        "description": "Adds a custom emoji under `?name=`, sent whole as the picture itself: a PNG, GIF or WebP of at most 256 KB and 256 pixels a side. Any member may, unless the workspace keeps adding to its owner and admins.\n\nNeeds a signed-in account.",
+        "x-access": "member",
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "name",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "maxLength": 64
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "description": "The image itself, typed by its Content-Type.",
+          "content": {
+            "image/*": {
+              "schema": {
+                "type": "string",
+                "format": "binary"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Done."
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    },
+    "/api/emoji/{id}": {
+      "delete": {
+        "operationId": "deleteEmojiById",
+        "tags": [
+          "emoji"
+        ],
+        "summary": "Removes a custom emoji, for whoever added it and for admins.",
+        "description": "Removes a custom emoji, for whoever added it and for admins. Messages and reactions that use it keep their `:name:`, which then shows as text.\n\nNeeds a signed-in account.",
+        "x-access": "member",
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Done."
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    },
+    "/api/emoji/{id}/picture": {
+      "get": {
+        "operationId": "getEmojiByIdPicture",
+        "tags": [
+          "emoji"
+        ],
+        "summary": "A custom emoji's picture.",
+        "description": "A custom emoji's picture. Its address names one picture for good, so it may be kept.\n\nNeeds a signed-in account. Guests may call it too.",
+        "x-access": "member",
+        "x-guests": true,
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Done."
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    },
     "/api/messages/{id}/poll/votes": {
       "put": {
         "operationId": "putMessagesByIdPollVotes",
@@ -3671,6 +3814,40 @@
             "application/json": {
               "schema": {
                 "$ref": "#/components/schemas/LinkPreviewsBody"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Done."
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    },
+    "/api/admin/workspace/emoji-adding": {
+      "put": {
+        "operationId": "putAdminWorkspaceEmojiAdding",
+        "tags": [
+          "admin"
+        ],
+        "summary": "Keeps adding custom emoji to the owner and admins, or opens it to every member (J12).",
+        "description": "Keeps adding custom emoji to the owner and admins, or opens it to every member (J12).\n\nNeeds an administrator or the owner.",
+        "x-access": "admin",
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/EmojiAddingBody"
               }
             }
           }
@@ -6327,6 +6504,17 @@
         },
         "required": [
           "enabled"
+        ]
+      },
+      "EmojiAddingBody": {
+        "type": "object",
+        "properties": {
+          "adminsOnly": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "adminsOnly"
         ]
       },
       "ViewSubmitBody": {

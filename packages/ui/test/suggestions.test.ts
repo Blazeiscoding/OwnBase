@@ -1,6 +1,6 @@
 import type { Channel, User } from "@ownbase/protocol";
 import { describe, expect, it } from "vitest";
-import { rankChannels, rankPeople } from "../src/components/Suggestions.js";
+import { customStartingWith, rankChannels, rankPeople } from "../src/components/Suggestions.js";
 
 const person = (id: string, handle: string, displayName: string, deactivated = false) =>
   ({ id, handle, displayName, deactivated }) as unknown as User;
@@ -42,5 +42,26 @@ describe("channels offered after #", () => {
       "C3",
     ]);
     expect(rankChannels([review, ux], "", joined).map((c) => c.id)).toEqual(["C3", "C2"]);
+  });
+});
+
+describe("the workspace's own emoji offered after : (J12)", () => {
+  const emoji = (name: string) => ({ id: `E_${name}`, name, createdBy: "U1" });
+  const custom = Object.fromEntries(
+    ["party-parrot", "parrot-wave", "ship_it", "pancake"].map((name) => [name, emoji(name)]),
+  );
+
+  it("come when their name or a word of it starts with what was typed, whole names first", () => {
+    expect(customStartingWith(custom, "pa").map((e) => e.name)).toEqual([
+      "pancake",
+      "parrot-wave",
+      "party-parrot",
+    ]);
+    expect(customStartingWith(custom, "parrot").map((e) => e.name)).toEqual([
+      "parrot-wave",
+      "party-parrot",
+    ]);
+    expect(customStartingWith(custom, "it").map((e) => e.name)).toEqual(["ship_it"]);
+    expect(customStartingWith(custom, "zz")).toEqual([]);
   });
 });

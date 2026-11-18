@@ -80,6 +80,8 @@ function state(over: Partial<WorkspaceState> = {}): WorkspaceState {
     accessPolicy: "account_required",
     linkPreviews: true,
     iconVersion: null,
+    customEmoji: {},
+    emojiAddingAdminsOnly: false,
     scheduledChanges: 0,
     self: me,
     users: { [me.id]: me, [them.id]: them },

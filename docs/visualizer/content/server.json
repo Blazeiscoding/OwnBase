@@ -1723,6 +1723,44 @@
       "concepts": ["events"]
     },
     {
+      "path": "packages/server/src/emoji/feature.ts",
+      "plain": "Lets members add the workspace's own emoji, remove them, and lets admins keep adding to themselves.",
+      "summary": "Custom emoji routes (J12): list, add (the picture as the body, the name in the query), remove, serve a picture, and the admins-only setting; the list and setting in the startup snapshot.",
+      "details": [
+        "Any member adds unless the workspace keeps adding to admins; whoever added an emoji, or an admin, removes it. Both are written to the audit log in the same write.",
+        "A picture is served by the emoji's id, so a name removed and added again gets a new address and the old one can be cached for a year."
+      ],
+      "concepts": ["custom emoji", "feature module", "permissions"]
+    },
+    {
+      "path": "packages/server/src/emoji/picture.ts",
+      "plain": "Checks a custom emoji's picture and name before it is kept.",
+      "summary": "checkedEmojiPicture and checkedEmojiName: PNG, GIF or WebP of at most 256 KB and 256 pixels a side, read from the file's own first bytes; a name no standard emoji has.",
+      "details": [
+        "Like the workspace icon, the server never decodes or resizes a picture: the type comes from its first bytes and its header's size is held to a bound.",
+        "A standard emoji's short name is refused, so :smile: always means the same face."
+      ],
+      "concepts": ["custom emoji", "validation", "images"]
+    },
+    {
+      "path": "packages/server/src/emoji/store.ts",
+      "plain": "Keeps the workspace's own emoji and their pictures in the database.",
+      "summary": "EmojiStore: the custom_emoji table's queries (v59), the picture bytes beside the name, as profile pictures are kept.",
+      "details": [
+        "Keeping the bytes in the database means a backup and a restore carry them with nothing else to copy."
+      ],
+      "concepts": ["custom emoji", "queries"]
+    },
+    {
+      "path": "packages/server/src/emoji/events.ts",
+      "plain": "Says who hears that an emoji was added or removed.",
+      "summary": "emoji.added, emoji.removed and workspace.emojiAdding, heard by everyone signed in.",
+      "details": [
+        "Not logged: every connection's snapshot carries the whole list, so a device that missed one hears the list again."
+      ],
+      "concepts": ["events", "custom emoji"]
+    },
+    {
       "path": "packages/server/src/saved/feature.ts",
       "plain": "Lets people pin messages for a whole channel, and save messages for themselves.",
       "summary": "Pin, unpin, list pins, save, unsave and list saved routes, and the saved ids part of the startup snapshot.",

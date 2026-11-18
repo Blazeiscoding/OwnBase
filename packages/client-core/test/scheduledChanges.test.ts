@@ -44,6 +44,8 @@ const ready = (over: Partial<ReadySnapshot> = {}): ReadySnapshot => ({
   accessPolicy: "account_required",
   iconVersion: null,
   linkPreviews: true,
+  customEmoji: [],
+  emojiAddingAdminsOnly: false,
   workspaceName: "W",
   workspaceId: "W1",
   friends: [],
