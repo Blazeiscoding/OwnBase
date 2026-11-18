@@ -282,6 +282,7 @@ describe("the settings index", () => {
       "Pause notifications",
       "What notifications show",
       "On this device",
+      "Show unread on the app's icon",
     ]);
     expect(findSettings("   ")).toEqual([]);
     expect(findSettings("zebra")).toEqual([]);

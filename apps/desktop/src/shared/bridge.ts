@@ -51,6 +51,8 @@ export type UpdateCalls = Merged<ChannelsOf<DesktopUpdates, "updates">>;
 
 export interface Calls extends HostingCalls, UpdateCalls {
   "file:download": (url: string) => void;
+  /** What waits, for the taskbar button, the dock and the tray (J16). */
+  "unread:set": (badge: { count: number; dot: boolean }) => void;
   /** The last lines of ownbase.log, for Diagnostics. */
   "diagnostics:logTail": () => string[];
   "file:showInFolder": (id: number) => void;
@@ -123,6 +125,7 @@ export interface OwnBaseBridge {
  */
 const CALL_LIST = {
   "file:download": true,
+  "unread:set": true,
   "diagnostics:logTail": true,
   "file:showInFolder": true,
   "storage:get": true,

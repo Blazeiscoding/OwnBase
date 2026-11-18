@@ -23,6 +23,10 @@ extraResources:
     filter:
       - icon.ico
       - icon.png
+      # What waits (J16): the taskbar overlays and the tray icon with a dot.
+      - badge-*.png
+      - tray-unread.ico
+      - tray-unread.png
   # The Windows microphone helper (native/OwnBaseMicrophone.cs), run from
   # outside the archive; scripts/build-microphone.mjs builds it, and leaves
   # the folder empty elsewhere.

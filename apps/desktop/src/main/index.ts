@@ -100,6 +100,7 @@ import { readerLocale, systemHourCycle } from "./regionalFormat.js";
 import { DOWNLOAD_PAGE, HOUR_MS, Updates } from "./updates.js";
 import { WindowQuestions } from "./windowQuestions.js";
 import { appLog, logTail, serverLogStream, uncaughtMonitor } from "./appLog.js";
+import { UnreadIndicator, electronSurfaces, readUnread } from "./unreadBadge.js";
 import { latestOnR2, updateLog, windowsFeed } from "./updateFeed.js";
 
 /** Set when the Release workflow built this copy (electron.vite.config.ts). */
@@ -121,6 +122,20 @@ const log = appLog(join(app.getPath("userData"), "ownbase.log"));
 process.on("uncaughtExceptionMonitor", uncaughtMonitor(log));
 let mainWindow: BrowserWindow | null = null;
 let tray: Tray | null = null;
+/** What waits, on the taskbar button, the dock and the tray (unreadBadge.ts). */
+const unread = new UnreadIndicator(
+  electronSurfaces({
+    platform: process.platform,
+    file: (name) =>
+      app.isPackaged
+        ? join(process.resourcesPath, "tray", name)
+        : join(import.meta.dirname, "../../build", name),
+    image: (path) => nativeImage.createFromPath(path),
+    window: () => mainWindow,
+    dock: app.dock,
+    tray: () => tray,
+  }),
+);
 /** The app's own page, as the main window loads it. */
 const rendererUrl = isDev
   ? process.env.ELECTRON_RENDERER_URL!
@@ -559,6 +574,7 @@ const followedSessions = new WeakSet<Session>();
 // ---------- every call the window makes ----------
 
 const handlers: Handlers<IpcMainInvokeEvent> = {
+  "unread:set": (_event, value) => unread.set(readUnread(value)),
   "diagnostics:logTail": () => logTail(log.path, 50),
   "file:download": (_event, value) => {
     if (!mainWindow) throw new Error("Invalid download request");
@@ -909,6 +925,7 @@ function createTray(): void {
       showMainWindow();
     });
     updateTray();
+    unread.reapply();
   } catch {
     tray?.destroy();
     tray = null;
@@ -958,6 +975,8 @@ function createWindow(): void {
 
   mainWindow.setMenuBarVisibility(false);
   const win = mainWindow;
+  // A window made again, as after closing to the tray, has no overlay of its own.
+  win.once("ready-to-show", () => unread.reapply());
   if (opening.maximized) {
     win.maximize();
     if (!isTest) win.show();
@@ -1280,6 +1299,7 @@ app.on("window-all-closed", () => {
 });
 
 app.on("will-quit", () => {
+  unread.clear();
   microphones.closeAll();
   hosting.cancelInstall();
 });

@@ -101,6 +101,11 @@ export interface Platform {
   /** Hand a scoped download URL to the browser/OS; completion is managed there. */
   downloadFile?: (url: string) => Promise<void>;
   /**
+   * What waits, for the taskbar button, the dock and the tray (J16): mentions
+   * counted, or a dot for other unread messages. Zeros clear them.
+   */
+  setUnread?: (badge: { count: number; dot: boolean }) => void;
+  /**
    * The last lines of the desktop app's own log, failures in its main
    * process and a hosted workspace's warnings, for Diagnostics. The browser
    * has no such log.

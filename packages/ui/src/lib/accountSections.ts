@@ -23,6 +23,7 @@ export type SettingId =
   | "device-notifications"
   | "pause-notifications"
   | "notification-previews"
+  | "unread-on-icon"
   | "theme"
   | "density"
   | "enter-key"

@@ -55,6 +55,12 @@ export const SETTINGS: readonly Setting[] = [
     words: "preview privacy content message sender",
   },
   {
+    id: "unread-on-icon",
+    section: "notifications",
+    label: "Show unread on the app's icon",
+    words: "badge count number dot taskbar dock tray tab title",
+  },
+  {
     id: "theme",
     section: "appearance",
     label: "Theme",

@@ -258,6 +258,7 @@ that number, the owner and admins see a notice. It never locks anyone out. See
 - Starred conversations and sidebar sections of your own.
 - Notification preferences per channel, with mute, and Do Not Disturb snoozing.
 - Browser notifications with every tab closed, over HTTPS (Web Push).
+- Unread outside the window: a count or a dot on the taskbar button, the Mac dock, the tray, the tab's title and an installed browser app's icon, with a switch to turn it off.
 - Two-step sign-in with an authenticator app, and recovery codes.
 - Blocking someone, and reporting a message to the admins.
 - Invites, LAN discovery, hosting from the desktop app, member administration,
