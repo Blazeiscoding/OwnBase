@@ -2768,6 +2768,15 @@
       ]
     },
     {
+      "path": "packages/ui/src/lib/attachStream.ts",
+      "plain": "Plays a camera or screen stream in a video tile, and starts the tile again if WebKit leaves it empty after the picture has begun.",
+      "summary": "attachStream: sets srcObject and plays it; when a video track unmutes and the element still has nothing a second later, gives it the stream again, three times at most; returns what lets go.",
+      "details": [
+        "A received camera stream reaches its tile before any frame does, since the sender waits to hear how big the tile is. WebKit, which every browser on an iPhone uses, sometimes left that element at readyState 0 while the frames were being decoded: 2 in 300 runs of the huddle test (J18). Given the stream again, it starts."
+      ],
+      "concepts": ["huddles", "webkit"]
+    },
+    {
       "path": "packages/ui/src/components/MicrophoneCheck.tsx",
       "plain": "Lets you hear and see how your microphone sounds before a huddle, without sending anything to anyone.",
       "summary": "Lets the user test local microphone level before joining a huddle.",
