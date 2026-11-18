@@ -320,6 +320,27 @@ export class Api {
   }
 
   /**
+   * Adds a custom emoji (J12): a PNG, GIF or WebP picture of at most
+   * `CUSTOM_EMOJI_MAX_BYTES`, sent as itself. Everyone hears `emoji.added`.
+   */
+  addCustomEmoji(name: string, image: Blob) {
+    return this.http.json(endpoints.addCustomEmoji, { query: { name }, body: image });
+  }
+
+  removeCustomEmoji(id: ID) {
+    return this.http.json(endpoints.removeCustomEmoji, { params: { id } });
+  }
+
+  setEmojiAdding(adminsOnly: boolean) {
+    return this.http.json(endpoints.setEmojiAdding, { body: { adminsOnly } });
+  }
+
+  /** A custom emoji's picture, by its id, which the browser may keep. */
+  fetchCustomEmoji(id: ID) {
+    return this.http.bytes(endpoints.customEmojiPicture, { params: { id } });
+  }
+
+  /**
    * Someone's picture, named by its version, which the browser may keep:
    * another picture has another version.
    */
