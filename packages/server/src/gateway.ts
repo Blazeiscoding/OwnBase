@@ -13,6 +13,7 @@ import {
   type User,
 } from "@ownbase/protocol";
 import type { Server as HttpServer, IncomingMessage } from "node:http";
+import type { Duplex } from "node:stream";
 import { WebSocket, WebSocketServer } from "ws";
 import { hashToken } from "./auth.js";
 import { contain } from "./core/contain.js";
@@ -71,6 +72,11 @@ export class Gateway implements OutboxSink {
   private byUser = new Map<ID, Set<Client>>();
   private heartbeat: NodeJS.Timeout;
   private sockets = new Set<WebSocket>();
+  /** Each socket's connection, for holding its frames until the turn ends. */
+  private connections = new WeakMap<WebSocket, Duplex>();
+  /** Connections holding frames this turn, and the turn's end that sends them. */
+  private held = new Set<Duplex>();
+  private releasing: NodeJS.Immediate | null = null;
   private closing = false;
   private closePromise: Promise<void> | null = null;
   private featureSnapshot: (user: User) => FeatureSnapshot = () => {
@@ -179,7 +185,10 @@ export class Gateway implements OutboxSink {
           socket.destroy();
           return;
         }
-        wss.handleUpgrade(req, socket, head, (ws) => this.onConnection(ws));
+        wss.handleUpgrade(req, socket, head, (ws) => {
+          this.connections.set(ws, socket);
+          this.onConnection(ws);
+        });
       });
       if (!upgraded) socket.destroy();
     });
@@ -189,6 +198,7 @@ export class Gateway implements OutboxSink {
     if (this.closePromise) return this.closePromise;
     this.closing = true;
     clearInterval(this.heartbeat);
+    this.release();
     this.liveHuddles?.close();
     this.closePromise = Promise.all(
       [...this.sockets].map(
@@ -682,6 +692,31 @@ export class Gateway implements OutboxSink {
       ws.terminate();
       return;
     }
-    if (ws.readyState === WebSocket.OPEN) ws.send(frame);
+    if (ws.readyState !== WebSocket.OPEN) return;
+    this.hold(ws);
+    ws.send(frame);
+  }
+
+  /**
+   * Holds a connection's frames until the end of this turn of the event loop,
+   * so a burst of fan-outs reaches it as one write (J19). With 200 people a
+   * write per frame per socket was the largest part of the server's work, and
+   * the frames to one socket in one turn came three at a time on average.
+   * Order is kept, and every frame goes out in the turn that made it.
+   */
+  private hold(ws: WebSocket): void {
+    const connection = this.connections.get(ws);
+    if (!connection || this.held.has(connection)) return;
+    connection.cork();
+    this.held.add(connection);
+    this.releasing ??= setImmediate(() => this.release());
+  }
+
+  private release(): void {
+    if (this.releasing) clearImmediate(this.releasing);
+    this.releasing = null;
+    const held = [...this.held];
+    this.held.clear();
+    for (const connection of held) if (!connection.destroyed) connection.uncork();
   }
 }
