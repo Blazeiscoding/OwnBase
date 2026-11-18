@@ -347,6 +347,29 @@ describe("a custom emoji as a reaction", () => {
   });
 });
 
+describe("a message that uses a custom emoji", () => {
+  it("is found by searching for the emoji's name", async () => {
+    await add("party-parrot");
+    const channel = server!.store.channels.byName("general")!;
+    await request(`/api/channels/${channel.id}/messages`, {
+      text: "ship it :party-parrot:",
+      nonce: "search-1",
+    });
+    const tz = encodeURIComponent(Intl.DateTimeFormat().resolvedOptions().timeZone);
+    for (const q of ["party-parrot", ":party-parrot:", "parrot"]) {
+      const found = await request(
+        `/api/search?tz=${tz}&q=${encodeURIComponent(q)}`,
+        undefined,
+        "GET",
+      );
+      expect(
+        found.body.messages.map((m: { text: string }) => m.text),
+        q,
+      ).toEqual(["ship it :party-parrot:"]);
+    }
+  });
+});
+
 describe("a custom emoji's reaction, as apps are told of it", () => {
   const event = (emoji: string) =>
     ({ channelId: "C1", messageId: "M1", emoji, userId: "U1" }) as const;
