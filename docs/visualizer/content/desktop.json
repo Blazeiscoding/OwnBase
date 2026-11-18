@@ -296,6 +296,18 @@
       "concepts": ["updates", "release assets"]
     },
     {
+      "path": "apps/desktop/src/main/appLog.ts",
+      "plain": "The desktop app's own log, ownbase.log in its folder: what failed in the main process and what a workspace it hosts warned about, with passwords and tokens masked. Diagnostics shows its last lines.",
+      "summary": "appendLog (stamped, redacted, cut back past 256 kB), appLog (console and file), uncaughtMonitor, serverLogStream (a hosted server's warnings and errors), logTail and redactLog.",
+      "details": [
+        "A packaged app has no console, so a failure in the main process left no trace before this file. index.ts sends its failures here, and process.on(\"uncaughtExceptionMonitor\") writes an uncaught exception without handling it, so a crash looks as it always did.",
+        "A hosted workspace's server writes every log line as JSON to the stream serverLogStream returns; lines at level 40 (a warning) and above are kept.",
+        "Every line is redacted first, modelled on the server's redact.ts: bearer tokens, invite and webhook paths, join links, credential query parameters, secret-named fields and any long run of token characters.",
+        "The update log (updateFeed.ts) writes through the same appender."
+      ],
+      "concepts": ["diagnostics", "security"]
+    },
+    {
       "path": "apps/desktop/src/main/env.d.ts",
       "plain": "A note for the code checker about the desktop app's build tools, with no effect on the running app.",
       "summary": "Supplies electron-vite Node build types to the desktop main TypeScript project.",

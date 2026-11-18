@@ -101,6 +101,12 @@ export interface Platform {
   /** Hand a scoped download URL to the browser/OS; completion is managed there. */
   downloadFile?: (url: string) => Promise<void>;
   /**
+   * The last lines of the desktop app's own log, failures in its main
+   * process and a hosted workspace's warnings, for Diagnostics. The browser
+   * has no such log.
+   */
+  appLogTail?: () => Promise<string[]>;
+  /**
    * Files the desktop app finished saving, any download included, so the
    * window can say where each went. `show` opens its folder. Desktop only:
    * a browser shows its own downloads.

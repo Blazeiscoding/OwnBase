@@ -68,5 +68,5 @@ body:
     id: diagnostics
     attributes:
       label: Diagnostics or logs
-      description: Anything else that helps, such as the copied diagnostics or the server's log around the time it happened. Check it for private details first.
+      description: Anything else that helps, such as the copied diagnostics or the server's log around the time it happened. A diagnostics report names your workspace's address and people by username, so read it before you post it here.
       render: text

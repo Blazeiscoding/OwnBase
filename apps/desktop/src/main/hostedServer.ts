@@ -10,6 +10,8 @@ export interface HostedServerHost {
   /** Running workspaces that calls can be given a relay by, so a change reaches them at once. */
   relayServers: Set<WorkspaceServer>;
   publicAddressConfigured(): boolean;
+  /** Where the server writes its log, as lines of JSON: the app's log keeps its warnings. */
+  serverLog?(): NodeJS.WritableStream;
 }
 
 /**
@@ -40,6 +42,7 @@ export async function startHostedServer(
     // A relay that cannot be read leaves calls on this network working;
     // the hosting window says why.
     relay: isolated ? null : await host.savedRelay().catch(() => null),
+    ...(host.serverLog ? { logger: { stream: host.serverLog() } } : {}),
   });
   try {
     if (!isolated) host.relayServers.add(server);
