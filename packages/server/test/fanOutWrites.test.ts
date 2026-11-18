@@ -1,3 +1,4 @@
+import { request } from "node:http";
 import { Socket } from "node:net";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import WebSocket from "ws";
@@ -58,9 +59,12 @@ async function connect(token: string) {
 /** Each write a server-side socket makes to the network, by the port of the far end. */
 function writes() {
   const by = new Map<number, number>();
+  const order: number[] = [];
   const count = function (this: Socket) {
     const port = this.remotePort;
-    if (port !== undefined) by.set(port, (by.get(port) ?? 0) + 1);
+    if (port === undefined) return;
+    by.set(port, (by.get(port) ?? 0) + 1);
+    order.push(port);
   };
   const writev = Socket.prototype._writev!;
   const write = Socket.prototype._write;
@@ -72,10 +76,60 @@ function writes() {
     count.call(this);
     return write.apply(this, args);
   });
-  return by;
+  return Object.assign(by, { order });
+}
+
+/** Posts a message over a connection of its own; resolves with its local port once answered. */
+function post(token: string, channelId: string, text: string) {
+  return new Promise<number>((resolve, reject) => {
+    let port = -1;
+    const body = JSON.stringify({ text });
+    const req = request(
+      `${base}/api/channels/${channelId}/messages`,
+      {
+        method: "POST",
+        agent: false,
+        headers: {
+          authorization: `Bearer ${token}`,
+          "content-type": "application/json",
+          "content-length": Buffer.byteLength(body),
+        },
+      },
+      (res) => {
+        res.resume();
+        res.on("end", () =>
+          res.statusCode === 201 ? resolve(port) : reject(new Error(String(res.statusCode))),
+        );
+      },
+    );
+    req.on("socket", (socket) => socket.on("connect", () => (port = socket.localPort ?? -1)));
+    req.on("error", reject);
+    req.end(body);
+  });
 }
 
 describe("frames to one socket in one turn", () => {
+  it("leave before the answer to the request that made them", async () => {
+    // A client takes the answer to its own change as coming after the change's
+    // events, as it always did; held frames go out before any answer.
+    const sam = await person("sam");
+    const kim = await person("kim");
+    const { frames, port } = await connect(sam.token);
+    const general = server.store.channels.byName("general")!.id;
+    const counted = writes();
+    const answeredOn = await post(kim.token, general, "Lunch at noon?");
+    await expect
+      .poll(() =>
+        frames.some((f) => f.type === "event" && f.envelope.event.type === "message.created"),
+      )
+      .toBe(true);
+    const event = counted.order.indexOf(port);
+    const answer = counted.order.indexOf(answeredOn);
+    expect(event).toBeGreaterThanOrEqual(0);
+    expect(answer).toBeGreaterThanOrEqual(0);
+    expect(event).toBeLessThan(answer);
+  });
+
   it("reach the network as one write", async () => {
     const sam = await person("sam");
     const { frames, port } = await connect(sam.token);

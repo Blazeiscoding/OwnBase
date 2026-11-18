@@ -201,7 +201,7 @@ export class Gateway implements OutboxSink {
     if (this.closePromise) return this.closePromise;
     this.closing = true;
     clearInterval(this.heartbeat);
-    this.release();
+    this.flush();
     if (this.forgetSessions) clearImmediate(this.forgetSessions);
     this.forgetSessions = null;
     this.liveHuddles?.close();
@@ -720,10 +720,14 @@ export class Gateway implements OutboxSink {
     if (!connection || this.held.has(connection)) return;
     connection.cork();
     this.held.add(connection);
-    this.releasing ??= setImmediate(() => this.release());
+    this.releasing ??= setImmediate(() => this.flush());
   }
 
-  private release(): void {
+  /**
+   * Sends every held frame now: before an HTTP answer, so a change's events
+   * still reach sockets before the answer to the request that made it.
+   */
+  flush(): void {
     if (this.releasing) clearImmediate(this.releasing);
     this.releasing = null;
     const held = [...this.held];
