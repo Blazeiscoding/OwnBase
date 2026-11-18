@@ -332,11 +332,12 @@ function TileBody({
   onAspect?: (aspect: number) => void;
 }) {
   // Scaled to the tile, so a face in a big tile is not a postage stamp.
-  // A short tile, like a thumbnail in a crowded row, has no room for the face
-  // in the middle and the name under it, so the face moves up over the name.
-  const short = height < 96;
+  // A short tile, like a thumbnail in the row under a share, centres the face
+  // in the space above the name: in the middle, a long name ran right under
+  // it and read as a caption stuck to the picture.
+  const short = height < 140;
   const avatar = short
-    ? Math.max(20, Math.min(32, height - NAME_ROOM - 8))
+    ? Math.max(20, Math.min(40, height - NAME_ROOM - 24))
     : Math.round(Math.min(112, Math.max(32, height * 0.34)));
   // Said with the camera off as well, so it comes the right size when it goes on.
   const report = useContext(ReportDrawn);
