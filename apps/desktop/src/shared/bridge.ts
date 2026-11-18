@@ -51,6 +51,8 @@ export type UpdateCalls = Merged<ChannelsOf<DesktopUpdates, "updates">>;
 
 export interface Calls extends HostingCalls, UpdateCalls {
   "file:download": (url: string) => void;
+  /** The last lines of ownbase.log, for Diagnostics. */
+  "diagnostics:logTail": () => string[];
   "file:showInFolder": (id: number) => void;
   "storage:get": (key: string, options?: { strict?: boolean }) => unknown;
   "storage:set": (key: string, value: unknown) => void;
@@ -121,6 +123,7 @@ export interface OwnBaseBridge {
  */
 const CALL_LIST = {
   "file:download": true,
+  "diagnostics:logTail": true,
   "file:showInFolder": true,
   "storage:get": true,
   "storage:set": true,

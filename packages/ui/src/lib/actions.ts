@@ -276,6 +276,16 @@ export const ACTIONS = [
     run: (ctx) => ctx.nav.navigate({ to: "dialog", dialog: { kind: "diagnostics" } }),
   },
   {
+    // Starts at the report: it holds the version the bug form asks for, and
+    // its "Report a problem" opens the form with that filled in.
+    id: "report-problem",
+    label: "Report a problem",
+    icon: "help",
+    keywords: "bug issue broken feedback github",
+    available: always,
+    run: (ctx) => ctx.nav.navigate({ to: "dialog", dialog: { kind: "diagnostics" } }),
+  },
+  {
     id: "away",
     label: (ctx) => (ctx.state.self?.away ? "Set yourself active" : "Set yourself away"),
     icon: (ctx) => (ctx.state.self?.away ? "sun" : "moon"),
@@ -348,6 +358,7 @@ export const ACCOUNT_MENU: readonly MenuPlace[] = [
   // Help: the shortcut sheet opened only with Ctrl+/, and nothing said so.
   { id: "shortcuts", section: true },
   { id: "diagnostics" },
+  { id: "report-problem" },
   // Where people look for it, rather than at the foot of Settings > Security only.
   { id: "sign-out", section: true },
 ];

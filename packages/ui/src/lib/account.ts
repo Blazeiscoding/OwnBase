@@ -47,7 +47,13 @@ export function deviceLabel(agent: string): string {
           : /Safari\//.test(agent)
             ? "Safari"
             : "Other client";
-  const system = /Android/.test(agent)
+  const system = operatingSystem(agent);
+  return system ? `${browser} · ${system}` : browser;
+}
+
+/** The operating system a user agent names, or null when it names none we know. */
+export function operatingSystem(agent: string): string | null {
+  return /Android/.test(agent)
     ? "Android"
     : /iPhone|iPad/.test(agent)
       ? "iOS"
@@ -58,5 +64,4 @@ export function deviceLabel(agent: string): string {
           : /Linux/.test(agent)
             ? "Linux"
             : null;
-  return system ? `${browser} · ${system}` : browser;
 }

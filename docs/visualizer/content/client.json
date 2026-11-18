@@ -1131,6 +1131,16 @@
       "concepts": ["diagnostics", "operating metrics", "content minimization"]
     },
     {
+      "path": "packages/ui/src/lib/reportProblem.ts",
+      "plain": "Builds the link behind Diagnostics' Report a problem: the project's bug form on GitHub with the version, where it happens and the system already filled in.",
+      "summary": "bugReportUrl, reportVersion (the report's Server line, or the App line), reportWhere and reportSystem from the user agent.",
+      "details": [
+        "GitHub fills an issue form's fields from the query string by field id. Only version, where and system travel in the link: the diagnostics report names the workspace's address and people, so it is pasted by hand, or not at all.",
+        "A test reads .github/ISSUE_TEMPLATE/bug_report.yml, so a renamed field or option there fails it."
+      ],
+      "concepts": ["diagnostics"]
+    },
+    {
       "path": "packages/ui/src/lib/catchUp.ts",
       "plain": "Rolls up messages you missed while disconnected into one summary notification, shown at most every two minutes.",
       "summary": "Groups replayed missed messages into an occasional notification summary.",

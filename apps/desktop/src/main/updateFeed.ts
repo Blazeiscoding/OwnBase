@@ -1,5 +1,5 @@
-import { appendFile, stat, truncate } from "node:fs/promises";
 import type { NsisUpdater } from "electron-updater";
+import { appendLog } from "./appLog.js";
 import { isOffered, type InstallFeed } from "./updates.js";
 
 /**
@@ -14,28 +14,17 @@ export const DOWNLOADS = "https://dl.ownbase.site";
  */
 export const LATEST = `${DOWNLOADS}/latest.json`;
 
-/** The update log is cut back to nothing past this size: it is for the latest few updates. */
-const LOG_LIMIT = 256 * 1024;
-
 /**
  * Writes a line to the update log, which says which version updated to
  * which, and why one could not. Never throws: a log is not worth failing for.
+ * It is cut back past the same size as the app's log (`appLog.ts`): it is for
+ * the latest few updates.
  */
 export function updateLog(path: string): (message: string, error?: unknown) => void {
-  let writing = Promise.resolve();
+  const write = appendLog(path);
   return (message, error) => {
     const detail = error instanceof Error ? ` ${error.message}` : error ? ` ${String(error)}` : "";
-    const line = `${new Date().toISOString()} ${message}${detail}\n`;
-    writing = writing
-      .then(async () => {
-        const size = await stat(path).then(
-          (info) => info.size,
-          () => 0,
-        );
-        if (size > LOG_LIMIT) await truncate(path, 0);
-        await appendFile(path, line);
-      })
-      .catch(() => {});
+    void write(`${message}${detail}`);
   };
 }
 

@@ -4,6 +4,13 @@ Report a bug or ask for a feature with the issue forms (Issues → New issue). A
 security problem goes to the private form instead, as [SECURITY.md](SECURITY.md)
 says. Everyone taking part follows the [code of conduct](CODE_OF_CONDUCT.md).
 
+In the app, **Your account → Report a problem** opens Diagnostics, whose
+**Report a problem** opens the bug form with the version and system filled in.
+The desktop app writes failures in its main process, and warnings from a
+workspace it hosts, to `ownbase.log` in its folder: `%APPDATA%\OwnBase` on
+Windows and `~/Library/Application Support/OwnBase` on a Mac. Diagnostics shows
+its last lines.
+
 Develop each improvement on a branch and open a pull request against `main`.
 Describe the user-visible change, validation performed, and any remaining limits.
 Review the complete diff, resolve known issues within the PR's scope, and wait for

@@ -198,6 +198,7 @@ export function electronPlatform(bridge: OwnBaseBridge): Platform {
       };
     },
     downloadFile: (url) => call("file:download", url),
+    appLogTail: () => call("diagnostics:logTail"),
     downloads: {
       onSaved: (cb) =>
         bridge.on("file:saved", (file) =>

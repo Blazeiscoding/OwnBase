@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { Writable } from "node:stream";
 import { DatabaseSync } from "node:sqlite";
 import { crc32, deflateSync } from "node:zlib";
 import { createWorkspaceServer, type WorkspaceServer } from "@ownbase/server";
@@ -251,5 +252,30 @@ describe("starting a hosted workspace's server", () => {
     expect(asked[0]).toMatchObject({ isolated: true, host: "127.0.0.1", mdns: false, relay: null });
     expect(host.relayServers.size).toBe(0);
     await hosted.stop();
+  });
+
+  it("writes the server's log to the stream the app gives it, the app's log", async () => {
+    const lines: string[] = [];
+    const stream = new Writable({
+      write(chunk: Buffer, _encoding, done) {
+        lines.push(chunk.toString());
+        done();
+      },
+    });
+    host.serverLog = () => stream;
+    const asked: Parameters<HostedServerHost["createServer"]>[0][] = [];
+    const real = host.createServer;
+    host.createServer = (options) => {
+      asked.push(options);
+      return real(options);
+    };
+
+    const hosted = await startHostedServer({ dataDir, port: 0 }, host);
+
+    expect(asked[0]?.logger).toEqual({ stream });
+    await hosted.stop();
+    // Lines of JSON with a level, as the app's filter reads them.
+    expect(lines.length).toBeGreaterThan(0);
+    expect(JSON.parse(lines[0]!)).toHaveProperty("level");
   });
 });
