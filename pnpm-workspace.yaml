@@ -10,3 +10,11 @@ onlyBuiltDependencies:
   - electron
   - electron-winstaller
   - esbuild
+
+auditConfig:
+  ignoreGhsas:
+    # 2026-11-18, picomatch 4.0.7 (via typescript-eslint, vitest, vite and other
+    # build tools, never in what ships): GHSA-fc5q-39xc-vjpf, a ReDoS through
+    # repeated extglobs. No fixed release yet; 4.0.7 is the newest. Remove when
+    # picomatch publishes one and `pnpm update -r picomatch` reaches it.
+    - GHSA-fc5q-39xc-vjpf
