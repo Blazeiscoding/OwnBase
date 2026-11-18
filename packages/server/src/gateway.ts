@@ -13,6 +13,7 @@ import {
   type User,
 } from "@ownbase/protocol";
 import type { Server as HttpServer, IncomingMessage } from "node:http";
+import type { Duplex } from "node:stream";
 import { WebSocket, WebSocketServer } from "ws";
 import { hashToken } from "./auth.js";
 import { contain } from "./core/contain.js";
@@ -71,6 +72,14 @@ export class Gateway implements OutboxSink {
   private byUser = new Map<ID, Set<Client>>();
   private heartbeat: NodeJS.Timeout;
   private sockets = new Set<WebSocket>();
+  /** Each socket's connection, for holding its frames until the turn ends. */
+  private connections = new WeakMap<WebSocket, Duplex>();
+  /** Connections holding frames this turn, and the turn's end that sends them. */
+  private held = new Set<Duplex>();
+  private releasing: NodeJS.Immediate | null = null;
+  /** Sessions asked about in this turn of the event loop; see `sessionCheck`. */
+  private sessionsThisTurn = new Map<string, boolean | "unreadable">();
+  private forgetSessions: NodeJS.Immediate | null = null;
   private closing = false;
   private closePromise: Promise<void> | null = null;
   private featureSnapshot: (user: User) => FeatureSnapshot = () => {
@@ -179,7 +188,10 @@ export class Gateway implements OutboxSink {
           socket.destroy();
           return;
         }
-        wss.handleUpgrade(req, socket, head, (ws) => this.onConnection(ws));
+        wss.handleUpgrade(req, socket, head, (ws) => {
+          this.connections.set(ws, socket);
+          this.onConnection(ws);
+        });
       });
       if (!upgraded) socket.destroy();
     });
@@ -189,6 +201,9 @@ export class Gateway implements OutboxSink {
     if (this.closePromise) return this.closePromise;
     this.closing = true;
     clearInterval(this.heartbeat);
+    this.flush();
+    if (this.forgetSessions) clearImmediate(this.forgetSessions);
+    this.forgetSessions = null;
     this.liveHuddles?.close();
     this.closePromise = Promise.all(
       [...this.sockets].map(
@@ -546,13 +561,19 @@ export class Gateway implements OutboxSink {
 
   /**
    * Whether a socket's session is still signed in, asked once per session in
-   * one fan-out however many of its devices it reaches (REV-06). An ended
-   * session closes each of its sockets as it is met, as `authorized` does, so
-   * revocation and expiry act as soon as before; the answer lives only as
-   * long as the fan-out that asked.
+   * a turn of the event loop however many fan-outs and devices reach it
+   * (REV-06, J19). An ended session closes each of its sockets as it is met,
+   * as `authorized` does. Signing out, revoking and deactivating tell the
+   * gateway at once (`disconnectSession`, `disconnectUser`), which takes the
+   * sockets out before any check; what only the database knows, a session
+   * that expired, is caught when the turn that asked has ended.
    */
   private sessionCheck(): (client: Client) => boolean {
-    const known = new Map<string, boolean | "unreadable">();
+    const known = this.sessionsThisTurn;
+    this.forgetSessions ??= setImmediate(() => {
+      this.forgetSessions = null;
+      this.sessionsThisTurn.clear();
+    });
     return (client) => {
       if (!this.clients.has(client)) return false;
       const key = `${client.tokenHash}\n${client.userId}`;
@@ -682,6 +703,35 @@ export class Gateway implements OutboxSink {
       ws.terminate();
       return;
     }
-    if (ws.readyState === WebSocket.OPEN) ws.send(frame);
+    if (ws.readyState !== WebSocket.OPEN) return;
+    this.hold(ws);
+    ws.send(frame);
+  }
+
+  /**
+   * Holds a connection's frames until the end of this turn of the event loop,
+   * so a burst of fan-outs reaches it as one write (J19). With 200 people a
+   * write per frame per socket was the largest part of the server's work, and
+   * the frames to one socket in one turn came three at a time on average.
+   * Order is kept, and every frame goes out in the turn that made it.
+   */
+  private hold(ws: WebSocket): void {
+    const connection = this.connections.get(ws);
+    if (!connection || this.held.has(connection)) return;
+    connection.cork();
+    this.held.add(connection);
+    this.releasing ??= setImmediate(() => this.flush());
+  }
+
+  /**
+   * Sends every held frame now: before an HTTP answer, so a change's events
+   * still reach sockets before the answer to the request that made it.
+   */
+  flush(): void {
+    if (this.releasing) clearImmediate(this.releasing);
+    this.releasing = null;
+    const held = [...this.held];
+    this.held.clear();
+    for (const connection of held) if (!connection.destroyed) connection.uncork();
   }
 }

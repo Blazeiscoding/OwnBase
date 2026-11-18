@@ -261,6 +261,10 @@ async function startWorkspaceServer(
       app.log.error({ err, where }, "socket work failed; its socket closes to reconnect"),
   );
 
+  // A change's events leave before the answer to the request that made it, as
+  // clients expect, though the gateway holds a socket's frames to the turn's end.
+  app.addHook("onSend", async () => gateway.flush());
+
   store.outbox.connect(gateway, (err, what) =>
     app.log.error({ err, what }, "could not tell someone of a committed change"),
   );

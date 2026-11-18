@@ -113,6 +113,24 @@ describe("session checks in a fan-out (REV-06)", () => {
     expect(asked(spy).filter((id) => id === other.user.id)).toHaveLength(1);
   });
 
+  it("asks once per session in a turn of the event loop, however many fan-outs it makes", async () => {
+    // With 200 people a burst of typing makes about 16 fan-outs in one turn,
+    // and asking for every one of them was a fifth of the server's time (J19).
+    const [, busy] = people as [Person, Person];
+    const device = await connect(busy.token);
+    const spy = checks();
+    const before = device.frames.length;
+    for (const presence of ["away", "online", "away"] as const)
+      server.gateway.tellEveryone({ type: "presence", userId: busy.user.id, presence });
+    await expect.poll(() => device.frames.length - before).toBe(3);
+    expect(asked(spy).filter((id) => id === busy.user.id)).toHaveLength(1);
+
+    // A later turn asks again, so a session that ended is caught by then.
+    server.gateway.tellEveryone({ type: "presence", userId: busy.user.id, presence: "online" });
+    await expect.poll(() => device.frames.length - before).toBe(4);
+    expect(asked(spy).filter((id) => id === busy.user.id)).toHaveLength(2);
+  });
+
   it("asks separately for each session one person has", async () => {
     const [author, busy] = people as [Person, Person];
     const second = await request("/api/auth/login", undefined, {
