@@ -1,5 +1,6 @@
 import {
   canDeleteMessage,
+  customEmojiName,
   editRefusal,
   endpoints,
   SEND_RETRY_WINDOW_MS,
@@ -433,6 +434,11 @@ export function registerMessages(ctx: ServerContext) {
   route(endpoints.addReaction, async ({ user: me, params }) => {
     const msg = requireVisibleMessage(store, params.id, me);
     const emoji = decodeURIComponent(params.emoji).slice(0, 64);
+    // A custom emoji's token is taken only while that emoji exists (J12);
+    // any other text is a reaction as it always was.
+    const custom = customEmojiName(emoji);
+    if (custom !== null && !store.emoji.has(custom))
+      throw new HttpError(400, "unknown_emoji", `This workspace has no emoji :${custom}:.`);
     mutate((emit) => {
       if (store.messages.addReaction(msg.id, me.id, emoji)) {
         emit({

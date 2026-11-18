@@ -39,6 +39,7 @@ import { serverRelaySchema, type ServerRelay } from "./huddles/relay.js";
 import { registerReminders } from "./reminders/feature.js";
 import { registerPush } from "./push/feature.js";
 import { createRouter } from "./route.js";
+import { registerEmoji } from "./emoji/feature.js";
 import { registerSaved } from "./saved/feature.js";
 import { registerScheduled } from "./scheduled/feature.js";
 import { registerSearch } from "./search/feature.js";
@@ -343,6 +344,7 @@ async function startWorkspaceServer(
   const apps = registerApps(ctx, { messages });
   const scheduledMessages = registerScheduled(ctx, { posting });
   const saved = registerSaved(ctx);
+  const emoji = registerEmoji(ctx);
   registerSearch(ctx);
   const push = registerPush(ctx);
   const reminders = registerReminders(ctx, { reminderDue: push.reminderDue });
@@ -355,6 +357,7 @@ async function startWorkspaceServer(
     ...channels.snapshot(user),
     ...people.snapshot(user),
     ...workspace.snapshot(user),
+    ...emoji.snapshot(),
   }));
 
   await registerExtensions(ctx, { accounts });

@@ -3,6 +3,7 @@ import type { Store } from "../store.js";
 import { adminEphemeral } from "../admin/events.js";
 import { appsEphemeral } from "../apps/events.js";
 import { channelDurable, channelEphemeral } from "../channels/events.js";
+import { emojiEphemeral } from "../emoji/events.js";
 import { huddleEphemeral } from "../huddles/events.js";
 import { messageDurable, messageEphemeral } from "../messages/events.js";
 import { peopleDurable, peopleEphemeral } from "../people/events.js";
@@ -83,6 +84,7 @@ export const EPHEMERAL_AUDIENCE = {
   ...savedEphemeral,
   ...scheduledEphemeral,
   ...threadEphemeral,
+  ...emojiEphemeral,
 } as const satisfies EphemeralRegistry;
 
 type Audiences = typeof EPHEMERAL_AUDIENCE;

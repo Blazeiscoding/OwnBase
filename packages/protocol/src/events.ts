@@ -3,6 +3,7 @@ import type {
   Channel,
   ChannelPrefs,
   ChannelRemoval,
+  CustomEmoji,
   Friendship,
   ID,
   Message,
@@ -103,6 +104,11 @@ export type EphemeralEvent =
    * ready snapshot gave. Told to everyone signed in.
    */
   | { type: "workspace.linkPreviews"; enabled: boolean }
+  /** A custom emoji was added or removed (J12). Told to everyone signed in. */
+  | { type: "emoji.added"; emoji: CustomEmoji }
+  | { type: "emoji.removed"; id: ID; name: string }
+  /** Adding custom emoji was kept to admins, or opened to members again. */
+  | { type: "workspace.emojiAdding"; adminsOnly: boolean }
   /** Private to one user's own sockets, so their devices stay in step. */
   | { type: "saved"; messageId: ID; saved: boolean }
   /** This user's follow state for one thread, so their devices stay in step. */
@@ -252,6 +258,10 @@ export interface ReadySnapshot {
   iconVersion: string | null;
   /** Whether this server adds link previews to new messages now. */
   linkPreviews: boolean;
+  /** The workspace's own emoji, by name (J12). */
+  customEmoji: CustomEmoji[];
+  /** Whether only the owner and admins may add custom emoji. */
+  emojiAddingAdminsOnly: boolean;
   workspaceName: string;
   /** Stable across address/name changes and backup restores. */
   workspaceId: ID;

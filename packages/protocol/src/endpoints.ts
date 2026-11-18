@@ -5,6 +5,7 @@ import type {
   AuditEntry,
   Channel,
   ChannelPrefs,
+  CustomEmoji,
   EventSubscription,
   FileMeta,
   FollowedThread,
@@ -767,6 +768,52 @@ export const endpoints = {
     answer: json<{ ok: true }>(),
   }),
 
+  // ---------- custom emoji (J12) ----------
+
+  /** The workspace's own emoji, by name. */
+  customEmoji: endpoint({
+    method: "GET",
+    path: "/api/emoji",
+    access: "guest",
+    answer: json<{ emoji: CustomEmoji[] }>(),
+  }),
+
+  /**
+   * Adds a custom emoji under `?name=`, sent whole as the picture itself: a
+   * PNG, GIF or WebP of at most 256 KB and 256 pixels a side. Any member may,
+   * unless the workspace keeps adding to its owner and admins.
+   */
+  addCustomEmoji: endpoint({
+    method: "POST",
+    path: "/api/emoji",
+    access: "member",
+    query: "addCustomEmojiQuery",
+    body: "image",
+    answer: json<{ emoji: CustomEmoji }>(),
+    status: 201,
+    timeoutMs: 30000,
+  }),
+
+  /**
+   * Removes a custom emoji, for whoever added it and for admins. Messages and
+   * reactions that use it keep their `:name:`, which then shows as text.
+   */
+  removeCustomEmoji: endpoint({
+    method: "DELETE",
+    path: "/api/emoji/:id",
+    access: "member",
+    answer: json<{ ok: true }>(),
+  }),
+
+  /** A custom emoji's picture. Its address names one picture for good, so it may be kept. */
+  customEmojiPicture: endpoint({
+    method: "GET",
+    path: "/api/emoji/:id/picture",
+    access: "guest",
+    answer: bytes,
+    timeoutMs: 30000,
+  }),
+
   // ---------- polls (E6) ----------
 
   /**
@@ -1202,6 +1249,15 @@ export const endpoints = {
     access: "admin",
     body: "linkPreviewsBody",
     answer: json<{ enabled: boolean }>(),
+  }),
+
+  /** Keeps adding custom emoji to the owner and admins, or opens it to every member (J12). */
+  setEmojiAdding: endpoint({
+    method: "PUT",
+    path: "/api/admin/workspace/emoji-adding",
+    access: "admin",
+    body: "emojiAddingBody",
+    answer: json<{ adminsOnly: boolean }>(),
   }),
 
   /** This account's profile picture, sent whole as the image itself, as the icon is (E9). */

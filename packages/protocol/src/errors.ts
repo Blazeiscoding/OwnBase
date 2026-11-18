@@ -131,6 +131,18 @@ export const ERROR_CODES = [
   "unsupported_icon_type",
   "uploads_disabled",
 
+  // Custom emoji
+  "emoji_adding_restricted",
+  "emoji_limit",
+  "emoji_name_taken",
+  "emoji_not_found",
+  "emoji_too_large",
+  "invalid_emoji",
+  "invalid_emoji_name",
+  "not_your_emoji",
+  "unknown_emoji",
+  "unsupported_emoji_type",
+
   // Copies of the workspace
   "copies_unavailable",
   "copy_downloading",

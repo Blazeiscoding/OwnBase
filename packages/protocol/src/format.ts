@@ -50,6 +50,19 @@ export function broadcastLabel(token: string): string {
 /** `<#id>`, the wire form of naming a channel. Global: use with matchAll or replaceAll. */
 export const CHANNEL_MENTION = /<#([A-Za-z0-9_-]+)>/g;
 
+/**
+ * A custom emoji's name (J12): 1 to 32 lowercase letters, digits, `_` and
+ * `-`. Text writes it between colons, `:name:`, as Slack does.
+ */
+export const CUSTOM_EMOJI_NAME = /^[a-z0-9_-]{1,32}$/;
+
+/** The name a `:name:` token stands for, or null for any other text. */
+export function customEmojiName(token: string): string | null {
+  if (token.length < 3 || !token.startsWith(":") || !token.endsWith(":")) return null;
+  const name = token.slice(1, -1);
+  return CUSTOM_EMOJI_NAME.test(name) ? name : null;
+}
+
 /** `<https://…>` or `<https://…|label>`, Slack's link markup. */
 const LINK = /<(https?:\/\/[^\s|<>]+)(?:\|([^<>\n]+))?>/g;
 
