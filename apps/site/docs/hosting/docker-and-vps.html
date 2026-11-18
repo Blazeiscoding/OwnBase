@@ -20,7 +20,7 @@
     <link rel="stylesheet" href="/docs.css?v=30dafeac35" />
     <script src="/docs.js?v=123540c9d0" defer></script>
   </head>
-  <body class="docs-body" data-search="/docs/search.json?v=139519431f" data-guide="hosting">
+  <body class="docs-body" data-search="/docs/search.json?v=a6c6108c59" data-guide="hosting">
     <a class="skip" href="#main">Skip to content</a>
 
     <header class="guide-head">
@@ -276,35 +276,42 @@ on a GitHub runner with 4 cores and 16 GB, and Node 24:</p>
 <tbody>
 <tr><td>20</td><td><code>4a218ec</code></td><td>AMD EPYC 7763</td><td>247 to 250 MiB</td><td>12 ms (13)</td><td>3 and 7 ms (16)</td><td>23,080, none</td></tr>
 <tr><td>50</td><td><code>97a360b</code></td><td>Intel Xeon 6975P-C</td><td>271 to 323 MiB</td><td>12 ms (13)</td><td>2 and 6 ms (10)</td><td>46,324, none</td></tr>
-<tr><td>200</td><td><code>4a218ec</code></td><td>Intel Xeon Platinum 8573C</td><td>294 to 327 MiB</td><td>41 ms (46)</td><td>7 and 59 ms (86)</td><td>229,938, none</td></tr>
+<tr><td>200</td><td><code>0b20c6d</code></td><td>AMD EPYC 9V45</td><td>305 to 344 MiB</td><td>25 ms (29)</td><td>6 and 25 ms (37)</td><td>231,124, none</td></tr>
 </tbody>
 </table></div>
 <p>Each latency is the middle of the minutes from the fifth on, with the worst
 minute in brackets. The 50-person row ran before <code>4a218ec</code>, which changes only
 what happens at the hour (below). The JavaScript heap stayed between 29 and 32
 MiB in every run; resident memory rises and falls with uploads and the
-database&#39;s cache, up to 387 MiB at 50 people and 453 MiB at 200.</p>
+database&#39;s cache, up to 387 MiB at 50 people and 492 MiB at 200.</p>
 <ul>
 <li><strong>Up to 50 people</strong> (Team): one server holds them with room to spare. The
 server does its work on one core, so 2 cores and 1 GB of memory are enough.</li>
 <li><strong>Up to 200 people</strong> (Business): one server holds 200 people all active at
 once. Give it 4 cores and 2 GB, as measured, since busy minutes run its event
-loop 40 to 65 ms late.</li>
+loop 25 to 30 ms late.</li>
 </ul>
-<p>What bends first at 200 is how late the event loop runs, 40 to 65 ms at p99
-where 50 people leave it at 12 to 14 ms: each message is sent to each of 200
-sockets in turn, and that sending is now most of the server&#39;s work.</p>
+<p>What bends first at 200 is how late the event loop runs, 25 ms at p99 where 50
+people leave it at 12 to 14 ms. Most of the server&#39;s work at 200 is sending:
+typing, presence and messages each go to everyone who can see the conversation,
+a frame for each socket. Since <code>0b20c6d</code> the frames a socket gets in one turn
+of the event loop go out as one write, and each session is checked once a turn
+rather than once a frame. A second hour at that commit on the same CPU gave
+the same, 25 ms and 5 and 25 ms. The same hour before it, on the same CPU, ran
+the loop 28 ms late with a p99 of 39 ms, and on an Intel Xeon Platinum 8573C 41
+ms and 59 ms.</p>
 <p>Runners differ, and a busy shared machine is slower than the table. Three more
-hours ran on AMD EPYC 9V74 runners. The same 200 people gave 12 and 106 ms from
+hours ran on AMD EPYC 9V74 runners before <code>0b20c6d</code>. 200 people gave 12 and 106 ms from
 send to receive. Two 50-person hours at <code>4a218ec</code> gave a p99 of 32 and 177 ms,
 with single minutes up to 577 ms, while the server&#39;s event loop stayed at 14
 and 20 ms. Most of that time was spent outside the server&#39;s code, and nothing
 failed.</p>
-<p>Two fixes came out of these runs. Before <code>97a360b</code>, checking
+<p>Four fixes came out of these runs. Before <code>97a360b</code>, checking
 each recipient&#39;s session compiled its query afresh, and at 200 people the event
 loop ran a second late and the p99 was 5 s. Before <code>4a218ec</code>, the hourly
 removal of old events, some 200,000 an hour at 200 people, paused the server
-for 2 s.</p>
+for 2 s. Writing each frame on its own, and asking about each session for every
+fan-out, were the two largest costs left after that (<code>0b20c6d</code>).</p>
 <p>Connecting is cheap at every size. <code>scripts/measure-snapshot.mts</code> (the Soak
 workflow with <code>measure: snapshot</code>) times the handshake that sends a connecting
 device every member, every channel it can see and everyone&#39;s presence, with
@@ -317,8 +324,8 @@ each member in 30 channels:</p>
 <tr><td>2,000</td><td>300</td><td>9.0 and 14.3 ms</td><td>529 kB</td><td>946 ms</td></tr>
 </tbody>
 </table></div>
-<p>These ran on 17 November 2026 at commit <code>7e8fe93</code>, before the two fixes, which
-do not touch the handshake.</p>
+<p>These ran on 17 November 2026 at commit <code>7e8fe93</code>, before the fixes, which do
+not touch the handshake.</p>
 <p>Create the owner account before allowing public traffic, using an SSH tunnel if
 necessary. The supplied Compose configuration then requires invitations for new
 accounts. Place an HTTPS reverse proxy in front and set <code>--public-url</code> in the
