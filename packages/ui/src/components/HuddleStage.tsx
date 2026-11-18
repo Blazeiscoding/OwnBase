@@ -74,7 +74,18 @@ export function stripSize(
   const across = (width - STRIP_GAP * (count - 1)) / Math.max(1, count) / ASPECT;
   const tall = Math.floor(Math.max(STRIP_SMALLEST, Math.min(tallest, across)));
   const wide = Math.floor(tall * ASPECT);
-  return { width: wide, height: tall, scrolls: count * wide + STRIP_GAP * (count - 1) > width };
+  if (count * wide + STRIP_GAP * (count - 1) <= width)
+    return { width: wide, height: tall, scrolls: false };
+  // Too many to fit even at the smallest: as many whole tiles as fit fill the
+  // width exactly, so the row ends on a tile and not halfway through one.
+  const smallest = Math.floor(STRIP_SMALLEST * ASPECT);
+  const shown = Math.max(1, Math.floor((width + STRIP_GAP) / (smallest + STRIP_GAP)));
+  const fills = Math.floor((width - STRIP_GAP * (shown - 1)) / shown);
+  return {
+    width: fills,
+    height: Math.max(STRIP_SMALLEST, Math.floor(fills / ASPECT)),
+    scrolls: true,
+  };
 }
 
 /** One thing on the stage: a person, on camera or not, or a shared screen. */
@@ -364,7 +375,7 @@ function TileBody({
             paddingBottom: short ? NAME_ROOM : undefined,
             background:
               item.userId && !picture
-                ? `radial-gradient(circle at 50% 45%, ${avatarColor(item.userId, 0.45)}, transparent 70%)`
+                ? `radial-gradient(circle at 50% 45%, ${avatarColor(item.userId, 0.25)}, transparent 70%)`
                 : undefined,
           }}
         >
@@ -375,7 +386,7 @@ function TileBody({
               src={picture}
               alt=""
               aria-hidden="true"
-              className="pointer-events-none absolute inset-0 size-full scale-125 object-cover opacity-55 blur-2xl"
+              className="pointer-events-none absolute inset-0 size-full scale-125 object-cover opacity-25 blur-2xl saturate-75"
             />
           )}
           <div className="relative">
@@ -638,16 +649,18 @@ function Spotlight({
   const thumb = stripSize(others.length, width, height);
   const rowHeight = thumb.height + (thumb.scrolls ? STRIP_SCROLLBAR : 0);
   const mainHeight = row ? height - rowHeight - GAP : height;
-  // Which ends of a scrolling row have more past them, faded so it shows.
-  const [more, setMore] = useState({ before: false, after: true });
-  const track = (list: HTMLElement) => {
-    const before = list.scrollLeft > 1;
-    const after = list.scrollLeft + list.clientWidth < list.scrollWidth - 1;
+  // Which ends of a scrolling row have more past them, each with an arrow.
+  const list = useRef<HTMLUListElement>(null);
+  const [more, setMore] = useState({ before: false, after: false });
+  const track = useCallback(() => {
+    const el = list.current;
+    const before = !!el && el.scrollLeft > 1;
+    const after = !!el && el.scrollLeft + el.clientWidth < el.scrollWidth - 1;
     setMore((was) => (was.before === before && was.after === after ? was : { before, after }));
-  };
-  const fade = thumb.scrolls
-    ? `linear-gradient(to right, ${more.before ? "transparent" : "black"}, black 40px, black calc(100% - 40px), ${more.after ? "transparent" : "black"})`
-    : undefined;
+  }, []);
+  useEffect(track, [track, row, others.length, thumb.width]);
+  const step = thumb.width + STRIP_GAP;
+  const lastWheel = useRef(0);
   // The picture's own shape, once the video says what it is. A screen is
   // rarely 16:9, and a frame of the wrong shape showed it in wide black bars.
   const [screenAspect, setScreenAspect] = useState<number | null>(null);
@@ -686,22 +699,28 @@ function Spotlight({
       {row && (
         <div className="relative flex max-w-full shrink-0">
           <ul
+            ref={list}
             aria-label="Everyone else"
             className={`flex min-w-0 max-w-full flex-row gap-2 ${
-              thumb.scrolls ? "items-start overflow-x-auto overflow-y-hidden" : ""
+              thumb.scrolls
+                ? "snap-x snap-mandatory items-start overflow-x-auto overflow-y-hidden"
+                : ""
             }`}
-            style={{ height: rowHeight, maskImage: fade }}
-            onScroll={(e) => track(e.currentTarget)}
+            style={{ height: rowHeight }}
+            onScroll={track}
             onWheel={(e) => {
-              // A mouse wheel turns up and down; the row goes sideways.
+              // A mouse wheel turns up and down; the row goes sideways, a
+              // person at a time, however far one notch says.
               if (!thumb.scrolls || Math.abs(e.deltaX) > Math.abs(e.deltaY)) return;
-              e.currentTarget.scrollLeft += e.deltaY;
+              if (e.timeStamp - lastWheel.current < 180) return;
+              lastWheel.current = e.timeStamp;
+              e.currentTarget.scrollBy({ left: Math.sign(e.deltaY) * step, behavior: "smooth" });
             }}
           >
             {others.map((item) => (
               <li
                 key={item.key}
-                className="shrink-0"
+                className="shrink-0 snap-start"
                 style={{ width: thumb.width, height: thumb.height }}
               >
                 <Tooltip label={`Show ${item.name} large`}>
@@ -716,8 +735,43 @@ function Spotlight({
               </li>
             ))}
           </ul>
+          {thumb.scrolls && more.before && (
+            <RowArrow
+              side="before"
+              top={thumb.height / 2}
+              onClick={() => list.current?.scrollBy({ left: -step, behavior: "smooth" })}
+            />
+          )}
+          {thumb.scrolls && more.after && (
+            <RowArrow
+              side="after"
+              top={thumb.height / 2}
+              onClick={() => list.current?.scrollBy({ left: step, behavior: "smooth" })}
+            />
+          )}
         </div>
       )}
+    </div>
+  );
+}
+
+/** An arrow over one end of the row, there while more people are past that end. */
+function RowArrow(props: { side: "before" | "after"; top: number; onClick: () => void }) {
+  const label = props.side === "before" ? "Earlier people" : "More people";
+  return (
+    <div
+      className={`absolute -translate-y-1/2 ${props.side === "before" ? "left-1.5" : "right-1.5"}`}
+      style={{ top: props.top }}
+    >
+      <Tooltip label={label}>
+        <button
+          aria-label={label}
+          onClick={props.onClick}
+          className="call-dark flex size-8 items-center justify-center rounded-full bg-black/75 text-white shadow-md transition-colors hover:bg-black/90"
+        >
+          <Icon name={props.side === "before" ? "chevronLeft" : "chevronRight"} size={18} />
+        </button>
+      </Tooltip>
     </div>
   );
 }

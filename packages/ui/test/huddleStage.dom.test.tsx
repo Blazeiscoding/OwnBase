@@ -662,7 +662,17 @@ describe("the row under the main view", () => {
   });
 
   it("scrolls only once the thumbnails are as small as they go", () => {
-    expect(stripSize(14, 1150, 700)).toEqual({ width: 170, height: 96, scrolls: true });
+    expect(stripSize(14, 1150, 700).scrolls).toBe(true);
     expect(stripSize(7, 839, 500).scrolls).toBe(true);
+  });
+
+  it("ends a row that scrolls on a whole tile, not halfway through one", () => {
+    for (const width of [360, 839, 853, 1150, 1600]) {
+      const row = stripSize(20, width, 700);
+      const shown = Math.round((width + 8) / (row.width + 8));
+      expect(shown * row.width + (shown - 1) * 8).toBeLessThanOrEqual(width);
+      expect(shown * row.width + (shown - 1) * 8).toBeGreaterThan(width - shown);
+      expect(row.height).toBeGreaterThanOrEqual(96);
+    }
   });
 });
