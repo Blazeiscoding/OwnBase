@@ -20,7 +20,7 @@
     <link rel="stylesheet" href="/docs.css?v=30dafeac35" />
     <script src="/docs.js?v=123540c9d0" defer></script>
   </head>
-  <body class="docs-body" data-search="/docs/search.json?v=89160ea3de" data-guide="hosting">
+  <body class="docs-body" data-search="/docs/search.json?v=139519431f" data-guide="hosting">
     <a class="skip" href="#main">Skip to content</a>
 
     <header class="guide-head">
@@ -108,6 +108,7 @@
           <li class="toc-3"><a href="#reading-the-workspace-status">Reading the workspace status</a></li>
           <li class="toc-3"><a href="#metrics-for-prometheus">Metrics for Prometheus</a></li>
           <li class="toc-3"><a href="#an-hour-of-steady-use">An hour of steady use</a></li>
+          <li class="toc-3"><a href="#how-many-people-a-server-holds">How many people a server holds</a></li>
         </ul>
       </aside>
       <main id="main" class="docs-main">
@@ -262,6 +263,62 @@ and none failed. Memory and heap rose by about 2 MiB and 1 MiB in the first
 40 minutes and then stayed level for the last 20; the database grows because it
 keeps what was said. Run it again after a change to how the server holds
 connections, caches or queues, and compare.</p>
+<h2 id="how-many-people-a-server-holds">How many people a server holds<a class="doc-anchor" href="#how-many-people-a-server-holds" aria-label="Link to How many people a server holds">#</a></h2>
+<p>The same hour with more people, on 18 November 2026. People come in blocks of
+20, and each block plays the whole cast: six who talk, two who react, one who
+uploads, two who leave and join channels, a visitor who signs in and out, three
+in a huddle, a reader, and someone who drops and reconnects. So 200 people do
+ten times what 20 do, about 3,800 actions a minute, all of them active the whole
+hour. Each workspace starts with 1,000 messages a person. Every run was v0.2.0
+on a GitHub runner with 4 cores and 16 GB, and Node 24:</p>
+<div class="doc-table" tabindex="0" role="region" aria-label="Table"><table>
+<thead><tr><th>People</th><th>Commit</th><th>Runner&#39;s CPU</th><th>Memory, minute 5 to 60</th><th>Event loop delay, p99</th><th>Send to receive, p50 and p99</th><th>Actions, failed</th></tr></thead>
+<tbody>
+<tr><td>20</td><td><code>4a218ec</code></td><td>AMD EPYC 7763</td><td>247 to 250 MiB</td><td>12 ms (13)</td><td>3 and 7 ms (16)</td><td>23,080, none</td></tr>
+<tr><td>50</td><td><code>97a360b</code></td><td>Intel Xeon 6975P-C</td><td>271 to 323 MiB</td><td>12 ms (13)</td><td>2 and 6 ms (10)</td><td>46,324, none</td></tr>
+<tr><td>200</td><td><code>4a218ec</code></td><td>Intel Xeon Platinum 8573C</td><td>294 to 327 MiB</td><td>41 ms (46)</td><td>7 and 59 ms (86)</td><td>229,938, none</td></tr>
+</tbody>
+</table></div>
+<p>Each latency is the middle of the minutes from the fifth on, with the worst
+minute in brackets. The 50-person row ran before <code>4a218ec</code>, which changes only
+what happens at the hour (below). The JavaScript heap stayed between 29 and 32
+MiB in every run; resident memory rises and falls with uploads and the
+database&#39;s cache, up to 387 MiB at 50 people and 453 MiB at 200.</p>
+<ul>
+<li><strong>Up to 50 people</strong> (Team): one server holds them with room to spare. The
+server does its work on one core, so 2 cores and 1 GB of memory are enough.</li>
+<li><strong>Up to 200 people</strong> (Business): one server holds 200 people all active at
+once. Give it 4 cores and 2 GB, as measured, since busy minutes run its event
+loop 40 to 65 ms late.</li>
+</ul>
+<p>What bends first at 200 is how late the event loop runs, 40 to 65 ms at p99
+where 50 people leave it at 12 to 14 ms: each message is sent to each of 200
+sockets in turn, and that sending is now most of the server&#39;s work.</p>
+<p>Runners differ, and a busy shared machine is slower than the table. Three more
+hours ran on AMD EPYC 9V74 runners. The same 200 people gave 12 and 106 ms from
+send to receive. Two 50-person hours at <code>4a218ec</code> gave a p99 of 32 and 177 ms,
+with single minutes up to 577 ms, while the server&#39;s event loop stayed at 14
+and 20 ms. Most of that time was spent outside the server&#39;s code, and nothing
+failed.</p>
+<p>Two fixes came out of these runs. Before <code>97a360b</code>, checking
+each recipient&#39;s session compiled its query afresh, and at 200 people the event
+loop ran a second late and the p99 was 5 s. Before <code>4a218ec</code>, the hourly
+removal of old events, some 200,000 an hour at 200 people, paused the server
+for 2 s.</p>
+<p>Connecting is cheap at every size. <code>scripts/measure-snapshot.mts</code> (the Soak
+workflow with <code>measure: snapshot</code>) times the handshake that sends a connecting
+device every member, every channel it can see and everyone&#39;s presence, with
+each member in 30 channels:</p>
+<div class="doc-table" tabindex="0" role="region" aria-label="Table"><table>
+<thead><tr><th>Members</th><th>Public channels</th><th>Handshake, p50 and p95</th><th>Its size</th><th>100 connecting at once, all ready in</th></tr></thead>
+<tbody>
+<tr><td>50</td><td>30</td><td>2.9 and 9.2 ms</td><td>64 kB</td><td>496 ms</td></tr>
+<tr><td>200</td><td>60</td><td>3.7 and 7.3 ms</td><td>102 kB</td><td>510 ms</td></tr>
+<tr><td>2,000</td><td>300</td><td>9.0 and 14.3 ms</td><td>529 kB</td><td>946 ms</td></tr>
+</tbody>
+</table></div>
+<p>These ran on 17 November 2026 at commit <code>7e8fe93</code>, before the two fixes, which
+do not touch the handshake.</p>
 <p>Create the owner account before allowing public traffic, using an SSH tunnel if
 necessary. The supplied Compose configuration then requires invitations for new
 accounts. Place an HTTPS reverse proxy in front and set <code>--public-url</code> in the
