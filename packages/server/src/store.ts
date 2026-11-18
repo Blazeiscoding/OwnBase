@@ -22,6 +22,12 @@ import { ThreadStore } from "./threads/store.js";
 /** How long a session survives without being used. */
 export const SESSION_TTL_MS = 30 * 24 * 3600_000;
 
+/** How many of the newest events are kept for clients catching up; see `pruneEvents`. */
+export const EVENTS_KEPT = 20_000;
+
+/** How many old events one step of pruning removes: about 50 ms of work at most. */
+export const EVENT_PRUNE_STEP = 2_000;
+
 export class Store {
   /** What the writes here have to tell people, sent once they are committed. */
   readonly outbox: Outbox = new Outbox({
@@ -168,10 +174,30 @@ export class Store {
     return rows.map((r) => ({ seq: r.seq, event: JSON.parse(r.payload) as WorkspaceEvent }));
   }
 
-  pruneEvents(keep = 20000): void {
-    this.db
-      .prepare("DELETE FROM events WHERE seq <= (SELECT COALESCE(MAX(seq), 0) FROM events) - ?")
-      .run(keep);
+  pruneEvents(keep = EVENTS_KEPT): void {
+    const cutoff = this.eventsCutoff(keep);
+    while (this.pruneEventsStep(cutoff) === EVENT_PRUNE_STEP);
+  }
+
+  /** The last event that keeping the newest `keep` removes. */
+  eventsCutoff(keep = EVENTS_KEPT): number {
+    return this.currentSeq() - keep;
+  }
+
+  /**
+   * Removes up to `EVENT_PRUNE_STEP` of the oldest events at or before
+   * `cutoff`, and says how many. With 200 people an hour adds some 200,000
+   * events, and one statement for all of them held the server for 2 s (J06),
+   * so the hourly round takes them a step at a time.
+   */
+  pruneEventsStep(cutoff: number): number {
+    return Number(
+      this.db
+        .prepare(
+          "DELETE FROM events WHERE seq IN (SELECT seq FROM events WHERE seq <= ? ORDER BY seq LIMIT ?)",
+        )
+        .run(cutoff, EVENT_PRUNE_STEP).changes,
+    );
   }
 
   /** The database's size on disk, without its write-ahead log. */
