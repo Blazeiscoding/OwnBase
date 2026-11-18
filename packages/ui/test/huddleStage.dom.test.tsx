@@ -8,7 +8,7 @@ import { ClientContext, PlatformContext } from "../src/context.js";
 import { ToastProvider } from "../src/components/Toast.js";
 import { webPlatform, type Platform } from "../src/platform.js";
 import { HuddleBar, HuddleButton } from "../src/components/HuddleBar.js";
-import { bestFit, HuddleStage } from "../src/components/HuddleStage.js";
+import { bestFit, HuddleStage, stripSize } from "../src/components/HuddleStage.js";
 import { useHuddleView } from "../src/lib/huddleView.js";
 import { accessibilityProblems } from "./accessibility.js";
 
@@ -633,5 +633,24 @@ describe("fitting tiles to the call", () => {
       expect(rows * (fit.width / (16 / 9)) + (rows - 1) * 12).toBeLessThanOrEqual(height);
       expect(fit.width).toBeGreaterThan(0);
     }
+  });
+});
+
+describe("the row under the main view", () => {
+  it("keeps full-size thumbnails while they fit", () => {
+    expect(stripSize(3, 1150, 700)).toEqual({ width: 211, height: 119, scrolls: false });
+  });
+
+  it("narrows the thumbnails so six people fit across, rather than cutting the last one off", () => {
+    // The user's call: six others under a share, about 1150 px across.
+    const row = stripSize(6, 1150, 700);
+    expect(row.scrolls).toBe(false);
+    expect(6 * row.width + 5 * 8).toBeLessThanOrEqual(1150);
+    expect(row.width / row.height).toBeCloseTo(16 / 9, 1);
+  });
+
+  it("scrolls only once the thumbnails are as small as they go", () => {
+    const row = stripSize(14, 1150, 700);
+    expect(row).toEqual({ width: 106, height: 60, scrolls: true });
   });
 });

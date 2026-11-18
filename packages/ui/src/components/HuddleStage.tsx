@@ -50,6 +50,31 @@ export function bestFit(
   return { columns: best.columns, width: Math.max(0, Math.floor(best.width)) };
 }
 
+/** The space between thumbnails in the row under the main view (Tailwind's gap-2). */
+const STRIP_GAP = 8;
+/** The bottom of a tile the name takes: its pill and the space under it. */
+const NAME_ROOM = 32;
+/** Room under a row that scrolls, for its scrollbar, so it never scrolls up and down too. */
+const STRIP_SCROLLBAR = 10;
+
+/**
+ * The thumbnails' size in the row under the main view. They are as tall as a
+ * sixth of the stage allows (60 to 120 px), and narrower when the row would
+ * not fit across: everyone shows before anyone is pushed off the edge. Only
+ * past the smallest size does the row scroll.
+ */
+export function stripSize(
+  count: number,
+  width: number,
+  height: number,
+): { width: number; height: number; scrolls: boolean } {
+  const tallest = Math.min(120, Math.max(60, height * 0.17));
+  const across = (width - STRIP_GAP * (count - 1)) / Math.max(1, count) / ASPECT;
+  const tall = Math.floor(Math.max(60, Math.min(tallest, across)));
+  const wide = Math.floor(tall * ASPECT);
+  return { width: wide, height: tall, scrolls: count * wide + STRIP_GAP * (count - 1) > width };
+}
+
 /** One thing on the stage: a person, on camera or not, or a shared screen. */
 interface StageItem {
   key: string;
@@ -305,7 +330,12 @@ function TileBody({
   onAspect?: (aspect: number) => void;
 }) {
   // Scaled to the tile, so a face in a big tile is not a postage stamp.
-  const avatar = Math.round(Math.min(112, Math.max(32, height * 0.34)));
+  // A short tile, like a thumbnail in a crowded row, has no room for the face
+  // in the middle and the name under it, so the face moves up over the name.
+  const short = height < 96;
+  const avatar = short
+    ? Math.max(20, Math.min(32, height - NAME_ROOM - 8))
+    : Math.round(Math.min(112, Math.max(32, height * 0.34)));
   // Said with the camera off as well, so it comes the right size when it goes on.
   const report = useContext(ReportDrawn);
   const { key, userId, kind, self } = item;
@@ -326,13 +356,12 @@ function TileBody({
       ) : (
         <div
           className="flex size-full items-center justify-center"
-          style={
-            item.userId
-              ? {
-                  background: `radial-gradient(circle at 50% 45%, ${avatarColor(item.userId, 0.45)}, transparent 70%)`,
-                }
-              : undefined
-          }
+          style={{
+            paddingBottom: short ? NAME_ROOM : undefined,
+            background: item.userId
+              ? `radial-gradient(circle at 50% 45%, ${avatarColor(item.userId, 0.45)}, transparent 70%)`
+              : undefined,
+          }}
         >
           <Avatar user={item.user} size={avatar} />
         </div>
@@ -586,9 +615,19 @@ function Spotlight({
 }) {
   const row = strip && others.length > 0;
   // Small enough to leave the share most of the height, big enough to tell faces apart.
-  const thumbHeight = Math.round(Math.min(120, Math.max(60, height * 0.17)));
-  const thumbWidth = Math.round(thumbHeight * ASPECT);
-  const mainHeight = row ? height - thumbHeight - GAP : height;
+  const thumb = stripSize(others.length, width, height);
+  const rowHeight = thumb.height + (thumb.scrolls ? STRIP_SCROLLBAR : 0);
+  const mainHeight = row ? height - rowHeight - GAP : height;
+  // Which ends of a scrolling row have more past them, faded so it shows.
+  const [more, setMore] = useState({ before: false, after: true });
+  const track = (list: HTMLElement) => {
+    const before = list.scrollLeft > 1;
+    const after = list.scrollLeft + list.clientWidth < list.scrollWidth - 1;
+    setMore((was) => (was.before === before && was.after === after ? was : { before, after }));
+  };
+  const fade = thumb.scrolls
+    ? `linear-gradient(to right, ${more.before ? "transparent" : "black"}, black 40px, black calc(100% - 40px), ${more.after ? "transparent" : "black"})`
+    : undefined;
   // The picture's own shape, once the video says what it is. A screen is
   // rarely 16:9, and a frame of the wrong shape showed it in wide black bars.
   const [screenAspect, setScreenAspect] = useState<number | null>(null);
@@ -625,14 +664,22 @@ function Spotlight({
       {row && (
         <ul
           aria-label="Everyone else"
-          className="flex max-w-full shrink-0 flex-row gap-2 overflow-x-auto"
-          style={{ height: thumbHeight }}
+          className={`flex max-w-full shrink-0 flex-row gap-2 ${
+            thumb.scrolls ? "items-start overflow-x-auto overflow-y-hidden" : ""
+          }`}
+          style={{ height: rowHeight, maskImage: fade }}
+          onScroll={(e) => track(e.currentTarget)}
+          onWheel={(e) => {
+            // A mouse wheel turns up and down; the row goes sideways.
+            if (!thumb.scrolls || Math.abs(e.deltaX) > Math.abs(e.deltaY)) return;
+            e.currentTarget.scrollLeft += e.deltaY;
+          }}
         >
           {others.map((item) => (
             <li
               key={item.key}
               className="shrink-0"
-              style={{ width: thumbWidth, height: thumbHeight }}
+              style={{ width: thumb.width, height: thumb.height }}
             >
               <Tooltip label={`Show ${item.name} large`}>
                 <button
@@ -640,7 +687,7 @@ function Spotlight({
                   onClick={() => onPin(item.key)}
                   className={`group/tile ${tileFrame(item, "rounded-xl")} text-left outline-offset-2`}
                 >
-                  <TileBody item={item} height={thumbHeight} />
+                  <TileBody item={item} height={thumb.height} />
                 </button>
               </Tooltip>
             </li>
