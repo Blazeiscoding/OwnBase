@@ -669,40 +669,47 @@ ten times what 20 do, about 3,800 actions a minute, all of them active the whole
 hour. Each workspace starts with 1,000 messages a person. Every run was v0.2.0
 on a GitHub runner with 4 cores and 16 GB, and Node 24:
 
-| People | Commit    | Runner's CPU              | Memory, minute 5 to 60 | Event loop delay, p99 | Send to receive, p50 and p99 | Actions, failed |
-| ------ | --------- | ------------------------- | ---------------------- | --------------------- | ---------------------------- | --------------- |
-| 20     | `4a218ec` | AMD EPYC 7763             | 247 to 250 MiB         | 12 ms (13)            | 3 and 7 ms (16)              | 23,080, none    |
-| 50     | `97a360b` | Intel Xeon 6975P-C        | 271 to 323 MiB         | 12 ms (13)            | 2 and 6 ms (10)              | 46,324, none    |
-| 200    | `4a218ec` | Intel Xeon Platinum 8573C | 294 to 327 MiB         | 41 ms (46)            | 7 and 59 ms (86)             | 229,938, none   |
+| People | Commit    | Runner's CPU       | Memory, minute 5 to 60 | Event loop delay, p99 | Send to receive, p50 and p99 | Actions, failed |
+| ------ | --------- | ------------------ | ---------------------- | --------------------- | ---------------------------- | --------------- |
+| 20     | `4a218ec` | AMD EPYC 7763      | 247 to 250 MiB         | 12 ms (13)            | 3 and 7 ms (16)              | 23,080, none    |
+| 50     | `97a360b` | Intel Xeon 6975P-C | 271 to 323 MiB         | 12 ms (13)            | 2 and 6 ms (10)              | 46,324, none    |
+| 200    | `0b20c6d` | AMD EPYC 9V45      | 305 to 344 MiB         | 25 ms (29)            | 6 and 25 ms (37)             | 231,124, none   |
 
 Each latency is the middle of the minutes from the fifth on, with the worst
 minute in brackets. The 50-person row ran before `4a218ec`, which changes only
 what happens at the hour (below). The JavaScript heap stayed between 29 and 32
 MiB in every run; resident memory rises and falls with uploads and the
-database's cache, up to 387 MiB at 50 people and 453 MiB at 200.
+database's cache, up to 387 MiB at 50 people and 492 MiB at 200.
 
 - **Up to 50 people** (Team): one server holds them with room to spare. The
   server does its work on one core, so 2 cores and 1 GB of memory are enough.
 - **Up to 200 people** (Business): one server holds 200 people all active at
   once. Give it 4 cores and 2 GB, as measured, since busy minutes run its event
-  loop 40 to 65 ms late.
+  loop 25 to 30 ms late.
 
-What bends first at 200 is how late the event loop runs, 40 to 65 ms at p99
-where 50 people leave it at 12 to 14 ms: each message is sent to each of 200
-sockets in turn, and that sending is now most of the server's work.
+What bends first at 200 is how late the event loop runs, 25 ms at p99 where 50
+people leave it at 12 to 14 ms. Most of the server's work at 200 is sending:
+typing, presence and messages each go to everyone who can see the conversation,
+a frame for each socket. Since `0b20c6d` the frames a socket gets in one turn
+of the event loop go out as one write, and each session is checked once a turn
+rather than once a frame. A second hour at that commit on the same CPU gave
+the same, 25 ms and 5 and 25 ms. The same hour before it, on the same CPU, ran
+the loop 28 ms late with a p99 of 39 ms, and on an Intel Xeon Platinum 8573C 41
+ms and 59 ms.
 
 Runners differ, and a busy shared machine is slower than the table. Three more
-hours ran on AMD EPYC 9V74 runners. The same 200 people gave 12 and 106 ms from
+hours ran on AMD EPYC 9V74 runners before `0b20c6d`. 200 people gave 12 and 106 ms from
 send to receive. Two 50-person hours at `4a218ec` gave a p99 of 32 and 177 ms,
 with single minutes up to 577 ms, while the server's event loop stayed at 14
 and 20 ms. Most of that time was spent outside the server's code, and nothing
 failed.
 
-Two fixes came out of these runs. Before `97a360b`, checking
+Four fixes came out of these runs. Before `97a360b`, checking
 each recipient's session compiled its query afresh, and at 200 people the event
 loop ran a second late and the p99 was 5 s. Before `4a218ec`, the hourly
 removal of old events, some 200,000 an hour at 200 people, paused the server
-for 2 s.
+for 2 s. Writing each frame on its own, and asking about each session for every
+fan-out, were the two largest costs left after that (`0b20c6d`).
 
 Connecting is cheap at every size. `scripts/measure-snapshot.mts` (the Soak
 workflow with `measure: snapshot`) times the handshake that sends a connecting
@@ -715,8 +722,8 @@ each member in 30 channels:
 | 200     | 60              | 3.7 and 7.3 ms         | 102 kB   | 510 ms                               |
 | 2,000   | 300             | 9.0 and 14.3 ms        | 529 kB   | 946 ms                               |
 
-These ran on 17 November 2026 at commit `7e8fe93`, before the two fixes, which
-do not touch the handshake.
+These ran on 17 November 2026 at commit `7e8fe93`, before the fixes, which do
+not touch the handshake.
 
 Create the owner account before allowing public traffic, using an SSH tunnel if
 necessary. The supplied Compose configuration then requires invitations for new
