@@ -7,7 +7,7 @@ import { avatarColor, initials } from "../lib/format.js";
  * Someone's profile picture as an object URL, once the client has fetched it
  * (E9); null while it comes, for someone with none, or with no client.
  */
-function usePicture(user: User | undefined): string | null {
+export function usePicture(user: User | undefined): string | null {
   const client = useContext(ClientContext);
   const id = user?.id;
   const version = user?.avatarVersion;

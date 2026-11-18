@@ -264,6 +264,17 @@ describe("the call", () => {
     expect(strip()).toBeVisible();
   });
 
+  it("puts the row away and back from the pill on it, as Discord does", async () => {
+    const { user } = stage({ peers: [peer("U_PRIYA", { screenStream: stream() })] });
+    const strip = () => within(region()).queryByRole("list", { name: "Everyone else" });
+    await user.click(control("Hide everyone else"));
+    expect(strip()).toBeNull();
+    expect(control("Everyone else")).toHaveAttribute("aria-pressed", "false");
+    await user.click(control("Show everyone else"));
+    expect(strip()).toBeVisible();
+    expect(within(region()).queryByRole("button", { name: "Show everyone else" })).toBeNull();
+  });
+
   it("shows you a way to stop your own share instead of the share itself, full size", async () => {
     const { client, user } = stage({ localScreenStream: stream(), sharingScreen: true });
     const stop = vi.spyOn(client, "toggleScreenShare").mockResolvedValue();
@@ -644,13 +655,14 @@ describe("the row under the main view", () => {
   it("narrows the thumbnails so six people fit across, rather than cutting the last one off", () => {
     // The user's call: six others under a share, about 1150 px across.
     const row = stripSize(6, 1150, 700);
+    expect(row.height).toBeLessThan(119);
     expect(row.scrolls).toBe(false);
     expect(6 * row.width + 5 * 8).toBeLessThanOrEqual(1150);
     expect(row.width / row.height).toBeCloseTo(16 / 9, 1);
   });
 
   it("scrolls only once the thumbnails are as small as they go", () => {
-    const row = stripSize(14, 1150, 700);
-    expect(row).toEqual({ width: 106, height: 60, scrolls: true });
+    expect(stripSize(14, 1150, 700)).toEqual({ width: 170, height: 96, scrolls: true });
+    expect(stripSize(7, 839, 500).scrolls).toBe(true);
   });
 });
