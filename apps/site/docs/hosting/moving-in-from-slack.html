@@ -20,7 +20,7 @@
     <link rel="stylesheet" href="/docs.css?v=30dafeac35" />
     <script src="/docs.js?v=123540c9d0" defer></script>
   </head>
-  <body class="docs-body" data-search="/docs/search.json?v=a6c6108c59" data-guide="hosting">
+  <body class="docs-body" data-search="/docs/search.json?v=ddecff1c3b" data-guide="hosting">
     <a class="skip" href="#main">Skip to content</a>
 
     <header class="guide-head">
@@ -133,8 +133,7 @@ from the time Slack gave it, so history pages back in the order it happened, and
 search finds imported words. History comes in read: nobody opens the workspace to
 thousands of unread messages.</p>
 <p>What does not: join and leave notices and notices of topic or name changes, which
-this app does not post; reactions with a custom emoji; and text past 12,000
-characters, which is cut there. Posts by bots and integrations stay, each under a
+this app does not post; and text past 12,000 characters, which is cut there. Posts by bots and integrations stay, each under a
 bot account named after the bot. Someone who wrote in a channel but is not in
 <code>users.json</code>, as happens with people from another organisation in a shared channel,
 comes in deactivated under the name their messages give. The summary at the end
@@ -145,6 +144,9 @@ fetches each one through its link (Slack puts a token on it) and keeps it as an
 upload, up to 100 MB each. A link stops working once the file, its channel or the
 Slack workspace is deleted, so fetch before closing Slack down. A file Slack will
 not give keeps its name and is counted.</p>
+<p>Slack&#39;s export has no pictures for a workspace&#39;s custom emoji, only their names.
+Reactions and words that use one keep its <code>:name:</code>, and the import lists the
+names. Add emoji under those names and the messages show them.</p>
 <p>The import reads a zip of up to 64 GB and 2 million files, up to 256 MB in one JSON
 file. About seven minutes per million messages on a recent desktop, more with
 <code>--fetch-files</code>. If anything fails, everything it made is removed and the error

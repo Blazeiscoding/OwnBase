@@ -20,7 +20,7 @@
     <link rel="stylesheet" href="/docs.css?v=30dafeac35" />
     <script src="/docs.js?v=123540c9d0" defer></script>
   </head>
-  <body class="docs-body" data-search="/docs/search.json?v=a6c6108c59" data-guide="integrations">
+  <body class="docs-body" data-search="/docs/search.json?v=ddecff1c3b" data-guide="integrations">
     <a class="skip" href="#main">Skip to content</a>
 
     <header class="guide-head">
@@ -177,7 +177,7 @@ on its way out at that moment may still arrive as it was.</p>
 <tr><td><code>message.created</code></td><td><code>message</code></td><td><code>thread_ts</code> present for a reply</td><td><code>channels:history</code>, <code>groups:history</code>, <code>im:history</code>, <code>mpim:history</code></td></tr>
 <tr><td><code>message.updated</code></td><td><code>message</code></td><td><code>subtype: &quot;message_changed&quot;</code>, with the new <code>message</code></td><td><code>channels:history</code>, <code>groups:history</code>, <code>im:history</code>, <code>mpim:history</code></td></tr>
 <tr><td><code>message.deleted</code></td><td><code>message</code></td><td><code>subtype: &quot;message_deleted&quot;</code>, with <code>deleted_ts</code></td><td><code>channels:history</code>, <code>groups:history</code>, <code>im:history</code>, <code>mpim:history</code></td></tr>
-<tr><td><code>reaction.added</code></td><td><code>reaction_added</code></td><td><code>reaction</code> is the emoji itself, not its name</td><td><code>reactions:read</code></td></tr>
+<tr><td><code>reaction.added</code></td><td><code>reaction_added</code></td><td><code>reaction</code> is the emoji itself; a custom emoji&#39;s is its name</td><td><code>reactions:read</code></td></tr>
 <tr><td><code>reaction.removed</code></td><td><code>reaction_removed</code></td><td>As above</td><td><code>reactions:read</code></td></tr>
 <tr><td><code>pin.added</code></td><td><code>pin_added</code></td><td>—</td><td><code>pins:read</code></td></tr>
 <tr><td><code>pin.removed</code></td><td><code>pin_removed</code></td><td>No <code>user</code></td><td><code>pins:read</code></td></tr>

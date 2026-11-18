@@ -20,7 +20,7 @@
     <link rel="stylesheet" href="/docs.css?v=30dafeac35" />
     <script src="/docs.js?v=123540c9d0" defer></script>
   </head>
-  <body class="docs-body" data-search="/docs/search.json?v=a6c6108c59" data-guide="hosting">
+  <body class="docs-body" data-search="/docs/search.json?v=ddecff1c3b" data-guide="hosting">
     <a class="skip" href="#main">Skip to content</a>
 
     <header class="guide-head">
@@ -144,7 +144,21 @@ decodes or resizes it. <code>PUT</code> and <code>DELETE /api/admin/workspace/ic
 each recorded in the administrative record without the image, and
 <code>GET /api/workspace/icon</code> serves it to anyone, signed in or not, since the join
 screen shows it; asked for with <code>?v=&lt;version&gt;</code>, as clients do, it may be cached
-for a year, as a new picture has a new version.
+for a year, as a new picture has a new version.</p>
+<p>Custom emoji are kept in the database too, each picture in the <code>custom_emoji</code>
+table, so a backup and a restore carry them. A workspace holds up to 1,000. Each
+is a PNG, GIF or WebP of at most 256 KB and 256 pixels a side under a name of 1 to
+32 lowercase letters, digits, dashes or underscores that no standard emoji has.
+The app makes a larger still picture smaller before sending it; a GIF is sent as
+it is, since resizing it would stop it moving. The server checks the first bytes
+and never decodes or resizes a picture. Any member adds one unless
+<strong>Workspace settings</strong> keeps adding to admins; whoever added one, or an admin,
+removes it, and both are in the administrative record. Adding takes from the
+same upload allowance as files. Messages and reactions name an emoji as
+<code>:name:</code>, so removing one rewrites nothing: they show the name as text.
+<code>GET /api/emoji/&lt;id&gt;/picture</code> serves a picture to anyone signed in and may be
+cached for a year, since a name added again gets a new id. An animated picture
+plays as its file says, also when the device asks for reduced motion.
 <code>GET /api/health</code> checks the process and database. Docker&#39;s health status reports
 failures; the restart policy restarts exited processes, not merely unhealthy ones.</p>
 <p><code>GET /api/admin/status</code>, signed in as the owner or an admin, says whether the

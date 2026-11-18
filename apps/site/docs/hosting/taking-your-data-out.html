@@ -20,7 +20,7 @@
     <link rel="stylesheet" href="/docs.css?v=30dafeac35" />
     <script src="/docs.js?v=123540c9d0" defer></script>
   </head>
-  <body class="docs-body" data-search="/docs/search.json?v=a6c6108c59" data-guide="hosting">
+  <body class="docs-body" data-search="/docs/search.json?v=ddecff1c3b" data-guide="hosting">
     <a class="skip" href="#main">Skip to content</a>
 
     <header class="guide-head">
@@ -109,7 +109,8 @@
         
 <p><code>export</code> writes a workspace in Slack&#39;s export format: <code>users.json</code>,
 <code>channels.json</code>, and a folder of one JSON file per day for each channel. Tools that
-read Slack&#39;s exports read it, and <code>import-slack</code> reads it back, which is how to move
+read Slack&#39;s exports read it, and <code>import-slack</code> reads it back, custom emoji
+and their pictures included (<code>emoji.json</code> names each one under <code>emoji/</code>), which is how to move
 a workspace&#39;s history into a new one without its accounts, apps and settings. For a
 full copy of a workspace to restore, use <code>backup</code> or <strong>Download a copy</strong>.</p>
 <pre tabindex="0"><code class="language-sh">ownbase-server export --data ./data --to ./acme-export.zip
