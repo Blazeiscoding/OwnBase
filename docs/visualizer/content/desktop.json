@@ -296,6 +296,16 @@
       "concepts": ["updates", "release assets"]
     },
     {
+      "path": "apps/desktop/src/main/unreadBadge.ts",
+      "plain": "Shows what waits outside the window: a circle with the count on the Windows taskbar button, the count on the Mac dock, and the tray icon with a dot.",
+      "summary": "UnreadIndicator (one update in 250 ms, reapply on a new window or tray, clear at quit), badgeFile, readUnread (checks what the page sends) and electronSurfaces.",
+      "details": [
+        "The page works out the count and sends it with unread:set; this file only draws it, from badge-1.png to badge-9plus.png, badge-dot.png and tray-unread.ico/.png, which scripts/generate-icons.mjs makes.",
+        "Electron is passed in through electronSurfaces, so the tests use fakes for the window, the dock and the tray."
+      ],
+      "concepts": ["notifications", "unread"]
+    },
+    {
       "path": "apps/desktop/src/main/appLog.ts",
       "plain": "The desktop app's own log, ownbase.log in its folder: what failed in the main process and what a workspace it hosts warned about, with passwords and tokens masked. Diagnostics shows its last lines.",
       "summary": "appendLog (stamped, redacted, cut back past 256 kB), appLog (console and file), uncaughtMonitor, serverLogStream (a hosted server's warnings and errors), logTail and redactLog.",

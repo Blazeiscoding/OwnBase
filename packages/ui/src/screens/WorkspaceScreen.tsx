@@ -87,6 +87,7 @@ import { action, runAction, useActionContext, useGlobalKeys } from "../lib/actio
 import { startNotifications } from "../lib/notifications.js";
 import { OpenDialog, SidePanel } from "./workspaceViews.js";
 import { preloadAll } from "../lib/preloadable.js";
+import { UnreadOutside } from "../components/UnreadOutside.js";
 
 // What stands in for the composer in a conversation with someone blocked or
 // deactivated, which few conversations are.
@@ -201,6 +202,8 @@ export function WorkspaceScreen({ client, initialTarget, welcome, banner, ...res
   };
   return (
     <ClientContext.Provider value={client}>
+      {/* What waits, on the tab's title and the app's icon (J16). */}
+      <UnreadOutside others={others} />
       <WorkspaceShellContext.Provider value={shell}>
         <div className="flex h-full min-h-0 flex-col">
           {/* Room for the window's own controls, drawn over the window's surface. */}

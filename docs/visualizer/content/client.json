@@ -729,6 +729,24 @@
       "concepts": ["web push", "settings"]
     },
     {
+      "path": "packages/ui/src/components/UnreadOnIconSetting.tsx",
+      "plain": "The switch in notification settings for showing unread on the app's icon, the tray and the tab's title.",
+      "summary": "The 'Show unread on the app's icon' switch, under 'Outside the window'.",
+      "details": [
+        "It is on this device only, and findable in the settings search as unread-on-icon."
+      ],
+      "concepts": ["settings", "unread"]
+    },
+    {
+      "path": "packages/ui/src/components/UnreadOutside.tsx",
+      "plain": "Puts what waits outside the window: the tab's title ('(3) OwnBase' or '• OwnBase'), an installed browser app's badge, and through the desktop app its taskbar button, dock and tray.",
+      "summary": "Rendered with the open workspace; sets the title, setAppBadge and Platform.setUnread when the result changes, and clears them all when the workspace closes.",
+      "details": [
+        "Only a number or a dot, never a name or a preview. It updates only when the result changes, since a screen reader reads a tab's title out."
+      ],
+      "concepts": ["notifications", "unread"]
+    },
+    {
       "path": "packages/ui/src/lib/huddleEnded.ts",
       "plain": "Says once why a call ended when you did not leave it, such as joining it on another device.",
       "summary": "Shows WorkspaceState.huddleEnded as a notice.",
@@ -959,6 +977,22 @@
         "A workspace that cannot answer (404 from an older server, 401 for an ended sign-in, no connection) shows nothing. The same sign-ins re-rendered ask nothing new."
       ],
       "concepts": ["workspace switching", "unread"]
+    },
+    {
+      "path": "packages/ui/src/lib/unreadBadge.ts",
+      "plain": "Adds up what the workspace rail shows into one number or a dot, for the tab's title and the app's icon.",
+      "summary": "unreadBadge (every workspace's mentions, or a dot for unread without one) and titleFor.",
+      "details": [
+        "The open workspace's mentions come from its connection, the others' from useOtherWorkspacesUnread; both are the server's unreadMentionCounts, so they add up. A workspace that did not answer adds nothing."
+      ],
+      "concepts": ["unread"]
+    },
+    {
+      "path": "packages/ui/src/lib/unreadOnIcon.ts",
+      "plain": "Remembers on this device whether the app's icon, the tray and the tab's title show what is unread. On unless turned off.",
+      "summary": "A per-device store (perDevice) for the unread-on-icon setting, read once and shared.",
+      "details": ["A choice made before the saved one is read wins over it."],
+      "concepts": ["settings", "unread"]
     },
     {
       "path": "packages/ui/src/lib/signOut.ts",

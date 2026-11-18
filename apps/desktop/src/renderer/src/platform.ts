@@ -198,6 +198,7 @@ export function electronPlatform(bridge: OwnBaseBridge): Platform {
       };
     },
     downloadFile: (url) => call("file:download", url),
+    setUnread: (badge) => void call("unread:set", badge).catch(() => {}),
     appLogTail: () => call("diagnostics:logTail"),
     downloads: {
       onSaved: (cb) =>
