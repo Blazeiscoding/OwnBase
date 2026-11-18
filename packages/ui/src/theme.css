@@ -1493,6 +1493,20 @@ textarea::placeholder {
 }
 
 /*
+ * A workspace's own emoji (CustomEmoji.tsx), the size of the emoji font's
+ * around it, so it grows with a jumbo message. The box keeps its size while
+ * the picture loads, so the line does not move when it arrives.
+ */
+.custom-emoji {
+  display: inline-block;
+  width: 1.375em;
+  height: 1.375em;
+  margin-block: -0.2em;
+  vertical-align: -0.2em;
+  object-fit: contain;
+}
+
+/*
  * The emoji picker (EmojiPicker.tsx). Rows and titles have fixed heights:
  * a section not yet drawn is held open at its height (content-visibility),
  * and a jump to a section lands on it only if that height is exact. Not

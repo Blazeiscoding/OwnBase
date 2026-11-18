@@ -31,6 +31,7 @@ import {
 import { JumpToLatestBar, MessageTimeline } from "../components/MessageTimeline.js";
 import { Composer } from "../components/Composer.js";
 import { ForwardHost } from "../components/ForwardHost.js";
+import { CustomEmojiHost } from "../components/CustomEmojiHost.js";
 // In the first frame with the sidebar it sits above: loaded later, it pushed
 // the channels down under the pointer. Shown only to an owner, and small.
 import { GettingStarted } from "../components/GettingStarted.js";
@@ -271,6 +272,7 @@ function WorkspaceNavigation(props: {
       <OpenMessageContext.Provider value={openMessage}>
         <ForwardHost>
           <WorkspaceLayout restore={!initialTarget && !fromRoute} banner={props.banner} />
+          <CustomEmojiHost />
         </ForwardHost>
       </OpenMessageContext.Provider>
     </NavigationContext.Provider>

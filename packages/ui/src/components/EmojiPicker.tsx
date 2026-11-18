@@ -13,8 +13,11 @@ import {
   likedBy,
   useEmojiPreferences,
 } from "../lib/emojiPreferences.js";
+import type { CustomEmoji } from "@ownbase/protocol";
 import { isImeKey } from "../lib/textInput.js";
 import { useListbox } from "../lib/useListbox.js";
+import { CustomEmojiImage, customEmojiFor, useCustomEmoji, useMayAddEmoji } from "./CustomEmoji.js";
+import { openCustomEmoji } from "./CustomEmojiHost.js";
 import { Icon } from "./Icon.js";
 
 /** Emoji to a row. theme.css draws the rows at a fixed height, which the jumps rely on. */
@@ -45,6 +48,7 @@ const MARKS: Record<string, string> = {
 function Mark({ section }: { section: string }): ReactNode {
   if (section === "frequent") return <Icon name="clock" size={18} />;
   if (section === "people") return <Icon name="smile" size={18} />;
+  if (section === "custom") return <Icon name="star" size={18} />;
   return (
     <svg
       width={18}
@@ -63,10 +67,35 @@ function Mark({ section }: { section: string }): ReactNode {
   );
 }
 
+/** An emoji the picker offers: a standard one, or the workspace's own (J12). */
+type Choice = Emoji & { custom?: CustomEmoji };
+
 interface Section {
   id: string;
   name: string;
-  emoji: Emoji[];
+  emoji: Choice[];
+}
+
+/** A custom emoji as the picker lists it: picked as its `:name:`, found by its name's words. */
+function customChoice(emoji: CustomEmoji): Choice {
+  return {
+    char: `:${emoji.name}:`,
+    id: emoji.name,
+    name: emoji.name,
+    names: [emoji.name],
+    parts: emoji.name.split(/[-_]+/).filter(Boolean),
+    keywords: [],
+    custom: emoji,
+  };
+}
+
+/** The custom emoji whose name holds every word of the query, by name. */
+function searchCustom(query: string, custom: Choice[]): Choice[] {
+  const words = query
+    .toLowerCase()
+    .split(/[\s:]+/)
+    .filter(Boolean);
+  return custom.filter((choice) => words.every((word) => choice.id.includes(word)));
 }
 
 /**
@@ -85,6 +114,15 @@ export function EmojiPicker(props: {
   autoFocus?: boolean;
 }) {
   const { tone, used, setTone, countUse } = useEmojiPreferences();
+  const customByName = useCustomEmoji();
+  const mayAdd = useMayAddEmoji();
+  const custom = useMemo(
+    () =>
+      Object.values(customByName)
+        .sort((a, b) => a.name.localeCompare(b.name))
+        .map(customChoice),
+    [customByName],
+  );
   const [query, setQuery] = useState("");
   // Once the arrows have moved the choice, Left and Right move it too, rather
   // than the caret in what was typed.
@@ -98,22 +136,37 @@ export function EmojiPicker(props: {
   // The sections drawn so far: those in view and the next screenful. The rest
   // hold their place at their height until scrolling, a jump or the arrows
   // come near, so the picker opens without making nearly two thousand emoji.
-  const [seen, setSeen] = useState<ReadonlySet<string>>(() => new Set(["frequent", "people"]));
+  const [seen, setSeen] = useState<ReadonlySet<string>>(
+    () => new Set(["frequent", "custom", "people"]),
+  );
   const see = (ids: string[]) =>
     setSeen((was) => (ids.every((id) => was.has(id)) ? was : new Set([...was, ...ids])));
 
   // The first row is fixed while the picker is open, so a pick does not shuffle it.
   const [frequent] = useState(() =>
-    frequentEmoji(used)
-      .map((char) => emojiFor(char))
-      .filter((emoji): emoji is Emoji => emoji !== undefined),
+    frequentEmoji(used).flatMap((char): Choice[] => {
+      const known = emojiFor(char);
+      if (known) return [known];
+      const own = customEmojiFor(customByName, char);
+      return own ? [customChoice(own)] : [];
+    }),
   );
   const sections: Section[] = useMemo(
     () =>
       searching
-        ? [{ id: "results", name: "Search results", emoji: searchEmoji(query, likedBy(used)) }]
-        : [{ id: "frequent", name: "Frequently used", emoji: frequent }, ...categories],
-    [searching, query, frequent, used],
+        ? [
+            {
+              id: "results",
+              name: "Search results",
+              emoji: [...searchCustom(query, custom), ...searchEmoji(query, likedBy(used))],
+            },
+          ]
+        : [
+            { id: "frequent", name: "Frequently used", emoji: frequent },
+            ...(custom.length ? [{ id: "custom", name: "Custom", emoji: custom }] : []),
+            ...categories,
+          ],
+    [searching, query, frequent, used, custom],
   );
   const starts = useMemo(() => {
     let at = 0;
@@ -160,9 +213,9 @@ export function EmojiPicker(props: {
     return i;
   }
 
-  function pick(emoji: Emoji) {
+  function pick(emoji: Choice) {
     countUse(emoji.char);
-    props.onPick(inTone(emoji, tone));
+    props.onPick(emoji.custom ? emoji.char : inTone(emoji, tone));
   }
 
   function jump(section: string) {
@@ -222,7 +275,11 @@ export function EmojiPicker(props: {
         aria-label="Emoji categories"
         className="flex items-center justify-between gap-0.5 border-b border-edge/60 px-2 py-1.5"
       >
-        {[{ id: "frequent", name: "Frequently used" }, ...categories].map((section) => (
+        {[
+          { id: "frequent", name: "Frequently used" },
+          ...(custom.length ? [{ id: "custom", name: "Custom" }] : []),
+          ...categories,
+        ].map((section) => (
           <button
             key={section.id}
             type="button"
@@ -235,6 +292,18 @@ export function EmojiPicker(props: {
             <Mark section={section.id} />
           </button>
         ))}
+        {mayAdd && (
+          <button
+            type="button"
+            aria-label="Add emoji"
+            title="Add emoji"
+            onMouseDown={(e) => e.preventDefault()}
+            onClick={openCustomEmoji}
+            className="emoji-mark flex size-8 items-center justify-center rounded-lg text-ink-faint transition-colors hover:bg-ink/[0.07] hover:text-ink"
+          >
+            <Icon name="plus" size={18} />
+          </button>
+        )}
       </div>
       <div className="px-3 pt-2.5">
         <input
@@ -348,7 +417,9 @@ export function EmojiPicker(props: {
           <>
             {shown && (
               <div aria-hidden="true" className="flex min-w-0 items-center gap-2.5">
-                <span className="emoji-preview font-emoji">{inTone(shown, tone)}</span>
+                <span className="emoji-preview font-emoji">
+                  {shown.custom ? <CustomEmojiImage emoji={shown.custom} /> : inTone(shown, tone)}
+                </span>
                 <span className="min-w-0">
                   <span className="block truncate text-[13px] font-semibold text-ink">
                     {shown.name}
@@ -381,7 +452,7 @@ export function EmojiPicker(props: {
  * nearly two thousand emoji in it.
  */
 const EmojiSection = memo(function EmojiSection(props: {
-  section: Section | EmojiCategory;
+  section: Section;
   titled: boolean;
   /** False for a section held open at its height, not yet drawn. */
   drawn: boolean;
@@ -423,11 +494,11 @@ const EmojiSection = memo(function EmojiSection(props: {
                 id={`${listId}-${i}`}
                 role="option"
                 aria-selected={i === active}
-                aria-label={emoji.name}
+                aria-label={emoji.custom ? `:${emoji.name}:` : emoji.name}
                 data-i={i}
                 className="emoji-cell font-emoji"
               >
-                {inTone(emoji, tone)}
+                {emoji.custom ? <CustomEmojiImage emoji={emoji.custom} /> : inTone(emoji, tone)}
               </div>
             );
           })}

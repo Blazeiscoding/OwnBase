@@ -2,7 +2,9 @@ import { describe, expect, it, vi } from "vitest";
 import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { EmojiPicker } from "../src/components/EmojiPicker.js";
-import { PlatformContext } from "../src/context.js";
+import { createStore } from "zustand/vanilla";
+import type { WorkspaceClient } from "@ownbase/client-core";
+import { ClientContext, PlatformContext } from "../src/context.js";
 import type { Platform } from "../src/platform.js";
 
 /** A picker on a device of its own, so what one test picks is not the next one's first row. */
@@ -140,5 +142,71 @@ describe("the emoji picker", () => {
     await user.type(search(), "zzzz");
     expect(screen.getByRole("status")).toHaveTextContent("No emoji matched. Try another word.");
     expect(search()).not.toHaveAttribute("aria-activedescendant");
+  });
+});
+
+describe("the emoji picker in a workspace with its own emoji (J12)", () => {
+  function inWorkspace(role: "member" | "guest", adminsOnly = false) {
+    const platform = {
+      storage: { get: async () => null, set: async () => undefined },
+    } as unknown as Platform;
+    const client = {
+      store: createStore(() => ({
+        self: { id: "U1", role },
+        emojiAddingAdminsOnly: adminsOnly,
+        customEmoji: {
+          "party-parrot": { id: "E1", name: "party-parrot", createdBy: "U1" },
+          "ship-it": { id: "E2", name: "ship-it", createdBy: "U2" },
+        },
+      })),
+      emojiPictures: { peek: () => "blob:emoji", load: async () => "blob:emoji" },
+    } as unknown as WorkspaceClient;
+    const onPick = vi.fn();
+    render(
+      <PlatformContext.Provider value={platform}>
+        <ClientContext.Provider value={client}>
+          {/* eslint-disable-next-line jsx-a11y/no-autofocus -- the picker as the app opens it, into its search */}
+          <EmojiPicker onPick={onPick} autoFocus />
+        </ClientContext.Provider>
+      </PlatformContext.Provider>,
+    );
+    return { onPick, user: userEvent.setup() };
+  }
+
+  it("lists them under Custom, after the ones used most, and picks one as its :name:", async () => {
+    const { onPick, user } = inWorkspace("member");
+    const marks = screen.getByRole("group", { name: "Emoji categories" });
+    const labels = within(marks)
+      .getAllByRole("button")
+      .map((mark) => mark.getAttribute("aria-label"));
+    expect(labels.slice(0, 3)).toEqual(["Frequently used", "Custom", "Smileys & People"]);
+    expect(labels.at(-1)).toBe("Add emoji");
+    const custom = screen.getByRole("group", { name: "Custom" });
+    expect(
+      within(custom)
+        .getAllByRole("option")
+        .map((option) => option.getAttribute("aria-label")),
+    ).toEqual([":party-parrot:", ":ship-it:"]);
+    await user.click(within(custom).getByRole("option", { name: ":ship-it:" }));
+    expect(onPick).toHaveBeenCalledWith(":ship-it:");
+  });
+
+  it("finds them by search, first", async () => {
+    const { onPick, user } = inWorkspace("member");
+    await user.type(screen.getByRole("combobox", { name: "Search emoji" }), "parrot");
+    const options = screen.getAllByRole("option");
+    expect(options[0]?.getAttribute("aria-label")).toBe(":party-parrot:");
+    await user.keyboard("{Enter}");
+    expect(onPick).toHaveBeenCalledWith(":party-parrot:");
+  });
+
+  it("offers Add emoji only to those who may add", () => {
+    inWorkspace("guest");
+    expect(screen.queryByRole("button", { name: "Add emoji" })).toBeNull();
+  });
+
+  it("keeps Add emoji from members when admins keep adding to themselves", () => {
+    inWorkspace("member", true);
+    expect(screen.queryByRole("button", { name: "Add emoji" })).toBeNull();
   });
 });

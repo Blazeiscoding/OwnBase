@@ -1,8 +1,9 @@
 import { useMemo, useState } from "react";
 import type React from "react";
-import { isRoom, type Channel, type ID, type User } from "@ownbase/protocol";
+import { isRoom, type Channel, type CustomEmoji, type ID, type User } from "@ownbase/protocol";
 import { usePlatform, useWorkspace } from "../context.js";
 import { Avatar } from "./Avatar.js";
+import { CustomEmojiImage } from "./CustomEmoji.js";
 import { Icon } from "./Icon.js";
 import { useEmoji } from "../lib/emoji.js";
 import type { Emoji } from "../lib/emojiSet.js";
@@ -40,7 +41,8 @@ export type Suggestion =
   | { kind: "user"; user: User }
   | { kind: "broadcast"; token: "channel" | "here"; description: string }
   | { kind: "channel"; channel: Channel }
-  | { kind: "emoji"; emoji: Emoji };
+  | { kind: "emoji"; emoji: Emoji }
+  | { kind: "custom"; emoji: CustomEmoji };
 
 const BROADCASTS = [
   { token: "channel" as const, description: "Everyone in this channel" },
@@ -96,6 +98,21 @@ export function rankChannels(
     .map((r) => r.channel);
 }
 
+/**
+ * The workspace's own emoji for `:query` (J12): those whose name, or a word
+ * of it after a dash or underscore, starts with what was typed, by name.
+ */
+export function customStartingWith(
+  custom: Record<string, CustomEmoji>,
+  query: string,
+): CustomEmoji[] {
+  const q = query.toLowerCase();
+  const whole = (emoji: CustomEmoji) => emoji.name.startsWith(q);
+  return Object.values(custom)
+    .filter((emoji) => whole(emoji) || emoji.name.split(/[-_]/).some((word) => word.startsWith(q)))
+    .sort((a, b) => Number(whole(b)) - Number(whole(a)) || a.name.localeCompare(b.name));
+}
+
 /** A word being typed after `@`, `#` or `:`, up to the caret. */
 function queryAt(value: string, caret: number, field: Field, shown: MentionDocument): Query | null {
   const upTo = value.slice(0, caret);
@@ -135,6 +152,7 @@ export function useSuggestions({ field, box, apply, room }: Options) {
   const channels = useWorkspace((s) => s.channels);
   const memberships = useWorkspace((s) => s.memberships);
   const selfId = useWorkspace((s) => s.self?.id);
+  const custom = useWorkspace((s) => s.customEmoji);
   const [query, setQuery] = useState<Query | null>(null);
   // Every emoji arrives on first use; usually the workspace has fetched it already.
   const emoji = useEmoji(query?.kind === "emoji");
@@ -156,14 +174,20 @@ export function useSuggestions({ field, box, apply, room }: Options) {
       return rankChannels(Object.values(channels), query.query, (id) => id in memberships)
         .slice(0, SHOWN)
         .map((channel) => ({ kind: "channel", channel }));
-    if (!emoji) return [];
-    return emoji
-      .emojiStartingWith(
-        query.query,
-        emoji.likedBy(emoji.emojiPreferences(platform).getState().used),
-      )
-      .map((e) => ({ kind: "emoji", emoji: e }));
-  }, [query, users, channels, memberships, selfId, room, emoji, platform]);
+    const own = customStartingWith(custom, query.query).map((e): Suggestion => ({
+      kind: "custom",
+      emoji: e,
+    }));
+    const standard = emoji
+      ? emoji
+          .emojiStartingWith(
+            query.query,
+            emoji.likedBy(emoji.emojiPreferences(platform).getState().used),
+          )
+          .map((e): Suggestion => ({ kind: "emoji", emoji: e }))
+      : [];
+    return [...own, ...standard].slice(0, 8);
+  }, [query, users, channels, memberships, selfId, room, emoji, platform, custom]);
 
   const list = useListbox(options.length);
   const open = query !== null && options.length > 0;
@@ -177,9 +201,11 @@ export function useSuggestions({ field, box, apply, room }: Options) {
           ? `<!${option.token}> `
           : option.kind === "channel"
             ? `<#${option.channel.id}> `
-            : emoji
-              ? `${emoji.writeEmoji(platform, option.emoji)} `
-              : null;
+            : option.kind === "custom"
+              ? `:${option.emoji.name}: `
+              : emoji
+                ? `${emoji.writeEmoji(platform, option.emoji)} `
+                : null;
     if (insert === null) return;
     // Shown as the name at once; kept as the id it stands for.
     const next = field.replaceSelection(insert, query.start, box.current.selectionStart);
@@ -276,7 +302,9 @@ export function SuggestionList({
                 ? option.token
                 : option.kind === "channel"
                   ? option.channel.id
-                  : option.emoji.id
+                  : option.kind === "custom"
+                    ? `custom:${option.emoji.id}`
+                    : option.emoji.id
           }
           {...s.list.optionProps(i)}
           onClick={() => s.choose(option)}
@@ -313,6 +341,13 @@ export function SuggestionList({
                   {option.channel.topic}
                 </span>
               )}
+            </>
+          ) : option.kind === "custom" ? (
+            <>
+              <span aria-hidden="true" className="w-[22px] text-center text-lg leading-none">
+                <CustomEmojiImage emoji={option.emoji} />
+              </span>
+              <span className="font-medium">:{option.emoji.name}:</span>
             </>
           ) : (
             <>
