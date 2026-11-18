@@ -14,7 +14,7 @@ import type { ID, User } from "@ownbase/protocol";
 import { useClient, useWorkspace } from "../context.js";
 import { avatarColor, channelTitle } from "../lib/format.js";
 import { aloneLine, ringingLine } from "../lib/huddleView.js";
-import { Avatar } from "./Avatar.js";
+import { Avatar, usePicture } from "./Avatar.js";
 import { HuddleControls } from "./HuddleControls.js";
 import { Icon, type IconName } from "./Icon.js";
 import { Tooltip } from "./Tooltip.js";
@@ -48,6 +48,44 @@ export function bestFit(
     if (tile > best.width) best = { columns, width: tile };
   }
   return { columns: best.columns, width: Math.max(0, Math.floor(best.width)) };
+}
+
+/** The space between thumbnails in the row under the main view (Tailwind's gap-2). */
+const STRIP_GAP = 8;
+/** The shortest a thumbnail in the row gets: room for a face, and the name under it in the corner. */
+const STRIP_SMALLEST = 96;
+/** The bottom of a tile the name takes: its pill and the space under it. */
+const NAME_ROOM = 32;
+/** Room under a row that scrolls, for its scrollbar, so it never scrolls up and down too. */
+const STRIP_SCROLLBAR = 10;
+
+/**
+ * The thumbnails' size in the row under the main view. They are as tall as a
+ * sixth of the stage allows (96 to 120 px), and smaller when the row would not
+ * fit across. Never under 96 px, as in Discord: below that the name has no
+ * room beside the face. Past that the row scrolls.
+ */
+export function stripSize(
+  count: number,
+  width: number,
+  height: number,
+): { width: number; height: number; scrolls: boolean } {
+  const tallest = Math.min(120, Math.max(STRIP_SMALLEST, height * 0.17));
+  const across = (width - STRIP_GAP * (count - 1)) / Math.max(1, count) / ASPECT;
+  const tall = Math.floor(Math.max(STRIP_SMALLEST, Math.min(tallest, across)));
+  const wide = Math.floor(tall * ASPECT);
+  if (count * wide + STRIP_GAP * (count - 1) <= width)
+    return { width: wide, height: tall, scrolls: false };
+  // Too many to fit even at the smallest: as many whole tiles as fit fill the
+  // width exactly, so the row ends on a tile and not halfway through one.
+  const smallest = Math.floor(STRIP_SMALLEST * ASPECT);
+  const shown = Math.max(1, Math.floor((width + STRIP_GAP) / (smallest + STRIP_GAP)));
+  const fills = Math.floor((width - STRIP_GAP * (shown - 1)) / shown);
+  return {
+    width: fills,
+    height: Math.max(STRIP_SMALLEST, Math.floor(fills / ASPECT)),
+    scrolls: true,
+  };
 }
 
 /** One thing on the stage: a person, on camera or not, or a shared screen. */
@@ -305,9 +343,16 @@ function TileBody({
   onAspect?: (aspect: number) => void;
 }) {
   // Scaled to the tile, so a face in a big tile is not a postage stamp.
-  const avatar = Math.round(Math.min(112, Math.max(32, height * 0.34)));
+  // A short tile, like a thumbnail in the row under a share, centres the face
+  // in the space above the name: in the middle, a long name ran right under
+  // it and read as a caption stuck to the picture.
+  const short = height < 140;
+  const avatar = short
+    ? Math.max(20, Math.min(40, height - NAME_ROOM - 24))
+    : Math.round(Math.min(112, Math.max(32, height * 0.34)));
   // Said with the camera off as well, so it comes the right size when it goes on.
   const report = useContext(ReportDrawn);
+  const picture = usePicture(item.stream ? undefined : item.user);
   const { key, userId, kind, self } = item;
   useEffect(() => {
     if (self || !userId) return;
@@ -326,15 +371,27 @@ function TileBody({
       ) : (
         <div
           className="flex size-full items-center justify-center"
-          style={
-            item.userId
-              ? {
-                  background: `radial-gradient(circle at 50% 45%, ${avatarColor(item.userId, 0.45)}, transparent 70%)`,
-                }
-              : undefined
-          }
+          style={{
+            paddingBottom: short ? NAME_ROOM : undefined,
+            background:
+              item.userId && !picture
+                ? `radial-gradient(circle at 50% 45%, ${avatarColor(item.userId, 0.25)}, transparent 70%)`
+                : undefined,
+          }}
         >
-          <Avatar user={item.user} size={avatar} />
+          {picture && (
+            // As Discord does with the camera off: their own picture, blurred,
+            // fills the tile. Still, so the blur is drawn once, not every frame.
+            <img
+              src={picture}
+              alt=""
+              aria-hidden="true"
+              className="pointer-events-none absolute inset-0 size-full scale-125 object-cover opacity-25 blur-2xl saturate-75"
+            />
+          )}
+          <div className="relative">
+            <Avatar user={item.user} size={avatar} />
+          </div>
         </div>
       )}
       {item.connecting && (
@@ -569,6 +626,7 @@ function Spotlight({
   strip,
   edge,
   onOpen,
+  onStrip,
 }: {
   main: StageItem;
   others: StageItem[];
@@ -583,12 +641,26 @@ function Spotlight({
   edge: boolean;
   /** Double-clicking the main view, into full screen and out again. */
   onOpen: () => void;
+  /** Hiding or showing the row, from the pill on it. */
+  onStrip: () => void;
 }) {
   const row = strip && others.length > 0;
   // Small enough to leave the share most of the height, big enough to tell faces apart.
-  const thumbHeight = Math.round(Math.min(120, Math.max(60, height * 0.17)));
-  const thumbWidth = Math.round(thumbHeight * ASPECT);
-  const mainHeight = row ? height - thumbHeight - GAP : height;
+  const thumb = stripSize(others.length, width, height);
+  const rowHeight = thumb.height + (thumb.scrolls ? STRIP_SCROLLBAR : 0);
+  const mainHeight = row ? height - rowHeight - GAP : height;
+  // Which ends of a scrolling row have more past them, each with an arrow.
+  const list = useRef<HTMLUListElement>(null);
+  const [more, setMore] = useState({ before: false, after: false });
+  const track = useCallback(() => {
+    const el = list.current;
+    const before = !!el && el.scrollLeft > 1;
+    const after = !!el && el.scrollLeft + el.clientWidth < el.scrollWidth - 1;
+    setMore((was) => (was.before === before && was.after === after ? was : { before, after }));
+  }, []);
+  useEffect(track, [track, row, others.length, thumb.width]);
+  const step = thumb.width + STRIP_GAP;
+  const lastWheel = useRef(0);
   // The picture's own shape, once the video says what it is. A screen is
   // rarely 16:9, and a frame of the wrong shape showed it in wide black bars.
   const [screenAspect, setScreenAspect] = useState<number | null>(null);
@@ -620,33 +692,121 @@ function Spotlight({
   }
 
   return (
-    <div className="flex size-full flex-col items-center" style={{ gap: GAP }}>
+    <div className="group/spot relative flex size-full flex-col items-center" style={{ gap: GAP }}>
       <div className="flex min-h-0 w-full flex-1 items-center justify-center">{body}</div>
+      {!row && others.length > 0 && <StripPill shown={false} onClick={onStrip} bottom={12} />}
+      {row && <StripPill shown onClick={onStrip} bottom={rowHeight + GAP + 12} />}
       {row && (
-        <ul
-          aria-label="Everyone else"
-          className="flex max-w-full shrink-0 flex-row gap-2 overflow-x-auto"
-          style={{ height: thumbHeight }}
-        >
-          {others.map((item) => (
-            <li
-              key={item.key}
-              className="shrink-0"
-              style={{ width: thumbWidth, height: thumbHeight }}
-            >
-              <Tooltip label={`Show ${item.name} large`}>
-                <button
-                  aria-label={`Pin ${describe(item)}`}
-                  onClick={() => onPin(item.key)}
-                  className={`group/tile ${tileFrame(item, "rounded-xl")} text-left outline-offset-2`}
-                >
-                  <TileBody item={item} height={thumbHeight} />
-                </button>
-              </Tooltip>
-            </li>
-          ))}
-        </ul>
+        <div className="relative flex max-w-full shrink-0">
+          <ul
+            ref={list}
+            aria-label="Everyone else"
+            className={`flex min-w-0 max-w-full flex-row gap-2 ${
+              thumb.scrolls
+                ? "snap-x snap-mandatory items-start overflow-x-auto overflow-y-hidden"
+                : ""
+            }`}
+            style={{ height: rowHeight }}
+            onScroll={track}
+            onWheel={(e) => {
+              // A mouse wheel turns up and down; the row goes sideways, a
+              // person at a time, however far one notch says.
+              if (!thumb.scrolls || Math.abs(e.deltaX) > Math.abs(e.deltaY)) return;
+              if (e.timeStamp - lastWheel.current < 180) return;
+              lastWheel.current = e.timeStamp;
+              e.currentTarget.scrollBy({ left: Math.sign(e.deltaY) * step, behavior: "smooth" });
+            }}
+          >
+            {others.map((item) => (
+              <li
+                key={item.key}
+                className="shrink-0 snap-start"
+                style={{ width: thumb.width, height: thumb.height }}
+              >
+                <Tooltip label={`Show ${item.name} large`}>
+                  <button
+                    aria-label={`Pin ${describe(item)}`}
+                    onClick={() => onPin(item.key)}
+                    className={`group/tile ${tileFrame(item, "rounded-xl")} text-left outline-offset-2`}
+                  >
+                    <TileBody item={item} height={thumb.height} />
+                  </button>
+                </Tooltip>
+              </li>
+            ))}
+          </ul>
+          {thumb.scrolls && more.before && (
+            <RowArrow
+              side="before"
+              top={thumb.height / 2}
+              onClick={() => list.current?.scrollBy({ left: -step, behavior: "smooth" })}
+            />
+          )}
+          {thumb.scrolls && more.after && (
+            <RowArrow
+              side="after"
+              top={thumb.height / 2}
+              onClick={() => list.current?.scrollBy({ left: step, behavior: "smooth" })}
+            />
+          )}
+        </div>
       )}
+    </div>
+  );
+}
+
+/** An arrow over one end of the row, there while more people are past that end. */
+function RowArrow(props: { side: "before" | "after"; top: number; onClick: () => void }) {
+  const label = props.side === "before" ? "Earlier people" : "More people";
+  return (
+    <div
+      className={`absolute -translate-y-1/2 ${props.side === "before" ? "left-1.5" : "right-1.5"}`}
+      style={{ top: props.top }}
+    >
+      <Tooltip label={label}>
+        <button
+          aria-label={label}
+          onClick={props.onClick}
+          className="call-dark flex size-8 items-center justify-center rounded-full bg-black/75 text-white shadow-md transition-colors hover:bg-black/90"
+        >
+          <Icon name={props.side === "before" ? "chevronLeft" : "chevronRight"} size={18} />
+        </button>
+      </Tooltip>
+    </div>
+  );
+}
+
+/**
+ * Discord's pill for the row of people under a share, over the bottom of the
+ * main view: to tuck the row away, and to bring it back. Shown with the pointer
+ * over the stage or the keyboard on it, and always on touch.
+ */
+function StripPill({
+  shown,
+  onClick,
+  bottom,
+}: {
+  shown: boolean;
+  onClick: () => void;
+  /** Its distance from the stage's bottom, in px: just over the row, or the stage's edge. */
+  bottom: number;
+}) {
+  const label = shown ? "Hide everyone else" : "Show everyone else";
+  return (
+    <div
+      className={`absolute left-1/2 z-10 -translate-x-1/2 opacity-0 transition-opacity focus-within:opacity-100 group-hover/spot:opacity-100 pointer-coarse:opacity-100`}
+      style={{ bottom }}
+    >
+      <Tooltip label={label}>
+        <button
+          aria-label={label}
+          onClick={onClick}
+          className="call-dark flex h-8 items-center gap-0.5 rounded-full bg-black/70 px-2.5 text-white shadow-md transition-colors hover:bg-black/85"
+        >
+          <Icon name={shown ? "chevronDown" : "chevronUp"} size={16} />
+          <Icon name="members" size={17} />
+        </button>
+      </Tooltip>
     </div>
   );
 }
@@ -951,6 +1111,11 @@ export function HuddleStage({
               strip={showStrip}
               edge={fullscreen}
               onOpen={toggleFullscreen}
+              onStrip={() =>
+                setStrip((s) =>
+                  fullscreen ? { ...s, fullscreen: !s.fullscreen } : { ...s, call: !s.call },
+                )
+              }
             />
           ) : (
             <Gallery

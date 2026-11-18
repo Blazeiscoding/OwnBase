@@ -8,7 +8,7 @@ import { ClientContext, PlatformContext } from "../src/context.js";
 import { ToastProvider } from "../src/components/Toast.js";
 import { webPlatform, type Platform } from "../src/platform.js";
 import { HuddleBar, HuddleButton } from "../src/components/HuddleBar.js";
-import { bestFit, HuddleStage } from "../src/components/HuddleStage.js";
+import { bestFit, HuddleStage, stripSize } from "../src/components/HuddleStage.js";
 import { useHuddleView } from "../src/lib/huddleView.js";
 import { accessibilityProblems } from "./accessibility.js";
 
@@ -262,6 +262,17 @@ describe("the call", () => {
     expect(control("Everyone else")).toHaveAttribute("aria-pressed", "false");
     await user.click(control("Everyone else"));
     expect(strip()).toBeVisible();
+  });
+
+  it("puts the row away and back from the pill on it, as Discord does", async () => {
+    const { user } = stage({ peers: [peer("U_PRIYA", { screenStream: stream() })] });
+    const strip = () => within(region()).queryByRole("list", { name: "Everyone else" });
+    await user.click(control("Hide everyone else"));
+    expect(strip()).toBeNull();
+    expect(control("Everyone else")).toHaveAttribute("aria-pressed", "false");
+    await user.click(control("Show everyone else"));
+    expect(strip()).toBeVisible();
+    expect(within(region()).queryByRole("button", { name: "Show everyone else" })).toBeNull();
   });
 
   it("shows you a way to stop your own share instead of the share itself, full size", async () => {
@@ -632,6 +643,36 @@ describe("fitting tiles to the call", () => {
       expect(fit.columns * fit.width + (fit.columns - 1) * 12).toBeLessThanOrEqual(width);
       expect(rows * (fit.width / (16 / 9)) + (rows - 1) * 12).toBeLessThanOrEqual(height);
       expect(fit.width).toBeGreaterThan(0);
+    }
+  });
+});
+
+describe("the row under the main view", () => {
+  it("keeps full-size thumbnails while they fit", () => {
+    expect(stripSize(3, 1150, 700)).toEqual({ width: 211, height: 119, scrolls: false });
+  });
+
+  it("narrows the thumbnails so six people fit across, rather than cutting the last one off", () => {
+    // The user's call: six others under a share, about 1150 px across.
+    const row = stripSize(6, 1150, 700);
+    expect(row.height).toBeLessThan(119);
+    expect(row.scrolls).toBe(false);
+    expect(6 * row.width + 5 * 8).toBeLessThanOrEqual(1150);
+    expect(row.width / row.height).toBeCloseTo(16 / 9, 1);
+  });
+
+  it("scrolls only once the thumbnails are as small as they go", () => {
+    expect(stripSize(14, 1150, 700).scrolls).toBe(true);
+    expect(stripSize(7, 839, 500).scrolls).toBe(true);
+  });
+
+  it("ends a row that scrolls on a whole tile, not halfway through one", () => {
+    for (const width of [360, 839, 853, 1150, 1600]) {
+      const row = stripSize(20, width, 700);
+      const shown = Math.round((width + 8) / (row.width + 8));
+      expect(shown * row.width + (shown - 1) * 8).toBeLessThanOrEqual(width);
+      expect(shown * row.width + (shown - 1) * 8).toBeGreaterThan(width - shown);
+      expect(row.height).toBeGreaterThanOrEqual(96);
     }
   });
 });
