@@ -77,6 +77,8 @@ jobs:
         run: node --test scripts/build-identity.test.mjs
       - name: Test the release manifest
         run: node --test scripts/release-manifest.test.mjs scripts/release-changes.test.mjs
+      - name: Test the soak's cast
+        run: node --test scripts/soak-cast.test.mjs
       - name: Test the product name check
         run: node --test scripts/check-product-name.test.mjs
       # On an atlas it builds from this checkout. The copy in docs/ is the

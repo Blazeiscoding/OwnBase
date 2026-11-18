@@ -151,6 +151,25 @@ describe("session checks in a fan-out (REV-06)", () => {
     expect(asked(spy).filter((id) => id === ended.user.id)).toHaveLength(1);
   });
 
+  it("reads each session through one prepared statement, not one compiled per check", async () => {
+    // At 200 people every message is 200 checks, and compiling the query
+    // each time took 46% of the server's time in the soak (J06).
+    const [author, ...listening] = people as [Person, Person, Person];
+    const open = [];
+    for (const person of listening) open.push(await connect(person.token));
+    const prepare = vi.spyOn(server.store.db, "prepare");
+    const spy = checks();
+    for (const text of ["One.", "Two.", "Three."]) {
+      const message = await post(author, general, text);
+      for (const socket of open) await expect.poll(() => socket.received(message.id)).toBe(true);
+    }
+    expect(spy.mock.calls.length).toBeGreaterThanOrEqual(6);
+    const compiled = prepare.mock.calls.filter(([sql]) =>
+      /^SELECT 1 FROM sessions s JOIN users u/.test(sql),
+    );
+    expect(compiled.length).toBeLessThanOrEqual(1);
+  });
+
   it("visits only members' sockets for a private channel", async () => {
     const [author, member, outsider] = people as [Person, Person, Person];
     const created = await request("/api/channels", author.token, {

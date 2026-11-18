@@ -43,7 +43,7 @@ import { registerSaved } from "./saved/feature.js";
 import { registerScheduled } from "./scheduled/feature.js";
 import { registerSearch } from "./search/feature.js";
 import { registerExtensions } from "./extensionHost.js";
-import { Store } from "./store.js";
+import { EVENT_PRUNE_STEP, Store } from "./store.js";
 import { registerThreads } from "./threads/feature.js";
 import { SERVER_VERSION } from "./version.js";
 import type { WorkspaceIcon } from "./core/workspaceIcon.js";
@@ -273,7 +273,13 @@ async function startWorkspaceServer(
     background,
   });
   const lifecycle = new Lifecycle();
-  lifecycle.hourly(() => background.maintain("events", () => store.pruneEvents()));
+  // Old events go a step a turn, with requests served between the steps.
+  const pruneEventsTo = lifecycle.laterTurn((cutoff: number) =>
+    background.maintain("events", () => {
+      if (store.pruneEventsStep(cutoff) === EVENT_PRUNE_STEP) pruneEventsTo(cutoff);
+    }),
+  );
+  lifecycle.hourly(() => background.maintain("events", () => pruneEventsTo(store.eventsCutoff())));
 
   const {
     route,

@@ -1,5 +1,5 @@
 import type { ID, Invite, InviteStatus, SessionInfo, User } from "@ownbase/protocol";
-import type { DatabaseSync } from "node:sqlite";
+import type { DatabaseSync, StatementSync } from "node:sqlite";
 import { countOf, oneOfOrNull, shape, type RowOf } from "../core/rows.js";
 import { inviteCode, ulid } from "../ids.js";
 import { mayInvite, ROLES, toUser, userRow } from "../people/store.js";
@@ -277,17 +277,20 @@ export class AccountStore {
     this.db.prepare("DELETE FROM sessions WHERE token_hash = ?").run(tokenHash);
   }
 
-  /** Checks a live socket without extending a session merely for receiving traffic. */
+  /**
+   * Checks a live socket without extending a session merely for receiving
+   * traffic. The gateway asks this for every session a fan-out reaches, so
+   * the query is compiled once and kept: compiling it per check was most of
+   * the server's time with 200 people (J06).
+   */
   isSessionActive(tokenHash: string, userId: ID): boolean {
-    return (
-      this.db
-        .prepare(
-          `SELECT 1 FROM sessions s JOIN users u ON u.id = s.user_id
+    this.sessionActive ??= this.db.prepare(
+      `SELECT 1 FROM sessions s JOIN users u ON u.id = s.user_id
        WHERE s.token_hash = ? AND s.user_id = ? AND s.expires_at > ? AND u.deactivated = 0`,
-        )
-        .get(tokenHash, userId, Date.now()) !== undefined
     );
+    return this.sessionActive.get(tokenHash, userId, Date.now()) !== undefined;
   }
+  private sessionActive: StatementSync | undefined;
 
   /**
    * Signs someone out everywhere. Deactivating an account has to do this:

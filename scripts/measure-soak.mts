@@ -7,6 +7,18 @@
  * drop and reconnect, sign in and out, read history and search, and hold
  * huddles that exchange the calls' setup messages without any media.
  *
+ * People come in blocks of 20 (soak-cast.mjs). The first block is the cast
+ * this script has always had: people 0 and 1 watch, 2–7 talk, 8 and 9 react,
+ * 10 uploads, 11 and 12 roam, 13 visits, 14–16 hold a huddle in #standup, 17
+ * reads, and one reconnector drops 2–12. Each further full block of 20 plays
+ * every part again with its own people and its own huddle channel; people
+ * after the last full block listen. So --people=20 measures what it always
+ * did, and 200 is ten blocks. The visitors' sign-ins are spread over their
+ * cycle, and one the server answers with auth_busy (it derives two passwords
+ * at a time) waits and tries again, counted as a sign-in that had to wait.
+ * A reply or reaction to a message this script deleted while the request was
+ * on its way is refused, rightly; it is counted as a race, not a failure.
+ *
  * Every `--sample-seconds` (a minute by default) it prints one line: the
  * server's resident memory, heap after a full collection, handles it holds
  * open, how long its event loop went unserved, the database and its WAL, the
@@ -28,6 +40,7 @@ import { arch, cpus, platform, release, tmpdir, totalmem } from "node:os";
 import { join, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 import { PROTOCOL_VERSION, type ServerToClient } from "../packages/protocol/src/index.js";
+import { soakCast } from "./soak-cast.mjs";
 
 const arg = (name: string, fallback: number) =>
   Number(process.argv.find((a) => a.startsWith(`--${name}=`))?.split("=")[1] ?? fallback);
@@ -39,9 +52,9 @@ const params = {
   /** Multiplies how often everyone acts; 2 is twice the traffic. */
   rate: arg("rate", 1),
 };
-// The cast below gives people 0–17 a part each; more only add watchers' load.
-if (!(params.people >= 18 && params.minutes > 0 && params.sampleSeconds > 0 && params.rate > 0))
-  throw new Error("needs --people of at least 18, and positive minutes, sample seconds and rate");
+if (!(params.minutes > 0 && params.sampleSeconds > 0 && params.rate > 0))
+  throw new Error("needs positive minutes, sample seconds and rate");
+const cast = soakCast(params.people);
 
 /** A small seeded generator, so two runs offer the same traffic. */
 let state = 1;
@@ -154,6 +167,7 @@ try {
 
   // People, and the channels they talk in. A public channel takes in everyone.
   const people: { handle: string; token: string; id: string }[] = [];
+  const registering = Date.now();
   for (let i = 0; i < params.people; i++) {
     const handle = `person${i}`;
     const { token, user } = await call<{ token: string; user: { id: string } }>(
@@ -164,6 +178,9 @@ try {
     );
     people.push({ handle, token, id: user.id });
   }
+  console.log(
+    `registered ${params.people} people in ${((Date.now() - registering) / 1000).toFixed(1)} s`,
+  );
   const owner = people[0]!.token;
   const channel = async (name: string) =>
     (
@@ -183,7 +200,9 @@ try {
     await channel("engineering"),
   ];
   const dropIn = await channel("drop-in");
-  const standup = await channel("standup");
+  /** Each block's huddle channel, #standup for the first. */
+  const huddleChannels: string[] = [];
+  for (const block of cast.blocks) huddleChannels.push(await channel(block.huddleChannel));
   const seeded = Date.now();
   await ask({
     type: "seed",
@@ -197,9 +216,9 @@ try {
 
   /** Sent top-level messages not yet seen by both watchers: text -> when sent, watchers seen. */
   const pending = new Map<string, { sent: number; seen: number }>();
-  const WATCHERS = 2;
+  const WATCHERS = cast.watchers.length;
   /** Who holds the huddles; only their devices keep huddle events, for its checks. */
-  const HUDDLE_CAST = [14, 15, 16];
+  const HUDDLE_CAST = new Set(cast.blocks.flatMap((block) => block.huddle));
   let latencies: number[] = [];
 
   type Device = {
@@ -222,7 +241,7 @@ try {
         if (!device.leaving)
           fail("socket", new Error(`closed by the server: ${event.code} ${event.reason}`));
       });
-      const watcher = person < WATCHERS;
+      const watcher = cast.watchers.includes(person);
       let replayedFrom = lastSeq ?? 0;
       const timer = setTimeout(() => {
         device.leaving = true;
@@ -246,7 +265,7 @@ try {
             }
           }
         } else if (frame.type === "ephemeral") {
-          if (HUDDLE_CAST.includes(person) && frame.event.type.startsWith("huddle."))
+          if (HUDDLE_CAST.has(person) && frame.event.type.startsWith("huddle."))
             device.ephemeral.push(frame.event);
         } else if (frame.type === "synced") {
           device.seq = Math.max(device.seq, frame.seq);
@@ -286,7 +305,16 @@ try {
     recent.push(posted);
     if (recent.length > 300) recent.splice(0, recent.length - 300);
   };
+  // What this script deleted, so a reply or reaction that crossed the delete
+  // on the way (other blocks act on the same messages) is told from a fault.
+  const deleted = new Set<string>();
+  let racedDeletes = 0;
+  const raced = (id: string, refusal: RegExp) => (error: unknown) => {
+    if (!(deleted.has(id) && error instanceof Error && refusal.test(error.message))) throw error;
+    racedDeletes++;
+  };
   const forget = (id: string) => {
+    deleted.add(id);
     const at = recent.findIndex((m) => m.id === id);
     if (at >= 0) recent.splice(at, 1);
   };
@@ -304,7 +332,7 @@ try {
     remember({ id: message.id, channelId, author: person, text, files: fileIds?.length ?? 0 });
   };
 
-  // People 2–7 talk: mostly new messages, and edits, deletes and thread replies.
+  // Each block's talkers (people 2–7 of the first): mostly new messages, and edits, deletes and thread replies.
   const talker = async (person: number) => {
     while (running()) {
       const roll = random();
@@ -333,13 +361,13 @@ try {
           call("POST", `/api/channels/${root.channelId}/messages`, people[person]!.token, {
             text: `${sentence(8)} in reply`,
             threadRootId: root.id,
-          }),
+          }).catch(raced(root.id, /answered 400: .*bad_thread_root/)),
         );
       }
       await pause(1500);
     }
   };
-  // People 8 and 9 react, and take their reactions off again.
+  // Its reactors (8 and 9) and take their reactions off again.
   const reactor = async (person: number) => {
     const mine: { id: string; emoji: string }[] = [];
     while (running()) {
@@ -359,18 +387,22 @@ try {
         const message = pick(recent.filter((m) => talk.includes(m.channelId)));
         const emoji = pick(["👍", "🎉", "👀", "❤️"]);
         await act("react", async () => {
-          await call(
-            "PUT",
-            `/api/messages/${message.id}/reactions/${encodeURIComponent(emoji)}`,
-            people[person]!.token,
-          );
-          mine.push({ id: message.id, emoji });
+          try {
+            await call(
+              "PUT",
+              `/api/messages/${message.id}/reactions/${encodeURIComponent(emoji)}`,
+              people[person]!.token,
+            );
+            mine.push({ id: message.id, emoji });
+          } catch (error) {
+            raced(message.id, /answered 404: .*message_not_found/)(error);
+          }
         });
       }
       await pause(2000);
     }
   };
-  // Person 10 shares files, from 1 to 64 kB, and deletes the older ones.
+  // Its uploader (10) shares files, from 1 to 64 kB, and deletes the older ones.
   const uploader = async (person: number) => {
     while (running()) {
       const mine = recent.filter((m) => m.author === person && m.files > 0);
@@ -401,7 +433,7 @@ try {
       await pause(10_000);
     }
   };
-  // People 11 and 12 leave #drop-in and come back, saying something while in.
+  // Its roamers (11 and 12) leave #drop-in and come back, saying something while in.
   const roamer = async (person: number) => {
     while (running()) {
       await act("post", () => post(person, dropIn));
@@ -414,11 +446,11 @@ try {
       await pause(2000);
     }
   };
-  // Devices of people 2–12 drop and come back with what they missed.
-  const reconnector = async () => {
+  // One device of the block's people 2–12 drops and comes back with what it missed.
+  const reconnector = async (reconnectable: number[]) => {
     while (running()) {
       await pause(6000);
-      const person = 2 + Math.floor(random() * 11);
+      const person = pick(reconnectable);
       const device = devices[person]!;
       await act("reconnect", async () => {
         await closed(device);
@@ -427,14 +459,30 @@ try {
       });
     }
   };
-  // Person 13 signs in on another device, looks around and signs out.
-  const visitor = async (person: number) => {
-    while (running()) {
-      await act("sign in and out", async () => {
-        const { token } = await call<{ token: string }>("POST", "/api/auth/login", null, {
+  // Its visitor (13) signs in on another device, looks around and signs out.
+  // The visitors start spread over their cycle; one the server answers with
+  // auth_busy, because two others are deriving a password, waits its turn.
+  let signInWaits = 0;
+  const signIn = async (person: number) => {
+    for (;;) {
+      try {
+        return await call<{ token: string }>("POST", "/api/auth/login", null, {
           handle: people[person]!.handle,
           password: "password123",
         });
+      } catch (error) {
+        if (!(error instanceof Error && /answered 429: .*auth_busy/.test(error.message)))
+          throw error;
+        signInWaits++;
+        await sleep(250);
+      }
+    }
+  };
+  const visitor = async (person: number, startAfter: number) => {
+    await sleep(startAfter);
+    while (running()) {
+      await act("sign in and out", async () => {
+        const { token } = await signIn(person);
         const device = await connect(person, null, token);
         await call("GET", "/api/me", token);
         device.leaving = true;
@@ -444,7 +492,7 @@ try {
       await pause(20_000);
     }
   };
-  // People 14–16 hold a huddle in #standup: join, set up the calls between
+  // Its huddle cast (14–16) holds a huddle in its own channel (#standup for the first): join, set up the calls between
   // each pair, say what they send, and leave. No media flows.
   const waitFor = async (
     device: Device,
@@ -461,8 +509,7 @@ try {
       `no ${type} within 10 s; had ${JSON.stringify(device.ephemeral)} state ${device.ws.readyState}`,
     );
   };
-  const huddle = async () => {
-    const cast = HUDDLE_CAST;
+  const huddle = async (cast: number[], standup: string) => {
     let round = 0;
     while (running()) {
       await act("huddle", async () => {
@@ -488,9 +535,9 @@ try {
             }),
           );
         for (const [a, b] of [
-          [14, 15],
-          [14, 16],
-          [15, 16],
+          [cast[0]!, cast[1]!],
+          [cast[0]!, cast[2]!],
+          [cast[1]!, cast[2]!],
         ] as const) {
           signal(a, b, { kind: "offer", sdp: `v=0 offer ${"x".repeat(2000)}` });
           await waitFor(devices[b]!, "huddle.signal", (e) => e.from === people[a]!.id);
@@ -527,7 +574,7 @@ try {
       await pause(7000);
     }
   };
-  // Person 17 reads: a page of history, a thread, and a search.
+  // Its reader (17) reads: a page of history, a thread, and a search.
   const reader = async (person: number) => {
     const token = people[person]!.token;
     while (running()) {
@@ -657,17 +704,19 @@ try {
       await sample();
     }
   })();
+  // The first block's actors start in the order they always did.
+  const visitorCycle = 20_000 / params.rate;
   await Promise.all([
-    ...[2, 3, 4, 5, 6, 7].map(talker),
-    reactor(8),
-    reactor(9),
-    uploader(10),
-    roamer(11),
-    roamer(12),
-    reconnector(),
-    visitor(13),
-    huddle(),
-    reader(17),
+    ...cast.blocks.flatMap((block, b) => [
+      ...block.talkers.map(talker),
+      ...block.reactors.map(reactor),
+      uploader(block.uploader),
+      ...block.roamers.map(roamer),
+      reconnector(block.reconnectable),
+      visitor(block.visitor, (b * visitorCycle) / cast.blocks.length),
+      huddle(block.huddle, huddleChannels[b]!),
+      reader(block.reader),
+    ]),
     sampler,
   ]);
   // The last messages have had their time to arrive.
@@ -719,6 +768,8 @@ try {
   const failures = [...failed].map(([kind, f]) => ({ kind, ...f }));
   console.log(`  actions: ${JSON.stringify(Object.fromEntries(done))}`);
   console.log(`  failed: ${failures.length ? JSON.stringify(failures) : "none"}`);
+  console.log(`  sign-ins that had to wait: ${signInWaits}`);
+  console.log(`  replies and reactions that crossed a delete: ${racedDeletes}`);
   console.log(
     JSON.stringify({
       revision: revision(),
@@ -727,6 +778,8 @@ try {
       series,
       done: Object.fromEntries(done),
       failures,
+      signInWaits,
+      racedDeletes,
       samples,
     }),
   );
