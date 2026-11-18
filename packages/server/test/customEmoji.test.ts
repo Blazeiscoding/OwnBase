@@ -10,6 +10,7 @@ import {
   type CustomEmoji,
   type ServerToClient,
 } from "@ownbase/protocol";
+import { DURABLE_EVENTS } from "../src/events/registry.js";
 import { createWorkspaceServer, type WorkspaceServer } from "../src/server.js";
 
 /**
@@ -343,5 +344,26 @@ describe("a custom emoji as a reaction", () => {
     // Taking it off still works, though the emoji is gone.
     expect((await react(messageId, ":our-parrot:", "DELETE")).status).toBe(200);
     expect(server!.store.messages.get(messageId)!.reactions).toEqual([]);
+  });
+});
+
+describe("a custom emoji's reaction, as apps are told of it", () => {
+  const event = (emoji: string) =>
+    ({ channelId: "C1", messageId: "M1", emoji, userId: "U1" }) as const;
+
+  it("is its name without colons, as Slack sends it; any other reaction is as it was", () => {
+    const added = DURABLE_EVENTS["reaction.added"].app.slack({
+      type: "reaction.added",
+      ...event(":party-parrot:"),
+    });
+    const removed = DURABLE_EVENTS["reaction.removed"].app.slack({
+      type: "reaction.removed",
+      ...event(":party-parrot:"),
+    });
+    expect(added).toMatchObject({ type: "reaction_added", reaction: "party-parrot" });
+    expect(removed).toMatchObject({ type: "reaction_removed", reaction: "party-parrot" });
+    expect(
+      DURABLE_EVENTS["reaction.added"].app.slack({ type: "reaction.added", ...event("🎉") }),
+    ).toMatchObject({ reaction: "🎉" });
   });
 });

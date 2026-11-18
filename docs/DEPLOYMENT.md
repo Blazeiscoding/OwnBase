@@ -530,6 +530,21 @@ each recorded in the administrative record without the image, and
 `GET /api/workspace/icon` serves it to anyone, signed in or not, since the join
 screen shows it; asked for with `?v=<version>`, as clients do, it may be cached
 for a year, as a new picture has a new version.
+
+Custom emoji are kept in the database too, each picture in the `custom_emoji`
+table, so a backup and a restore carry them. A workspace holds up to 1,000. Each
+is a PNG, GIF or WebP of at most 256 KB and 256 pixels a side under a name of 1 to
+32 lowercase letters, digits, dashes or underscores that no standard emoji has.
+The app makes a larger still picture smaller before sending it; a GIF is sent as
+it is, since resizing it would stop it moving. The server checks the first bytes
+and never decodes or resizes a picture. Any member adds one unless
+**Workspace settings** keeps adding to admins; whoever added one, or an admin,
+removes it, and both are in the administrative record. Adding takes from the
+same upload allowance as files. Messages and reactions name an emoji as
+`:name:`, so removing one rewrites nothing: they show the name as text.
+`GET /api/emoji/<id>/picture` serves a picture to anyone signed in and may be
+cached for a year, since a name added again gets a new id. An animated picture
+plays as its file says, also when the device asks for reduced motion.
 `GET /api/health` checks the process and database. Docker's health status reports
 failures; the restart policy restarts exited processes, not merely unhealthy ones.
 
@@ -1870,8 +1885,7 @@ search finds imported words. History comes in read: nobody opens the workspace t
 thousands of unread messages.
 
 What does not: join and leave notices and notices of topic or name changes, which
-this app does not post; reactions with a custom emoji; and text past 12,000
-characters, which is cut there. Posts by bots and integrations stay, each under a
+this app does not post; and text past 12,000 characters, which is cut there. Posts by bots and integrations stay, each under a
 bot account named after the bot. Someone who wrote in a channel but is not in
 `users.json`, as happens with people from another organisation in a shared channel,
 comes in deactivated under the name their messages give. The summary at the end
@@ -1884,6 +1898,10 @@ upload, up to 100 MB each. A link stops working once the file, its channel or th
 Slack workspace is deleted, so fetch before closing Slack down. A file Slack will
 not give keeps its name and is counted.
 
+Slack's export has no pictures for a workspace's custom emoji, only their names.
+Reactions and words that use one keep its `:name:`, and the import lists the
+names. Add emoji under those names and the messages show them.
+
 The import reads a zip of up to 64 GB and 2 million files, up to 256 MB in one JSON
 file. About seven minutes per million messages on a recent desktop, more with
 `--fetch-files`. If anything fails, everything it made is removed and the error
@@ -1893,7 +1911,8 @@ names the file and field it could not read.
 
 `export` writes a workspace in Slack's export format: `users.json`,
 `channels.json`, and a folder of one JSON file per day for each channel. Tools that
-read Slack's exports read it, and `import-slack` reads it back, which is how to move
+read Slack's exports read it, and `import-slack` reads it back, custom emoji
+and their pictures included (`emoji.json` names each one under `emoji/`), which is how to move
 a workspace's history into a new one without its accounts, apps and settings. For a
 full copy of a workspace to restore, use `backup` or **Download a copy**.
 

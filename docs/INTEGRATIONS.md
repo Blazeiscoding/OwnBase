@@ -463,7 +463,7 @@ The events — _checked_:
 | `message.created`  | `message`               | `thread_ts` present for a reply                                    | `channels:history`, `groups:history`, `im:history`, `mpim:history` |
 | `message.updated`  | `message`               | `subtype: "message_changed"`, with the new `message`               | `channels:history`, `groups:history`, `im:history`, `mpim:history` |
 | `message.deleted`  | `message`               | `subtype: "message_deleted"`, with `deleted_ts`                    | `channels:history`, `groups:history`, `im:history`, `mpim:history` |
-| `reaction.added`   | `reaction_added`        | `reaction` is the emoji itself, not its name                       | `reactions:read`                                                   |
+| `reaction.added`   | `reaction_added`        | `reaction` is the emoji itself; a custom emoji's is its name       | `reactions:read`                                                   |
 | `reaction.removed` | `reaction_removed`      | As above                                                           | `reactions:read`                                                   |
 | `pin.added`        | `pin_added`             | —                                                                  | `pins:read`                                                        |
 | `pin.removed`      | `pin_removed`           | No `user`                                                          | `pins:read`                                                        |

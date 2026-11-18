@@ -140,7 +140,8 @@ describe("exporting a workspace", () => {
     expect(result.counts).toMatchObject({
       messages: 13,
       replies: 3,
-      reactions: 3,
+      // The custom emoji's reaction too, as its name both ways (J12).
+      reactions: 4,
       pins: 2,
       files: 1,
     });
@@ -222,5 +223,56 @@ describe("exporting a workspace", () => {
       exportWorkspace({ dataDir: join(root, "nowhere"), to: join(root, "x.zip") }),
     ).rejects.toThrow(/No workspace found/);
     expect(readdirSync(root).sort()).toEqual(["first", "slack.zip", "taken.zip"]);
+  });
+});
+
+describe("custom emoji in an export (J12)", () => {
+  /** A PNG's signature and header, which is all the server reads of one. */
+  const png = (side: number, fill: number) => {
+    const bytes = Buffer.alloc(64, fill);
+    Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]).copy(bytes, 0);
+    bytes.writeUInt32BE(13, 8);
+    bytes.write("IHDR", 12, "ascii");
+    bytes.writeUInt32BE(side, 16);
+    bytes.writeUInt32BE(side, 20);
+    return bytes;
+  };
+
+  it("carries each picture, which an import brings back, so reactions show it again", async () => {
+    const db = new DatabaseSync(join(first, "workspace.db"));
+    const picture = png(32, 7);
+    try {
+      const store = new Store(db);
+      const owner = store.people.list().find((u) => u.handle === "alice")!;
+      store.emoji.add("partyparrot", { type: "image/png", bytes: picture }, owner.id);
+    } finally {
+      db.close();
+    }
+
+    const zip = join(root, "with-emoji.zip");
+    const written = await exportWorkspace({ dataDir: first, to: zip, everything: true });
+    expect(written.emoji).toBe(1);
+    const entries = await readZipEntries(zip);
+    const listed = entries.find((e) => e.name === "emoji.json")!;
+    expect(JSON.parse((await readZipEntry(zip, listed)).toString("utf8"))).toEqual({
+      partyparrot: "emoji/partyparrot.png",
+    });
+    const kept = entries.find((e) => e.name === "emoji/partyparrot.png")!;
+    expect((await readZipEntry(zip, kept)).equals(picture)).toBe(true);
+
+    const second = join(root, "second");
+    const result = await importSlack({ from: zip, dataDir: second, owner: "alice" });
+    expect(result.counts.emoji).toBe(1);
+    // It has its picture now, so nothing is left to add.
+    expect(result.customEmoji).toEqual([]);
+    const again = new DatabaseSync(join(second, "workspace.db"));
+    try {
+      const store = new Store(again);
+      const [emoji] = store.emoji.list();
+      expect(emoji?.name).toBe("partyparrot");
+      expect(store.emoji.picture(emoji!.id)!.bytes.equals(picture)).toBe(true);
+    } finally {
+      again.close();
+    }
   });
 });

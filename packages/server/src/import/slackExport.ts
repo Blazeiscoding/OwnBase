@@ -38,9 +38,18 @@ export interface WorkspaceExportResult {
   directMessages: number;
   messages: number;
   files: number;
+  /** Custom emoji, each a picture under `emoji/` named in emoji.json (J12). */
+  emoji: number;
   bytes: number;
   skipped: { reason: string; count: number }[];
 }
+
+const emojiRow = shape({ name: "text", type: "text", bytes: "bytes" });
+const EMOJI_EXTENSIONS: Record<string, string> = {
+  "image/png": "png",
+  "image/gif": "gif",
+  "image/webp": "webp",
+};
 
 const userRow = shape({
   id: "text",
@@ -170,6 +179,7 @@ class Exporter {
     directMessages: 0,
     messages: 0,
     files: 0,
+    emoji: 0,
   };
   private handles = new Map<string, string>();
 
@@ -190,6 +200,29 @@ class Exporter {
     mkdirSync(dirname(path), { recursive: true });
     await writeFile(path, JSON.stringify(value, null, 1));
     this.json.push(name);
+  }
+
+  /**
+   * The workspace's own emoji (J12): each picture under `emoji/`, and
+   * emoji.json naming them, as Slack's emoji.list maps a name to its picture.
+   * Slack's export has neither; an import here reads them back.
+   */
+  private async writeEmoji(): Promise<void> {
+    const rows = emojiRow.all(
+      this.db.prepare("SELECT name, type, bytes FROM custom_emoji ORDER BY name"),
+    );
+    if (rows.length === 0) return;
+    const named: Record<string, string> = {};
+    for (const row of rows) {
+      const name = `emoji/${row.name}.${EMOJI_EXTENSIONS[row.type] ?? "png"}`;
+      const path = join(this.staging, name);
+      mkdirSync(dirname(path), { recursive: true });
+      await writeFile(path, row.bytes);
+      this.json.push(name);
+      named[row.name] = name;
+      this.result.emoji++;
+    }
+    await this.write("emoji.json", named);
   }
 
   async run() {
@@ -287,6 +320,7 @@ class Exporter {
       else this.result.channels++;
     }
     await this.write("channels.json", lists.channels);
+    await this.writeEmoji();
     if (this.everything) {
       await this.write("groups.json", lists.groups);
       await this.write("dms.json", lists.dms);

@@ -3,7 +3,10 @@ import { open, writeFile } from "node:fs/promises";
 import { join, resolve } from "node:path";
 import type { DatabaseSync } from "node:sqlite";
 import {
+  CUSTOM_EMOJI_MAX_BYTES,
+  CUSTOM_EMOJI_NAME,
   DEFAULT_WORKSPACE_NAME,
+  type CustomEmojiType,
   MESSAGE_TEXT_MAX,
   type ChannelType,
   type ID,
@@ -15,7 +18,8 @@ import { WORKSPACE_DATABASE, workspaceDatabase } from "../core/workspaceFile.js"
 import { openDb } from "../db.js";
 import { eventChannel, eventMessageId, writeEffects } from "../events/registry.js";
 import { secretToken, ulid } from "../ids.js";
-import { imageSize } from "../imageSize.js";
+import { checkedEmojiName, checkedEmojiPicture } from "../emoji/picture.js";
+import { imageSize, imageTypeOf } from "../imageSize.js";
 import { getFromUrl, OutboundError } from "../outbound.js";
 import { Store } from "../store.js";
 import { emojiForSlackName } from "./slackEmoji.js";
@@ -67,10 +71,21 @@ export interface SlackImportResult {
     files: number;
     reactions: number;
     pins: number;
+    /** Custom emoji with their pictures, from an export of this app (J12). */
+    emoji: number;
   };
   /** What was left out, and why, most first. */
   skipped: { reason: string; count: number }[];
+  /**
+   * Names of custom emoji the messages and reactions use that this workspace
+   * has no picture for (J12), by name. A Slack export carries no pictures, so
+   * they are kept as `:name:` and show once an emoji of that name is added.
+   */
+  customEmoji: string[];
 }
+
+/** A `:name:` in words, read as the app draws one: not against a letter, digit or colon. */
+const CUSTOM_EMOJI_TOKEN = /(?<![A-Za-z0-9:]):([a-z0-9_-]{1,32}):(?![A-Za-z0-9])/g;
 
 /** Messages written in one transaction, between which other work gets a turn. */
 const BATCH = 2000;
@@ -215,6 +230,7 @@ class SlackImport {
   private readonly channels = new Map<string, Conversation>();
   private readonly handles = new Set<string>();
   private readonly skipped = new Map<string, number>();
+  private readonly customNames = new Set<string>();
   private readonly counts: SlackImportResult["counts"] = {
     people: 0,
     bots: 0,
@@ -225,6 +241,7 @@ class SlackImport {
     files: 0,
     reactions: 0,
     pins: 0,
+    emoji: 0,
   };
   /** The one password hash everyone but the owner gets, of a secret thrown away at once. */
   private unknown!: { hash: string; salt: string };
@@ -244,6 +261,57 @@ class SlackImport {
 
   private skip(reason: string, count = 1): void {
     this.skipped.set(reason, (this.skipped.get(reason) ?? 0) + count);
+  }
+
+  /**
+   * The custom emoji an export of this app carries (J12): emoji.json names
+   * each picture in the zip. Slack's own export has none. Each is checked as
+   * one added in the app is, and kept as added by the owner.
+   */
+  private async addCustomEmoji(ownerId: ID): Promise<void> {
+    const listed = await this.zip.json("emoji.json");
+    if (listed === null) return;
+    if (typeof listed !== "object" || Array.isArray(listed))
+      throw new SlackFormatError("emoji.json is not a list of names and pictures.");
+    for (const [name, path] of Object.entries(listed)) {
+      const bytes =
+        typeof path === "string" ? await this.zip.bytes(path, CUSTOM_EMOJI_MAX_BYTES) : null;
+      const type = bytes ? imageTypeOf(bytes) : null;
+      let picture: { type: CustomEmojiType; bytes: Buffer } | null = null;
+      try {
+        if (bytes && type) picture = checkedEmojiPicture(bytes, type);
+        checkedEmojiName(name);
+      } catch {
+        picture = null;
+      }
+      if (!picture || this.store.emoji.has(name)) {
+        this.skip("custom emoji whose picture or name OwnBase cannot use");
+        continue;
+      }
+      this.store.transaction(() => this.store.emoji.add(name, picture, ownerId));
+      this.counts.emoji++;
+    }
+  }
+
+  /**
+   * A reaction as it is kept: the emoji a standard name stands for, or a
+   * custom emoji's `:name:`, the form reactions keep it in (J12); null for a
+   * name no custom emoji could have.
+   */
+  private reactionEmoji(name: string): string | null {
+    const standard = emojiForSlackName(name);
+    if (standard) return standard;
+    if (!CUSTOM_EMOJI_NAME.test(name)) return null;
+    if (!this.store.emoji.has(name)) this.customNames.add(name);
+    return `:${name}:`;
+  }
+
+  /** Notes the custom emoji a message's words name, outside code, that have no picture yet. */
+  private noteCustomEmoji(text: string): void {
+    const words = text.replace(/```[\s\S]*?```|`[^`\n]*`|<[^<>\n]*>/g, " ");
+    for (const [, name] of words.matchAll(CUSTOM_EMOJI_TOKEN))
+      if (emojiForSlackName(name!) === null && !this.store.emoji.has(name!))
+        this.customNames.add(name!);
   }
 
   async run(): Promise<SlackImportResult> {
@@ -295,6 +363,8 @@ class SlackImport {
       return ownerId;
     });
 
+    await this.addCustomEmoji(ownerId);
+
     const named = new Set([...this.channels.values()].flatMap((c) => c.folders));
     const folders = this.zip.dayFolders();
     for (const folder of folders.keys())
@@ -332,6 +402,7 @@ class SlackImport {
       skipped: [...this.skipped]
         .map(([reason, count]) => ({ reason, count }))
         .sort((a, b) => b.count - a.count),
+      customEmoji: [...this.customNames].sort(),
     };
   }
 
@@ -671,6 +742,7 @@ class SlackImport {
         `message text past ${MESSAGE_TEXT_MAX.toLocaleString("en-US")} characters (the rest was cut)`,
       );
     }
+    this.noteCustomEmoji(text);
     const stored = files?.stored ?? [];
     if (!text.trim() && stored.length === 0) {
       this.skip("messages with nothing left to show");
@@ -700,9 +772,9 @@ class SlackImport {
     // order in its list and no times, so each is a millisecond after the last.
     let reacted = createdAt;
     for (const reaction of message.reactions ?? []) {
-      const emoji = emojiForSlackName(reaction.name);
+      const emoji = this.reactionEmoji(reaction.name);
       if (!emoji) {
-        this.skip("reactions with a custom emoji");
+        this.skip("reactions with an emoji name OwnBase cannot keep");
         continue;
       }
       for (const slackId of reaction.users ?? []) {

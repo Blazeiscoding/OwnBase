@@ -243,6 +243,28 @@ describe("backup and restore", () => {
     expect(new Uint8Array(await blob.arrayBuffer())).toEqual(new Uint8Array([1, 2, 3, 4, 5]));
   });
 
+  it("keeps custom emoji and their pictures, which live in the database (J12)", async () => {
+    const world = await populate();
+    const owner = server!.store.people.list().find((u) => u.handle === "owner")!;
+    const picture = Buffer.concat([
+      Buffer.from("GIF89a", "ascii"),
+      Buffer.from([16, 0, 16, 0]),
+      Buffer.alloc(22),
+    ]);
+    const emoji = server!.store.emoji.add("kept", { type: "image/gif", bytes: picture }, owner.id);
+    const out = join(root, "backup");
+    await server!.stop();
+    await backupWorkspace({ dataDir, out });
+    rmSync(dataDir, { recursive: true, force: true });
+    await restoreWorkspace({ backupDir: out, dataDir });
+    await start();
+    expect(server!.store.emoji.list()).toEqual([emoji]);
+    const served = await fetch(`${base}/api/emoji/${emoji.id}/picture`, {
+      headers: { authorization: `Bearer ${world.guest.token}` },
+    });
+    expect(Buffer.from(await served.arrayBuffer()).equals(picture)).toBe(true);
+  });
+
   it("refuses a damaged backup before touching the workspace", async () => {
     await populate();
     const out = join(root, "backup");

@@ -104,6 +104,13 @@ export class SlackExportZip {
     }
   }
 
+  /** A small file of the export, whole, or null when it is missing or over `maxBytes`. */
+  async bytes(name: string, maxBytes: number): Promise<Buffer | null> {
+    const entry = this.find(name);
+    if (!entry || entry.size > maxBytes) return null;
+    return readZipEntry(this.path, entry);
+  }
+
   /** The size of a file in the export, or null when there is none by that name. */
   size(name: string): number | null {
     return this.find(name)?.size ?? null;

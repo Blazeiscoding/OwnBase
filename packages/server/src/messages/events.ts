@@ -1,5 +1,8 @@
-import type { Message } from "@ownbase/protocol";
+import { customEmojiName, type Message } from "@ownbase/protocol";
 import type { DurableRegistry, EphemeralRegistry } from "../events/registry.js";
+
+/** A reaction as apps are sent it: a custom emoji's bare name, as Slack's; any other as it is. */
+const reactionForApps = (emoji: string) => customEmojiName(emoji) ?? emoji;
 
 const slackPosted = (m: Message) => ({
   type: "message",
@@ -107,8 +110,9 @@ export const messageDurable = {
       slack: (event) => ({
         type: "reaction_added",
         user: event.userId,
-        // Slack sends the name without colons; ours is the emoji itself.
-        reaction: event.emoji,
+        // Slack sends the name without colons. Ours is the emoji itself, but
+        // for a custom emoji, which goes as Slack's name for it (J12).
+        reaction: reactionForApps(event.emoji),
         item: { type: "message", channel: event.channelId, ts: event.messageId },
       }),
     },
@@ -120,7 +124,7 @@ export const messageDurable = {
       slack: (event) => ({
         type: "reaction_removed",
         user: event.userId,
-        reaction: event.emoji,
+        reaction: reactionForApps(event.emoji),
         item: { type: "message", channel: event.channelId, ts: event.messageId },
       }),
     },

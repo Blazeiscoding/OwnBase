@@ -1,3 +1,4 @@
+import { customEmojiName } from "@ownbase/protocol";
 import table from "./slackEmoji.json";
 
 /**
@@ -27,8 +28,13 @@ export function emojiForSlackName(name: string): string | null {
 
 let byEmoji: Map<string, string> | null = null;
 
-/** The name Slack would give a reaction: its first shortcode, or the emoji itself when it has none. */
+/**
+ * The name Slack would give a reaction: its first shortcode, a custom
+ * emoji's name without its colons (J12), or the emoji itself when it has none.
+ */
 export function slackNameForEmoji(emoji: string): string {
+  const custom = customEmojiName(emoji);
+  if (custom !== null) return custom;
   if (!byEmoji) {
     // The shortcodes come before the other names, so each emoji keeps its first.
     byEmoji = new Map();

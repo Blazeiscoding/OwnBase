@@ -247,6 +247,7 @@ that number, the owner and admins see a notice. It never locks anyone out. See
 - Public and private channels, DMs and group DMs, and threads you can follow or
   mute.
 - Reactions, mentions, pins and saved items.
+- The workspace's own emoji, in messages and as reactions.
 - Forwarding, polls, and reminders about a message.
 - Link previews, and a card for a link to another message.
 - Typing indicators, presence and unread tracking.
