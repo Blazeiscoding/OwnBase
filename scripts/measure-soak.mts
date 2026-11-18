@@ -16,6 +16,8 @@
  * did, and 200 is ten blocks. The visitors' sign-ins are spread over their
  * cycle, and one the server answers with auth_busy (it derives two passwords
  * at a time) waits and tries again, counted as a sign-in that had to wait.
+ * A reply or reaction to a message this script deleted while the request was
+ * on its way is refused, rightly; it is counted as a race, not a failure.
  *
  * Every `--sample-seconds` (a minute by default) it prints one line: the
  * server's resident memory, heap after a full collection, handles it holds
@@ -303,7 +305,16 @@ try {
     recent.push(posted);
     if (recent.length > 300) recent.splice(0, recent.length - 300);
   };
+  // What this script deleted, so a reply or reaction that crossed the delete
+  // on the way (other blocks act on the same messages) is told from a fault.
+  const deleted = new Set<string>();
+  let racedDeletes = 0;
+  const raced = (id: string, refusal: RegExp) => (error: unknown) => {
+    if (!(deleted.has(id) && error instanceof Error && refusal.test(error.message))) throw error;
+    racedDeletes++;
+  };
   const forget = (id: string) => {
+    deleted.add(id);
     const at = recent.findIndex((m) => m.id === id);
     if (at >= 0) recent.splice(at, 1);
   };
@@ -350,7 +361,7 @@ try {
           call("POST", `/api/channels/${root.channelId}/messages`, people[person]!.token, {
             text: `${sentence(8)} in reply`,
             threadRootId: root.id,
-          }),
+          }).catch(raced(root.id, /answered 400: .*bad_thread_root/)),
         );
       }
       await pause(1500);
@@ -376,12 +387,16 @@ try {
         const message = pick(recent.filter((m) => talk.includes(m.channelId)));
         const emoji = pick(["👍", "🎉", "👀", "❤️"]);
         await act("react", async () => {
-          await call(
-            "PUT",
-            `/api/messages/${message.id}/reactions/${encodeURIComponent(emoji)}`,
-            people[person]!.token,
-          );
-          mine.push({ id: message.id, emoji });
+          try {
+            await call(
+              "PUT",
+              `/api/messages/${message.id}/reactions/${encodeURIComponent(emoji)}`,
+              people[person]!.token,
+            );
+            mine.push({ id: message.id, emoji });
+          } catch (error) {
+            raced(message.id, /answered 404: .*message_not_found/)(error);
+          }
         });
       }
       await pause(2000);
@@ -754,6 +769,7 @@ try {
   console.log(`  actions: ${JSON.stringify(Object.fromEntries(done))}`);
   console.log(`  failed: ${failures.length ? JSON.stringify(failures) : "none"}`);
   console.log(`  sign-ins that had to wait: ${signInWaits}`);
+  console.log(`  replies and reactions that crossed a delete: ${racedDeletes}`);
   console.log(
     JSON.stringify({
       revision: revision(),
@@ -763,6 +779,7 @@ try {
       done: Object.fromEntries(done),
       failures,
       signInWaits,
+      racedDeletes,
       samples,
     }),
   );
