@@ -99,6 +99,7 @@ import { appMenuTemplate } from "./appMenu.js";
 import { readerLocale, systemHourCycle } from "./regionalFormat.js";
 import { DOWNLOAD_PAGE, HOUR_MS, Updates } from "./updates.js";
 import { WindowQuestions } from "./windowQuestions.js";
+import { appLog, logTail, serverLogStream, uncaughtMonitor } from "./appLog.js";
 import { latestOnR2, updateLog, windowsFeed } from "./updateFeed.js";
 
 /** Set when the Release workflow built this copy (electron.vite.config.ts). */
@@ -111,6 +112,13 @@ app.setName("OwnBase");
 // Settings, credentials and hosted databases live in %APPDATA%\OwnBase (and
 // the same under ~/Library/Application Support and ~/.config).
 app.setPath("userData", appEnv("USER_DATA_DIR") ?? join(app.getPath("appData"), "OwnBase"));
+/**
+ * What fails in the main process, and a hosted workspace's warnings, in
+ * ownbase.log beside the settings: a packaged app has no console to show them.
+ */
+const log = appLog(join(app.getPath("userData"), "ownbase.log"));
+// Sees an uncaught exception and writes it down; handles nothing, so a crash looks as it always has.
+process.on("uncaughtExceptionMonitor", uncaughtMonitor(log));
 let mainWindow: BrowserWindow | null = null;
 let tray: Tray | null = null;
 /** The app's own page, as the main window loads it. */
@@ -303,7 +311,7 @@ let pageLocale: string | null = null;
 /** A setting the main process keeps for the window itself; a failure costs only that setting. */
 function keepWindowSetting(key: string, value: unknown): void {
   void ownSettings.set(key, value).catch((error: unknown) => {
-    console.error(`OwnBase: could not save ${key}.`, error);
+    void log.error(`OwnBase: could not save ${key}.`, error);
   });
 }
 
@@ -438,6 +446,7 @@ const hosting = createHostingService({
   settings: ownSettings,
   credentials: credentialProtector,
   dataRoot: join(app.getPath("userData"), "hosted"),
+  serverLog: () => serverLogStream(log.write),
   cloudflaredFolder: join(app.getPath("userData"), "cloudflared"),
   webDistPath: app.isPackaged
     ? join(process.resourcesPath, "web")
@@ -550,6 +559,7 @@ const followedSessions = new WeakSet<Session>();
 // ---------- every call the window makes ----------
 
 const handlers: Handlers<IpcMainInvokeEvent> = {
+  "diagnostics:logTail": () => logTail(log.path, 50),
   "file:download": (_event, value) => {
     if (!mainWindow) throw new Error("Invalid download request");
     mainWindow.webContents.downloadURL(ticketDownloadUrl(value));
@@ -1100,7 +1110,7 @@ function createWindow(): void {
       openLink: (url) => void shell.openExternal(url),
       copyText: (text) =>
         void clipboard.writeText(text).catch((error: unknown) => {
-          console.error("OwnBase: could not copy to the clipboard.", error);
+          void log.error("OwnBase: could not copy to the clipboard.", error);
         }),
       copyImageAt: (x, y) => win.webContents.copyImageAt(x, y),
     });
@@ -1163,12 +1173,12 @@ function createWindow(): void {
   };
   win.webContents.on("render-process-gone", (_event, details) => {
     if (details.reason === "clean-exit") return;
-    console.error(`OwnBase: the window's page stopped (${details.reason}).`);
+    void log.error(`OwnBase: the window's page stopped (${details.reason}).`);
     void recover("The window crashed.", false);
   });
   win.webContents.on("did-fail-load", (_event, code, description, _url, isMainFrame) => {
     if (!isRendererLoadFailure(code, isMainFrame)) return;
-    console.error(`OwnBase: the window could not load (${description}).`);
+    void log.error(`OwnBase: the window could not load (${description}).`);
     void recover(`The window could not load (${description}).`, true);
   });
 

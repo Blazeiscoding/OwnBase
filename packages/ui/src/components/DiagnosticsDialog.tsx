@@ -6,6 +6,7 @@ import { failureMessage } from "../platform.js";
 import { CALL_LOG_HEADING, diagnosticsFileName, diagnosticsReport } from "../lib/diagnostics.js";
 import { useCopy } from "../lib/useCopy.js";
 import { saveText } from "../lib/download.js";
+import { bugReportUrl, reportSystem, reportVersion, reportWhere } from "../lib/reportProblem.js";
 import { Dialog } from "./Dialog.js";
 import { Swap } from "./Motion.js";
 import { buttonClass } from "./Button.js";
@@ -54,6 +55,7 @@ export function DiagnosticsDialog({
       server: ServerInfo | Failed,
       workspace?: WorkspaceStatus | Failed,
       calls?: CallLogEntry[] | Failed,
+      appLog?: string[],
     ) => {
       const { status, huddle, pending, users, channels } = client.state;
       const taken = new Date();
@@ -80,6 +82,7 @@ export function DiagnosticsDialog({
           workspace,
           callLog: client.callLog(),
           calls,
+          appLog,
           // Handles, which say who is who in a call without a full name.
           names: {
             person: (id) => (users[id] ? `@${users[id].handle}` : id),
@@ -96,7 +99,13 @@ export function DiagnosticsDialog({
       client.serverInfo().then((info) => (info instanceof ApiError ? failure(info) : info)),
       admin ? client.admin.workspaceStatus().then(orWhy) : undefined,
       admin ? client.admin.callLog().then(orWhy) : undefined,
-    ]).then(([server, workspace, calls]) => alive && take(server, workspace, calls));
+      // The desktop app's own log; a log that cannot be read says so in its place.
+      platform
+        .appLogTail?.()
+        .catch((error: unknown) => [`Could not read it: ${failureMessage(error, "no answer")}`]),
+    ]).then(
+      ([server, workspace, calls, appLog]) => alive && take(server, workspace, calls, appLog),
+    );
     return () => {
       alive = false;
     };
@@ -134,12 +143,33 @@ export function DiagnosticsDialog({
           {admin ? "Asking the server how it is doing…" : "Asking the server for its version…"}
         </p>
       )}
+      {report && (
+        <p className="mt-3 text-xs text-ink-dim">
+          Report a problem opens the project's bug form on GitHub with the version and system filled
+          in. If you are happy to share it, paste the copied report into the form too: it names this
+          workspace's address and people by username, and the form is public.
+        </p>
+      )}
       {saved && (
         <p role="status" className="mt-3 text-xs text-ink-dim">
           Saving as {saved}. Look in your downloads folder, or in the save dialog if one opened.
         </p>
       )}
-      <div className="mt-4 flex justify-end gap-2">
+      <div className="mt-4 flex flex-wrap justify-end gap-2">
+        {report && (
+          <a
+            className={`${buttonClass("secondary")} mr-auto`}
+            href={bugReportUrl({
+              version: reportVersion(report.text),
+              where: reportWhere(platform.kind, navigator.userAgent),
+              system: reportSystem(platform.kind, navigator.userAgent),
+            })}
+            target="_blank"
+            rel="noreferrer"
+          >
+            Report a problem
+          </a>
+        )}
         <button
           className={buttonClass("secondary")}
           disabled={!report}

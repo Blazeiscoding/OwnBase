@@ -168,6 +168,7 @@ describe("the account menu", () => {
       "Scheduled messages",
       "Keyboard shortcutsCtrl/",
       "Diagnostics",
+      "Report a problem",
       // Where people look for it, not only at the foot of Settings > Security.
       "Sign out",
     ]);
@@ -264,6 +265,7 @@ describe("the account menu", () => {
       // The keys that open the sheet too, drawn after its name and said apart from it.
       "Keyboard shortcutsCtrl/",
       "Diagnostics",
+      "Report a problem",
       "Sign out",
     ]);
     expect(screen.getByRole("menuitem", { name: "Keyboard shortcuts" })).toHaveAttribute(
@@ -280,6 +282,16 @@ describe("the account menu", () => {
       "shortcuts",
       "diagnostics",
     ]);
+  });
+
+  it("reports a problem by opening diagnostics, whose report holds the version the form asks for", async () => {
+    const client = new WorkspaceClient("http://127.0.0.1:9", "test-token-not-a-credential");
+    client.store.setState({ self: sam, users: { U_SAM: sam }, status: "online" });
+    const { navigation } = renderPart(client, <Sidebar />);
+    const user = userEvent.setup();
+    await accountMenu(user);
+    await user.click(screen.getByRole("menuitem", { name: "Report a problem" }));
+    expect(navigation.store.getState().dialog.kind).toBe("diagnostics");
   });
 });
 

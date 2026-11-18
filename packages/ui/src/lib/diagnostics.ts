@@ -39,8 +39,13 @@ export interface DiagnosticsInput {
   calls?: CallLogEntry[] | { error: string };
   /** How a person or conversation is named in the call logs. */
   names?: { person: (id: string) => string; conversation: (id: string) => string };
+  /** The desktop app's own log, its last lines; the browser has none. */
+  appLog?: string[];
   now: Date;
 }
+
+/** Where the desktop app's own log starts in a report. */
+export const APP_LOG_HEADING = "App log (ownbase.log, times in UTC)";
 
 /**
  * A plain-text report for whoever helps when something is wrong: versions,
@@ -71,6 +76,9 @@ export function diagnosticsReport(input: DiagnosticsInput): string {
     ...(input.workspace ? ["", ...workspaceLines(input.workspace, input.now.getTime())] : []),
     ...(input.callLog?.length ? ["", ...callLogLines(input.callLog, names(input))] : []),
     ...(input.calls ? ["", ...serverCallLines(input.calls, names(input))] : []),
+    ...(input.appLog
+      ? ["", APP_LOG_HEADING, ...(input.appLog.length ? input.appLog : ["Nothing written yet."])]
+      : []),
   ].join("\n");
 }
 

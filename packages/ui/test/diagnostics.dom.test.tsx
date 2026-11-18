@@ -385,6 +385,8 @@ describe("the diagnostics dialog", () => {
     answer: () => Promise<WorkspaceStatus> = () => new Promise(() => {}),
     /** Runs before the dialog opens and asks for anything. */
     setup?: (client: WorkspaceClient, calls: ReturnType<typeof vi.spyOn>) => void,
+    /** What the platform adds, such as the desktop app's log. */
+    more: Partial<Platform> = {},
   ) {
     const client = new WorkspaceClient("http://127.0.0.1:9", "test-token-not-a-credential");
     client.store.setState({ self, users: { [self.id]: self }, status: "online" });
@@ -396,6 +398,7 @@ describe("the diagnostics dialog", () => {
       kind: "web",
       storage: { get: async () => null, set: async () => {} },
       notify: () => {},
+      ...more,
     };
     render(
       <PlatformContext.Provider value={platform}>
@@ -542,6 +545,55 @@ describe("the diagnostics dialog", () => {
     expect(blob.type).toBe("text/plain;charset=utf-8");
     expect(await blob.text()).toBe(report.textContent);
     expect(screen.getByRole("status")).toHaveTextContent(`Saving as ${download}.`);
+  });
+
+  it("ends with the desktop app's log, last lines last", async () => {
+    open(sam, undefined, undefined, {
+      kind: "desktop",
+      appLogTail: async () => [
+        "2026-11-18T10:00:00.000Z OwnBase: could not save theme. Error: disk full",
+        '2026-11-18T10:00:01.000Z server: {"level":40,"msg":"backup is late"}',
+      ],
+    });
+    const report = await screen.findByLabelText("Diagnostics report");
+    const text = report.textContent!;
+    expect(text).toContain("\nApp log (ownbase.log, times in UTC)\n");
+    expect(text.indexOf("could not save theme")).toBeLessThan(text.indexOf("backup is late"));
+    expect(text.trimEnd().endsWith('backup is late"}')).toBe(true);
+  });
+
+  it("says when the app's log is empty", async () => {
+    open(sam, undefined, undefined, { kind: "desktop", appLogTail: async () => [] });
+    expect(await screen.findByLabelText("Diagnostics report")).toHaveTextContent(
+      "App log (ownbase.log, times in UTC) Nothing written yet.",
+    );
+  });
+
+  it("has no app log in the browser", async () => {
+    open(sam);
+    expect(await screen.findByLabelText("Diagnostics report")).not.toHaveTextContent("App log");
+  });
+
+  it("links to the bug form with the version, place and system filled, and not the report", async () => {
+    open(sam);
+    const report = await screen.findByLabelText("Diagnostics report");
+    const link = screen.getByRole("link", { name: "Report a problem" });
+    expect(link).toHaveAttribute("target", "_blank");
+    expect(link).toHaveAttribute("rel", "noreferrer");
+    const url = new URL(link.getAttribute("href")!);
+    expect(`${url.origin}${url.pathname}`).toBe(
+      "https://github.com/Blazeiscoding/OwnBase/issues/new",
+    );
+    const serverLine = report.textContent!.split("\n").find((l) => l.startsWith("Server: "));
+    expect(serverLine).toMatch(/^Server: v0\.4\.2, protocol 2/);
+    expect(url.searchParams.get("version")).toBe(serverLine);
+    expect(url.searchParams.get("where")).toBe("In a web browser");
+    expect(url.searchParams.get("system")).toBeTruthy();
+    // The workspace's address and people stay out of the link.
+    expect(link.getAttribute("href")).not.toContain("127.0.0.1");
+    expect(link.getAttribute("href")).not.toContain("sam");
+    expect(screen.getByText(/paste the copied report/i)).toBeVisible();
+    expect(await accessibilityProblems(screen.getByRole("dialog"))).toEqual([]);
   });
 });
 

@@ -112,6 +112,8 @@ export interface HostingServiceOptions {
   onChange(): void;
   /** Starts a workspace's server; tests replace it. */
   createServer?: typeof createWorkspaceServer;
+  /** A stream for a hosted server's log (`serverLogStream` in appLog.ts), one per server. */
+  serverLog?(): NodeJS.WritableStream;
 }
 
 /** This computer's own IPv4 addresses with `port`, as teammates on its network reach it. */
@@ -214,6 +216,7 @@ export function createHostingService(options: HostingServiceOptions) {
         savedRelay,
         relayServers,
         publicAddressConfigured: () => stableAddress(addressConfig.get()) !== null,
+        ...(options.serverLog ? { serverLog: options.serverLog } : {}),
       }),
     verifyLoopback: async (port, instanceId) =>
       // Only a reply from something that is not this run proves the port leads
