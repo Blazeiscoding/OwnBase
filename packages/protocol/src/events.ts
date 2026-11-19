@@ -14,6 +14,7 @@ import type {
   Reminder,
   ServerNotice,
   SidebarSection,
+  UserGroup,
 } from "./entities.js";
 import type { HuddleRing, HuddleSignal } from "./huddle.js";
 import type { MemberNotice } from "./plan.js";
@@ -109,6 +110,12 @@ export type EphemeralEvent =
   | { type: "emoji.removed"; id: ID; name: string }
   /** Adding custom emoji was kept to admins, or opened to members again. */
   | { type: "workspace.emojiAdding"; adminsOnly: boolean }
+  /**
+   * A user group was made, or its handle, name, description or people
+   * changed (J13). Told to everyone signed in but guests, who see none.
+   */
+  | { type: "userGroup.saved"; group: UserGroup }
+  | { type: "userGroup.deleted"; id: ID }
   /** Private to one user's own sockets, so their devices stay in step. */
   | { type: "saved"; messageId: ID; saved: boolean }
   /** This user's follow state for one thread, so their devices stay in step. */
@@ -262,6 +269,8 @@ export interface ReadySnapshot {
   customEmoji: CustomEmoji[];
   /** Whether only the owner and admins may add custom emoji. */
   emojiAddingAdminsOnly: boolean;
+  /** The workspace's user groups with who is in each (J13); none for a guest. */
+  userGroups: UserGroup[];
   workspaceName: string;
   /** Stable across address/name changes and backup restores. */
   workspaceId: ID;

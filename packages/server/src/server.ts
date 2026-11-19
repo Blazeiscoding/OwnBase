@@ -40,6 +40,7 @@ import { registerReminders } from "./reminders/feature.js";
 import { registerPush } from "./push/feature.js";
 import { createRouter } from "./route.js";
 import { registerEmoji } from "./emoji/feature.js";
+import { registerGroups } from "./groups/feature.js";
 import { registerSaved } from "./saved/feature.js";
 import { registerScheduled } from "./scheduled/feature.js";
 import { registerSearch } from "./search/feature.js";
@@ -345,6 +346,7 @@ async function startWorkspaceServer(
   const scheduledMessages = registerScheduled(ctx, { posting });
   const saved = registerSaved(ctx);
   const emoji = registerEmoji(ctx);
+  const groups = registerGroups(ctx);
   registerSearch(ctx);
   const push = registerPush(ctx);
   const reminders = registerReminders(ctx, { reminderDue: push.reminderDue });
@@ -358,6 +360,7 @@ async function startWorkspaceServer(
     ...people.snapshot(user),
     ...workspace.snapshot(user),
     ...emoji.snapshot(),
+    ...groups.snapshot(user),
   }));
 
   await registerExtensions(ctx, { accounts });

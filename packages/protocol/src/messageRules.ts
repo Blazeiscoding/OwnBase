@@ -1,5 +1,5 @@
 import type { ID, Message, User } from "./entities.js";
-import { userMentionsIn } from "./format.js";
+import { groupMentionsIn, userMentionsIn } from "./format.js";
 import { isAdministrator } from "./permissions.js";
 
 /** Why a message cannot be edited by someone, as the server's refusal names it. */
@@ -29,12 +29,18 @@ export function canDeleteMessage(
 }
 
 /**
- * Whether a message names someone: a mention of them, or a reply that chose
- * to notify the author of what it answers, as Discord marks both.
+ * Whether a message names someone: a mention of them or of a group they are
+ * in (`groupIds`, their groups as they are now), or a reply that chose to
+ * notify the author of what it answers, as Discord marks both.
  */
-export function namesUser(message: Pick<Message, "text" | "replyTo">, userId: ID): boolean {
-  return (
-    userMentionsIn(message.text).has(userId) ||
-    (message.replyTo?.ping === true && message.replyTo.userId === userId)
-  );
+export function namesUser(
+  message: Pick<Message, "text" | "replyTo">,
+  userId: ID,
+  groupIds: readonly ID[],
+): boolean {
+  if (userMentionsIn(message.text).has(userId)) return true;
+  if (message.replyTo?.ping === true && message.replyTo.userId === userId) return true;
+  if (groupIds.length === 0) return false;
+  const named = groupMentionsIn(message.text);
+  return groupIds.some((id) => named.has(id));
 }

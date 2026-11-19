@@ -139,6 +139,24 @@ describe("provisioning as Okta does it", () => {
     active: true,
   };
 
+  it("gives someone it makes a handle no user group has (J13)", async () => {
+    await start();
+    const { owner } = await people();
+    const token = await makeToken(owner);
+    expect(
+      (await call("/api/admin/groups", owner.token, { handle: "test.user", name: "Testers" }))
+        .status,
+    ).toBe(201);
+    const made = await scim(token, "POST", "/Users", created);
+    expect(made.status).toBe(201);
+    expect(made.data.userName).toBe("test.user@okta.local");
+    expect(
+      (await call("/api/admin/users", owner.token, undefined, "GET")).data.users.map(
+        (u: { handle: string }) => u.handle,
+      ),
+    ).toContain("test.user-2");
+  });
+
   it("checks, creates, reads, replaces, deactivates and reactivates a person", async () => {
     await start();
     const { owner } = await people();

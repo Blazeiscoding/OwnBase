@@ -304,6 +304,8 @@ describe("self-hosted product", () => {
           INSERT INTO messages_fts(rowid, text) VALUES (new.rowid, new.text);
         END;
       `);
+      db.exec("DROP TABLE user_group_members");
+      db.exec("DROP TABLE user_groups");
       db.exec("DROP TABLE custom_emoji");
       db.exec("DROP TABLE push_subscriptions");
       db.exec("DROP TABLE channel_removals");

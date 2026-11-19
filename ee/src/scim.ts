@@ -410,9 +410,8 @@ export function provisioning(opts: { licensed: () => boolean; now?: () => number
         user = context!.users.get(returning.id)!;
         before = returning.stored;
       } else {
-        const handle = handleFrom(
-          userName.split("@")[0] || displayNameFrom(sent),
-          (h) => !!context!.users.byHandle(h),
+        const handle = handleFrom(userName.split("@")[0] || displayNameFrom(sent), (h) =>
+          context!.users.handleTaken(h),
         );
         try {
           user = await context!.users.create({

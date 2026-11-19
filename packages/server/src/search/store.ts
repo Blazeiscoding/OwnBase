@@ -1,7 +1,7 @@
 import type { ID, Message, ParsedSearch } from "@ownbase/protocol";
 import { FILE_TYPE_MATCH } from "@ownbase/protocol";
 import type { DatabaseSync } from "node:sqlite";
-import { MENTIONS_ME, NAMES_ME, NOT_BLOCKED, UNREAD } from "../core/sqlRules.js";
+import { NAMES_ME, NOT_BLOCKED, UNREAD } from "../core/sqlRules.js";
 import { countOf, shape } from "../core/rows.js";
 import { messageRow } from "../messages/store.js";
 import type { Store } from "../store.js";
@@ -27,11 +27,13 @@ export class SearchStore {
       // naming this account; the rest of a thread is its own to open.
       conditions.push(
         UNREAD,
-        `(m.thread_root_id IS NULL OR m.broadcast = 1 OR ${MENTIONS_ME} OR EXISTS (
+        `(m.thread_root_id IS NULL OR m.broadcast = 1 OR EXISTS (
+          SELECT 1 FROM message_mentions mm WHERE mm.message_id = m.id AND ${NAMES_ME}
+        ) OR EXISTS (
           SELECT 1 FROM thread_follows tf
           WHERE tf.user_id = cm.user_id AND tf.root_id = m.thread_root_id AND tf.following = 1))`,
       );
-      params.push(`<@${userId}>`);
+      params.push(userId);
     } else if (opts.mode === "threads") {
       // Unread replies in the threads this account follows.
       conditions.push(

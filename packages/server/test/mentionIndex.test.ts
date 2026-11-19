@@ -5,7 +5,7 @@ import { join } from "node:path";
 import type { DatabaseSync } from "node:sqlite";
 import { openDb, openDbAtVersion } from "../src/db.js";
 import { Store } from "../src/store.js";
-import { MENTIONS_ME, UNREAD } from "../src/core/sqlRules.js";
+import { UNREAD } from "../src/core/sqlRules.js";
 
 /**
  * Unread mention counts and the Activity mentions list are read from
@@ -15,6 +15,15 @@ import { MENTIONS_ME, UNREAD } from "../src/core/sqlRules.js";
  * `<!here>`, `<!channel>` or `<!everyone>`, which counts in a channel but not
  * in a DM.
  */
+
+/**
+ * "This message mentions me" read from the text, as the server read it before
+ * v31 and Activity's unread list until J13: a direct mention anywhere, a
+ * room-wide one only in a room, and a reply that notified the author of what
+ * it answers, beside `channel_members cm`.
+ */
+const MENTIONS_ME =
+  "(instr(m.text, ?) > 0 OR (c.type IN ('public', 'private') AND (instr(m.text, '<!channel>') > 0 OR instr(m.text, '<!here>') > 0 OR instr(m.text, '<!everyone>') > 0)) OR (m.reply_ping = 1 AND EXISTS (SELECT 1 FROM messages q WHERE q.id = m.reply_to_id AND q.user_id = cm.user_id)))";
 
 /** The count straight from the text, as it was computed before v31. */
 function countsFromText(db: DatabaseSync, userId: string): Record<string, number> {

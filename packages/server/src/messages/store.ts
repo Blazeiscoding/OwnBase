@@ -9,7 +9,13 @@ import type {
   ReactionGroup,
   ReplyReference,
 } from "@ownbase/protocol";
-import { broadcastsIn, isRoom, replyExcerpt, userMentionsIn } from "@ownbase/protocol";
+import {
+  broadcastsIn,
+  groupMentionsIn,
+  isRoom,
+  replyExcerpt,
+  userMentionsIn,
+} from "@ownbase/protocol";
 import type { DatabaseSync } from "node:sqlite";
 import { shape, type RowOf } from "../core/rows.js";
 import { IN_CHANNEL_TIMELINE } from "../core/sqlRules.js";
@@ -208,7 +214,7 @@ export class MessageStore {
         input.call?.kind ?? null,
         input.imported?.editedAt ?? null,
       );
-    this.indexMentions(id, input.channelId, input.text, { pinged });
+    this.indexMentions(id, input.channelId, input.text, input.userId, { pinged });
     return id;
   }
 
@@ -289,22 +295,25 @@ export class MessageStore {
   /**
    * Keeps `message_mentions` to whom this text names: `<@X>` names X, and
    * `<!here>`, `<!channel>` or `<!everyone>` the whole room as '!'. The same
-   * rule as `MENTIONS_ME` and migration v31, so counts read from the table
-   * agree with the text. A reply that notifies the author of what it answers
-   * names them as well, whatever its words say. A new message has no rows yet
-   * and says whom it notifies, and most name nobody, so sending one costs
-   * nothing more here; an edit looks the notified author up again.
+   * rule as migration v31, so counts read from the table agree with the text. A reply that notifies the author of what it answers
+   * names them as well, whatever its words say. A user group names each of
+   * its people in the conversation as it is now (J13), so a later change to
+   * the group leaves the rows be. A new message has no rows yet and says whom
+   * it notifies, and most name nobody, so sending one costs nothing more
+   * here; an edit looks the notified author up again.
    */
   private indexMentions(
     messageId: ID,
     channelId: ID,
     text: string,
+    senderId: ID,
     created?: { pinged: ID | null },
   ): void {
     if (!created)
       this.db.prepare("DELETE FROM message_mentions WHERE message_id = ?").run(messageId);
     const named: Set<string> = userMentionsIn(text);
     if (broadcastsIn(text).size > 0) named.add("!");
+    for (const id of this.groupNamed(channelId, text, senderId)) named.add(id);
     const pinged = created ? created.pinged : this.replyPinged(messageId);
     if (pinged) named.add(pinged);
     if (named.size === 0) return;
@@ -341,22 +350,36 @@ export class MessageStore {
     return this.hydrate([r])[0]!;
   }
 
+  /**
+   * The people the user groups in a text name in a conversation: those of
+   * them in it and active (J13). A guest's mention of a group names nobody,
+   * since a group can reach people a guest cannot see. Text with no group in
+   * it costs no query.
+   */
+  private groupNamed(channelId: ID, text: string, senderId: ID): ID[] {
+    const groups = groupMentionsIn(text);
+    if (groups.size === 0) return [];
+    const sender = this.store.people.get(senderId);
+    if (!sender || sender.role === "guest") return [];
+    return this.store.groups.namedIn(channelId, groups);
+  }
+
   /** Mention counts follow both the people the old words named and those the new ones do. */
   edit(id: ID, text: string): Message {
     const before = messageRow
       .pick("channel_id", "user_id", "text")
       .get(this.db.prepare("SELECT channel_id, user_id, text FROM messages WHERE id = ?"), id);
     const row = messageRow
-      .pick("channel_id")
+      .pick("channel_id", "user_id")
       .get(
         this.db.prepare(
-          "UPDATE messages SET text = ?, edited_at = ? WHERE id = ? RETURNING channel_id",
+          "UPDATE messages SET text = ?, edited_at = ? WHERE id = ? RETURNING channel_id, user_id",
         ),
         text,
         Date.now(),
         id,
       );
-    if (row) this.indexMentions(id, row.channel_id, text);
+    if (row) this.indexMentions(id, row.channel_id, text, row.user_id);
     if (before)
       this.store.outbox.mentions([
         ...this.mentionedMemberIds(before.channel_id, before.text, before.user_id),
@@ -1090,13 +1113,18 @@ export class MessageStore {
   mentionedMemberIds(channelId: ID, text: string, exclude: ID): ID[] {
     const direct = userMentionsIn(text);
     const roomWideToken = broadcastsIn(text).size > 0;
-    if (direct.size === 0 && !roomWideToken) return [];
+    const grouped = groupMentionsIn(text).size > 0;
+    if (direct.size === 0 && !roomWideToken && !grouped) return [];
     const channel = this.store.channels.get(channelId);
     if (!channel) return [];
     if (roomWideToken && isRoom(channel.type))
       return this.store.channels.memberIds(channelId).filter((id) => id !== exclude);
-    return [...direct].filter(
+    const named = [...direct].filter(
       (id) => id !== exclude && this.store.channels.isMember(channelId, id),
     );
+    // `exclude` is the sender, whose role decides whether a group names anyone.
+    for (const id of this.groupNamed(channelId, text, exclude))
+      if (id !== exclude && !named.includes(id)) named.push(id);
+    return named;
   }
 }

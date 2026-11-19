@@ -670,6 +670,15 @@ export class Gateway implements OutboxSink {
     this.fanOut({ type: "ephemeral", event }, null, authorized);
   }
 
+  tellMembers(event: EventTo<"members">): void {
+    const members = new Set<ID>();
+    for (const userId of this.byUser.keys()) {
+      const user = this.store.people.get(userId);
+      if (user && user.role !== "guest" && !user.deactivated) members.add(userId);
+    }
+    if (members.size > 0) this.fanOut({ type: "ephemeral", event }, members);
+  }
+
   tellAdmins(event: EventTo<"admins">): void {
     const admins = new Set<ID>();
     for (const userId of this.byUser.keys()) {
