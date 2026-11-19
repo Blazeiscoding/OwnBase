@@ -363,6 +363,23 @@ describe("mentioning a user group", () => {
     expect(counts(alice)).toEqual({ [general]: 1 });
   });
 
+  it("is found by its words, not by the group's id", async () => {
+    const group = await makeGroup("design", [alice.user.id]);
+    const sent = await post(`Review please ${mention(group)}`);
+    const search = async (q: string) =>
+      (
+        await request(
+          `/api/search?q=${encodeURIComponent(q)}&tz=UTC`,
+          alice.token,
+          undefined,
+          "GET",
+        )
+      ).data.messages.map((m: Message) => m.id);
+    expect(await search("design")).toEqual([sent.id]);
+    expect(await search(group.id)).toEqual([]);
+    expect(await search("subteam")).toEqual([]);
+  });
+
   it("is a mention for anyone who could write one without a label", async () => {
     const group = await makeGroup("design", [alice.user.id]);
     await post(`hi <!subteam^${group.id}>`);

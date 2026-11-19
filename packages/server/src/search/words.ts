@@ -1,3 +1,5 @@
+import { GROUP_MENTION } from "@ownbase/protocol";
+
 /**
  * Characters of writing systems that put no spaces between words. Korean puts
  * spaces between phrases, but often runs a compound and its endings together,
@@ -41,10 +43,18 @@ const EACH_UNSPACED = new RegExp(UNSPACED_CLASS, "gu");
  * index's words for anything else are the ones SQLite's tokenizer has always
  * made.
  *
+ * A user group's mention is held as the words it was sent with, `@design`,
+ * not its id (J13), so a search finds what the reader saw.
+ *
  * The migration that built the index and the triggers that keep it call this
  * through SQL (`ownbase_search_text`), so changing what it returns needs a
- * migration that rebuilds the index.
+ * migration that rebuilds the index. The group rule needed none: groups came
+ * with v60, so no message indexed before held one, bar text an app wrote,
+ * and the index is contentless, deleting by rowid whatever words it holds.
  */
 export function searchText(text: string): string {
-  return UNSPACED.test(text) ? text.replace(EACH_UNSPACED, " $& ") : text;
+  const words = text.includes("<!subteam^")
+    ? text.replace(GROUP_MENTION, (_all, _id: string, label?: string) => ` ${label ?? ""} `)
+    : text;
+  return UNSPACED.test(words) ? words.replace(EACH_UNSPACED, " $& ") : words;
 }
