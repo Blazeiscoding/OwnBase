@@ -141,7 +141,9 @@ export class AppSockets {
       }),
     );
     ws.on("close", () => this.contained("app socket close", () => this.gone(entry)));
-    ws.on("error", () => ws.terminate());
+    // ws closes the socket after an error itself, with the reason's code
+    // (1009 for a message too large), which ending it here would cut short.
+    ws.on("error", () => {});
     this.sendTo(entry, {
       type: "hello",
       num_connections: sockets.length,

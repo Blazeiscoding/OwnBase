@@ -4,7 +4,15 @@ import { createServer, type Server } from "node:http";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { APP_SCOPES, type App, type User } from "@ownbase/protocol";
+import WebSocket from "ws";
+import {
+  APP_SCOPES,
+  PROTOCOL_VERSION,
+  type App,
+  type Message,
+  type ServerToClient,
+  type User,
+} from "@ownbase/protocol";
 import { createWorkspaceServer, type WorkspaceServer } from "../src/index.js";
 import { SOCKET_TICKET_TTL_MS, SocketTickets } from "../src/apps/socketTickets.js";
 
@@ -18,6 +26,7 @@ let base: string;
 let dataDir: string;
 let aliceToken: string;
 let bobToken: string;
+let channelId: string;
 
 /** Stands in for an app's URL, counting what it is sent. */
 let endpoint: Server;
@@ -68,6 +77,120 @@ const open = (token: string) =>
     token,
   });
 
+/** A frame the server sent an app over its socket. */
+interface Frame {
+  type: string;
+  envelope_id?: string;
+  payload?: any;
+  accepts_response_payload?: boolean;
+  retry_attempt?: number;
+  retry_reason?: string;
+  reason?: string;
+}
+
+/** What an app's socket client sees, with a way to answer each envelope. */
+interface AppClient {
+  ws: WebSocket;
+  frames: Frame[];
+  next(predicate: (f: Frame) => boolean, timeoutMs?: number): Promise<Frame>;
+  ack(envelopeId: string, payload?: unknown): void;
+  closed: Promise<number>;
+}
+
+function waitFor<T>(
+  list: T[],
+  listeners: ((item: T) => void)[],
+  predicate: (item: T) => boolean,
+  timeoutMs: number,
+): Promise<T> {
+  return new Promise((resolve, reject) => {
+    const hit = list.find(predicate);
+    if (hit) return resolve(hit);
+    const timer = setTimeout(() => reject(new Error("wait timed out")), timeoutMs);
+    listeners.push(function check(item) {
+      if (!predicate(item)) return;
+      clearTimeout(timer);
+      listeners.splice(listeners.indexOf(check), 1);
+      resolve(item);
+    });
+  });
+}
+
+/** Connects to `url` as an app would, resolving once the hello arrives. */
+async function connectApp(url: string): Promise<AppClient> {
+  const ws = new WebSocket(url);
+  const frames: Frame[] = [];
+  const listeners: ((f: Frame) => void)[] = [];
+  ws.on("message", (data) => {
+    const frame = JSON.parse(String(data)) as Frame;
+    frames.push(frame);
+    for (const listener of [...listeners]) listener(frame);
+  });
+  const closed = new Promise<number>((resolve) => ws.on("close", (code) => resolve(code)));
+  const client: AppClient = {
+    ws,
+    frames,
+    next: (predicate, timeoutMs = 3000) => waitFor(frames, listeners, predicate, timeoutMs),
+    ack: (envelopeId, payload) =>
+      ws.send(
+        JSON.stringify(
+          payload === undefined
+            ? { envelope_id: envelopeId }
+            : { envelope_id: envelopeId, payload },
+        ),
+      ),
+    closed,
+  };
+  await client.next((f) => f.type === "hello");
+  return client;
+}
+
+/** Opens a socket for an app with its app-level token. */
+async function connectWith(appToken: string): Promise<AppClient> {
+  const opened = await open(appToken);
+  expect(opened.data.ok).toBe(true);
+  return connectApp(opened.data.url!);
+}
+
+/** The HTTP status an upgrade was refused with, or "open" when it was let in. */
+function upgradeOutcome(url: string): Promise<number | "open"> {
+  return new Promise((resolve) => {
+    const ws = new WebSocket(url);
+    ws.on("unexpected-response", (_req, res) => {
+      resolve(res.statusCode ?? 0);
+      ws.terminate();
+    });
+    ws.on("open", () => {
+      resolve("open");
+      ws.terminate();
+    });
+    // A connection destroyed without an answer.
+    ws.on("error", () => resolve(0));
+  });
+}
+
+/** A member's socket on /ws, with what it is told. */
+function connectMember(token: string) {
+  const ws = new WebSocket(`ws://127.0.0.1:${server.port}/ws`);
+  const received: ServerToClient[] = [];
+  const listeners: ((m: ServerToClient) => void)[] = [];
+  ws.on("message", (data) => {
+    const msg = JSON.parse(String(data)) as ServerToClient;
+    received.push(msg);
+    for (const listener of [...listeners]) listener(msg);
+  });
+  ws.on("open", () =>
+    ws.send(
+      JSON.stringify({ type: "hello", token, lastSeq: null, protocolVersion: PROTOCOL_VERSION }),
+    ),
+  );
+  return {
+    ws,
+    next: (predicate: (m: ServerToClient) => boolean, timeoutMs = 3000) =>
+      waitFor(received, listeners, predicate, timeoutMs),
+  };
+}
+
 beforeAll(async () => {
   dataDir = mkdtempSync(join(tmpdir(), "ownbase-socket-mode-"));
   endpoint = createServer((req, res) => {
@@ -89,6 +212,8 @@ beforeAll(async () => {
     mdns: false,
     allowPrivateHooks: true,
     logger: false,
+    // One test opens more sockets from this address than a person would.
+    rateLimits: false,
   });
   base = `http://127.0.0.1:${server.port}`;
   const a = await api<{ token: string }>("/api/auth/register", {
@@ -99,6 +224,7 @@ beforeAll(async () => {
     body: { handle: "bob", displayName: "Bob", password: "password123" },
   });
   bobToken = b.data.token;
+  channelId = server.store.channels.byName("general")!.id;
 });
 
 afterAll(async () => {
@@ -286,5 +412,326 @@ describe("subscriptions and commands", () => {
     });
     expect(allowed.status).toBe(200);
     expect(allowed.data.app.receive).toBe("url");
+  });
+});
+
+describe("the one upgrade listener", () => {
+  it("still connects a member on /ws, and still destroys an unknown path", async () => {
+    const member = connectMember(bobToken);
+    await member.next((m) => m.type === "ready");
+    member.ws.close();
+    expect(await upgradeOutcome(`ws://127.0.0.1:${server.port}/nowhere`)).toBe(0);
+  });
+
+  it("refuses an app-level token on /ws", async () => {
+    const app = await socketApp("Wrong Door Bot");
+    const member = connectMember(app.appToken);
+    const refused = await member.next((m) => m.type === "error");
+    expect(refused).toMatchObject({ type: "error", code: "auth_failed" });
+  });
+});
+
+describe("the app socket", () => {
+  it("says hello, with the app it is", async () => {
+    const app = await socketApp("Hello Bot");
+    const client = await connectWith(app.appToken);
+    expect(client.frames[0]).toMatchObject({
+      type: "hello",
+      num_connections: 1,
+      connection_info: { app_id: app.id },
+    });
+    client.ws.close();
+  });
+
+  it("refuses a bad ticket, a spent one, and a member's or bot's token in its place", async () => {
+    const app = await socketApp("Ticket Bot");
+    const socketUrl = `ws://127.0.0.1:${server.port}/apps/socket`;
+    expect(await upgradeOutcome(`${socketUrl}?ticket=nonsense`)).toBe(401);
+    expect(await upgradeOutcome(socketUrl)).toBe(401);
+    expect(await upgradeOutcome(`${socketUrl}?ticket=${aliceToken}`)).toBe(401);
+    expect(await upgradeOutcome(`${socketUrl}?ticket=${app.token}`)).toBe(401);
+    expect(await upgradeOutcome(`${socketUrl}?ticket=${app.appToken}`)).toBe(401);
+
+    const once = (await open(app.appToken)).data.url!;
+    expect(await upgradeOutcome(once)).toBe("open");
+    expect(await upgradeOutcome(once)).toBe(401);
+  });
+
+  it("refuses the eleventh socket of one app", async () => {
+    const app = await socketApp("Crowded Bot");
+    const clients = [];
+    for (let i = 0; i < 10; i++) clients.push(await connectWith(app.appToken));
+    const listed = await api<{ apps: { id: string; sockets: number }[] }>("/api/apps", {
+      token: aliceToken,
+    });
+    expect(listed.data.apps.find((a) => a.id === app.id)!.sockets).toBe(10);
+    const eleventh = (await open(app.appToken)).data.url!;
+    expect(await upgradeOutcome(eleventh)).toBe(429);
+    for (const client of clients) client.ws.close();
+  });
+
+  it("is closed, with Slack's link_disabled, when its token is revoked or replaced", async () => {
+    const app = await socketApp("Revoked Bot");
+    const first = await connectWith(app.appToken);
+    await api(`/api/apps/${app.id}/app-token`, { method: "DELETE", token: aliceToken });
+    expect(await first.next((f) => f.type === "disconnect")).toMatchObject({
+      reason: "link_disabled",
+    });
+    await first.closed;
+
+    const made = await api<{ token: string }>(`/api/apps/${app.id}/app-token`, {
+      method: "POST",
+      token: aliceToken,
+    });
+    const second = await connectWith(made.data.token);
+    await api(`/api/apps/${app.id}/app-token`, { method: "POST", token: aliceToken });
+    await second.closed;
+    expect(second.frames.at(-1)).toMatchObject({ type: "disconnect", reason: "link_disabled" });
+  });
+
+  it("is closed when its app goes back to URLs or is deleted", async () => {
+    const app = await socketApp("Leaving Bot");
+    const client = await connectWith(app.appToken);
+    await api(`/api/apps/${app.id}/receive`, {
+      method: "PUT",
+      token: aliceToken,
+      body: { receive: "url" },
+    });
+    await client.closed;
+
+    const gone = await socketApp("Deleted Bot");
+    const other = await connectWith(gone.appToken);
+    await api(`/api/apps/${gone.id}`, { method: "DELETE", token: aliceToken });
+    await other.closed;
+  });
+
+  it("closes a socket that sends more than an app's answer may hold", async () => {
+    const app = await socketApp("Chatty Bot");
+    const client = await connectWith(app.appToken);
+    client.ws.send("x".repeat(64 * 1024 + 1));
+    expect(await client.closed).toBe(1009);
+  });
+});
+
+describe("events over a socket", () => {
+  /** A socket-mode app subscribed to messages, its bot in #general. */
+  async function subscribedApp(name: string) {
+    const app = await socketApp(name);
+    const sub = await api<{ subscription: { id: string } }>(`/api/apps/${app.id}/subscriptions`, {
+      token: aliceToken,
+      body: { eventTypes: ["message.created"] },
+    });
+    expect(sub.status).toBe(201);
+    server.store.channels.addMember(channelId, app.botUser.id);
+    return { ...app, subscriptionId: sub.data.subscription.id };
+  }
+
+  const post = (text: string) =>
+    api<{ message: Message }>(`/api/channels/${channelId}/messages`, {
+      token: aliceToken,
+      body: { text },
+    });
+
+  const isEvent = (text: string) => (f: Frame) =>
+    f.type === "events_api" && f.payload?.event?.text === text;
+
+  const rawDb = () => (server.store as unknown as { db: { prepare: (s: string) => any } }).db;
+
+  function queued(subscriptionId: string) {
+    return rawDb()
+      .prepare("SELECT attempts, last_error FROM event_deliveries WHERE subscription_id = ?")
+      .all(subscriptionId) as { attempts: number; last_error: string | null }[];
+  }
+
+  function makeDue(subscriptionId: string) {
+    rawDb()
+      .prepare("UPDATE event_deliveries SET next_attempt_at = 0 WHERE subscription_id = ?")
+      .run(subscriptionId);
+  }
+
+  /** Acknowledges everything the socket is sent, as Bolt does. */
+  function acksAll(client: AppClient) {
+    client.ws.on("message", (data) => {
+      const frame = JSON.parse(String(data)) as Frame;
+      if (frame.envelope_id) client.ack(frame.envelope_id);
+    });
+  }
+
+  it("arrive in order, each in Slack's envelope, and are done once acknowledged", async () => {
+    const app = await subscribedApp("Ordered Bot");
+    const client = await connectWith(app.appToken);
+    acksAll(client);
+    await post("first");
+    await post("second");
+    await post("third");
+    await client.next(isEvent("third"));
+    const texts = client.frames
+      .filter((f) => f.type === "events_api")
+      .map((f) => f.payload.event.text as string);
+    expect(texts).toEqual(["first", "second", "third"]);
+    expect(client.frames.find(isEvent("first"))).toMatchObject({
+      accepts_response_payload: false,
+      retry_attempt: 0,
+      retry_reason: "",
+      payload: { type: "event_callback", event: { type: "message", text: "first" } },
+    });
+    await expect.poll(() => queued(app.subscriptionId)).toEqual([]);
+    client.ws.close();
+  });
+
+  it("are sent again on the retry ladder when no socket acknowledges them", async () => {
+    const app = await subscribedApp("Absent Bot");
+    await post("while away");
+    // No socket: a failed attempt, as for a URL that does not answer.
+    await expect
+      .poll(() => queued(app.subscriptionId))
+      .toEqual([
+        expect.objectContaining({
+          attempts: 1,
+          last_error: expect.stringContaining("not connected"),
+        }),
+      ]);
+
+    const client = await connectWith(app.appToken);
+    makeDue(app.subscriptionId);
+    await server.flushEventDeliveries();
+    expect(await client.next(isEvent("while away"))).toMatchObject({
+      retry_attempt: 1,
+      retry_reason: "timeout",
+    });
+    // Closed before acknowledging: another failed attempt, not a lost event.
+    client.ws.close();
+    await expect
+      .poll(() => queued(app.subscriptionId))
+      .toEqual([expect.objectContaining({ attempts: 2 })]);
+
+    const back = await connectWith(app.appToken);
+    acksAll(back);
+    makeDue(app.subscriptionId);
+    await server.flushEventDeliveries();
+    expect(await back.next(isEvent("while away"))).toMatchObject({ retry_attempt: 2 });
+    await expect.poll(() => queued(app.subscriptionId)).toEqual([]);
+    back.ws.close();
+  });
+
+  it("go to one socket each when an app has two", async () => {
+    const app = await subscribedApp("Shared Bot");
+    const one = await connectWith(app.appToken);
+    const two = await connectWith(app.appToken);
+    acksAll(one);
+    acksAll(two);
+    for (const text of ["a", "b", "c", "d"]) await post(text);
+    const sent = () => [...one.frames, ...two.frames].filter((f) => f.type === "events_api");
+    await expect.poll(() => sent().length).toBe(4);
+    expect(new Set(sent().map((f) => f.envelope_id)).size).toBe(4);
+    expect(one.frames.some((f) => f.type === "events_api")).toBe(true);
+    expect(two.frames.some((f) => f.type === "events_api")).toBe(true);
+    one.ws.close();
+    two.ws.close();
+  });
+});
+
+describe("commands and buttons over a socket", () => {
+  async function commandApp(name: string, command: string) {
+    const app = await socketApp(name);
+    const made = await api(`/api/apps/${app.id}/commands`, {
+      token: aliceToken,
+      body: { command },
+    });
+    expect(made.status).toBe(201);
+    return app;
+  }
+
+  const run = (text: string) =>
+    api<{ ok: boolean; error?: string; message?: string }>(`/api/channels/${channelId}/commands`, {
+      token: aliceToken,
+      body: { text },
+    });
+
+  const ephemeralText = (text: string) => (m: ServerToClient) =>
+    m.type === "ephemeral" && (m.event as { text?: string }).text === text;
+
+  it("show an acknowledgement's payload as the command's reply", async () => {
+    const app = await commandApp("Ping Bot", "ping");
+    const client = await connectWith(app.appToken);
+    client.ws.on("message", (data) => {
+      const frame = JSON.parse(String(data)) as Frame;
+      if (frame.type === "slash_commands")
+        client.ack(frame.envelope_id!, { text: `pong ${frame.payload.text}` });
+    });
+    const alice = connectMember(aliceToken);
+    await alice.next((m) => m.type === "ready");
+
+    expect((await run("/ping now")).data.ok).toBe(true);
+    const envelope = client.frames.find((f) => f.type === "slash_commands")!;
+    expect(envelope).toMatchObject({
+      accepts_response_payload: true,
+      payload: { command: "/ping", text: "now", channel_id: channelId, api_app_id: app.id },
+    });
+    expect(envelope.payload.response_url).toMatch(/\/api\/commands\/response\//);
+    await alice.next(ephemeralText("pong now"));
+    alice.ws.close();
+    client.ws.close();
+  });
+
+  it("fail with no socket connected the way a command whose URL is dead does", async () => {
+    await commandApp("Asleep Bot", "asleep");
+    const alice = connectMember(aliceToken);
+    await alice.next((m) => m.type === "ready");
+    const answered = await run("/asleep");
+    expect(answered.data).toEqual({
+      ok: false,
+      error: "command_failed",
+      message: "the app did not answer",
+    });
+    await alice.next(ephemeralText("`/asleep` failed: the app did not answer."));
+    alice.ws.close();
+  });
+
+  it("send a button press over the socket, and show what the app answers", async () => {
+    const app = await socketApp("Button Bot");
+    server.store.channels.addMember(channelId, app.botUser.id);
+    const posted = await api<{ ts: string }>("/api/chat.postMessage", {
+      token: app.token,
+      body: {
+        channel: channelId,
+        text: "Deploy?",
+        blocks: [
+          {
+            type: "actions",
+            block_id: "deploy",
+            elements: [
+              {
+                type: "button",
+                action_id: "go",
+                text: { type: "plain_text", text: "Go" },
+                value: "v1",
+              },
+            ],
+          },
+        ],
+      },
+    });
+    const client = await connectWith(app.appToken);
+    client.ws.on("message", (data) => {
+      const frame = JSON.parse(String(data)) as Frame;
+      if (frame.type === "interactive")
+        client.ack(frame.envelope_id!, { text: `pressed ${frame.payload.actions[0].value}` });
+    });
+    const alice = connectMember(aliceToken);
+    await alice.next((m) => m.type === "ready");
+
+    const pressed = await api<{ ok: boolean }>(`/api/messages/${posted.data.ts}/actions`, {
+      token: aliceToken,
+      body: { actionId: "go" },
+    });
+    expect(pressed.data.ok).toBe(true);
+    expect(client.frames.find((f) => f.type === "interactive")).toMatchObject({
+      accepts_response_payload: true,
+      payload: { type: "block_actions", actions: [{ action_id: "go", value: "v1" }] },
+    });
+    await alice.next(ephemeralText("pressed v1"));
+    alice.ws.close();
+    client.ws.close();
   });
 });
