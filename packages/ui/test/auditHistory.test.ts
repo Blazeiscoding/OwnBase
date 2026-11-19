@@ -131,6 +131,30 @@ describe("an entry, as an administrator would say it", () => {
     ).toBe("The host removed the workspace's icon");
   });
 
+  it("says which user group was made, changed or deleted, and how (J13)", () => {
+    const group = { targetType: "group" as const, targetId: "G1" };
+    expect(
+      say(entry("group.created", { ...group, details: { handle: "design", members: 3 } })),
+    ).toBe("Alice made the group @design with 3 people");
+    expect(
+      say(entry("group.created", { ...group, details: { handle: "design", members: 1 } })),
+    ).toBe("Alice made the group @design with 1 person");
+    expect(
+      say(
+        entry("group.updated", {
+          ...group,
+          details: { handle: "design", previousHandle: "ui", added: 2, removed: 1 },
+        }),
+      ),
+    ).toBe("Alice renamed the group @ui to @design, added 2 people and removed 1 person");
+    expect(say(entry("group.updated", { ...group, details: { handle: "design" } }))).toBe(
+      "Alice changed the group @design",
+    );
+    expect(say(entry("group.deleted", { ...group, details: { handle: "design" } }))).toBe(
+      "Alice deleted the group @design",
+    );
+  });
+
   it("says which custom emoji was added or removed, and who may add them", () => {
     const emoji = { targetType: "emoji" as const, targetId: "E1" };
     expect(say(entry("emoji.added", { ...emoji, details: { name: "party-parrot" } }))).toBe(
@@ -201,6 +225,9 @@ describe("an entry, as an administrator would say it", () => {
       "workspace.emoji_adding_changed",
       "emoji.added",
       "emoji.removed",
+      "group.created",
+      "group.updated",
+      "group.deleted",
       "workspace.copy_made",
       "workspace.copy_downloaded",
       "app.created",

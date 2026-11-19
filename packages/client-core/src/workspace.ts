@@ -9,6 +9,9 @@ import {
   type Channel,
   type ChannelPrefs,
   type CustomEmoji,
+  type CreateUserGroupBody,
+  type UpdateUserGroupBody,
+  type UserGroup,
   type NotifyLevel,
   type EphemeralEvent,
   type EventEnvelope,
@@ -464,6 +467,8 @@ export interface WorkspaceState extends MessageCache {
   customEmoji: Record<string, CustomEmoji>;
   /** Whether only the owner and admins may add custom emoji, as the server last said. */
   emojiAddingAdminsOnly: boolean;
+  /** The workspace's user groups by id, with who is in each (J13); none for a guest. */
+  userGroups: Record<ID, UserGroup>;
   /**
    * Counts up whenever this account's scheduled queue may have changed: the
    * server said so, or this client connected and could have missed it saying so.
@@ -583,6 +588,7 @@ const initialState: WorkspaceState = {
   iconVersion: undefined,
   customEmoji: {},
   emojiAddingAdminsOnly: false,
+  userGroups: {},
   scheduledChanges: 0,
   self: null,
   users: {},
@@ -1027,6 +1033,7 @@ export class WorkspaceClient {
       iconVersion: snap.iconVersion,
       customEmoji: Object.fromEntries(snap.customEmoji.map((emoji) => [emoji.name, emoji])),
       emojiAddingAdminsOnly: snap.emojiAddingAdminsOnly,
+      userGroups: Object.fromEntries(snap.userGroups.map((group) => [group.id, group])),
       // Whatever was said while this client was away was not heard.
       scheduledChanges: prev.scheduledChanges + 1,
       self: snap.self,
@@ -1431,6 +1438,12 @@ export class WorkspaceClient {
         break;
       case "workspace.emojiAdding":
         this.store.setState({ emojiAddingAdminsOnly: event.adminsOnly });
+        break;
+      case "userGroup.saved":
+        this.keepGroup(event.group);
+        break;
+      case "userGroup.deleted":
+        this.forgetGroup(event.id);
         break;
       case "channel.access": {
         if (!event.channel) {
@@ -3150,6 +3163,45 @@ export class WorkspaceClient {
     if (known[name]?.id !== id) return;
     const { [name]: _gone, ...rest } = known;
     this.store.setState({ customEmoji: rest });
+  }
+
+  /**
+   * Makes a user group (J13), for admins: a handle no person or group has, a
+   * name and its people. Gives the group, or the refusal.
+   */
+  createUserGroup(body: CreateUserGroupBody): Promise<UserGroup | ApiError> {
+    return answerOf(async () => {
+      const { group } = await this.api.createUserGroup(body);
+      this.keepGroup(group);
+      return group;
+    });
+  }
+
+  /** Renames a user group, or replaces who is in it, at once here too. */
+  updateUserGroup(id: ID, body: UpdateUserGroupBody): Promise<UserGroup | ApiError> {
+    return answerOf(async () => {
+      const { group } = await this.api.updateUserGroup(id, body);
+      this.keepGroup(group);
+      return group;
+    });
+  }
+
+  deleteUserGroup(id: ID): Promise<ApiError | null> {
+    return doneOf(async () => {
+      await this.api.deleteUserGroup(id);
+      this.forgetGroup(id);
+    });
+  }
+
+  private keepGroup(group: UserGroup): void {
+    if (this.stopped) return;
+    this.store.setState({ userGroups: { ...this.state.userGroups, [group.id]: group } });
+  }
+
+  private forgetGroup(id: ID): void {
+    if (this.stopped || !(id in this.state.userGroups)) return;
+    const { [id]: _gone, ...rest } = this.state.userGroups;
+    this.store.setState({ userGroups: rest });
   }
 
   /** Removes the workspace's icon, for its owner and admins, at once here too. */
