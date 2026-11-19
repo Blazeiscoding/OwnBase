@@ -1,4 +1,10 @@
-import { GROUP_MENTION } from "@ownbase/protocol";
+/**
+ * A user group's mention, `<!subteam^id|@handle>`: protocol's GROUP_MENTION,
+ * written out here because a backup job loads this file through the schema
+ * and nothing else of protocol (backupImports.test.ts). A test holds the two
+ * to the same texts.
+ */
+export const GROUP_TOKEN = /<!subteam\^([A-Za-z0-9_-]+)(?:\|([^<>\n]*))?>/g;
 
 /**
  * Characters of writing systems that put no spaces between words. Korean puts
@@ -54,7 +60,7 @@ const EACH_UNSPACED = new RegExp(UNSPACED_CLASS, "gu");
  */
 export function searchText(text: string): string {
   const words = text.includes("<!subteam^")
-    ? text.replace(GROUP_MENTION, (_all, _id: string, label?: string) => ` ${label ?? ""} `)
+    ? text.replace(GROUP_TOKEN, (_all, _id: string, label?: string) => ` ${label ?? ""} `)
     : text;
   return UNSPACED.test(words) ? words.replace(EACH_UNSPACED, " $& ") : words;
 }

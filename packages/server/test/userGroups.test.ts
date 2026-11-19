@@ -2,11 +2,13 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import WebSocket from "ws";
 import {
   APP_SCOPES,
+  GROUP_MENTION,
   PROTOCOL_VERSION,
   type Message,
   type ServerToClient,
   type UserGroup,
 } from "@ownbase/protocol";
+import { GROUP_TOKEN } from "../src/search/words.js";
 import { createWorkspaceServer, type WorkspaceServer } from "../src/server.js";
 
 /**
@@ -378,6 +380,11 @@ describe("mentioning a user group", () => {
     expect(await search("design")).toEqual([sent.id]);
     expect(await search(group.id)).toEqual([]);
     expect(await search("subteam")).toEqual([]);
+  });
+
+  it("is read by search as protocol reads it", () => {
+    expect(GROUP_TOKEN.source).toBe(GROUP_MENTION.source);
+    expect(GROUP_TOKEN.flags).toBe(GROUP_MENTION.flags);
   });
 
   it("is a mention for anyone who could write one without a label", async () => {
