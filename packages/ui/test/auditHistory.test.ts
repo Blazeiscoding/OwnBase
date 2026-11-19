@@ -147,6 +147,14 @@ describe("an entry, as an administrator would say it", () => {
         }),
       ),
     ).toBe("Alice renamed the group @ui to @design, added 2 people and removed 1 person");
+    expect(
+      say(entry("group.updated", { ...group, details: { handle: "design", removed: 1 } })),
+    ).toBe("Alice removed 1 person from @design");
+    expect(
+      say(
+        entry("group.updated", { ...group, details: { handle: "design", added: 2, removed: 1 } }),
+      ),
+    ).toBe("Alice added 2 people to @design and removed 1 person");
     expect(say(entry("group.updated", { ...group, details: { handle: "design" } }))).toBe(
       "Alice changed the group @design",
     );

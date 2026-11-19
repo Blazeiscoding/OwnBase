@@ -11,6 +11,7 @@ import { accountError } from "../lib/account.js";
 import { failureText } from "../lib/failure.js";
 import { useCopy } from "../lib/useCopy.js";
 import { AuditHistory } from "./AuditHistory.js";
+import { UserGroupsSection } from "./UserGroupsSection.js";
 import { buttonClass } from "./Button.js";
 import { ListStatus } from "./ListStatus.js";
 import { isImeKey } from "../lib/textInput.js";
@@ -484,6 +485,8 @@ export function PeopleDialog({ onClose }: { onClose: () => void }) {
                 : `Show ${inactiveCount} deactivated ${inactiveCount === 1 ? "account" : "accounts"}`}
             </button>
           )}
+
+          <UserGroupsSection />
 
           <div>
             <AuditHistory />

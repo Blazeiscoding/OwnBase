@@ -1,13 +1,16 @@
 import {
+  groupMentionLabel,
   plainText,
   type Channel,
   type ID,
   type ReplyReference,
   type User,
+  type UserGroup,
 } from "@ownbase/protocol";
 import { channelMentionLabel, userMentionLabel } from "../lib/mentionDocument.js";
 import { Avatar } from "./Avatar.js";
 import { Icon } from "./Icon.js";
+import { useUserGroups } from "../lib/userGroups.js";
 
 /**
  * A quoted message's words on one line: names for mentions, labels for links,
@@ -17,10 +20,13 @@ export function quoteLine(
   text: string,
   users: Record<ID, User>,
   channels: Record<ID, Channel>,
+  groups: Record<ID, UserGroup> = {},
 ): string {
   return plainText(text, {
     user: (id) => userMentionLabel(users[id]),
     channel: (id) => channelMentionLabel(channels[id]),
+    group: (id, label) =>
+      groupMentionLabel(Object.hasOwn(groups, id) ? groups[id] : undefined, label),
   })
     .replaceAll("```", " ")
     .replaceAll(/(^|[\s(])([*_~`])(?=\S)(.+?)(?<=\S)\2(?=$|[\s.,:;!?)])/g, "$1$3")
@@ -45,7 +51,8 @@ interface Props {
 export function ReplyQuote({ quote, users, channels, onOpen, bare }: Props) {
   const author = users[quote.userId];
   const name = author?.displayName ?? "unknown";
-  const words = quote.deleted ? "" : quoteLine(quote.text, users, channels);
+  const groups = useUserGroups();
+  const words = quote.deleted ? "" : quoteLine(quote.text, users, channels, groups);
   const files = quote.fileCount === 1 ? "Sent a file" : `Sent ${quote.fileCount} files`;
   const content = quote.deleted ? (
     <span className="italic text-ink-faint">The original message was deleted</span>

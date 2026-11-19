@@ -1,11 +1,13 @@
 import { Fragment, useContext, type ReactNode } from "react";
 import { broadcastLabel, type ID, type User } from "@ownbase/protocol";
-import type { Channel, CustomEmoji } from "@ownbase/protocol";
+import type { Channel, CustomEmoji, UserGroup } from "@ownbase/protocol";
 import { OpenMessageContext } from "../context.js";
 import { CustomEmojiImage, customEmojiFor, useCustomEmoji } from "./CustomEmoji.js";
+import { GroupMention } from "./GroupMention.js";
 import { parseDeepLink } from "../lib/deeplink.js";
 import { channelMentionLabel, userMentionLabel } from "../lib/mentionDocument.js";
 import { useOwnAddress } from "./ShareableServer.js";
+import { useUserGroups } from "../lib/userGroups.js";
 
 interface Props {
   text: string;
@@ -22,6 +24,7 @@ interface Props {
  * <https://url|labelled links>, > quoted lines, and lists: lines starting
  * "- ", "* " or "• ", or "1. " or "1) ", as Discord reads them. `:name:`
  * draws the workspace's custom emoji of that name and stays text otherwise.
+ * `<!subteam^ID|@handle>` draws a user group (J13).
  */
 export function Mrkdwn({
   text,
@@ -34,6 +37,7 @@ export function Mrkdwn({
   const openMessage = useContext(OpenMessageContext);
   const ours = useOwnAddress();
   const customEmoji = useCustomEmoji();
+  const groups = useUserGroups();
   const blocks = text.split(/```/);
   const terms = [...new Set(highlightTerms.filter((term) => term.trim().length > 0))].sort(
     (a, b) => b.length - a.length,
@@ -81,6 +85,7 @@ export function Mrkdwn({
                   ours,
                   highlight,
                   customEmoji,
+                  groups,
                 });
               switch (run.kind) {
                 case "quote":
@@ -204,9 +209,10 @@ function disguisedHost(url: string, label: string): string | null {
 // italicised and missing both underscores.
 // A link in angle brackets, labelled or not, is Slack's own form, and the one
 // apps send; only web addresses are made links. A custom emoji's `:name:` is
-// not read against a letter, digit or colon, so 10:30:45 stays a time.
+// not read against a letter, digit or colon, so 10:30:45 stays a time. A user
+// group is Slack's `<!subteam^ID|@handle>`, its label optional (J13).
 const INLINE_RE =
-  /(\\[*_~`\\])|(`[^`\n]+`)|(\*[^*\n]+\*)|(_[^_\n]+_)|(~[^~\n]+~)|(<@[A-Za-z0-9_-]+>)|(<#[A-Za-z0-9_-]+>)|(<!(?:channel|here|everyone)>)|(https?:\/\/[^\s<>]+)|<(https?:\/\/[^\s|<>]+)(?:\|([^<>\n]+))?>|(?<![A-Za-z0-9:])(:[a-z0-9_-]{1,32}:)(?![A-Za-z0-9])/g;
+  /(\\[*_~`\\])|(`[^`\n]+`)|(\*[^*\n]+\*)|(_[^_\n]+_)|(~[^~\n]+~)|(<@[A-Za-z0-9_-]+>)|(<#[A-Za-z0-9_-]+>)|(<!(?:channel|here|everyone)>)|(https?:\/\/[^\s<>]+)|<(https?:\/\/[^\s|<>]+)(?:\|([^<>\n]+))?>|(?<![A-Za-z0-9:])(:[a-z0-9_-]{1,32}:)(?![A-Za-z0-9])|(<!subteam\^([A-Za-z0-9_-]+)(?:\|([^<>\n]*))?>)/g;
 
 function renderInline(
   text: string,
@@ -216,6 +222,7 @@ function renderInline(
     ours?: (serverUrl: string) => boolean;
     highlight: (value: string) => ReactNode;
     customEmoji: Record<string, CustomEmoji>;
+    groups: Record<ID, UserGroup>;
   },
 ): ReactNode[] {
   const out: ReactNode[] = [];
@@ -290,6 +297,16 @@ function renderInline(
     } else if (m[12]) {
       const emoji = customEmojiFor(ctx.customEmoji, tok);
       out.push(emoji ? <CustomEmojiImage key={key++} emoji={emoji} /> : ctx.highlight(tok));
+    } else if (m[13]) {
+      const id = m[14]!;
+      out.push(
+        <GroupMention
+          key={key++}
+          group={Object.hasOwn(ctx.groups, id) ? ctx.groups[id] : undefined}
+          label={m[15] ?? null}
+          selfId={ctx.selfId}
+        />,
+      );
     }
     last = m.index + tok.length;
   }

@@ -78,6 +78,10 @@ describe("user group mentions", () => {
     expect(plainText("ask <!subteam^G9>", labels)).toBe("ask @group");
   });
 
+  it("keeps its ^ and | through escaping, which marks neither", () => {
+    expect(escapeMrkdwn("a^b|c")).toBe("a^b|c");
+  });
+
   it("is not a room-wide mention", () => {
     expect(broadcastsIn("<!subteam^G1|@design>").size).toBe(0);
   });
