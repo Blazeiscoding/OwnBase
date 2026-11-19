@@ -160,6 +160,19 @@ export interface CustomEmoji {
 }
 
 /**
+ * A user group (J13): people an admin put under one handle, such as
+ * `@design`, so a message can name them all at once. Messages write it as
+ * `<!subteam^id|@handle>`. Handles share one name space with people's.
+ */
+export interface UserGroup {
+  id: ID;
+  handle: string;
+  name: string;
+  description: string;
+  memberIds: ID[];
+}
+
+/**
  * How loudly a conversation notifies: its own level when one was chosen for
  * it, else the account's default (or "mentions", where the server keeps none).
  */
@@ -453,6 +466,9 @@ export type AuditAction =
   | "workspace.emoji_adding_changed"
   | "emoji.added"
   | "emoji.removed"
+  | "group.created"
+  | "group.updated"
+  | "group.deleted"
   | "workspace.copy_made"
   | "workspace.copy_downloaded"
   | "app.created"
@@ -479,7 +495,15 @@ export type AuditAction =
   | "extension.action";
 
 export type AuditTargetType =
-  "user" | "app" | "webhook" | "command" | "subscription" | "invite" | "workspace" | "emoji";
+  | "user"
+  | "app"
+  | "webhook"
+  | "command"
+  | "subscription"
+  | "invite"
+  | "workspace"
+  | "emoji"
+  | "group";
 
 /**
  * One entry in the administrative record. Never holds a credential, a URL an

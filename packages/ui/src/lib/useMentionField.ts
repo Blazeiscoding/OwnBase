@@ -1,5 +1,6 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, type RefObject } from "react";
 import type { Channel, ID, User } from "@ownbase/protocol";
+import { useUserGroups } from "./userGroups.js";
 import {
   projectMentions,
   replaceShown,
@@ -28,7 +29,11 @@ export function useMentionField(
   users: Record<ID, User>,
   channels: Record<ID, Channel>,
 ) {
-  const doc = useMemo(() => projectMentions(text, { users, channels }), [text, users, channels]);
+  const groups = useUserGroups();
+  const doc = useMemo(
+    () => projectMentions(text, { users, channels, groups }),
+    [text, users, channels, groups],
+  );
   const current = useRef(doc);
   current.current = doc;
   /** A rewrite handed to the browser, for the change it brings back. */
@@ -65,7 +70,7 @@ export function useMentionField(
     const value = event.target.value;
     const want = expected.current;
     expected.current = null;
-    const names = { users, channels };
+    const names = { users, channels, groups };
     if (want && want.shown === value) return projectMentions(want.stored, names);
     const kind = (event.nativeEvent as InputEvent).inputType;
     if (kind === "historyUndo" || kind === "historyRedo") {
@@ -92,7 +97,7 @@ export function useMentionField(
   function edit(stored: string, start?: number, end = start) {
     const field = box.current;
     const before = current.current;
-    const next = projectMentions(stored, { users, channels });
+    const next = projectMentions(stored, { users, channels, groups });
     const change = shownEdit(before.shown, next.shown);
     const caretAt =
       start === undefined

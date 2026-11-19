@@ -1,5 +1,5 @@
 import type { Friendship, ID, Role, User } from "@ownbase/protocol";
-import { isAdministrator } from "@ownbase/protocol";
+import { isAdministrator, RESERVED_HANDLES } from "@ownbase/protocol";
 import type { DatabaseSync, SQLInputValue } from "node:sqlite";
 import { countOf, oneOf, shape, type RowOf } from "../core/rows.js";
 import { ulid } from "../ids.js";
@@ -212,6 +212,23 @@ export class PeopleStore {
   get(id: ID): User | null {
     const r = userRow.get(this.db.prepare("SELECT * FROM users WHERE id = ?"), id);
     return r ? toUser(r) : null;
+  }
+
+  /**
+   * Whether a handle is spoken for: by a person, by a user group, or as one
+   * of the words that mean the whole room. People and groups share one name
+   * space (J13), so `@design` names one or the other, never both. Every place
+   * that gives out a handle asks this.
+   */
+  handleTaken(handle: string): boolean {
+    if (RESERVED_HANDLES.includes(handle)) return true;
+    return (
+      this.db
+        .prepare(
+          "SELECT 1 FROM users WHERE handle = ? UNION ALL SELECT 1 FROM user_groups WHERE handle = ?",
+        )
+        .get(handle, handle) !== undefined
+    );
   }
 
   authByHandle(handle: string): (User & { passwordHash: string; salt: string }) | null {

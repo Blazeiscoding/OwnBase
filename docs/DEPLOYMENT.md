@@ -1902,6 +1902,10 @@ Slack's export has no pictures for a workspace's custom emoji, only their names.
 Reactions and words that use one keep its `:name:`, and the import lists the
 names. Add emoji under those names and the messages show them.
 
+Slack's export holds no user groups. A message that mentions one keeps its words,
+such as @design, as text, and notifies nobody. Make the group again under
+**People → Groups** for new messages.
+
 The import reads a zip of up to 64 GB and 2 million files, up to 256 MB in one JSON
 file. About seven minutes per million messages on a recent desktop, more with
 `--fetch-files`. If anything fails, everything it made is removed and the error
@@ -2334,6 +2338,7 @@ administrators under **People → Show recent changes**:
 - renaming the workspace and changing who may join it, from **Workspace
   settings**, or by the desktop app that hosts it, recorded as done by the host.
 - the owner making and downloading a copy of the workspace.
+- making, changing and deleting user groups: their handle, name and who is in them.
 - with an Enterprise license, turning single sign-on (OpenID Connect or SAML) or SCIM
   provisioning on or off, changing their settings, and making a new SCIM token, as well
   as the [compliance](#compliance-legal-hold-export-and-sending-the-record) changes.
@@ -2410,6 +2415,24 @@ in Workspace settings shows there at once. One start still changes the rule:
 while a stable public address is configured, every start closes joining to
 invited accounts.
 
+## User groups
+
+Owners and administrators make user groups under **People → Groups**: a handle
+such as `design`, a name, and the people in it. Any member can then mention
+`@design` in a message. That notifies each person in the group who is in the
+conversation and whose account is active, exactly as mentioning each by name
+would: their mention count, Activity, notifications and pushes. Nobody outside
+the conversation is told, and nobody is added to it.
+
+Who a message notified is settled when it is sent or edited. Taking someone out
+of a group later leaves their mentions of earlier messages counted. A message
+does show as naming someone who joins the group afterwards, without counting
+as a new mention for them.
+
+People and groups share one set of handles, along with `here`, `channel` and
+`everyone`. A new account, single sign-on, SCIM and an app's bot user all pass
+over a handle a group has.
+
 ## Guests
 
 With guests allowed, someone who reaches the server can join with a display name
@@ -2426,6 +2449,10 @@ create rooms, upload files, pin, invite, schedule, use apps or commands, or
 change its password; the server refuses every request outside that list, so a
 route added later stays closed to guests until it is opened on purpose. Guests
 are marked as guests wherever they appear.
+
+A guest sees no user groups and is offered none to mention: a group can hold
+people a guest cannot see. A group mention a guest writes anyway is posted as
+words and notifies nobody.
 
 A guest session lasts 24 hours from joining and does not extend with use;
 reloading resumes it until then. At most 200 guests can be signed in at once.

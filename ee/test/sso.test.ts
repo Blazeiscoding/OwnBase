@@ -528,6 +528,22 @@ describe("single sign-on through an OpenID provider", () => {
     expect(twice.data.user.id).toBe(signedIn.data.user.id);
   });
 
+  it("gives someone new a handle no user group has (J13)", async () => {
+    await start();
+    const { owner } = await people();
+    await setUp(owner, { newAccounts: true, domains: "acme.com" });
+    expect(
+      (await call("/api/admin/groups", owner.token, { handle: "design", name: "Design" })).status,
+    ).toBe(201);
+    provider.person = { sub: "00u-d", email: "design@acme.com", email_verified: true };
+    const made = await signInWithSso();
+    const signedIn = await call("/api/sso/redeem", undefined, {
+      code: codeIn(made.back.location),
+      verifier: made.verifier,
+    });
+    expect(signedIn.data.user.handle).toBe("design-2");
+  });
+
   it("links someone provisioning added at their first sign-in, by an address the provider verified (P10)", async () => {
     await start(license({ features: ["sso", "scim"] }));
     const { owner } = await people();

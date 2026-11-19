@@ -492,6 +492,13 @@ Message text is a subset of Slack's mrkdwn. Drawn as formatting: `*bold*`,
 `_italic_`, `~strike~`, `` `code` ``, ` ``` ` code blocks, bare `http(s)` links,
 `<@user id>` and `<#channel id>` mentions, and `<!here>`, `<!channel>` and
 `<!everyone>`. A backslash before a formatting character shows it literally.
+
+A user group is mentioned in Slack's form, `<!subteam^group id|@handle>`, with the
+handle the group had when the message was sent; the id stays the same when the
+group is renamed. An app may send it without the label, `<!subteam^group id>`. A
+group mention in an app's message notifies the group's people in the channel, as
+one from a person does. There are no API methods to list or change groups, and SCIM
+does not provision them.
 **Not interpreted:** Slack's `<https://…|label>` links (the label is not shown
 as link text), `>` quotes and list markers, which appear as the characters typed,
 and date formatting such as `<!date^…>`.

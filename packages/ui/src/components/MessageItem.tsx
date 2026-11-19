@@ -5,6 +5,7 @@ import {
   Suspense,
   useContext,
   useEffect,
+  useMemo,
   useRef,
   useState,
   type ComponentProps,
@@ -20,7 +21,7 @@ import {
   type ID,
   type Message,
 } from "@ownbase/protocol";
-import { ApiError, draftKey, forwardSource, selfMay } from "@ownbase/client-core";
+import { ApiError, draftKey, forwardSource, groupIdsOf, selfMay } from "@ownbase/client-core";
 import { failureText } from "../lib/failure.js";
 import { OpenMessageContext, useClient, useWorkspace } from "../context.js";
 import { onlyEmoji } from "../lib/emoji.js";
@@ -207,7 +208,13 @@ const MessageRow = memo(function MessageRow({
   const editable = editRefusal(selfId, message) === null;
   // The Drafts list asks for this to finish an unsaved edit.
   useEditRequest(message.id, editable, () => setEditing(true));
-  const mentionsMe = !!selfId && namesUser(message, selfId);
+  const userGroups = useWorkspace((s) => s.userGroups);
+  // The groups this account is in now (J13): one joined later highlights old mentions too.
+  const myGroups = useMemo(
+    () => (selfId ? groupIdsOf({ userGroups }, selfId) : []),
+    [userGroups, selfId],
+  );
+  const mentionsMe = !!selfId && namesUser(message, selfId, myGroups);
   const toast = useToast();
   const openMessage = useContext(OpenMessageContext);
   // Answered in place in the conversation it is shown in: the channel, or

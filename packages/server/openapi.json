@@ -2594,6 +2594,116 @@
         }
       }
     },
+    "/api/admin/groups": {
+      "post": {
+        "operationId": "postAdminGroups",
+        "tags": [
+          "admin"
+        ],
+        "summary": "Makes a user group: a handle such as `design` that no person or other group has, a name, and the people in it.",
+        "description": "Makes a user group: a handle such as `design` that no person or other group has, a name, and the people in it. Mentioning it names each of them who is in the conversation.\n\nNeeds an administrator or the owner.",
+        "x-access": "admin",
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateUserGroupBody"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Done."
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    },
+    "/api/admin/groups/{id}": {
+      "patch": {
+        "operationId": "patchAdminGroupsById",
+        "tags": [
+          "admin"
+        ],
+        "summary": "Renames a user group, changes its description, or replaces who is in it.",
+        "description": "Renames a user group, changes its description, or replaces who is in it. Messages sent before keep whom they notified.\n\nNeeds an administrator or the owner.",
+        "x-access": "admin",
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateUserGroupBody"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Done."
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      },
+      "delete": {
+        "operationId": "deleteAdminGroupsById",
+        "tags": [
+          "admin"
+        ],
+        "summary": "Deletes a user group.",
+        "description": "Deletes a user group. Messages that mention it show the name they were sent with.\n\nNeeds an administrator or the owner.",
+        "x-access": "admin",
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Done."
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    },
     "/api/messages/{id}/poll/votes": {
       "put": {
         "operationId": "putMessagesByIdPollVotes",
@@ -6300,6 +6410,70 @@
         "required": [
           "reason"
         ]
+      },
+      "CreateUserGroupBody": {
+        "type": "object",
+        "properties": {
+          "handle": {
+            "type": "string",
+            "minLength": 2,
+            "maxLength": 32,
+            "pattern": "^[a-z0-9][a-z0-9._-]*$"
+          },
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 80
+          },
+          "description": {
+            "default": "",
+            "type": "string",
+            "maxLength": 250
+          },
+          "memberIds": {
+            "default": [],
+            "maxItems": 1000,
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 64
+            }
+          }
+        },
+        "required": [
+          "handle",
+          "name"
+        ]
+      },
+      "UpdateUserGroupBody": {
+        "type": "object",
+        "properties": {
+          "handle": {
+            "type": "string",
+            "minLength": 2,
+            "maxLength": 32,
+            "pattern": "^[a-z0-9][a-z0-9._-]*$"
+          },
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 80
+          },
+          "description": {
+            "type": "string",
+            "maxLength": 250
+          },
+          "memberIds": {
+            "maxItems": 1000,
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 64
+            }
+          }
+        }
       },
       "PollVotesBody": {
         "type": "object",

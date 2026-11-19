@@ -255,3 +255,50 @@ describe("Mrkdwn with a workspace's own emoji (J12)", () => {
     );
   });
 });
+
+describe("Mrkdwn with user groups (J13)", () => {
+  const design = { id: "G1", handle: "design", name: "Design", description: "", memberIds: ["U1"] };
+  const client = {
+    store: createStore(() => ({ customEmoji: {}, userGroups: { G1: design } })),
+  } as unknown as WorkspaceClient;
+  const draw = (text: string, selfId?: ID) =>
+    renderToStaticMarkup(
+      <ClientContext.Provider value={client}>
+        <Mrkdwn text={text} users={users} channels={channels} selfId={selfId} />
+      </ClientContext.Provider>,
+    );
+  const chips = (html: string) => [...html.matchAll(/<button[^>]*>([^<]*)<\/button>/g)];
+
+  it("draws a group by its handle now, whatever label it was sent with", () => {
+    const html = draw("ask <!subteam^G1|@old-name> please");
+    expect(chips(html).map((m) => m[1])).toEqual(["@design"]);
+    expect(html).not.toContain("old-name");
+    expect(html).not.toContain("subteam");
+  });
+
+  it("draws a group written without a label", () => {
+    expect(chips(draw("ask <!subteam^G1>")).map((m) => m[1])).toEqual(["@design"]);
+  });
+
+  it("marks a group the reader is in as addressing them", () => {
+    expect(chips(draw("ask <!subteam^G1|@design>", "U1"))[0]![0]).toContain("bg-copper/25");
+    expect(chips(draw("ask <!subteam^G1|@design>", "U2"))[0]![0]).not.toContain("bg-copper/25");
+  });
+
+  it("reads a group that is gone as the label it was sent with, as text", () => {
+    const html = draw("ask <!subteam^G9|@gone> or <!subteam^G8>");
+    expect(chips(html)).toEqual([]);
+    expect(html).toContain("ask @gone or @group");
+  });
+
+  it("leaves a group inside code as written", () => {
+    const html = draw("`<!subteam^G1|@design>` and ```<!subteam^G1|@design>```");
+    expect(chips(html)).toEqual([]);
+    expect(html.match(/&lt;!subteam\^G1\|@design&gt;/g)).toHaveLength(2);
+  });
+
+  it("is its label without a workspace, as a guest sees it", () => {
+    expect(render("ask <!subteam^G1|@design>")).toContain("ask @design");
+    expect(chips(render("ask <!subteam^G1|@design>"))).toEqual([]);
+  });
+});

@@ -51,6 +51,36 @@ export function broadcastLabel(token: string): string {
 export const CHANNEL_MENTION = /<#([A-Za-z0-9_-]+)>/g;
 
 /**
+ * `<!subteam^id|@handle>`, the wire form of naming a user group (J13). It is
+ * Slack's, label and all, so an app reading Slack's form reads ours. The
+ * label is what the group was called when the message was sent: a group that
+ * is gone reads as it. One without a label is accepted on the way in.
+ * Global: use with matchAll or replaceAll.
+ */
+export const GROUP_MENTION = /<!subteam\^([A-Za-z0-9_-]+)(?:\|([^<>\n]*))?>/g;
+
+export function groupMentionsIn(text: string): Set<ID> {
+  return new Set([...text.matchAll(GROUP_MENTION)].map((m) => m[1]!));
+}
+
+/** The token that mentions a group, as the composer writes it. */
+export function groupMentionToken(group: { id: ID; handle: string }): string {
+  return `<!subteam^${group.id}|@${group.handle}>`;
+}
+
+/**
+ * How a group mention reads: a group there now by its handle now, and one
+ * that is gone by the label it was sent with.
+ */
+export function groupMentionLabel(
+  group: { handle: string } | undefined,
+  label: string | null | undefined,
+): string {
+  if (group) return `@${group.handle}`;
+  return label?.trim() || "@group";
+}
+
+/**
  * A custom emoji's name (J12): 1 to 32 lowercase letters, digits, `_` and
  * `-`. Text writes it between colons, `:name:`, as Slack does.
  */
@@ -70,6 +100,8 @@ const LINK = /<(https?:\/\/[^\s|<>]+)(?:\|([^<>\n]+))?>/g;
 export interface MentionLabels {
   user: (id: ID) => string;
   channel: (id: ID) => string;
+  /** `label` is the one written in the text, or null where it has none. */
+  group: (id: ID, label: string | null) => string;
 }
 
 /**
@@ -81,6 +113,7 @@ export function plainText(text: string, labels: MentionLabels): string {
   return text
     .replaceAll(USER_MENTION, (_all, id: ID) => labels.user(id))
     .replaceAll(CHANNEL_MENTION, (_all, id: ID) => labels.channel(id))
+    .replaceAll(GROUP_MENTION, (_all, id: ID, label?: string) => labels.group(id, label ?? null))
     .replaceAll(BROADCAST_RE, (_all, who: string) => broadcastLabel(who))
     .replaceAll(LINK, (_all, url: string, label?: string) => label?.trim() || url);
 }

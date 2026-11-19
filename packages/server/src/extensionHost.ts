@@ -37,7 +37,7 @@ export async function registerExtensions(
     return mutate((emit) => {
       if (store.people.count() === 0)
         throw new HttpError(409, "workspace_unclaimed", "The workspace has no owner yet.");
-      if (store.people.authByHandle(named.data.handle)) throw new HttpError(409, "handle_taken");
+      if (store.people.handleTaken(named.data.handle)) throw new HttpError(409, "handle_taken");
       return accounts.makeMember(emit, {
         ...named.data,
         passwordHash: credentials.hash,
@@ -103,6 +103,7 @@ export async function registerExtensions(
           const { passwordHash: _p, salt: _s, ...user } = auth;
           return user;
         },
+        handleTaken: (handle) => store.people.handleTaken(handle.toLowerCase()),
         create: createMember,
         update: updateMember,
       },

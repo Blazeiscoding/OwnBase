@@ -117,7 +117,7 @@ export function registerAccounts(
     const { token, user } = mutate((emit) => {
       const isFirstUser = store.people.count() === 0;
 
-      if (store.people.authByHandle(body.handle)) {
+      if (store.people.handleTaken(body.handle)) {
         throw new HttpError(409, "handle_taken");
       }
 
@@ -185,7 +185,7 @@ export function registerAccounts(
         throw new HttpError(429, "guests_full", "Too many guests are here now. Try again later.");
       let handle = "";
       do handle = `guest-${secretToken().slice(0, 10).toLowerCase()}`;
-      while (store.people.authByHandle(handle));
+      while (store.people.handleTaken(handle));
       // No password can match these: a guest cannot sign in, only resume.
       const user = makeMember(emit, {
         handle,
@@ -212,7 +212,7 @@ export function registerAccounts(
       if (settings.get("accessPolicy") === "invite_only")
         throw new HttpError(403, "invite_required", "This workspace needs an invite to join.");
       if (singleSignOnRequired()) throw ssoRequired("makes new accounts");
-      if (store.people.authByHandle(body.handle)) throw new HttpError(409, "handle_taken");
+      if (store.people.handleTaken(body.handle)) throw new HttpError(409, "handle_taken");
       const user = store.accounts.convertGuest(
         me.id,
         body.handle,
