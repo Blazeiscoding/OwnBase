@@ -128,18 +128,18 @@ which the SDK understands.
 
 The supported methods — _checked_:
 
-| Method             | Arguments honoured                         | Notes                                                                                                |
-| ------------------ | ------------------------------------------ | ---------------------------------------------------------------------------------------------------- |
-| `auth.test`        | —                                          | Returns `url`, `team`, `user`, `team_id`, `user_id`, `bot_id`. Bolt calls this before it will start. |
-| `chat.postMessage` | `channel`, `text`, `blocks`, `thread_ts`   | Returns `ok`, `channel`, `ts`, and this server's own `message` object.                               |
-| `views.open`       | `trigger_id`, `view`                       | Returns `ok` and `view` with `id`, `callback_id`, `external_id`, `hash` and the stack's ids.         |
-| `views.push`       | `trigger_id`, `view`                       | As `views.open`.                                                                                     |
-| `views.update`     | `view_id` or `external_id`, `view`, `hash` | As `views.open`.                                                                                     |
+| Method                  | Arguments honoured                         | Notes                                                                                                |
+| ----------------------- | ------------------------------------------ | ---------------------------------------------------------------------------------------------------- |
+| `apps.connections.open` | —                                          | Takes the app-level `xapp-` token, not the bot token. Returns `url` for one Socket Mode connection.  |
+| `auth.test`             | —                                          | Returns `url`, `team`, `user`, `team_id`, `user_id`, `bot_id`. Bolt calls this before it will start. |
+| `chat.postMessage`      | `channel`, `text`, `blocks`, `thread_ts`   | Returns `ok`, `channel`, `ts`, and this server's own `message` object.                               |
+| `views.open`            | `trigger_id`, `view`                       | Returns `ok` and `view` with `id`, `callback_id`, `external_id`, `hash` and the stack's ids.         |
+| `views.push`            | `trigger_id`, `view`                       | As `views.open`.                                                                                     |
+| `views.update`          | `view_id` or `external_id`, `view`, `hash` | As `views.open`.                                                                                     |
 
 **Any other method** answers `unknown_method`. That includes `chat.update`,
 `chat.delete`, `chat.postEphemeral`, `conversations.*`, `users.*`,
-`reactions.*`, `files.*`, `views.publish`, and `apps.connections.open` — so **Socket Mode is not supported**; an app receives
-events and interactions over HTTP.
+`reactions.*`, `files.*` and `views.publish`.
 
 ### `chat.postMessage`
 

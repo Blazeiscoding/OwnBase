@@ -5,6 +5,7 @@ import { HttpError } from "../httpError.js";
 import { secretToken } from "../ids.js";
 import type { AppCalls } from "./calls.js";
 import type { EventDeliveries } from "./deliveries.js";
+import type { AppSockets } from "./sockets.js";
 
 /**
  * The host of a URL an admin gave an app, for the audit log. The whole URL
@@ -18,6 +19,34 @@ export const hostOf = (url: string): string => {
   }
 };
 
+/** A URL the request must give, for an app that is sent things by URL. */
+export const requireUrl = (url: string | undefined): string => {
+  if (!url) throw new HttpError(400, "url_required", "Give the URL this app is sent it at.");
+  return url;
+};
+
+/** The app's way of receiving changed while a request about it waited. */
+const receiveChanged = () =>
+  new HttpError(
+    409,
+    "receive_changed",
+    "How this app receives changed while this was being saved. Try again.",
+  );
+
+/**
+ * Refuses a switch back to URLs while something of the app's has none: a
+ * command by its name, or `events` for a subscription.
+ */
+const urlsMissing = (missing: string[]) => {
+  const named = missing.map((name) => (name === "events" ? "its event subscription" : name));
+  const one = named.length === 1;
+  return new HttpError(
+    409,
+    "urls_missing",
+    `${named.join(" and ")} ${one ? "has" : "have"} no URL. Remove ${one ? "it" : "them"}, switch to URLs, then add ${one ? "it" : "them"} again with a URL.`,
+  );
+};
+
 /**
  * What an administrator does to apps: making them, their scopes and secrets,
  * their incoming webhooks, the URL their buttons and forms call, and the
@@ -28,10 +57,11 @@ export function registerAppManagement(
   deps: {
     calls: AppCalls;
     deliveries: EventDeliveries;
+    sockets: AppSockets;
   },
 ) {
   const { store, route, requireUser, mutate } = ctx;
-  const { calls, deliveries } = deps;
+  const { calls, deliveries, sockets } = deps;
 
   /** A handle for the app's bot user that cannot collide with a person's. */
   const botHandle = (name: string): string => {
@@ -87,6 +117,8 @@ export function registerAppManagement(
       commands: store.apps.listCommands(a.id),
       subscriptions: store.apps.listSubscriptions(a.id),
       signingSecret: store.apps.signingSecret(a.id) ?? "",
+      hasAppToken: store.apps.hasAppLevelToken(a.id),
+      sockets: sockets.count(a.id),
     })),
   }));
 
@@ -130,6 +162,72 @@ export function registerAppManagement(
     return { token };
   });
 
+  route(endpoints.replaceAppLevelToken, async ({ req, user: me, params }) => {
+    const target = store.apps.get(params.id);
+    if (!target) throw new HttpError(404, "not_found");
+    const token = secretToken("xapp-");
+    store.transaction(() => {
+      store.apps.setAppLevelToken(target.id, hashToken(token));
+      store.audit.record({
+        actorId: me.id,
+        action: "app.app_token_replaced",
+        targetType: "app",
+        targetId: target.id,
+        details: { name: target.name },
+      });
+    });
+    // As with the bot token: a replaced token is one that may have leaked,
+    // so what was opened with it goes now rather than at its next reconnect.
+    sockets.close(target.id, "link_disabled");
+    req.log.info({ appId: target.id, by: me.id }, "app-level token replaced");
+    return { token };
+  });
+
+  route(endpoints.revokeAppLevelToken, async ({ req, user: me, params }) => {
+    const target = store.apps.get(params.id);
+    if (!target) throw new HttpError(404, "not_found");
+    store.transaction(() => {
+      store.apps.setAppLevelToken(target.id, null);
+      store.audit.record({
+        actorId: me.id,
+        action: "app.app_token_revoked",
+        targetType: "app",
+        targetId: target.id,
+        details: { name: target.name },
+      });
+    });
+    sockets.close(target.id, "link_disabled");
+    req.log.info({ appId: target.id, by: me.id }, "app-level token revoked");
+    return { ok: true };
+  });
+
+  route(endpoints.setAppReceive, async ({ user: me, body, params }) => {
+    const app = store.transaction(() => {
+      const target = store.apps.get(params.id);
+      if (!target) throw new HttpError(404, "not_found");
+      if (target.receive === body.receive) return target;
+      if (body.receive === "url") {
+        // Their URLs were never given, nor checked with url_verification,
+        // so there is nowhere to post them.
+        const missing = store.apps.withoutUrl(target.id);
+        if (missing.length > 0) throw urlsMissing(missing);
+      }
+      store.apps.setReceive(target.id, body.receive);
+      store.audit.record({
+        actorId: me.id,
+        action: "app.receive_changed",
+        targetType: "app",
+        targetId: target.id,
+        details: { name: target.name, receive: body.receive },
+      });
+      return store.apps.get(target.id)!;
+    });
+    if (app.receive === "url") sockets.close(app.id, "link_disabled");
+    // What waited for the other way goes out this way now.
+    deliveries.soon();
+    return { app };
+  });
+
   route(endpoints.replaceSigningSecret, async ({ req, user: me, params }) => {
     const target = store.apps.get(params.id);
     if (!target) throw new HttpError(404, "not_found");
@@ -161,6 +259,7 @@ export function registerAppManagement(
         details: { name: target.name },
       });
     });
+    sockets.close(target.id, "link_disabled");
     return { ok: true };
   });
 
@@ -280,15 +379,19 @@ export function registerAppManagement(
     const owner = store.apps.get(params.id);
     if (!owner) throw new HttpError(404, "not_found");
 
-    await calls.verifyCallbackUrl(body.url, owner.id);
+    // An app on Socket Mode is sent its events over its sockets: no URL,
+    // so nothing to check.
+    const url = owner.receive === "socket" ? "" : requireUrl(body.url);
+    if (url) await calls.verifyCallbackUrl(url, owner.id);
 
     const subscription = store.transaction(() => {
       const me = requireUser(req);
       const current = store.apps.get(owner.id);
       if (!current) throw new HttpError(404, "not_found");
+      if (current.receive !== owner.receive) throw receiveChanged();
       const created = store.apps.createSubscription({
         appId: current.id,
-        url: body.url,
+        url,
         eventTypes: body.eventTypes ?? [],
       });
       store.audit.record({
@@ -296,7 +399,9 @@ export function registerAppManagement(
         action: "subscription.created",
         targetType: "subscription",
         targetId: created.id,
-        details: { appId: current.id, name: current.name, host: hostOf(body.url) },
+        details: url
+          ? { appId: current.id, name: current.name, host: hostOf(url) }
+          : { appId: current.id, name: current.name },
       });
       return created;
     });

@@ -2,6 +2,7 @@ import {
   APP_SCOPES,
   isAppEventType,
   type App,
+  type AppReceive,
   type AppEventType,
   type AppScope,
   type EventSubscription,
@@ -24,8 +25,11 @@ const appRow = shape({
   signing_secret: "text",
   interactivity_url: "text",
   scopes: "text",
+  receive: "text",
+  app_token_hash: "text?",
 });
 const signingSecretRow = appRow.pick("signing_secret");
+const nameRow = shape({ name: "text" });
 const webhookRow = shape({ id: "text", app_id: "text", channel_id: "text", created_at: "number" });
 const commandRow = shape({
   id: "text",
@@ -76,6 +80,7 @@ const toApp = (r: RowOf<typeof appRow.columns>): App => ({
   createdAt: r.created_at,
   interactivityUrl: r.interactivity_url,
   scopes: scopeList(parseJsonArray(r.scopes)),
+  receive: r.receive === "socket" ? "socket" : "url",
 });
 
 const toWebhook = (r: RowOf<typeof webhookRow.columns>): Webhook => ({
@@ -174,7 +179,62 @@ export class AppStore {
       createdAt: now,
       interactivityUrl: "",
       scopes,
+      receive: "url",
     };
+  }
+
+  setReceive(id: ID, receive: AppReceive): boolean {
+    return this.db.prepare("UPDATE apps SET receive = ? WHERE id = ?").run(receive, id).changes > 0;
+  }
+
+  /**
+   * What an app on Socket Mode has with no URL, which it could not be sent by
+   * URL: `/command` for a command, `events` for a subscription.
+   */
+  withoutUrl(appId: ID): string[] {
+    const commands = nameRow.all(
+      this.db.prepare(
+        "SELECT '/' || command AS name FROM slash_commands WHERE app_id = ? AND url = '' ORDER BY command",
+      ),
+      appId,
+    );
+    const subscriptions = nameRow.all(
+      this.db.prepare(
+        "SELECT 'events' AS name FROM event_subscriptions WHERE app_id = ? AND url = '' LIMIT 1",
+      ),
+      appId,
+    );
+    return [...commands, ...subscriptions].map((r) => r.name);
+  }
+
+  /** Replaces the app's app-level token with this one, or takes it away with null. */
+  setAppLevelToken(appId: ID, tokenHash: string | null): boolean {
+    return (
+      this.db.prepare("UPDATE apps SET app_token_hash = ? WHERE id = ?").run(tokenHash, appId)
+        .changes > 0
+    );
+  }
+
+  hasAppLevelToken(appId: ID): boolean {
+    return this.appLevelTokenHash(appId) !== null;
+  }
+
+  appLevelTokenHash(appId: ID): string | null {
+    return (
+      appRow.get(this.db.prepare("SELECT * FROM apps WHERE id = ?"), appId)?.app_token_hash ?? null
+    );
+  }
+
+  /** The app an app-level token belongs to; a deactivated bot's app has none, as with bot tokens. */
+  forAppLevelToken(tokenHash: string): App | null {
+    const r = appRow.get(
+      this.db.prepare(
+        `SELECT a.* FROM apps a JOIN users u ON u.id = a.bot_user_id
+         WHERE a.app_token_hash = ? AND u.deactivated = 0`,
+      ),
+      tokenHash,
+    );
+    return r ? toApp(r) : null;
   }
 
   setScopes(id: ID, scopes: readonly AppScope[]): boolean {

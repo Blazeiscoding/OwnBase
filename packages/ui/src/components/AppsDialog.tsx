@@ -182,6 +182,8 @@ export function AppsDialog({ onClose }: { onClose: () => void }) {
       webhooks: [],
       commands: [],
       subscriptions: [],
+      hasAppToken: false,
+      sockets: 0,
     };
     setApps((list) => [shown, ...(list ?? []).filter((app) => app.id !== r.app.id)]);
     setSecrets((s) => ({ ...s, [r.app.id]: r.token }));

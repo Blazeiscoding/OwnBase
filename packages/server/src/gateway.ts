@@ -25,6 +25,9 @@ import type { Store } from "./store.js";
 
 export type SessionCheck = (client: Client) => boolean;
 
+/** Takes over an upgrade to a path other than the members' own. */
+export type UpgradeHandler = (req: IncomingMessage, socket: Duplex, head: Buffer, url: URL) => void;
+
 /** One signed-in socket: a device. */
 export interface Client {
   ws: WebSocket;
@@ -86,6 +89,8 @@ export class Gateway implements OutboxSink {
     throw new Error("the gateway was attached before the features gave their snapshot");
   };
   private liveHuddles: Huddles | null = null;
+  /** Upgrades to other paths, which the one listener hands on (J14). */
+  private upgrades = new Map<string, UpgradeHandler>();
 
   constructor(
     private store: Store,
@@ -154,6 +159,15 @@ export class Gateway implements OutboxSink {
     throw new Error("the gateway was used before the huddles were given to it");
   }
 
+  /**
+   * Hands upgrades to `path` to `handler`. Given before `attach`: there is
+   * one upgrade listener, since a second would have its sockets destroyed by
+   * this one's refusal of every path it does not know.
+   */
+  useUpgrade(path: string, handler: UpgradeHandler): void {
+    this.upgrades.set(path, handler);
+  }
+
   attach(server: HttpServer, path = "/ws"): void {
     if (!this.liveHuddles) throw new Error("the gateway was attached before the huddles were");
     const wss = new WebSocketServer({
@@ -175,7 +189,8 @@ export class Gateway implements OutboxSink {
         socket.destroy();
         return;
       }
-      if (url.pathname !== path) {
+      const other = this.upgrades.get(url.pathname);
+      if (url.pathname !== path && !other) {
         socket.destroy();
         return;
       }
@@ -186,6 +201,10 @@ export class Gateway implements OutboxSink {
         const address = this.clientAddress(req);
         if (this.limiter && !this.limiter.take("socket", address).ok) {
           socket.destroy();
+          return;
+        }
+        if (other) {
+          other(req, socket, head, url);
           return;
         }
         wss.handleUpgrade(req, socket, head, (ws) => {

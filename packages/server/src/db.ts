@@ -834,6 +834,14 @@ const MIGRATIONS: string[] = [
     created_at INTEGER NOT NULL
   );
   `,
+  // v60 — Socket Mode (J14): how an app is sent things, by URL or over the
+  // sockets it opens, and the hash of its app-level token. A socket-mode
+  // app's subscriptions and commands keep their NOT NULL url as ''.
+  `
+  ALTER TABLE apps ADD COLUMN receive TEXT NOT NULL DEFAULT 'url';
+  ALTER TABLE apps ADD COLUMN app_token_hash TEXT;
+  CREATE INDEX idx_apps_app_token ON apps(app_token_hash);
+  `,
 ];
 
 /** The schema this build understands. A workspace above it cannot be opened. */

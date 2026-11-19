@@ -296,6 +296,7 @@ async function startWorkspaceServer(
     sessionUser: (tokenHash) => store.accounts.getSessionUser(tokenHash),
     mustChangePassword: (userId) => store.accounts.mustChangePassword(userId),
     appForToken: (tokenHash) => store.apps.forToken(tokenHash),
+    appForAppLevelToken: (tokenHash) => store.apps.forAppLevelToken(tokenHash),
   });
 
   const ctx: ServerContext = {

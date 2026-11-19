@@ -23,19 +23,15 @@ export function createEventDeliveries(ctx: ServerContext, calls: AppCalls) {
 
   const deliver = async (delivery: DueDelivery): Promise<void> => {
     try {
-      const retryHeaders: Record<string, string> =
-        delivery.attempts > 0
-          ? {
-              "x-slack-retry-num": String(delivery.attempts),
-              "x-slack-retry-reason": "http_error",
-            }
-          : {};
-      const res = await calls.post(
-        delivery.url,
-        delivery.body,
-        "application/json",
-        delivery.signingSecret,
-        retryHeaders,
+      const res = await calls.callApp(
+        { id: delivery.appId, receive: delivery.receive },
+        {
+          type: "events_api",
+          url: delivery.url,
+          body: delivery.body,
+          attempt: delivery.attempts,
+          signingSecret: delivery.signingSecret,
+        },
       );
       if (res.status < 200 || res.status >= 300) throw new Error(`HTTP ${res.status}`);
       store.deliveries.complete(delivery.id, delivery.subscriptionId);
