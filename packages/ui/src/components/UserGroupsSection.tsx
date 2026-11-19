@@ -113,7 +113,7 @@ export function UserGroupsSection() {
                 <button
                   type="button"
                   disabled={busy}
-                  className={buttonClass("danger")}
+                  className={buttonClass("secondary")}
                   aria-label={`Delete @${group.handle}`}
                   onClick={() => void remove(group)}
                 >
