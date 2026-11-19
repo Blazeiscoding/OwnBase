@@ -248,6 +248,7 @@ that number, the owner and admins see a notice. It never locks anyone out. See
   mute.
 - Reactions, mentions, pins and saved items.
 - The workspace's own emoji, in messages and as reactions.
+- User groups an admin makes, such as @design, mentioned as one.
 - Forwarding, polls, and reminders about a message.
 - Link previews, and a card for a link to another message.
 - Typing indicators, presence and unread tracking.
