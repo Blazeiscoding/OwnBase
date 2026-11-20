@@ -127,7 +127,7 @@
         "joinHuddle reads /api/rtc-config, loads the call code on demand, starts the microphone and asks the server to let this device in, giving up after ten seconds without an answer.",
         "A dropped socket holds the call (holdHuddle); the next ready snapshot resumes it (resumeHuddle), keeping peers when the server kept this device's place and dialling again when not. A refused rejoin or huddle.moved ends the call with a reason in huddleEnded.",
         "ringNoticeFor words what the caller's device says as a ring changes; declineRing says no to one. The participant, join-result and signal events reach the session through participantsChanged, joinResult and signal.",
-        "Moved out of workspace.ts in G12; huddle.ts, the session itself, is unchanged."
+        "Moved out of workspace.ts in G12; huddle.ts, the session itself, did not change in that move."
       ],
       "concepts": ["huddle admission", "rejoin", "rings", "E10", "G12"]
     },
@@ -300,7 +300,8 @@
         "Camera/screen prompts, peer signals and teardown have owned lifetimes. testMicrophone opens a local level meter without sending media anywhere and returns an explicit stop operation.",
         "closePeers closes every peer connection and keeps the microphone and camera, for coming back after the server let this device's place go: the others closed their end, so each connection is made afresh.",
         "Each call keeps a log of every step (call settings, setup sent and received, each route found by kind and protocol, ICE and connection states, failures that were silent before) with no address or SDP. A connection not up after 15 s, or failed, is diagnosed from the routes each side offered (signalling, no ICE servers, no public route here or there, needs a relay), shown as the peer's trouble, reported to the server, and retried up to twice with the call settings read afresh and an ICE restart from the offering side. The module is loaded only when someone joins a call.",
-        "With none of the browser's processing chosen and a systemMicrophone opener given, openMicrophone first opens the microphone as other apps on the computer do (openSystemMicrophone), so the sound effects set up in the system reach the call; the strong filter, when chosen, runs on that. An opener that cannot tell which device it is, or fails, leaves the browser to open it as before, and the call log says which happened. The feed's system microphone says itself when it goes (onEnded), which recovers the microphone as a device track ending does. testMicrophone does the same and reports system."
+        "With none of the browser's processing chosen and a systemMicrophone opener given, openMicrophone first opens the microphone as other apps on the computer do (openSystemMicrophone), so the sound effects set up in the system reach the call; the strong filter, when chosen, runs on that. An opener that cannot tell which device it is, or fails, leaves the browser to open it as before, and the call log says which happened. The feed's system microphone says itself when it goes (onEnded), which recovers the microphone as a device track ending does. testMicrophone does the same and reports system.",
+        "G12 moved the pure parts out: what each person is sent to callSizing.ts, a screen share's capture rules to screenShare.ts, and reading routes to callRoutes.ts. The session stays one class: microphone, camera, share, sizing and signalling all work over the same peer connections and the same media signal."
       ],
       "concepts": [
         "WebRTC mesh",
@@ -312,6 +313,36 @@
         "device switching",
         "system microphone"
       ]
+    },
+    {
+      "path": "packages/client-core/src/callSizing.ts",
+      "plain": "Works out how big and how smooth your camera and screen share go to each person in a call.",
+      "summary": "Sizes what the camera and the share send each person, by call size and by how big they draw it.",
+      "details": [
+        "cameraEncoding limits the camera by how many others there are (E13); cameraEncodingFor adds how tall that person draws it, rounded by viewHeight (E13b); screenEncodingFor does the same for the share. IDLE_ENCODING is what a sender that sends nothing is set to, so the browser's per-connection encoder shrinks.",
+        "Pure functions, tested without a call. HuddleSession applies them with setParameters. Moved out of huddle.ts in G12."
+      ],
+      "concepts": ["E13", "E13b", "sender sizing", "G12"]
+    },
+    {
+      "path": "packages/client-core/src/screenShare.ts",
+      "plain": "Says what a screen share asks the browser for, and keeps the call's own sound out of a shared screen's sound.",
+      "summary": "The browser-facing rules of a screen share's capture, picture and sound.",
+      "details": [
+        "shareVideo and shareHint turn a ScreenShareQuality into capture constraints and a content hint. canShareScreenSound and leavesCallOut decide whether the share's sound is asked for and kept, since a share that carries the call back would send everyone their own voices.",
+        "withStereoScreenSound marks a description from the other side so the share's sound, the fourth media section, is stereo at 96 kbps. Moved out of huddle.ts in G12."
+      ],
+      "concepts": ["screen share", "screen sound", "SDP", "G12"]
+    },
+    {
+      "path": "packages/client-core/src/callRoutes.ts",
+      "plain": "Reads the network routes a call connection finds, for the call log and the report to the host.",
+      "summary": "Turns ICE candidates, call settings and connection statistics into counts and log words.",
+      "details": [
+        "candidateOf reads a route's kind and protocol, never its address, since the log is meant to be shared. countServers and describeServers count the STUN and TURN servers a configuration gives; selectedRoute reads the pair a connected call settled on from getStats, which Chrome and Safari name on the transport and Firefox marks selected.",
+        "Moved out of huddle.ts in G12."
+      ],
+      "concepts": ["ICE candidates", "call log", "G12"]
     },
     {
       "path": "packages/client-core/src/devices.ts",

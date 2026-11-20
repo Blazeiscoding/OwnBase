@@ -1,14 +1,21 @@
 import {
-  CANDIDATE_KINDS,
   shouldInitiateOffer,
   type CallCause,
   type CallReport,
   type CandidateCounts,
-  type CandidateKind,
   type HuddleSignal,
   type ID,
 } from "@ownbase/protocol";
 import { CALL_CAUSES, type CallLogLine } from "./callLog.js";
+import {
+  candidateOf,
+  countServers,
+  describeCounts,
+  describeServers,
+  firstOf,
+  noCandidates,
+  selectedRoute,
+} from "./callRoutes.js";
 import {
   LEVEL_POLL_MS,
   SCREEN_SHARE_QUALITY,
@@ -30,8 +37,27 @@ import {
   type ScreenShareQuality,
   type SystemMicrophone,
 } from "./devices.js";
+import {
+  IDLE_ENCODING,
+  cameraEncodingFor,
+  pictureHeight,
+  screenEncodingFor,
+  viewHeight,
+  type CallView,
+  type SentEncoding,
+} from "./callSizing.js";
+import {
+  SCREEN_SOUND,
+  canShareScreenSound,
+  leavesCallOut,
+  shareHint,
+  shareVideo,
+  withStereoScreenSound,
+  type ShareRequest,
+} from "./screenShare.js";
 
 export type { CallLogLine } from "./callLog.js";
+export type { CallView } from "./callSizing.js";
 export type { MicrophoneTest, ScreenShareQuality } from "./devices.js";
 
 export interface HuddlePeer {
@@ -53,242 +79,6 @@ export interface HuddlePeer {
   trouble?: CallCause | null;
   /** The connection carried media before and dropped; it is being made again. */
   reconnecting?: boolean;
-}
-
-/** What to ask a screen's capture for, at a quality: no taller or quicker than it. */
-function shareVideo(quality: ScreenShareQuality): MediaTrackConstraints {
-  return {
-    width: { max: (quality.height * 16) / 9 },
-    height: { max: quality.height },
-    frameRate: { ideal: quality.frameRate, max: quality.frameRate },
-  };
-}
-
-/** Text stays sharp as detail; sixty frames a second is asked for motion. */
-function shareHint(quality: ScreenShareQuality): string {
-  return quality.frameRate === 60 ? "motion" : "detail";
-}
-
-/**
- * What the camera sends each of the others: a share of its 960 by 540, at
- * most so many frames a second and bits a second; no limits where absent.
- */
-interface CameraEncoding {
-  scaleResolutionDownBy: number;
-  maxFramerate?: number;
-  maxBitrate?: number;
-}
-
-/**
- * What the camera sends each of the others, by how many others there are
- * (E13). Every connection in the mesh has an encoder of its own, so each
- * person costs everyone else another one: at the full picture, half a core of
- * a six-core desktop and 2 Mbit/s of upload each, and four people on cameras
- * already stalled one such desktop running all of them. With more than one
- * other, the picture each gets is smaller and slower, keeping the upload near
- * 2.4 Mbit/s however many join; a tile in a grid of four or six is no bigger
- * than it anyway. Measured with `scripts/measure-calls.mts`; see "How many
- * people a call holds" in docs/DEPLOYMENT.md.
- */
-export function cameraEncoding(others: number): CameraEncoding {
-  if (others <= 1) return { scaleResolutionDownBy: 1 };
-  if (others === 2) return { scaleResolutionDownBy: 1, maxFramerate: 24, maxBitrate: 1_200_000 };
-  if (others <= 5)
-    return {
-      scaleResolutionDownBy: 1.5,
-      maxFramerate: others === 3 ? 20 : 15,
-      maxBitrate: Math.floor(2_400_000 / others),
-    };
-  return {
-    scaleResolutionDownBy: 2,
-    maxFramerate: 15,
-    maxBitrate: Math.max(250_000, Math.floor(2_400_000 / others)),
-  };
-}
-
-/**
- * The heights someone asks for a camera or a share at, by how tall they draw
- * it (E13b). Rounding to these keeps a window being resized from changing
- * what is sent at every step.
- */
-const VIEW_HEIGHTS = [180, 270, 360, 540, 720, 1080, 1440, 2160] as const;
-
-/** How tall someone draws a person's camera and share, in device pixels; 0 where not at all. */
-export interface CallView {
-  camera: number;
-  screen: number;
-}
-
-/**
- * The height to ask for a picture drawn `drawn` device pixels tall: the
- * smallest of `VIEW_HEIGHTS` that is at least seven eighths of it, since a
- * picture an eighth smaller than its tile still looks sharp, and 0 for one
- * not drawn.
- */
-export function viewHeight(drawn: number): number {
-  if (!(drawn > 0)) return 0;
-  return VIEW_HEIGHTS.find((height) => height >= (drawn * 7) / 8) ?? 2160;
-}
-
-/** What one connection's camera or share is set to send; see `cameraEncodingFor`. */
-interface SentEncoding extends CameraEncoding {
-  /** False to send nothing at all: they draw none of it. */
-  active: boolean;
-}
-
-/**
- * What a camera or a share is set to send someone while it sends them
- * nothing: they draw none of it, or it is off. Not sending is not enough.
- * The browser keeps an encoder for every connection once a picture has gone
- * over it, with its working pictures at whatever size the sender is set to,
- * for the rest of the call: at 640 by 360 that is 12 MiB a connection and at
- * 960 by 540 28 MiB, and a share's picture is larger than either. Set to an
- * eighth of the picture's size it keeps about 1 MiB. Measured with
- * `scripts/measure-memory.mts`.
- */
-const IDLE_ENCODING: SentEncoding = { active: false, scaleResolutionDownBy: 8 };
-
-/**
- * What the camera sends someone who draws it `view` tall (`viewHeight`), in a
- * call with `others` besides you, from a camera whose picture is `height`
- * tall. A small tile gets a picture no bigger than it, at a rate that suits
- * it, and a tile not drawn gets nothing, so the encoder for it stops and
- * shrinks (`IDLE_ENCODING`). Each limit is the stricter of that and the
- * call's size (`cameraEncoding`). Until they first say how they draw it, they
- * get the call's size.
- */
-export function cameraEncodingFor(
-  others: number,
-  view: number | undefined,
-  height: number,
-): SentEncoding {
-  const bySize = cameraEncoding(others);
-  if (view === undefined) return { active: true, ...bySize };
-  if (view === 0) return IDLE_ENCODING;
-  // Smaller pictures move less and carry less.
-  const byView =
-    view <= 180
-      ? { maxFramerate: 15, maxBitrate: 200_000 }
-      : view <= 270
-        ? { maxFramerate: 15, maxBitrate: 350_000 }
-        : view <= 360
-          ? { maxFramerate: 20, maxBitrate: 600_000 }
-          : {};
-  const sent: SentEncoding = {
-    active: true,
-    scaleResolutionDownBy: Math.max(bySize.scaleResolutionDownBy, height / view),
-  };
-  const maxFramerate = stricter(bySize.maxFramerate, byView.maxFramerate);
-  if (maxFramerate !== undefined) sent.maxFramerate = maxFramerate;
-  const maxBitrate = stricter(bySize.maxBitrate, byView.maxBitrate);
-  if (maxBitrate !== undefined) sent.maxBitrate = maxBitrate;
-  return sent;
-}
-
-/**
- * What the share sends someone who draws it `view` tall, from a share whose
- * picture is `height` tall: no bigger than that, and nothing while it is not
- * drawn. Its rate stays the sharer's choice. As it comes until they first
- * say how they draw it.
- */
-export function screenEncodingFor(view: number | undefined, height: number): SentEncoding {
-  if (view === undefined) return { active: true, scaleResolutionDownBy: 1 };
-  if (view === 0) return IDLE_ENCODING;
-  return { active: true, scaleResolutionDownBy: Math.max(1, height / view) };
-}
-
-/** The lower of two limits, where either is set. */
-function stricter(a: number | undefined, b: number | undefined): number | undefined {
-  if (a === undefined) return b;
-  if (b === undefined) return a;
-  return Math.min(a, b);
-}
-
-/**
- * How tall a track's picture is where a tile shows it: a camera fills a 16:9
- * tile, so a phone's upright picture is cut to that shape first. Missing for a
- * track that cannot say.
- */
-function pictureHeight(track: MediaStreamTrack | null, fill: boolean): number | undefined {
-  const { width, height } = track?.getSettings?.() ?? {};
-  if (!height) return undefined;
-  return fill && width ? Math.min(height, (width * 9) / 16) : height;
-}
-
-/**
- * A share's sound as it is: no echo cancellation, noise suppression or gain,
- * which are for a voice and spoil music. `restrictOwnAudio` leaves this
- * call's own sound out, so nobody hears themselves again a moment later.
- */
-const SCREEN_SOUND = {
-  restrictOwnAudio: true,
-  echoCancellation: false,
-  noiseSuppression: false,
-  autoGainControl: false,
-} as MediaTrackConstraints;
-
-/** What Chrome's getDisplayMedia also takes, which the DOM types do not have yet. */
-interface ShareRequest extends DisplayMediaStreamOptions {
-  systemAudio?: "include" | "exclude";
-  windowAudio?: "exclude" | "window" | "system";
-  selfBrowserSurface?: "include" | "exclude";
-}
-
-/**
- * Whether a share's sound can be asked for here with this call's own sound
- * left out of it: Chromium 141 and later. Elsewhere a share sends no sound,
- * since a screen's sound with the call in it would send everyone their own
- * voices back.
- */
-function canShareScreenSound(): boolean {
-  const supported = navigator.mediaDevices?.getSupportedConstraints?.() as
-    { restrictOwnAudio?: boolean } | undefined;
-  return supported?.restrictOwnAudio === true;
-}
-
-/**
- * Whether the browser kept this call's own sound out of a share's: it says it
- * did, or it is another tab's sound, which never holds this page's. Checked
- * rather than trusted to the request, because sending the call back to
- * everyone in it is worse than sending no sound.
- */
-function leavesCallOut(sound: MediaStreamTrack, picture: MediaStreamTrack): boolean {
-  const settings = sound.getSettings?.() as { restrictOwnAudio?: boolean } | undefined;
-  if (settings?.restrictOwnAudio === true) return true;
-  return picture.getSettings?.().displaySurface === "browser";
-}
-
-/** What the share's sound is encoded at, in stereo: enough for music, where a voice gets 32. */
-const SCREEN_SOUND_KBPS = 96;
-
-/**
- * A description of the call from the other side, marked to take the share's
- * sound (the fourth media section) in stereo at `SCREEN_SOUND_KBPS`. A sender
- * encodes what the receiver says it takes, and a browser says mono at a
- * voice's rate, so each side marks the other's description before using it.
- * Anything without that section, or without Opus in it, is left as it is.
- */
-export function withStereoScreenSound(sdp: string): string {
-  // The session part, then the microphone, camera, screen and screen sound.
-  // Split before the line feed, so a CRLF's carriage return stays behind.
-  const sections = sdp.split(/(?=\nm=)/);
-  const sound = sections[4];
-  if (!sound?.startsWith("\nm=audio ")) return sdp;
-  const opus = /a=rtpmap:(\d+) opus\/48000/i.exec(sound)?.[1];
-  if (!opus) return sdp;
-  const wanted: Record<string, string> = {
-    stereo: "1",
-    "sprop-stereo": "1",
-    maxaveragebitrate: String(SCREEN_SOUND_KBPS * 1000),
-  };
-  sections[4] = sound.replace(new RegExp(`(a=fmtp:${opus} )([^\\r\\n]*)`), (_, head, params) => {
-    const kept = String(params)
-      .split(";")
-      .map((param) => param.trim())
-      .filter((param) => param && !(param.split("=")[0]! in wanted));
-    return head + [...kept, ...Object.entries(wanted).map(([k, v]) => `${k}=${v}`)].join(";");
-  });
-  return sections.join("");
 }
 
 /** How many lines a call keeps; the oldest go first. */
@@ -1639,105 +1429,6 @@ interface Peer {
 
 /** A route as the signal carries it. */
 type SignalledCandidate = Extract<HuddleSignal, { kind: "ice" }>["candidate"];
-
-const noCandidates = (): CandidateCounts => ({ host: 0, srflx: 0, prflx: 0, relay: 0 });
-
-/** Whether `key` is new to `seen`, adding it. */
-function firstOf(seen: Set<string>, key: string): boolean {
-  if (seen.has(key)) return false;
-  seen.add(key);
-  return true;
-}
-
-/** Which servers a configuration gives for finding routes, by kind. */
-function countServers(config: RTCConfiguration): { stun: number; turn: number } {
-  let stun = 0;
-  let turn = 0;
-  for (const server of config.iceServers ?? []) {
-    for (const url of [server.urls].flat()) {
-      if (/^turns?:/i.test(url)) turn++;
-      else if (/^stuns?:/i.test(url)) stun++;
-    }
-  }
-  return { stun, turn };
-}
-
-function describeServers(config: RTCConfiguration): string {
-  const { stun, turn } = countServers(config);
-  return `${stun} STUN and ${turn} TURN server${turn === 1 ? "" : "s"}${
-    stun + turn === 0 ? " (direct routes on the same network only)" : ""
-  }`;
-}
-
-function describeCounts(counts: CandidateCounts): string {
-  const found = CANDIDATE_KINDS.filter((kind) => counts[kind] > 0);
-  return found.length ? found.map((kind) => `${counts[kind]} ${kind}`).join(", ") : "none";
-}
-
-/**
- * A route's kind and protocol, never its address: the log is meant to be
- * shared. Read from the browser's fields, or from the candidate line itself
- * ("candidate:… 1 udp 2122260223 192.0.2.1 54321 typ srflx …").
- */
-function candidateOf(candidate: {
-  candidate?: string;
-  type?: string | null;
-  protocol?: string | null;
-}): { kind: CandidateKind; protocol: "udp" | "tcp" } {
-  const line = candidate.candidate ?? "";
-  const type = candidate.type ?? /\btyp (\w+)/.exec(line)?.[1];
-  const protocol = (candidate.protocol ?? line.split(" ")[2] ?? "").toLowerCase();
-  return {
-    kind: CANDIDATE_KINDS.includes(type as CandidateKind) ? (type as CandidateKind) : "host",
-    protocol: protocol === "tcp" ? "tcp" : "udp",
-  };
-}
-
-/** The route a connected call settled on, as the browser's statistics say. */
-async function selectedRoute(
-  pc: RTCPeerConnection,
-): Promise<(NonNullable<CallReport["route"]> & { rttMs: number | null }) | null> {
-  if (typeof pc.getStats !== "function") return null;
-  type Entry = {
-    type: string;
-    id: string;
-    selectedCandidatePairId?: string;
-    selected?: boolean;
-    nominated?: boolean;
-    state?: string;
-    localCandidateId?: string;
-    remoteCandidateId?: string;
-    currentRoundTripTime?: number;
-    candidateType?: string;
-    protocol?: string;
-  };
-  const entries = new Map<string, Entry>();
-  (await pc.getStats()).forEach((entry: Entry) => entries.set(entry.id, entry));
-  const all = [...entries.values()];
-  // Chrome and Safari name the pair on the transport; Firefox marks it selected.
-  const pairId = all.find(
-    (e) => e.type === "transport" && e.selectedCandidatePairId,
-  )?.selectedCandidatePairId;
-  const pair = all.find(
-    (e) =>
-      e.type === "candidate-pair" &&
-      (pairId ? e.id === pairId : e.selected || (e.nominated && e.state === "succeeded")),
-  );
-  if (!pair) return null;
-  const local = entries.get(pair.localCandidateId ?? "");
-  const remote = entries.get(pair.remoteCandidateId ?? "");
-  const kind = (type: string | undefined): CandidateKind =>
-    CANDIDATE_KINDS.includes(type as CandidateKind) ? (type as CandidateKind) : "host";
-  return {
-    local: kind(local?.candidateType),
-    remote: kind(remote?.candidateType),
-    protocol: local?.protocol === "tcp" ? "tcp" : "udp",
-    rttMs:
-      typeof pair.currentRoundTripTime === "number"
-        ? Math.round(pair.currentRoundTripTime * 1000)
-        : null,
-  };
-}
 
 /** A device another app, or another device built on it, is holding. */
 function isBusy(err: unknown): boolean {
