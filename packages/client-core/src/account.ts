@@ -80,6 +80,26 @@ export class AccountActions {
     return doneOf(() => this.api.disableTwoStep(password));
   }
 
+  /**
+   * This account's email address (G10), or null where the server sends no
+   * email and there is nothing to set.
+   */
+  emailAddress() {
+    return answerOf(async () => {
+      const info = await this.api.serverInfo();
+      return info.email ? await this.api.emailAddress() : null;
+    });
+  }
+
+  /** Mails a link to confirm `email`, which counts once it is opened (G10). */
+  setEmailAddress(email: string, password: string) {
+    return doneOf(() => this.api.setEmailAddress(email, password));
+  }
+
+  removeEmailAddress() {
+    return doneOf(() => this.api.removeEmailAddress());
+  }
+
   /** The ways of signing in this account can link (P9), and whether each is linked. */
   linkedSignIns() {
     return answerOf(async () => {
