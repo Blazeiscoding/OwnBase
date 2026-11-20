@@ -20,6 +20,15 @@ describe("recovering the window's page", () => {
     expect(steps).toEqual(["reload", "reload", "reload", "ask", "ask"]);
   });
 
+  it("asks on the fourth failure in a minute, however the minute is spread", () => {
+    const recovery = new RendererRecovery();
+    const steps = Array.from({ length: 4 }, () => {
+      vi.advanceTimersByTime(15_000);
+      return recovery.failed();
+    });
+    expect(steps).toEqual(["reload", "reload", "reload", "ask"]);
+  });
+
   it("counts only the last minute's failures, so a page that fails now and then always comes back", () => {
     const recovery = new RendererRecovery();
     for (let i = 0; i < 20; i++) {
