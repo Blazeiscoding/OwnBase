@@ -99,7 +99,7 @@ describe("the workspace's operational status", () => {
       deliveries: { waiting: 0, oldestWaitingAt: null, failed: 0 },
       scheduled: { queued: 1, held: 0, failed: 0 },
       retention: { enabled: false, lastSuccessAt: null, failures: 0 },
-      connections: { sockets: 1, people: 1 },
+      connections: { sockets: 1, people: 1, appSockets: 0 },
       // Less than a minute in, there is no full minute to report.
       eventLoopDelayMs: null,
     });

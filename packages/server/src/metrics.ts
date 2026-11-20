@@ -126,6 +126,9 @@ export function createMetrics(app: FastifyInstance, token: string) {
       "People connected now, each counted once however many devices they use.",
       [{ value: status.connections.people }],
     );
+    family(out, "ownbase_app_sockets", "gauge", "Apps' Socket Mode connections open now.", [
+      { value: status.connections.appSockets },
+    ]);
     family(out, "ownbase_signed_in_sessions", "gauge", "Sessions signed in and not expired.", [
       { value: sources.liveSessions() },
     ]);

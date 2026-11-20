@@ -561,8 +561,11 @@ export interface WorkspaceStatus {
          */
         offsite?: { lastSuccessAt: number | null; failures: number };
       };
-  /** Open sockets, and the people they belong to. */
-  connections: { sockets: number; people: number };
+  /**
+   * Open sockets, and the people they belong to; and apps' Socket Mode
+   * connections, which are neither.
+   */
+  connections: { sockets: number; people: number; appSockets: number };
   /**
    * How late the server's event loop ran over the last full minute, in
    * milliseconds; null until a minute has passed.
