@@ -1,6 +1,5 @@
 import { describe, expect, it } from "vitest";
 import {
-  cachedTimeZones,
   currentZoneName,
   fileKind,
   hasSearchCriteria,
@@ -171,9 +170,28 @@ describe("the time zones kept for dates", () => {
   // for zones has to be bounded by this process, not by what they send.
   const name = "America/Argentina/Buenos_Aires";
 
+  /** How many formatters the platform made while `ask` ran: none for a zone still kept. */
+  function formattersMade(ask: () => void): number {
+    const Real = Intl.DateTimeFormat;
+    let made = 0;
+    Intl.DateTimeFormat = new Proxy(Real, {
+      construct(target, args) {
+        made++;
+        return Reflect.construct(target, args);
+      },
+    });
+    try {
+      ask();
+    } finally {
+      Intl.DateTimeFormat = Real;
+    }
+    return made;
+  }
+
   it("keeps one formatter for a zone however its name is capitalised", () => {
     const canonical = new Intl.DateTimeFormat("en-US", { timeZone: name }).resolvedOptions()
       .timeZone;
+    expect(isTimeZone("Europe/Paris")).toBe(true);
     for (let mask = 0; mask < 512; mask++) {
       let bit = 0;
       const spelling = [...name]
@@ -191,14 +209,18 @@ describe("the time zones kept for dates", () => {
         Date.UTC(2026, 10, 1, 3),
       );
     }
-    expect(cachedTimeZones().filter((zone) => /buenos_aires/i.test(zone))).toEqual([canonical]);
+    // Kept under its own name, and in one place: Paris, asked for first, is still kept.
+    expect(formattersMade(() => isTimeZone(canonical))).toBe(0);
+    expect(formattersMade(() => isTimeZone("Europe/Paris"))).toBe(0);
   });
 
   it("holds a bounded number of zones however many different ones are asked for", () => {
-    const zones = Intl.supportedValuesOf("timeZone");
+    const zones = Intl.supportedValuesOf("timeZone").filter((zone) => zone !== "America/New_York");
     expect(zones.length).toBeGreaterThan(32);
+    expect(isTimeZone("America/New_York")).toBe(true);
+    expect(formattersMade(() => isTimeZone("America/New_York"))).toBe(0);
     for (const zone of zones) expect(isTimeZone(zone)).toBe(true);
-    expect(cachedTimeZones().length).toBeLessThanOrEqual(32);
+    expect(formattersMade(() => isTimeZone("America/New_York"))).toBe(1);
     // A zone pushed out is made again when asked for, with the same answers.
     const p = parseSearchQuery("after:2026-03-08 before:2026-11-01", {
       timeZone: "america/new_york",
@@ -207,9 +229,10 @@ describe("the time zones kept for dates", () => {
   });
 
   it("keeps nothing for a zone it does not know", () => {
-    const before = cachedTimeZones();
+    expect(isTimeZone("Europe/Paris")).toBe(true);
     for (let i = 0; i < 100; i++) expect(isTimeZone(`Mars/Crater_${i}`)).toBe(false);
-    expect(cachedTimeZones()).toEqual(before);
+    // A hundred unknown zones would have pushed it out, had any been kept.
+    expect(formattersMade(() => isTimeZone("Europe/Paris"))).toBe(0);
   });
 });
 
