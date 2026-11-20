@@ -43,8 +43,6 @@ export interface HuddleRoomsOptions {
   limiter: RateLimiter | null;
   /** Leaves the note of a ring nobody answered in its conversation (E10). */
   missedCall: (channelId: ID, callerId: ID) => void;
-  graceMs?: number;
-  ringMs?: number;
 }
 
 /**
@@ -61,17 +59,12 @@ export class HuddleRooms implements Huddles {
   private rings = new Map<ID, Ring>();
   /** What happened in huddles lately, for the host (see `CallLog`). */
   readonly calls = new CallLog();
-  private graceMs: number;
-  private ringMs: number;
 
   constructor(
     private gateway: Gateway,
     private store: Store,
     private options: HuddleRoomsOptions,
-  ) {
-    this.graceMs = options.graceMs ?? HUDDLE_GRACE_MS;
-    this.ringMs = options.ringMs ?? HUDDLE_RING_MS;
-  }
+  ) {}
 
   handle(frame: HuddleFrame, client: Client): void {
     switch (frame.type) {
@@ -249,7 +242,7 @@ export class HuddleRooms implements Huddles {
         if (this.rooms.get(channelId)?.get(userId) !== seat || seat.client) return;
         this.leave(channelId, userId, "disconnected");
       });
-    }, this.graceMs);
+    }, HUDDLE_GRACE_MS);
     seat.released.unref?.();
   }
 
@@ -349,7 +342,7 @@ export class HuddleRooms implements Huddles {
         channelId,
         callerId,
         startedAt,
-        endsAt: startedAt + this.ringMs,
+        endsAt: startedAt + HUDDLE_RING_MS,
         ringing: rang,
         answered: [],
         declined: [],
@@ -360,7 +353,7 @@ export class HuddleRooms implements Huddles {
     ring.timer = setTimeout(() => {
       ring.timer = null;
       this.gateway.contained("huddle ring", () => this.endRing(channelId, ring));
-    }, this.ringMs);
+    }, HUDDLE_RING_MS);
     ring.timer.unref?.();
     this.rings.set(channelId, ring);
     this.tellRing(ring);

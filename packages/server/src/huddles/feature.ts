@@ -46,8 +46,6 @@ export function registerHuddles(ctx: ServerContext, { posting }: { posting: Post
   const rooms = new HuddleRooms(gateway, store, {
     limiter: ctx.limiter,
     missedCall: postMissedCall,
-    graceMs: opts.huddleGraceMs,
-    ringMs: opts.huddleRingMs,
   });
   gateway.useHuddles(rooms);
 

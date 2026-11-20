@@ -1,7 +1,9 @@
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import WebSocket from "ws";
 import { PROTOCOL_VERSION, type ServerToClient } from "@ownbase/protocol";
 import { createWorkspaceServer, type WorkspaceServer } from "../src/server.js";
+import { HUDDLE_GRACE_MS } from "../src/huddles/rooms.js";
+import { moveableClock, passGrace } from "./huddleClock.js";
 
 /**
  * A place in a huddle belongs to the device in the call. When that device's
@@ -14,11 +16,12 @@ let base: string;
 const sockets: WebSocket[] = [];
 
 afterEach(async () => {
+  vi.useRealTimers();
   for (const ws of sockets.splice(0)) ws.terminate();
   await server?.stop();
 });
 
-async function start(huddleGraceMs?: number) {
+async function start() {
   server = await createWorkspaceServer({
     dataDir: ":memory:",
     host: "127.0.0.1",
@@ -26,7 +29,6 @@ async function start(huddleGraceMs?: number) {
     mdns: false,
     rateLimits: false,
     logger: false,
-    ...(huddleGraceMs === undefined ? {} : { huddleGraceMs }),
   });
   base = `http://127.0.0.1:${server.port}`;
 }
@@ -140,9 +142,17 @@ describe("a place in a huddle when its device's connection drops", () => {
   });
 
   it("is given up when the device does not come back in time, and the others are told", async () => {
-    await start(100);
+    await start();
     const { alice, bob, a, b } = await call();
+    moveableClock();
     b.ws.terminate();
+    await expect.poll(() => server.gateway.isOnline(bob.user.id)).toBe(false);
+    // Kept to the end of the grace...
+    await vi.advanceTimersByTimeAsync(HUDDLE_GRACE_MS - 1_000);
+    await a.settle();
+    expect(server.huddles.participants(general())).toHaveLength(2);
+    // ...and given up after it.
+    await passGrace();
     await expect
       .poll(() => a.events("huddle.participants").at(-1))
       .toEqual({ type: "huddle.participants", channelId: general(), userIds: [alice.user.id] });
@@ -154,11 +164,17 @@ describe("a place in a huddle when its device's connection drops", () => {
   });
 
   it("is given up even while another of the person's devices stays online", async () => {
-    await start(100);
+    await start();
     const { alice, bob, b } = await call();
     const phone = await connect((await signIn("bob")).token);
+    moveableClock();
     b.ws.terminate();
-    await expect.poll(() => server.huddles.participants(general())).toEqual([alice.user.id]);
+    await expect
+      .poll(async () => {
+        await passGrace();
+        return server.huddles.participants(general());
+      })
+      .toEqual([alice.user.id]);
     expect(server.gateway.isOnline(bob.user.id)).toBe(true);
     // The phone was never in the call, so nothing meant for it went there.
     expect(phone.events("huddle.signal")).toEqual([]);

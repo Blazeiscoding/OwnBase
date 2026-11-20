@@ -1,6 +1,7 @@
 import { spawn } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { SCHEDULED_LIMITS } from "../src/scheduled/feature.js";
 import { ScheduledStore } from "../src/scheduled/store.js";
 import { createWorkspaceServer, type WorkspaceServer } from "../src/server.js";
 
@@ -96,8 +97,9 @@ describe("background queues (REV-01)", () => {
   });
 
   it("keeps serving when the next batch's read fails on the turn after a full one", async () => {
-    const { server, schedule, healthy } = await start({ scheduledLimits: { batch: 1 } });
-    const first = schedule("first");
+    const { server, schedule, healthy } = await start();
+    // One more than a batch takes.
+    const firsts = Array.from({ length: SCHEDULED_LIMITS.batch }, (_, i) => schedule(`first ${i}`));
     const second = schedule("second");
     const due = server.store.scheduled.due.bind(server.store.scheduled);
     let calls = 0;
@@ -111,7 +113,7 @@ describe("background queues (REV-01)", () => {
     await new Promise((resolve) => setImmediate(resolve));
     expect(calls).toBe(2);
     expect(await healthy()).toBe(true);
-    expect(server.store.scheduled.get(first.id)?.status).toBe("sent");
+    for (const first of firsts) expect(server.store.scheduled.get(first.id)?.status).toBe("sent");
     expect(server.store.scheduled.get(second.id)?.status).toBe("queued");
   });
 

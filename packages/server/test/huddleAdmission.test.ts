@@ -1,13 +1,15 @@
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import WebSocket from "ws";
 import { PROTOCOL_VERSION, type ServerToClient } from "@ownbase/protocol";
 import { createWorkspaceServer, type WorkspaceServer } from "../src/server.js";
+import { moveableClock, passGrace } from "./huddleClock.js";
 
 let server: WorkspaceServer;
 let base: string;
 const sockets: WebSocket[] = [];
 
 afterEach(async () => {
+  vi.useRealTimers();
   for (const ws of sockets.splice(0)) ws.terminate();
   await server?.stop();
 });
@@ -19,9 +21,6 @@ async function start(burst: number) {
     port: 0,
     mdns: false,
     rateLimits: { ephemeral: { burst, perMinute: 1 } },
-    // A dropped device's place in a call goes at once here; huddleRejoin.test.ts
-    // covers the grace it gets for coming back.
-    huddleGraceMs: 0,
   });
   base = `http://127.0.0.1:${server.port}`;
 }
@@ -250,7 +249,13 @@ describe("huddle transition admission", () => {
     );
     await ownerSocket.settle();
     expect(server.huddles.participants(room.id)).toEqual([owner.user.id]);
+    moveableClock();
     ownerSocket.ws.terminate();
-    await expect.poll(() => server.huddles.participants(room.id)).toEqual([]);
+    await expect
+      .poll(async () => {
+        await passGrace();
+        return server.huddles.participants(room.id);
+      })
+      .toEqual([]);
   });
 });

@@ -5,6 +5,7 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import WebSocket from "ws";
 import { PROTOCOL_VERSION, type Reminder, type ServerToClient } from "@ownbase/protocol";
 import { createWorkspaceServer, type WorkspaceServer } from "../src/server.js";
+import { REMINDER_LIMITS } from "../src/reminders/feature.js";
 
 /** Reminders (E4): set, moved, come due on time and after a restart, and dropped. */
 let server: WorkspaceServer | undefined;
@@ -15,14 +16,15 @@ let peer: { token: string; id: string };
 let channelId: string;
 const sockets: WebSocket[] = [];
 
-async function start(options: { isolated?: boolean; perAccount?: number } = {}) {
+async function start(options: { isolated?: boolean } = {}) {
   server = await createWorkspaceServer({
     dataDir,
     host: "127.0.0.1",
     port: 0,
     mdns: false,
     isolated: options.isolated,
-    reminderLimits: options.perAccount ? { perAccount: options.perAccount } : undefined,
+    // Filling an account's reminders posts more messages than a person may at once.
+    rateLimits: false,
   });
   base = `http://127.0.0.1:${server.port}`;
 }
@@ -307,7 +309,7 @@ describe("a reminder", () => {
 
   it("refuses a time past or too far off, a message it cannot see, and one too many", async () => {
     await stop();
-    await start({ perAccount: 2 });
+    await start();
     const message = await post("One");
     expect((await remind(message.id, Date.now() - 1_000)).body.error).toBe("reminder_in_past");
     expect((await remind(message.id, Date.now() + 6 * 366 * 24 * 3_600_000)).body.error).toBe(
@@ -322,9 +324,11 @@ describe("a reminder", () => {
     expect((await remind(hidden.id, Date.now() + 60_000, peer.token)).status).toBe(404);
 
     expect((await remind(message.id, Date.now() + 60_000)).status).toBe(201);
-    expect((await remind((await post("Two")).id, Date.now() + 60_000)).status).toBe(201);
-    const third = await remind((await post("Three")).id, Date.now() + 60_000);
-    expect([third.status, third.body.error]).toEqual([409, "reminder_limit"]);
+    for (let i = 1; i < REMINDER_LIMITS.perAccount; i++)
+      expect((await remind((await post(`Number ${i}`)).id, Date.now() + 60_000)).status).toBe(201);
+    const oneMore = await remind((await post("One more")).id, Date.now() + 60_000);
+    expect([oneMore.status, oneMore.body.error]).toEqual([409, "reminder_limit"]);
+    expect(oneMore.body.message).toMatch(/already have 200 reminders/);
     // Moving one already set is not one more.
     expect((await remind(message.id, Date.now() + 120_000)).status).toBe(200);
   });
