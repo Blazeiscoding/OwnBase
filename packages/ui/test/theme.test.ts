@@ -159,6 +159,12 @@ describe("the other themes", () => {
     }
   });
 
+  it("give code the contrast theme's text colour in Windows' contrast themes (J15)", () => {
+    expect(block("@media (forced-colors: active) {").replace(/\s+/g, " ")).toContain(
+      'code [class*="text-syntax-"] { color: CanvasText; }',
+    );
+  });
+
   it("offer no theme the stylesheet does not define", () => {
     expect(css).not.toContain('data-theme="contrast"');
   });

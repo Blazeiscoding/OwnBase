@@ -2097,6 +2097,14 @@ textarea::placeholder {
     background: Mark;
     color: MarkText;
   }
+  /*
+   * Code blocks' colours give way to the theme's text colour, which reads at
+   * the theme's own contrast. The browser draws them so anyway; said here, a
+   * checker such as axe, which reads the colours written, sees it too.
+   */
+  code [class*="text-syntax-"] {
+    color: CanvasText;
+  }
   /* A switch drawn as a track and a thumb: both kept, in the theme's colours. */
   input[role="switch"] + span {
     forced-color-adjust: none;
