@@ -594,16 +594,24 @@ describe("events over a socket", () => {
 
     const client = await connectWith(app.appToken);
     makeDue(app.subscriptionId);
-    await server.flushEventDeliveries();
+    // Ends only once this delivery does, so it is waited on after the drop.
+    const flushing = server.flushEventDeliveries();
     expect(await client.next(isEvent("while away"))).toMatchObject({
       retry_attempt: 1,
       retry_reason: "timeout",
     });
-    // Closed before acknowledging: another failed attempt, not a lost event.
-    client.ws.close();
+    // Dropped before acknowledging, as a bot that crashed: another failed
+    // attempt, not a lost event.
+    client.ws.terminate();
+    await flushing;
     await expect
       .poll(() => queued(app.subscriptionId))
-      .toEqual([expect.objectContaining({ attempts: 2 })]);
+      .toEqual([
+        expect.objectContaining({
+          attempts: 2,
+          last_error: expect.stringContaining("closed before it answered"),
+        }),
+      ]);
 
     const back = await connectWith(app.appToken);
     acksAll(back);
