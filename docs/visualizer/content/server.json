@@ -1742,6 +1742,45 @@
       "concepts": ["events"]
     },
     {
+      "path": "packages/server/src/email/feature.ts",
+      "plain": "Sends email when the host gave the server an SMTP account: links to confirm an address and to set a new password, and invites.",
+      "summary": "Email routes (G10): an account's address, confirmed by a mailed link; Forgot password by a mailed link, once, for 30 minutes; invites by email; all refused with email_off when there is no SMTP account or no public URL.",
+      "details": [
+        "Asking for a link answers the same, as soon, for an address no account uses: the rations are spent before anything is looked up, and the mail is sent after the answer (sendLater), so neither the answer nor its timing says who has an account.",
+        "Setting an address asks for the password, so a stolen session cannot add one and then take the account. An address another account has keeps a link nobody is sent, so this account's settings look the same, and only the mailbox is told.",
+        "A new password ends every session and leaves two-step sign-in on. While single sign-on is required only the owner is mailed a link.",
+        "Links are built on --public-url, never on the Host a request named, which anyone can set. Tokens sit in the fragment (#/reset/<token>, #/verify-email/<token>), so they stay out of logs and Referers."
+      ],
+      "concepts": ["email", "account recovery", "enumeration", "feature module"]
+    },
+    {
+      "path": "packages/server/src/email/mailer.ts",
+      "plain": "Hands a mail to the host's SMTP server.",
+      "summary": "Mailer: nodemailer's SMTP transport from the --smtp-url, with short timeouts, sending a plain-text mail with an HTML part and never fetching a file or address into one.",
+      "details": [
+        "nodemailer is plain JavaScript with no dependencies, so the server still ships as one file. `where` is the URL without its password, for logs and the start-up lines."
+      ],
+      "concepts": ["email", "SMTP"]
+    },
+    {
+      "path": "packages/server/src/email/mails.ts",
+      "plain": "The words of each email the server sends.",
+      "summary": "resetMail, confirmMail, addressTakenMail and inviteMail: the workspace's name, what to do, the link and who to ask if it was not you, in plain text and a small escaped HTML copy.",
+      "details": [
+        "No pictures, nothing loaded from elsewhere and nothing that reports being opened."
+      ],
+      "concepts": ["email", "plain words"]
+    },
+    {
+      "path": "packages/server/src/email/store.ts",
+      "plain": "Keeps each account's email address and the links mailed to it.",
+      "summary": "EmailStore: users.email and email_verified_at, one confirmed address per account in any case, and email_links by their token's hash (v62), each used once and the newest of its kind only.",
+      "details": [
+        "users.email holds only a confirmed address; one waiting to be confirmed is its link's. Changing a password another way drops the account's links to set one (AccountStore.setPassword)."
+      ],
+      "concepts": ["email", "queries", "tokens"]
+    },
+    {
       "path": "packages/server/src/emoji/feature.ts",
       "plain": "Lets members add the workspace's own emoji, remove them, and lets admins keep adding to themselves.",
       "summary": "Custom emoji routes (J12): list, add (the picture as the body, the name in the query), remove, serve a picture, and the admins-only setting; the list and setting in the startup snapshot.",
