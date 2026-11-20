@@ -1311,6 +1311,7 @@
       "mechanism": "TunnelCleanupError carries the connector to the controller, including canceled/setup-failed handles and accidental-port isolated listeners. Cleanup waits are bounded and retryable; established close failures also mark pending cleanup.",
       "files": [
         "apps/desktop/src/main/hosting.ts",
+        "apps/desktop/src/main/publicLink.ts",
         "apps/desktop/src/main/tunnel.ts",
         "apps/desktop/test/hosting.test.ts",
         "apps/desktop/test/tunnel.test.ts"
