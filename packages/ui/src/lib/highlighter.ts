@@ -30,7 +30,7 @@ type SyntaxKind =
  * Tailwind finds the classes it builds by reading the source.
  */
 const CLASS: Record<SyntaxKind, string> = {
-  comment: "text-syntax-comment",
+  comment: "text-syntax-comment italic",
   keyword: "text-syntax-keyword",
   string: "text-syntax-string",
   number: "text-syntax-number",

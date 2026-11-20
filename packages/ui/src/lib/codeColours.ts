@@ -11,15 +11,25 @@ const WORDS =
   "javascript js jsx|typescript ts tsx|json|markup html xml|css|python py|go|rust rs|java|c h|cpp c++|csharp cs c#|bash sh shell|sql|yaml yml|docker dockerfile|diff patch|markdown md|ruby rb|php";
 
 /**
- * A block's language and its code, when its first line is one known language
- * word and nothing else. Code that starts on the fence line, as messages
- * written before this did, stays code.
+ * Languages people name on a fence that are drawn without colours: the word
+ * is a label, not the code's first line, so it is hidden all the same.
  */
-export function codeLanguage(block: string): { language: string; code: string } | null {
+const PLAIN =
+  " kotlin kt swift scala dart lua r perl haskell elixir clojure erlang ocaml fsharp zig nim julia groovy powershell ps1 toml ini graphql proto terraform hcl makefile nginx vue svelte text txt plaintext console ";
+
+/**
+ * A block's language and its code, when its first line is one language word
+ * and nothing else: a coloured one by its highlighter's name, an uncoloured
+ * one as null. Any other first line, and code that starts on the fence line
+ * as messages written before this did, stays code.
+ */
+export function codeLanguage(block: string): { language: string | null; code: string } | null {
   const end = block.indexOf("\n");
   const word = block.slice(0, end).trimEnd().toLowerCase();
-  const names = end > 0 && WORDS.split("|").find((group) => group.split(" ").includes(word));
-  return names ? { language: names.split(" ")[0]!, code: block.slice(end + 1) } : null;
+  if (end <= 0 || !word) return null;
+  const names = WORDS.split("|").find((group) => group.split(" ").includes(word));
+  if (names) return { language: names.split(" ")[0]!, code: block.slice(end + 1) };
+  return PLAIN.includes(` ${word} `) ? { language: null, code: block.slice(end + 1) } : null;
 }
 
 type Highlight = typeof highlight;
