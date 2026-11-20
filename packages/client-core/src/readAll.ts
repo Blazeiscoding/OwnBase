@@ -2,7 +2,9 @@ import type { ID, Message, ThreadFollow } from "@ownbase/protocol";
 import type { ApiError } from "./transport.js";
 import { failureOf } from "./answers.js";
 import { isThreadUnread, isUnread } from "./selectors.js";
-import { isMessageRead, type WorkspaceClient, type WorkspaceState } from "./workspace.js";
+import { isMessageRead } from "./selectors.js";
+import type { WorkspaceClient } from "./workspace.js";
+import type { WorkspaceState } from "./workspaceState.js";
 
 /** How many pages of mentions marking everything read looks through at most. */
 const MENTION_PAGES = 10;

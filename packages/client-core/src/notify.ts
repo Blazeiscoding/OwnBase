@@ -9,7 +9,7 @@ import {
   type Message,
   type NotifyDecision,
 } from "@ownbase/protocol";
-import type { WorkspaceState } from "./workspace.js";
+import type { WorkspaceState } from "./workspaceState.js";
 
 export type { NotifyDecision } from "@ownbase/protocol";
 
