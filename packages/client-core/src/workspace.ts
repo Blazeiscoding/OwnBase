@@ -57,6 +57,7 @@ import {
   type TimelineStatus,
   type WorkspaceState,
 } from "./workspaceState.js";
+import { WorkspaceSettings } from "./workspaceSettings.js";
 import {
   THREAD_WINDOW,
   forgetAllUnlisted,
@@ -256,6 +257,7 @@ export class WorkspaceClient {
   private readonly commands: Commands;
   private readonly modals: Modals;
   private readonly calls: Calls;
+  private readonly settings: WorkspaceSettings;
   /** The sends waiting to hear whether this device keeps their words (GL-02). */
   readonly kept = new LocalLedger();
   private ws: WebSocket | null = null;
@@ -330,6 +332,7 @@ export class WorkspaceClient {
     this.lists = new Lists(this.api, this.store);
     this.commands = new Commands(this.api, this.store, () => this.stopped);
     this.modals = new Modals(this.api, this.store);
+    this.settings = new WorkspaceSettings(this.api, this.store, () => this.stopped);
     this.calls = new Calls(this.api, this.store, (msg) => this.sendSocket(msg));
     // A session that has ended keeps nothing it downloaded (F07).
     this.store.subscribe((now, before) => {
@@ -1014,19 +1017,19 @@ export class WorkspaceClient {
         this.store.setState({ iconVersion: event.iconVersion });
         break;
       case "emoji.added":
-        this.keepEmoji(event.emoji);
+        this.settings.keepEmoji(event.emoji);
         break;
       case "emoji.removed":
-        this.forgetEmoji(event.id, event.name);
+        this.settings.forgetEmoji(event.id, event.name);
         break;
       case "workspace.emojiAdding":
         this.store.setState({ emojiAddingAdminsOnly: event.adminsOnly });
         break;
       case "userGroup.saved":
-        this.keepGroup(event.group);
+        this.settings.keepGroup(event.group);
         break;
       case "userGroup.deleted":
-        this.forgetGroup(event.id);
+        this.settings.forgetGroup(event.id);
         break;
       case "channel.access": {
         if (!event.channel) {
@@ -2554,11 +2557,7 @@ export class WorkspaceClient {
    * server kept as soon as it answers, rather than when its event arrives.
    */
   renameWorkspace(name: string): Promise<string | ApiError> {
-    return answerOf(async () => {
-      const { workspaceName } = await this.api.renameWorkspace(name);
-      if (!this.stopped) this.store.setState({ workspaceName });
-      return workspaceName;
-    });
+    return this.settings.renameWorkspace(name);
   }
 
   /**
@@ -2566,18 +2565,12 @@ export class WorkspaceClient {
    * kept as soon as it answers. Leaving guests allowed signs every guest out.
    */
   setAccessPolicy(policy: AccessPolicy): Promise<ApiError | null> {
-    return doneOf(async () => {
-      const { accessPolicy } = await this.api.setAccessPolicy(policy);
-      if (!this.stopped) this.store.setState({ accessPolicy });
-    });
+    return this.settings.setAccessPolicy(policy);
   }
 
   /** Turns link previews on or off, for its owner and admins, and shows the answer at once. */
   setLinkPreviews(enabled: boolean): Promise<ApiError | null> {
-    return doneOf(async () => {
-      const answer = await this.api.setLinkPreviews(enabled);
-      if (!this.stopped) this.store.setState({ linkPreviews: answer.enabled });
-    });
+    return this.settings.setLinkPreviews(enabled);
   }
 
   /**
@@ -2607,10 +2600,7 @@ export class WorkspaceClient {
    * one as soon as the server keeps it, rather than when its event arrives.
    */
   setWorkspaceIcon(image: Blob): Promise<ApiError | null> {
-    return doneOf(async () => {
-      const { iconVersion } = await this.api.setWorkspaceIcon(image);
-      if (!this.stopped) this.store.setState({ iconVersion });
-    });
+    return this.settings.setWorkspaceIcon(image);
   }
 
   /**
@@ -2667,43 +2657,17 @@ export class WorkspaceClient {
    * refusal, such as a name already taken.
    */
   addCustomEmoji(name: string, image: Blob): Promise<CustomEmoji | ApiError> {
-    return answerOf(async () => {
-      const { emoji } = await this.api.addCustomEmoji(name, image);
-      this.keepEmoji(emoji);
-      return emoji;
-    });
+    return this.settings.addCustomEmoji(name, image);
   }
 
   /** Removes a custom emoji, for whoever added it and for admins, at once here too. */
   removeCustomEmoji(emoji: CustomEmoji): Promise<ApiError | null> {
-    return doneOf(async () => {
-      await this.api.removeCustomEmoji(emoji.id);
-      this.forgetEmoji(emoji.id, emoji.name);
-    });
+    return this.settings.removeCustomEmoji(emoji);
   }
 
   /** Keeps adding custom emoji to the owner and admins, or opens it to every member. */
   setEmojiAdding(adminsOnly: boolean): Promise<ApiError | null> {
-    return doneOf(async () => {
-      const answer = await this.api.setEmojiAdding(adminsOnly);
-      if (!this.stopped) this.store.setState({ emojiAddingAdminsOnly: answer.adminsOnly });
-    });
-  }
-
-  private keepEmoji(emoji: CustomEmoji): void {
-    if (this.stopped) return;
-    const known = this.state.customEmoji;
-    if (known[emoji.name]?.id === emoji.id) return;
-    this.store.setState({ customEmoji: { ...known, [emoji.name]: emoji } });
-  }
-
-  /** Forgets one, unless the name already belongs to a newer emoji. */
-  private forgetEmoji(id: ID, name: string): void {
-    if (this.stopped) return;
-    const known = this.state.customEmoji;
-    if (known[name]?.id !== id) return;
-    const { [name]: _gone, ...rest } = known;
-    this.store.setState({ customEmoji: rest });
+    return this.settings.setEmojiAdding(adminsOnly);
   }
 
   /**
@@ -2711,46 +2675,21 @@ export class WorkspaceClient {
    * name and its people. Gives the group, or the refusal.
    */
   createUserGroup(body: CreateUserGroupBody): Promise<UserGroup | ApiError> {
-    return answerOf(async () => {
-      const { group } = await this.api.createUserGroup(body);
-      this.keepGroup(group);
-      return group;
-    });
+    return this.settings.createUserGroup(body);
   }
 
   /** Renames a user group, or replaces who is in it, at once here too. */
   updateUserGroup(id: ID, body: UpdateUserGroupBody): Promise<UserGroup | ApiError> {
-    return answerOf(async () => {
-      const { group } = await this.api.updateUserGroup(id, body);
-      this.keepGroup(group);
-      return group;
-    });
+    return this.settings.updateUserGroup(id, body);
   }
 
   deleteUserGroup(id: ID): Promise<ApiError | null> {
-    return doneOf(async () => {
-      await this.api.deleteUserGroup(id);
-      this.forgetGroup(id);
-    });
-  }
-
-  private keepGroup(group: UserGroup): void {
-    if (this.stopped) return;
-    this.store.setState({ userGroups: { ...this.state.userGroups, [group.id]: group } });
-  }
-
-  private forgetGroup(id: ID): void {
-    if (this.stopped || !(id in this.state.userGroups)) return;
-    const { [id]: _gone, ...rest } = this.state.userGroups;
-    this.store.setState({ userGroups: rest });
+    return this.settings.deleteUserGroup(id);
   }
 
   /** Removes the workspace's icon, for its owner and admins, at once here too. */
   removeWorkspaceIcon(): Promise<ApiError | null> {
-    return doneOf(async () => {
-      await this.api.removeWorkspaceIcon();
-      if (!this.stopped) this.store.setState({ iconVersion: null });
-    });
+    return this.settings.removeWorkspaceIcon();
   }
 
   /**
