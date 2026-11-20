@@ -2548,7 +2548,7 @@
       "details": [
         "Takes the workspace's name, an optional object or data URL, a size in pixels, and classes for its rounding and letter size. With an image it is an img with an empty alt; without one, the workspaceGradient square with one initial, or two in the rail.",
         "Always aria-hidden, since the workspace's name is beside it or on the control holding it. A picture that fails to load falls back to the square.",
-        "Used by the rail in Sidebar, the saved, served and resumable rows and the join card in JoinScreen, both of Manage hosting's views in HostDialog, and Workspace settings' preview."
+        "Used by the rail in Sidebar, the saved, served and resumable rows and the join card in JoinScreen, Manage hosting's overview (HostOverview) and list (HostedList), and Workspace settings' preview."
       ],
       "concepts": ["workspace icon", "fallback", "UX-60"]
     },
@@ -2625,17 +2625,13 @@
     {
       "path": "packages/ui/src/components/HostDialog.tsx",
       "plain": "In the desktop app, starts and stops the workspace you host and handles its folder, backups, who may join and outside access.",
-      "summary": "Controls desktop hosting, workspace folders, backup/restore and public reachability.",
+      "summary": "Manage hosting's dialog: the state and operations its screens share, which screen and tab shows, and the form that starts a new workspace.",
       "details": [
-        "A stopped workspace in the list offers Earlier copies, which opens EarlierCopies under its row; the result goes in the list's note. A row's name keeps at least 12rem, so its buttons go to the next line before it narrows, and its links wrap between labels.",
         "The browser does not own a server; native Platform.hosting provides the operations this dialog presents. Existing workspace folders and new workspace names are separate start intents.",
-        "Presents running/stopped/startup status, port and rename controls, LAN and public-address choices, connector failure and launch recovery actions.",
-        "Lists hosted workspaces and backup schedules, supports backup/restore and explains a restored copy's pending apps, schedules, deliveries and sessions before activation.",
-        "N11/N12 fixes live in the desktop registry/controller: restored safety holds survive damaged metadata and cleanup ownership gates reopening. The dialog exposes those statuses; Q12 and Q13 closed the startup and queue gaps in the desktop main process, not in this dialog.",
-        "Who may join is two choices, Require an account to join and, under it, Require an invite link; clearing the first lets visitors join as guests. Before opening the choice travels with openToAll; while open it is applied with setAccessPolicy and shown as the workspace acknowledges it. While an invite is needed the public address alone lets nobody in, so the open card offers Get an invite link (onInvite, when the hosted workspace is on screen), whose link carries the public address and the code, and the overview labels the address Public address rather than Anyone can join at.",
-        "A running workspace is managed in tabs (UX-62): Overview (name with a Live pill, its network and public addresses with Copy and a QR code, who is connected, and Invite people, or Open it when another workspace is on screen), Share on the internet (plain words, then the public link card and the call relay), Backups (last backup, Back up now, the schedule) and Advanced (start-up, data folder, port). A tab shows only where this app can do what it holds. Stop hosting stays in the footer under every tab and stops without asking.",
-        "Rename and Change port, edited in place in the list, never grey out Save: an empty name or a port that is not one is said under the field with the cursor put back, a refusal from the app lands there too, and the name or port it has already just closes the form, since there is nothing to save. Your own address is a small form whose Save is off only when the environment fixes the address: sent empty with none saved it asks for one under the field, and sent unchanged it says there is nothing to save rather than saving again, because saving an address also turns invites back on. A button waiting on its request is aria-disabled, so focus stays on it.",
-        "Shows workspace icons (UX-60): the running workspace's beside its name in the overview, following HostingStatus.iconVersion, and each stopped one's in Hosted on this computer, read from its own database through hosting.icon without starting it. A missing folder shows the square."
+        "Stopped, it shows Hosted on this computer (HostedList), the start-up choices (StartupWhileStopped), New workspace and Restore from a backup. Running, it shows the running workspace's tabs.",
+        "A running workspace is managed in tabs (UX-62): Overview (HostOverview), Share on the internet (HostInternet), Backups (HostBackups) and Advanced (HostAdvanced). A tab shows only where this app can do what it holds. Stop hosting stays in the footer under every tab and stops without asking.",
+        "Every screen's state lives here, not in the screen: one operation runs at a time (operationPending, busy), and what it did is said in one note. A screen unmounts when its tab or the running workspace changes, so a half-typed address, an open Rename, Change port or Earlier copies, and a typed workspace name stay here to outlive that.",
+        "N11/N12 fixes live in the desktop registry/controller: restored safety holds survive damaged metadata and cleanup ownership gates reopening. The dialog exposes those statuses; Q12 and Q13 closed the startup and queue gaps in the desktop main process, not in this dialog."
       ],
       "concepts": [
         "desktop hosting",
@@ -2645,6 +2641,83 @@
         "native operations",
         "UX-62"
       ]
+    },
+    {
+      "path": "packages/ui/src/components/hostParts.tsx",
+      "plain": "Small pieces that more than one screen of Manage hosting uses.",
+      "summary": "Shared by Manage hosting's screens: the Hosting type, the busy states, the link button class, backedUpWhen, RenameForm and LaunchProblem.",
+      "details": [
+        "RenameForm renames a hosted workspace in place, in the overview and in the list. Save is never greyed out: an empty name is said under the field with the cursor put back, a refusal from the app lands there too, and the name it has already just closes the form, since there is nothing to save. Escape calls the rename off rather than closing the dialog, and the field is read-only rather than disabled while saving, so focus stays there.",
+        "LaunchProblem says what did not happen when OwnBase opened, on either screen, since a workspace can be live on this network while its public address failed to reopen. It stays until that part recovers or the host dismisses it, and offers Try again where the dialog can.",
+        "backedUpWhen writes a backup's time as today, yesterday or the date, then the time."
+      ],
+      "concepts": ["desktop hosting", "in-place rename", "launch recovery"]
+    },
+    {
+      "path": "packages/ui/src/components/HostOverview.tsx",
+      "plain": "The first tab of Manage hosting while a workspace runs: its name, where people reach it, and who is connected.",
+      "summary": "The Overview tab: the workspace's name and Live pill, its addresses with Copy and a QR code, who is connected, then Invite people or Open it.",
+      "details": [
+        "Shows the running workspace's icon beside its name (UX-60), following HostingStatus.iconVersion, and Rename beside it, which swaps the line for RenameForm.",
+        "The address labelled Public address while an invite is needed, Anyone can join at otherwise. The QR code holds a whole address: the public one where there is one, as it works from anywhere, else the first one on this network.",
+        "A workspace being looked inside after a restore says so here, and shows no addresses, since only this computer reaches it.",
+        "Invite people when the hosted workspace is the one on screen (onInvite), else Open it."
+      ],
+      "concepts": ["desktop hosting", "QR code", "UX-62"]
+    },
+    {
+      "path": "packages/ui/src/components/HostInternet.tsx",
+      "plain": "The Manage hosting tab that gives a running workspace a public link so people outside the network can join.",
+      "summary": "The Share on the internet tab: the public link card (open, close, who can join, your own address, installing cloudflared), then CallRelaySettings.",
+      "details": [
+        "Who may join is two choices, Require an account to join and, under it, Require an invite link; clearing the first lets visitors join as guests. Before opening the choice travels with openToAll; while open it is applied with setAccessPolicy and shown as the workspace acknowledges it. While an invite is needed the public address alone lets nobody in, so the open card offers Get an invite link (onInvite, when the hosted workspace is on screen), whose link carries the public address and the code.",
+        "Your own address is a small form whose Save is off only when the environment fixes the address: sent empty with none saved it asks for one under the field, and sent unchanged it says there is nothing to save rather than saving again, because saving an address also turns invites back on. Its draft is kept by the dialog (OwnAddressState), so it is still there after a look at another tab.",
+        "InstallCloudflared installs cloudflared with winget or Homebrew, or by downloading Cloudflare's release with a progress bar outside the status line, so a screen reader is not told every percent. The install is the main process's, so a window opened again while it runs shows it too. Once it is installed, focus moves to Get a public link, which took the install button's place."
+      ],
+      "concepts": ["public address", "cloudflared", "access policy", "UX-62"]
+    },
+    {
+      "path": "packages/ui/src/components/HostBackups.tsx",
+      "plain": "The Manage hosting tab that backs up a running workspace, now or on a schedule.",
+      "summary": "The Backups tab: when it was last backed up, Back up now, and AutoBackupSettings for a daily or weekly backup into a chosen folder.",
+      "details": [
+        "AutoBackupSettings asks the main process to choose the folder; the dialog only asks. It keeps the newest few, 3, 7, 14 or 30, or whatever number the schedule already has.",
+        "A restored copy not yet back in use has its schedule paused, which this says, and nothing in the folder is deleted meanwhile.",
+        "A failed backup is still due, so Try again makes it now rather than at the next check; a failure only to remove older ones offers no Try again, as the backup itself was made."
+      ],
+      "concepts": ["backup and restore", "schedules", "UX-62"]
+    },
+    {
+      "path": "packages/ui/src/components/HostAdvanced.tsx",
+      "plain": "The last Manage hosting tab: whether the workspace starts with the computer, where its data is, and its port.",
+      "summary": "The Advanced tab: StartWithComputer, the data folder with Open folder, and the local port, which is changed from the list once hosting stops.",
+      "details": [
+        "A running workspace cannot change its port, so the tab says where to: stop hosting, then Change port beside it in the list."
+      ],
+      "concepts": ["desktop hosting", "UX-62"]
+    },
+    {
+      "path": "packages/ui/src/components/HostStartup.tsx",
+      "plain": "The choices for what happens when this computer starts: whether OwnBase opens, and which workspace it starts.",
+      "summary": "The When this computer starts choices: StartWithComputer while a workspace runs, StartupWhileStopped while none does.",
+      "details": [
+        "With both Start hosting when OwnBase opens and Open OwnBase when you sign in on, a workspace comes back by itself after the computer restarts. A stable public address can be reopened with it, and then new accounts need an invite.",
+        "The choice just made shows until the status agrees or saving fails, when it goes back.",
+        "While stopped, a workspace that fails to start with OwnBase can be taken off it, and OwnBase off sign-in, without starting it first."
+      ],
+      "concepts": ["start at login", "launch recovery"]
+    },
+    {
+      "path": "packages/ui/src/components/HostedList.tsx",
+      "plain": "The list of workspaces this computer hosts, shown in Manage hosting while none is running.",
+      "summary": "Hosted on this computer: each workspace's icon, name and state, with Rename, Change port, Open folder, Earlier copies, Back up, Start or Look inside, and Put back in use.",
+      "details": [
+        "Each stopped workspace's icon is read from its own database through hosting.icon without starting it (UX-60). A missing folder shows the square and offers only Remove.",
+        "Rename and Change port are edited in place (RenameForm, PortForm). Save is never greyed out: a port that is not one is said under the field with the cursor put back, a refusal from the app lands there too, and the port it has already just closes the form. Focus goes back to the button that opened the form.",
+        "Earlier copies opens EarlierCopies under its row; the result goes in the dialog's note. A row's name keeps at least 12rem, so its buttons go to the next line before it narrows, and its links wrap between labels.",
+        "A restored copy offers Look inside, which starts it on this computer only, and Put back in use, which first says what starting it as the workspace itself does: it sends what it had waiting, calls its apps and accepts every sign-in it held when the backup was taken."
+      ],
+      "concepts": ["desktop hosting", "backup and restore", "safety hold", "workspace icon"]
     },
     {
       "path": "packages/ui/src/components/CallRelaySettings.tsx",
@@ -3069,7 +3142,7 @@
         "A Field around a native select, so its label, hint and error are TextField's: a visible label tied by htmlFor, an error (role=alert) read first, then the hint, then any aria-describedby the caller passes; aria-invalid only while there is an error. Its ref reaches the select, so a form can move focus to it. The options are its children.",
         "The label sits above the select rather than around it. A label wrapped round a select holds every option's text too, so the field was named \"When I press Enter Send the message\" in Account settings, and Post as in Apps' templates read its options with its name.",
         "Its classes are inputClass(size, selectClassName), small, regular or large, the same as a text field's, so a select beside a text field in a row lines up with it. It moved Apps' local SelectField (Post as, Channel), Invite's Expires after and Number of uses, and Account settings' When I press Enter.",
-        "Selects still drawn by hand, each for a reason: Invite's address in links has no visible label and sits in a row of its own; Profile's Clear after has its label beside it; ViewModal's app-defined fields share one label, hint and error layout with its inputs and text areas; Voice and video's device selects are named by the heading above them; HostDialog's two are not moved yet."
+        "Selects still drawn by hand, each for a reason: Invite's address in links has no visible label and sits in a row of its own; Profile's Clear after has its label beside it; ViewModal's app-defined fields share one label, hint and error layout with its inputs and text areas; Voice and video's device selects are named by the heading above them; Manage hosting's two, in HostBackups, are not moved yet."
       ],
       "concepts": ["labelled field", "native select", "error message", "shared styles"]
     },
