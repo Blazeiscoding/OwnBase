@@ -219,6 +219,35 @@ export class Api {
     return this.http.json(endpoints.resetTwoStep, { params: { id: userId } });
   }
 
+  /** This account's email address (G10), confirmed and waiting. */
+  emailAddress() {
+    return this.http.json(endpoints.emailAddress);
+  }
+
+  /** Mails a link to confirm `email` for this account (G10). */
+  setEmailAddress(email: string, password: string) {
+    return this.http.json(endpoints.setEmailAddress, { body: { email, password } });
+  }
+
+  removeEmailAddress() {
+    return this.http.json(endpoints.removeEmailAddress);
+  }
+
+  /** Opens a mailed link that confirms an address (G10). No sign-in needed. */
+  confirmEmail(token: string) {
+    return this.http.json(endpoints.confirmEmail, { body: { token } });
+  }
+
+  /** Asks for a link to set a new password (G10). The answer says nothing of who has an account. */
+  forgotPassword(email: string) {
+    return this.http.json(endpoints.forgotPassword, { body: { email } });
+  }
+
+  /** Sets a new password with a mailed link's token (G10). */
+  resetPasswordWithLink(token: string, password: string) {
+    return this.http.json(endpoints.resetPasswordWithLink, { body: { token, password } });
+  }
+
   /** Blocks someone for this account (E12); everyone it has blocked now. */
   blockUser(userId: ID) {
     return this.http.json(endpoints.blockUser, { params: { id: userId } });
@@ -828,6 +857,11 @@ export class Api {
 
   createInvite(body: CreateInviteBody = {}) {
     return this.http.json(endpoints.createInvite, { body });
+  }
+
+  /** Emails an invite's link (G10). */
+  emailInvite(code: string, email: string) {
+    return this.http.json(endpoints.emailInvite, { params: { code }, body: { email } });
   }
 
   callLog() {

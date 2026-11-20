@@ -62,6 +62,18 @@ export interface Limits {
    * icon once and keeps it, so a whole office opening at nine fits.
    */
   publicByAddress: LimitRule;
+  /**
+   * Mail one email address may be sent (G10), whoever asks for it: links to
+   * confirm it or set a password, and invites. Spent the same whether or not
+   * an account uses the address, so a refusal says nothing about that, and
+   * nobody can use this server to fill someone's inbox.
+   */
+  mailByAddress: LimitRule;
+  /**
+   * Mail one caller may ask for (G10): an account when signed in, otherwise
+   * the network address, for "Forgot password".
+   */
+  mailByClient: LimitRule;
 }
 
 export const DEFAULT_LIMITS: Limits = {
@@ -75,6 +87,9 @@ export const DEFAULT_LIMITS: Limits = {
   hookByAddress: { burst: 120, perMinute: 240 },
   appCall: { burst: 20, perMinute: 60 },
   publicByAddress: { burst: 120, perMinute: 240 },
+  // Three at once, then one each five minutes.
+  mailByAddress: { burst: 3, perMinute: 0.2 },
+  mailByClient: { burst: 10, perMinute: 2 },
 };
 
 /**

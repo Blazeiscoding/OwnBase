@@ -68,6 +68,21 @@ export function redactUrl(url: string): string {
 }
 
 /**
+ * An SMTP account's URL (G10) with its password replaced, for saying where
+ * mail goes: at the start, in a log line, or in an error. Whatever cannot be
+ * read as a URL is hidden whole, since it may still hold the password.
+ */
+export function redactSmtpUrl(smtpUrl: string): string {
+  try {
+    const url = new URL(smtpUrl);
+    if (url.password) url.password = MASK;
+    return url.href.replace(/\/$/, "");
+  } catch {
+    return MASK;
+  }
+}
+
+/**
  * Logger settings that keep credentials out of the log.
  *
  * Two separate leaks are covered. Pino's `redact` handles headers, which carry

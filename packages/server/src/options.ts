@@ -2,6 +2,7 @@ import type { AccessPolicy, MemberNotice } from "@ownbase/protocol";
 import type { BackupManifest } from "./backups/backup.js";
 import type { ScheduledBackups } from "./backups/backupSchedule.js";
 import type { BackupEncryption } from "./backups/encryption.js";
+import type { MailSettings } from "./config.js";
 import type { ServerExtension } from "./extensions.js";
 import type { Limits } from "./limits.js";
 import type { FetchedPreview } from "./linkPreview.js";
@@ -152,6 +153,12 @@ export interface ServerOptions {
    * At least 16 characters. Omitted, the path does not exist.
    */
   metricsToken?: string;
+  /**
+   * An SMTP account to send email through (G10): links to confirm an
+   * address and to set a new password, and invites. Needs `publicUrl`, which
+   * the links lead to. Omitted, the server sends no email and offers none of it.
+   */
+  mail?: MailSettings;
   /**
    * The code that claims a workspace nobody owns yet, when the host gives
    * it (OWNBASE_CLAIM_CODE, P7) rather than letting the server make one.

@@ -70,6 +70,11 @@ export class AdminActions {
   }
 
   /** Already-revoked is not an error. */
+  /** Emails an invite's link to someone (G10), where the server sends email. */
+  emailInvite(code: string, email: string) {
+    return doneOf(() => this.api.emailInvite(code, email));
+  }
+
   revokeInvite(code: string) {
     return doneOf(() => this.api.revokeInvite(code));
   }

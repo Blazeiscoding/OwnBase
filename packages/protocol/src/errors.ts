@@ -54,6 +54,7 @@ export const ERROR_CODES = [
   "invalid_friend",
   "invalid_owner",
   "invite_not_found",
+  "invite_inactive",
   "invite_permission_required",
   "invite_required",
   "not_a_guest",
@@ -198,6 +199,12 @@ export const ERROR_CODES = [
   "saml_incomplete",
   "export_running",
   "no_export_choice",
+
+  // Email (G10)
+  "email_off",
+  "email_link_gone",
+  "email_taken",
+  "mail_failed",
 
   // Made by the client when no answer explains a failure
   "avatar_unavailable",

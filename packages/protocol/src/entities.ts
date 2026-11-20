@@ -453,6 +453,7 @@ export type AuditAction =
   | "user.deactivated"
   | "user.reactivated"
   | "user.password_reset"
+  | "user.password_reset_by_email"
   | "user.two_step_reset"
   | "report.resolved"
   | "user.invite_permission_granted"
@@ -490,6 +491,7 @@ export type AuditAction =
   | "subscription.retried"
   | "invite.created"
   | "invite.revoked"
+  | "invite.emailed"
   /**
    * Something one of the server's extensions did or was told to do, such as
    * a legal hold changed (P12). `details.did` ends the sentence that starts
@@ -649,6 +651,21 @@ export interface ServerInfo {
    * the way back in. Absent when there is nothing but passwords.
    */
   signIn?: { methods: SignInMethod[]; passwords: "everyone" | "owner_only" };
+  /**
+   * Whether this server sends email (G10): its host gave it an SMTP account.
+   * Only then can someone set an address, get a link to set a new password,
+   * or be sent an invite. This server always says; absent reads as false.
+   */
+  email?: boolean;
+}
+
+/** The signed-in account's email address (G10), as only its owner sees it. */
+export interface EmailAddressInfo {
+  /** The confirmed address, which a link to set a new password goes to. */
+  email: string | null;
+  verifiedAt: number | null;
+  /** An address sent a link to confirm it, until it is opened or runs out. */
+  pending: string | null;
 }
 
 /** A way to sign in besides a password, such as a company's single sign-on (P9). */

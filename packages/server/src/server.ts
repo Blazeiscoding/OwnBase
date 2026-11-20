@@ -14,7 +14,7 @@ import { checkWorkspaceOptions, createWorkspace, type WorkspaceChange } from "./
 import { registerBackups, scheduledBackupsOf } from "./backups/feature.js";
 import { type BackupScheduleStatus } from "./backups/backupSchedule.js";
 import { registerChannels } from "./channels/feature.js";
-import { parsePort } from "./config.js";
+import { ConfigError, parseMailSettings, parsePort } from "./config.js";
 import { BackgroundWork } from "./core/background.js";
 import { createCommits } from "./core/commit.js";
 import { rationWith, type ServerContext } from "./core/context.js";
@@ -39,6 +39,7 @@ import { serverRelaySchema, type ServerRelay } from "./huddles/relay.js";
 import { registerReminders } from "./reminders/feature.js";
 import { registerPush } from "./push/feature.js";
 import { createRouter } from "./route.js";
+import { registerEmail } from "./email/feature.js";
 import { registerEmoji } from "./emoji/feature.js";
 import { registerGroups } from "./groups/feature.js";
 import { registerSaved } from "./saved/feature.js";
@@ -100,6 +101,8 @@ export interface WorkspaceServer {
   flushEventDeliveries: () => Promise<void>;
   /** Resolves once every push to a closed browser asked for so far was sent or given up. */
   flushPushes: () => Promise<void>;
+  /** Resolves once every email asked for so far was sent or given up (G10). */
+  flushMail: () => Promise<void>;
   /**
    * Changes the address others reach this server on while it runs, or clears
    * it with null. A desktop host that opens a tunnel learns the address only
@@ -212,6 +215,15 @@ async function startWorkspaceServer(
   if (opts.port !== undefined) parsePort(opts.port, "port");
   // Before the database opens, so a refused start leaves nothing open in the folder.
   checkWorkspaceOptions(opts);
+  if (opts.mail) {
+    parseMailSettings({ smtpUrl: opts.mail.smtpUrl, from: opts.mail.from });
+    // A link built on the Host a request named would lead wherever the asker
+    // chose, with someone's token in it.
+    if (!opts.publicUrl)
+      throw new ConfigError(
+        "Sending email needs --public-url, the address the links in each mail lead to",
+      );
+  }
   const network = new Network(opts);
   // Before the database opens, so a refused relay leaves nothing open in the folder.
   if (opts.relay) serverRelaySchema.parse(opts.relay);
@@ -336,9 +348,11 @@ async function startWorkspaceServer(
   const channels = registerChannels(ctx);
   const { joinPublicChannels } = channels;
 
+  const email = registerEmail(ctx);
   const accounts = registerAccounts(ctx, {
     joinPublicChannels,
     iconVersion: () => workspace.icon()?.version ?? null,
+    emailOn: email.on,
   });
   const admin = registerAdmin(ctx, {
     instanceId,
@@ -458,6 +472,7 @@ async function startWorkspaceServer(
     runBackup: backups.runNow,
     flushEventDeliveries: apps.flushEventDeliveries,
     flushPushes: push.settled,
+    flushMail: email.settled,
     setPublicUrl: (url) => network.setPublicUrl(url),
     setTrustLoopbackProxy: (enabled) => network.setTrustLoopbackProxy(enabled),
     setIceServers: (servers) => huddles.setIceServers(servers),

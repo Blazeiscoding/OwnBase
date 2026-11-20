@@ -50,7 +50,13 @@ export function registerAccounts(
   {
     joinPublicChannels,
     iconVersion,
-  }: { joinPublicChannels: Channels["joinPublicChannels"]; iconVersion: () => string | null },
+    emailOn,
+  }: {
+    joinPublicChannels: Channels["joinPublicChannels"];
+    iconVersion: () => string | null;
+    /** Whether the server sends email (G10). */
+    emailOn: () => boolean;
+  },
 ) {
   const { opts, store, settings, gateway, route, requireUser, ration, mutate, network, limiter } =
     ctx;
@@ -609,6 +615,7 @@ export function registerAccounts(
       ...(network.publicUrl() ? { publicUrl: network.publicUrl() } : {}),
       iconVersion: iconVersion(),
       ...(signIn ? { signIn } : {}),
+      email: emailOn(),
     };
   });
 

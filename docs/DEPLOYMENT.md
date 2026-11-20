@@ -2227,6 +2227,11 @@ waiting for an answer at once. A call past either cap is refused with `429`
 straight away rather than queued behind a slow app, and nothing is sent to the
 app for a refused call.
 
+Mail, where the server sends it (see [Email](#email)), is rationed twice: per
+email address, whoever asks (a burst of three, then one each five minutes), so
+nobody can fill someone's inbox, and per account or, for **Forgot your
+password?**, per network address (a burst of ten, then two a minute).
+
 Scheduled messages are bounded too: one account may have 200 waiting and the
 workspace 10,000, and past either the request is refused with `409` rather than
 queued. Messages that come due are sent ten at a time, with other requests served
@@ -2356,6 +2361,65 @@ The record is kept in `workspace.db`, so it is in every backup, and it is not
 shortened by `--retention-days`. Anyone who can read that file can read it, and can
 change it: it is an account of what happened through the workspace, not tamper-proof
 evidence against someone with access to the server itself.
+
+## Email
+
+The server sends no email unless you give it an SMTP account. With one, people
+can add an email address in **Account settings → Security**, get a link to set a
+new password from **Forgot your password?** on the sign-in screen, and be sent
+an invite from **Invite people**. Without one, none of that shows anywhere, and
+an admin resets a forgotten password from People as before.
+
+It needs three settings. The account goes in the environment, so its password
+stays out of the process list:
+
+```sh
+OWNBASE_SMTP_URL='smtps://chat%40example.com:the-app-password@smtp.example.com:465'
+OWNBASE_MAIL_FROM='Team chat <chat@example.com>'
+ownbase-server --public-url https://chat.example.com
+```
+
+- `OWNBASE_SMTP_URL` (or `--smtp-url`): `smtps://` for a server that starts with
+  TLS, usually port 465, or `smtp://` for one that upgrades to it, usually port 587. Write `@` in the username or password as `%40`, and `/` as `%2F`.
+- `OWNBASE_MAIL_FROM` (or `--mail-from`): the sender. Most providers accept only
+  an address on a domain you have verified with them.
+- `--public-url`: where the links in each mail lead. The server will not start
+  sending without it, since a link built on whatever address a request named
+  could lead somewhere else with someone's token in it.
+
+The start-up lines say `Email: from … through smtps://user:REDACTED@host:465`.
+
+With Fastmail, for example: make an app password under **Settings → Privacy &
+Security → App passwords**, then use
+`smtps://you%40fastmail.com:<app password>@smtp.fastmail.com:465` and an address
+of your account as the sender. Gmail works the same way with an app password and
+`smtp.gmail.com:465`. A sending service such as Postmark, Resend or Amazon SES
+gives you an SMTP username and password for the same URL shape.
+
+How it behaves:
+
+- **An address counts once it is confirmed.** Adding or changing one asks for
+  the account's password, then mails a link that works once, for 24 hours. One
+  confirmed address belongs to one account, in any letter case. Asking for an
+  address another account has is answered as usual, and that mailbox is told
+  instead, so the answer does not say who has an account.
+- **A link to set a new password** goes only to a confirmed address. It works
+  once, for 30 minutes, and stops working if the password is changed another way
+  first. Setting the new password signs the account out everywhere. Two-step
+  sign-in is still asked for afterwards, so a mailbox alone does not get past it.
+  While single sign-on is required, only the owner is sent one.
+- **Asking for a link answers the same, as soon,** for an address no account
+  uses. The mail goes after the answer, so the time taken does not say either.
+- **Mail is rationed**: three to one address, then one each five minutes,
+  whoever asks; ten requests from one account or network address, then two a
+  minute. A refusal is the same for an address nobody uses.
+- **An invite by email** sends the invite's link from the dialog, for an invite
+  that still works. The invite is the same one: revoking it stops the mailed
+  link too. Whoever sends it is told if the mail server did not take it.
+- **The mail** is plain text with a small HTML copy: the workspace's name, what
+  to do, the link and who to ask if it was not you. No pictures, nothing loaded
+  from elsewhere, no tracking. Tokens sit after `#` in the link, so they reach
+  neither the server's log nor another site.
 
 ## Invites
 
@@ -2817,9 +2881,10 @@ What OwnBase does not do today:
   between workspace servers.
 - **One server per workspace.** It was measured holding 200 people, all active
   at once; see [How many people a server holds](#how-many-people-a-server-holds).
-- **No email.** The server sends none, so a forgotten password cannot be reset
-  by email. An admin resets it from People and passes the temporary password on
-  privately, and the person changes it after signing in.
+- **Email only through your own SMTP account.** A server you give one sends
+  links to set a new password and invites, see [Email](#email). Without one it
+  sends none, and an admin resets a forgotten password from People. The
+  desktop app's own hosting does not send email yet.
 - **Browser notifications while closed need HTTPS.** A workspace opened at a
   plain `http://` LAN address notifies only while a tab has it open. See
   [Notifications while the browser is closed](#notifications-while-the-browser-is-closed).

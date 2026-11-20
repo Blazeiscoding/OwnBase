@@ -6,6 +6,7 @@ import {
   ConfigError,
   describeStartupError,
   parseClaimCode,
+  parseMailSettings,
   parsePort,
   parsePublicUrl,
   parseWholeNumber,
@@ -55,6 +56,47 @@ describe("the public address", () => {
   it("refuses a query or a fragment, which would be carried into every URL", () => {
     expect(() => parsePublicUrl("https://chat.example.com/?x=1")).toThrow(/query/);
     expect(() => parsePublicUrl("https://chat.example.com/#top")).toThrow(/fragment/);
+  });
+});
+
+describe("the SMTP account email goes through (G10)", () => {
+  const secret = "password" + "123";
+  const url = `smtps://chat%40example.test:${secret}@smtp.example.test:465`;
+
+  it("is off with neither setting, and needs both once either is given", () => {
+    expect(parseMailSettings({ smtpUrl: undefined, from: undefined })).toBeUndefined();
+    expect(parseMailSettings({ smtpUrl: " ", from: "" })).toBeUndefined();
+    expect(() => parseMailSettings({ smtpUrl: url, from: undefined })).toThrow(/needs --mail-from/);
+    expect(() => parseMailSettings({ smtpUrl: undefined, from: "chat@example.test" })).toThrow(
+      /--smtp-url/,
+    );
+    expect(parseMailSettings({ smtpUrl: url, from: "Team chat <chat@example.test>" })).toEqual({
+      smtpUrl: url,
+      from: "Team chat <chat@example.test>",
+    });
+  });
+
+  it("is an smtp:// or smtps:// address, and no refusal quotes its password", () => {
+    for (const smtpUrl of [
+      `https://user:${secret}@smtp.example.test`,
+      `smtp://user:${secret}@`,
+      `not a url ${secret}`,
+    ]) {
+      let message = "";
+      try {
+        parseMailSettings({ smtpUrl, from: "chat@example.test" });
+      } catch (error) {
+        expect(error).toBeInstanceOf(ConfigError);
+        message = (error as Error).message;
+      }
+      expect(message).toMatch(/--smtp-url/);
+      expect(message).not.toContain(secret);
+    }
+  });
+
+  it("comes from an address, without a line break that would start another header", () => {
+    for (const from of ["chat", "chat@example", "chat@example.test\r\nBcc: x@example.test"])
+      expect(() => parseMailSettings({ smtpUrl: url, from })).toThrow(/--mail-from/);
   });
 });
 

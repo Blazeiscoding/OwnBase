@@ -304,6 +304,10 @@ describe("self-hosted product", () => {
           INSERT INTO messages_fts(rowid, text) VALUES (new.rowid, new.text);
         END;
       `);
+      db.exec("DROP TABLE email_links");
+      db.exec("DROP INDEX idx_users_email");
+      db.exec("ALTER TABLE users DROP COLUMN email_verified_at");
+      db.exec("ALTER TABLE users DROP COLUMN email");
       db.exec("DROP INDEX idx_apps_app_token");
       db.exec("ALTER TABLE apps DROP COLUMN app_token_hash");
       db.exec("ALTER TABLE apps DROP COLUMN receive");

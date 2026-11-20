@@ -614,6 +614,15 @@
       "concepts": ["LAN discovery", "saved credentials", "hosting"]
     },
     {
+      "path": "packages/ui/src/screens/JoinRecovery.tsx",
+      "plain": "The sign-in card's Forgot your password step and the form a mailed link opens to choose a new password.",
+      "summary": "ForgotPasswordForm and NewPasswordForm (G10), shown by AuthCard only where serverInfo.email is true.",
+      "details": [
+        "Forgot says the same whatever address is typed, since the server does too. After a new password the card goes back to Sign in with the username filled in and says every device was signed out; two-step sign-in is asked for as usual."
+      ],
+      "concepts": ["email", "account recovery", "authentication"]
+    },
+    {
       "path": "packages/ui/src/screens/JoinSignIn.tsx",
       "plain": "The card where you sign in to a workspace, create an account or join as a guest.",
       "summary": "The join screen's sign-in card: password, registration, guest, single sign-on and two-step sign-in.",
@@ -1189,6 +1198,15 @@
       "concepts": ["blocking", "reporting", "E12"]
     },
     {
+      "path": "packages/ui/src/lib/emailLinks.ts",
+      "plain": "Opens a mailed link that confirms an email address, and says how it went.",
+      "summary": "confirmEmailLink and emailLinkError (G10): App opens #/verify-email/<token> from any device, says the result as a notice, then goes on to the workspace as any link to it would.",
+      "details": [
+        "The token is all a confirm link needs, so it works from a phone or another browser that never signed in; App says the outcome as a notice under the header."
+      ],
+      "concepts": ["email", "deep links"]
+    },
+    {
       "path": "packages/ui/src/lib/deeplink.ts",
       "plain": "Reads and builds links that invite people or open a message, and picks the best address to share.",
       "summary": "Parses and builds join/message links and chooses an address suitable for sharing.",
@@ -1197,7 +1215,8 @@
         "shareableServer prefers a live temporary address owned by this desktop, then a published server address, usable LAN addresses or the connected non-loopback address. It marks links that reach only the current computer as localOnly.",
         "Address formatting preserves the destination when shortening display text; LAN ranking favors ordinary home/office interfaces over common virtual-network addresses.",
         "<server>/#/claim/<code> claims a workspace nobody owns yet (P7): it opens creating the account with the claim code filled in, and brings nothing to a workspace someone owns.",
-        "<server>/#/sso/<code> and ownbase://sso?host=…&code=… come back from a workspace's single sign-on (P9); App opens the sign-in card with the code, even for a workspace this device already has a sign-in for."
+        "<server>/#/sso/<code> and ownbase://sso?host=…&code=… come back from a workspace's single sign-on (P9); App opens the sign-in card with the code, even for a workspace this device already has a sign-in for.",
+        "Mail brings <server>/#/reset/<token>, which opens the sign-in card on choosing a new password, never a saved sign-in, and <server>/#/verify-email/<token>, which App confirms from any device before going on to the workspace (G10)."
       ],
       "concepts": ["deep links", "shareable address", "fragment privacy", "LAN"]
     },
@@ -2645,6 +2664,24 @@
         "Security lists blocked people after two-step sign-in (E12)."
       ],
       "concepts": ["account settings", "session management", "device preferences", "N04"]
+    },
+    {
+      "path": "packages/ui/src/components/EmailSettings.tsx",
+      "plain": "The part of Account settings, under Security, where someone adds, changes or removes their email address.",
+      "summary": "The account's address (G10): added or changed with the password and a mailed link, waiting until that is opened, removed after asking. Nothing shows where the workspace sends no email, or for a guest.",
+      "details": [
+        "A check that fails shows nothing, as where the workspace sends no email: the section never says it could not ask. After sending a link it says so once, and the waiting line returns when Account settings opens again."
+      ],
+      "concepts": ["email", "account settings"]
+    },
+    {
+      "path": "packages/ui/src/components/InviteByEmail.tsx",
+      "plain": "Sends an invite's link to someone's email from the invite dialog.",
+      "summary": "An address field under the invite link (G10), only where serverInfo.email is true; says when the invite no longer works or the mail server did not take it.",
+      "details": [
+        "The server waits for the mail server's answer before replying, so Invite sent is said only once the mail was taken, and a refusal leaves the address to try again or the link to copy."
+      ],
+      "concepts": ["email", "invites"]
     },
     {
       "path": "packages/ui/src/components/TwoStepSettings.tsx",

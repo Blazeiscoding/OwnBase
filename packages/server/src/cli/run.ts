@@ -21,12 +21,15 @@ import { importSlack } from "../import/slackImport.js";
 import { listAccounts, recoverAccount } from "../recover.js";
 import { relayFromEnvironment, type IceServer, type ServerRelay } from "../huddles/relay.js";
 import { parseIceServers } from "../huddles/rtc.js";
+import { redactSmtpUrl } from "../redact.js";
 import {
   ConfigError,
+  type MailSettings,
   describeStartupError,
   keptSettingsNotes,
   parseClaimCode,
   parseBackupPassphrase,
+  parseMailSettings,
   parseMemberNotice,
   parsePort,
   parsePublicUrl,
@@ -500,6 +503,7 @@ ${extensions.map((extension) => `\n${extension.help.replace(/\n+$/, "")}\n`).joi
   let claimCode: string | undefined;
   let iceServers: IceServer[];
   let relay: ServerRelay | null;
+  let mail: MailSettings | undefined;
   const made: ServerExtension[] = [];
   try {
     port = parsePort(values.port);
@@ -520,6 +524,10 @@ ${extensions.map((extension) => `\n${extension.help.replace(/\n+$/, "")}\n`).joi
     claimCode = parseClaimCode(envSetting("CLAIM_CODE"));
     iceServers = parseIceServers(envSetting("ICE_SERVERS"));
     relay = relayFromEnvironment(envSetting);
+    mail = parseMailSettings({
+      smtpUrl: flagOrEnv(values, "smtp-url", envSetting),
+      from: flagOrEnv(values, "mail-from", envSetting),
+    });
     for (const extension of extensions) {
       made.push(
         await extension.create(
@@ -627,6 +635,7 @@ ${extensions.map((extension) => `\n${extension.help.replace(/\n+$/, "")}\n`).joi
     memberNotice,
     metricsToken,
     claimCode,
+    mail,
     extensions: made,
     // Scheduled backups and the owner's copies, in a child process, so the
     // copy and its checks never hold up chat.
@@ -698,6 +707,9 @@ ${extensions.map((extension) => `\n${extension.help.replace(/\n+$/, "")}\n`).joi
   for (const extension of made) {
     const status = extension.status?.();
     if (status) console.log(`  ${status.summary}`);
+  }
+  if (mail) {
+    console.log(`  Email: from ${mail.from} through ${redactSmtpUrl(mail.smtpUrl)}`);
   }
   if (memberNotice) {
     const plan = memberNotice.planName ? `the ${memberNotice.planName} plan` : "the plan";

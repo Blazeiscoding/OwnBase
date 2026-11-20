@@ -32,6 +32,8 @@ interface Props {
   claimCode?: string;
   /** Back from the workspace's single sign-on: the code that signs in (P9). */
   ssoCode?: string;
+  /** From a mailed link to set a new password (G10). */
+  resetToken?: string;
   /** The workspace ended this sign-in: its sign-in form opens, saying so. */
   signedOut?: SignedOutFrom;
   onConnected: (server: SavedServer, how?: Connected) => void;
@@ -64,6 +66,7 @@ export function JoinScreen({
   inviteCode,
   claimCode,
   ssoCode,
+  resetToken,
   signedOut,
   onConnected,
   onForget,
@@ -148,8 +151,9 @@ export function JoinScreen({
   // should not mean typing the password each time.
   const reconnect = useEffectEvent((address: string) => {
     const saved = savedServers.find((s) => s.url === normalizeServerUrlSafe(address));
-    // A sign-in just made with single sign-on is used, not the one saved before.
-    if (saved && !ssoCode) void openSaved(saved);
+    // A sign-in just made with single sign-on is used, not the one saved before,
+    // and a new password ends the saved one.
+    if (saved && !ssoCode && !resetToken) void openSaved(saved);
     else void probe(address);
   });
   useEffect(() => {
@@ -270,6 +274,7 @@ export function JoinScreen({
               presetInviteCode={inviteCode}
               presetClaimCode={claimCode}
               presetSsoCode={ssoCode}
+              resetToken={resetToken}
               platform={platform}
               onBack={() => {
                 setEnded(null);

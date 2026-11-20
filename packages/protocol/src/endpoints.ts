@@ -6,6 +6,7 @@ import type {
   Channel,
   ChannelPrefs,
   CustomEmoji,
+  EmailAddressInfo,
   EventSubscription,
   FileMeta,
   FollowedThread,
@@ -318,6 +319,72 @@ export const endpoints = {
     access: "member",
     body: "twoStepPasswordBody",
     answer: json<{ ok: true }>(),
+    timeoutMs: 20000,
+  }),
+
+  /** This account's email address (G10): the confirmed one, and one waiting to be. */
+  emailAddress: endpoint({
+    method: "GET",
+    path: "/api/me/email",
+    access: "member",
+    answer: json<EmailAddressInfo>(),
+  }),
+
+  /**
+   * Sends a link to confirm an address for this account (G10), which counts
+   * once the link is opened. The answer is the same whether or not another
+   * account here uses the address, so it cannot be used to find out.
+   */
+  setEmailAddress: endpoint({
+    method: "POST",
+    path: "/api/me/email",
+    access: "member",
+    body: "setEmailBody",
+    answer: json<{ ok: true }>(),
+    timeoutMs: 20000,
+  }),
+
+  /** Removes this account's email address, and any link waiting to confirm one (G10). */
+  removeEmailAddress: endpoint({
+    method: "DELETE",
+    path: "/api/me/email",
+    access: "member",
+    answer: json<{ ok: true }>(),
+  }),
+
+  /** Opens a link that confirms an address (G10). Each link works once. */
+  confirmEmail: endpoint({
+    method: "POST",
+    path: "/api/auth/email/confirm",
+    access: "public",
+    body: "emailLinkBody",
+    answer: json<{ email: string }>(),
+  }),
+
+  /**
+   * Emails a link to set a new password to the account that uses this
+   * address (G10). The answer is the same, and as quick, for an address no
+   * account uses, so it cannot be used to find out who has an account.
+   */
+  forgotPassword: endpoint({
+    method: "POST",
+    path: "/api/auth/password/forgot",
+    access: "public",
+    body: "forgotPasswordBody",
+    answer: json<{ ok: true }>(),
+  }),
+
+  /**
+   * Sets a new password with the token from the emailed link (G10), which
+   * works once for 30 minutes. Every session of the account ends, and the
+   * next sign-in still asks for two-step sign-in's code.
+   */
+  resetPasswordWithLink: endpoint({
+    method: "POST",
+    path: "/api/auth/password/reset",
+    access: "public",
+    body: "resetPasswordBody",
+    answer: json<{ handle: string }>(),
     timeoutMs: 20000,
   }),
 
@@ -1235,7 +1302,8 @@ export const endpoints = {
   }),
 
   /**
-   * Password recovery for an installation with no email: an admin issues a
+   * Password recovery where email cannot do it, because the server sends none
+   * or the person has no address there (G10): an admin issues a
    * temporary password and reads it to the person over whatever channel they
    * trust. It is shown once, all their sessions end, and they are expected to
    * change it. Who may be reset is resettable's to say.
@@ -1809,6 +1877,19 @@ export const endpoints = {
     path: "/api/invites/:code",
     access: "member",
     answer: json<{ invite: Invite }>(),
+  }),
+
+  /**
+   * Emails an invite's link to someone (G10), where the server sends email.
+   * Whoever may revoke the invite may send it.
+   */
+  emailInvite: endpoint({
+    method: "POST",
+    path: "/api/invites/:code/email",
+    access: "member",
+    body: "emailInviteBody",
+    answer: json<{ ok: true }>(),
+    timeoutMs: 30000,
   }),
 
   /**

@@ -6,7 +6,7 @@ import { Writable } from "node:stream";
 import { spawn } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import { createWorkspaceServer, type WorkspaceServer } from "../src/index.js";
-import { redactUrl } from "../src/redact.js";
+import { redactSmtpUrl, redactUrl } from "../src/redact.js";
 
 describe("redacting a url", () => {
   it("masks an incoming webhook's token, which is its whole authority", () => {
@@ -105,6 +105,17 @@ describe("redacting a url", () => {
     }).finally(() => clearTimeout(timer));
     expect({ code, errors }).toEqual({ code: 0, errors: "" });
     expect(JSON.parse(output)).toEqual({ statuses: [200, 200, 200, 200, 200], leaked: false });
+  });
+});
+
+describe("an SMTP account's address (G10)", () => {
+  it("keeps the user and host and hides the password", () => {
+    const secret = "password" + "123";
+    expect(redactSmtpUrl(`smtps://chat%40example.test:${secret}@smtp.example.test:465`)).toBe(
+      "smtps://chat%40example.test:REDACTED@smtp.example.test:465",
+    );
+    expect(redactSmtpUrl("smtp://smtp.example.test:587")).toBe("smtp://smtp.example.test:587");
+    expect(redactSmtpUrl(`not a url ${secret}`)).toBe("REDACTED");
   });
 });
 

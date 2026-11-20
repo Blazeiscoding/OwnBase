@@ -862,6 +862,25 @@ const MIGRATIONS: string[] = [
   ALTER TABLE apps ADD COLUMN app_token_hash TEXT;
   CREATE INDEX idx_apps_app_token ON apps(app_token_hash);
   `,
+  // v62 — email (G10): an account's confirmed address, one account's alone
+  // whatever its case, and the links mailed to confirm one or to set a new
+  // password, by their token's hash, each used once. `email` holds only a
+  // confirmed address; one waiting to be confirmed is its link's.
+  `
+  ALTER TABLE users ADD COLUMN email TEXT;
+  ALTER TABLE users ADD COLUMN email_verified_at INTEGER;
+  CREATE UNIQUE INDEX idx_users_email ON users(lower(email));
+  CREATE TABLE email_links (
+    token_hash TEXT PRIMARY KEY,
+    user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    purpose TEXT NOT NULL,
+    email TEXT NOT NULL,
+    created_at INTEGER NOT NULL,
+    expires_at INTEGER NOT NULL
+  );
+  CREATE INDEX idx_email_links_user ON email_links(user_id, purpose);
+  CREATE INDEX idx_email_links_expiry ON email_links(expires_at);
+  `,
 ];
 
 /** The schema this build understands. A workspace above it cannot be opened. */

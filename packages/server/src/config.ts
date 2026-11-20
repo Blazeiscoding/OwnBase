@@ -8,7 +8,7 @@
  * to send its replies, and nothing fails until an app tries.
  */
 
-import type { AccessPolicy, MemberNotice } from "@ownbase/protocol";
+import { isEmailAddress, type AccessPolicy, type MemberNotice } from "@ownbase/protocol";
 
 /** A setting that cannot be used, with a message meant for the person who set it. */
 export class ConfigError extends Error {}
@@ -66,6 +66,59 @@ export function parsePublicUrl(raw: string, flag = "--public-url"): string {
     throw new ConfigError(`${flag} must not contain a query or a #fragment`);
   }
   return url.href.replace(/\/+$/, "");
+}
+
+/** How the server sends email (G10), when its host gave it an SMTP account. */
+export interface MailSettings {
+  /** smtp://user:password@host:587, or smtps:// for TLS from the start. */
+  smtpUrl: string;
+  /** The sender, as `chat@example.com` or `Team chat <chat@example.com>`. */
+  from: string;
+}
+
+/**
+ * --smtp-url and --mail-from (G10). Neither is email off; one alone is a
+ * mistake. No message here quotes the URL, which holds the SMTP password.
+ */
+export function parseMailSettings(raw: {
+  smtpUrl: string | undefined;
+  from: string | undefined;
+}): MailSettings | undefined {
+  const smtpUrl = raw.smtpUrl?.trim() || undefined;
+  const from = raw.from?.trim() || undefined;
+  if (!smtpUrl && !from) return undefined;
+  if (!smtpUrl)
+    throw new ConfigError(
+      "--mail-from needs --smtp-url (or OWNBASE_SMTP_URL), the account to send through",
+    );
+  if (!from)
+    throw new ConfigError(
+      "--smtp-url needs --mail-from (or OWNBASE_MAIL_FROM), the address mail comes from",
+    );
+  let url: URL;
+  try {
+    url = new URL(smtpUrl);
+  } catch {
+    throw new ConfigError(
+      "--smtp-url needs an address such as smtps://user:password@smtp.example.com:465. Characters such as @ or / in the password are written %40 and %2F",
+    );
+  }
+  if (url.protocol !== "smtp:" && url.protocol !== "smtps:")
+    throw new ConfigError("--smtp-url must start with smtp:// or smtps://");
+  if (!url.hostname) throw new ConfigError("--smtp-url needs the mail server's host name");
+  if (!isSender(from))
+    throw new ConfigError(
+      `--mail-from needs an address such as chat@example.com or "Team chat <chat@example.com>", not "${from}"`,
+    );
+  return { smtpUrl, from };
+}
+
+/** `chat@example.com`, or `Team chat <chat@example.com>`, on one line. */
+function isSender(from: string): boolean {
+  if (/[\r\n]/.test(from)) return false;
+  const open = from.lastIndexOf("<");
+  if (open === -1) return isEmailAddress(from);
+  return from.endsWith(">") && isEmailAddress(from.slice(open + 1, -1));
 }
 
 /** The longest plan name: it sits inside a sentence. */

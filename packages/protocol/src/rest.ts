@@ -19,6 +19,7 @@ import { FILE_KINDS, currentZoneName, isTimeZone } from "./search.js";
 import { idSchema } from "./socket.js";
 import { appEventType } from "./appEvents.js";
 import { COMMAND_NAME } from "./commands.js";
+import { EMAIL_MAX, isEmailAddress } from "./email.js";
 
 export const handleSchema = z
   .string()
@@ -91,6 +92,34 @@ export const resolveReportBody = z.object({ action: z.enum(REPORT_RESOLUTIONS) }
 
 /** Proves it is this account's owner before its two-step sign-in changes (E11). */
 export const twoStepPasswordBody = z.object({ password: z.string().min(1).max(256) });
+
+/** An email address as people type one; see `isEmailAddress`. */
+export const emailAddress = z
+  .string()
+  .trim()
+  .max(EMAIL_MAX)
+  .refine(isEmailAddress, "an email address");
+
+/** An address for this account, with its password (G10): a stolen session cannot add one. */
+export const setEmailBody = z.object({
+  email: emailAddress,
+  password: z.string().min(1).max(256),
+});
+
+/** The token from a link that was emailed (G10). */
+export const emailLinkBody = z.object({ token: z.string().min(1).max(128) });
+
+/** Asks for a link to set a new password (G10). */
+export const forgotPasswordBody = z.object({ email: emailAddress });
+
+/** A new password, with the token from the emailed link (G10). */
+export const resetPasswordBody = z.object({
+  token: z.string().min(1).max(128),
+  password: z.string().min(8).max(256),
+});
+
+/** Where to email an invite link (G10). */
+export const emailInviteBody = z.object({ email: emailAddress });
 
 /** A code from the authenticator app, to turn two-step sign-in on (E11). */
 export const twoStepCodeBody = z.object({ code: z.string().min(1).max(16) });
