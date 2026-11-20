@@ -141,6 +141,15 @@ describe("the other themes", () => {
     expect(unreadable([...everyPair, ...fills], 4.5, "light")).toEqual([]);
   });
 
+  it("keep every code colour readable on a code block's ground, in Onyx and White (J15)", () => {
+    const kinds = ["comment", "keyword", "string", "number", "name", "punctuation", "added", "removed"];
+    const pairs = kinds.map((kind): [string, string] => [`syntax-${kind}`, "ground"]);
+    for (const theme of ["dark", "light"] as const) {
+      for (const [text] of pairs) expect(colourTokens(theme), theme).toHaveProperty(text);
+      expect(unreadable(pairs, 4.5, theme), theme).toEqual([]);
+    }
+  });
+
   it("offer no theme the stylesheet does not define", () => {
     expect(css).not.toContain('data-theme="contrast"');
   });
