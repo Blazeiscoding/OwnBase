@@ -16,6 +16,7 @@ import { IconButton } from "../components/IconButton.js";
 import { Kbd } from "../components/Kbd.js";
 import { ListStatus } from "../components/ListStatus.js";
 import { Menu } from "../components/Menu.js";
+import { Mrkdwn } from "../components/Mrkdwn.js";
 import { Popover } from "../components/Popover.js";
 import { Select } from "../components/Select.js";
 import { Sheet, sheetCard } from "../components/Sheet.js";
@@ -180,6 +181,7 @@ function ThemeSheet({ theme }: { theme: Theme }) {
               <Toasts />
               <EmptyStates />
               <ListStatuses />
+              <CodeBlocks />
             </main>
           </div>
         </div>
@@ -872,6 +874,33 @@ function ListStatuses() {
           className="w-full"
         />
       </Specimen>
+    </Section>
+  );
+}
+
+/** One block in each of four languages, as a message writes them. */
+const CODE_SAMPLES: Record<string, string> = {
+  TypeScript:
+    '```ts\n// Who is around now\nexport function around(people: Person[]): string[] {\n  return people.filter((p) => p.presence === "online").map((p) => p.name);\n}\n```',
+  Python:
+    '```python\nimport json\n\ndef load(path: str) -> dict:\n    """Read a settings file."""\n    with open(path) as f:\n        return json.load(f)  # 42 keys\n```',
+  SQL: "```sql\nSELECT name, count(*) AS sent\nFROM messages\nWHERE created_at > 1700000000\nGROUP BY name;\n```",
+  diff: "```diff\n@@ -1,3 +1,3 @@\n-const limit = 500;\n+const limit = 1000;\n const name = 'OwnBase';\n```",
+};
+
+function CodeBlocks() {
+  return (
+    <Section
+      title="Code blocks"
+      about="A block whose opening fence names its language takes the theme's code colours once the highlighter loads; one without stays plain."
+    >
+      {Object.entries(CODE_SAMPLES).map(([name, text]) => (
+        <Specimen key={name} name={name} wide>
+          <div className="message-text w-full text-[16px] leading-[1.375] text-ink/90">
+            <Mrkdwn text={text} users={{}} channels={{}} codeColours />
+          </div>
+        </Specimen>
+      ))}
     </Section>
   );
 }

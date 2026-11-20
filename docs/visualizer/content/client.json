@@ -1556,6 +1556,27 @@
       "concepts": ["user groups"]
     },
     {
+      "path": "packages/ui/src/lib/codeColours.ts",
+      "plain": "Notices when a code block in a message says which language it is in, and fetches the colouring code the first time one does.",
+      "summary": "codeLanguage reads a known language word alone on a block's opening fence (```ts); loadHighlighter and useHighlighter load highlighter.ts once for the whole app, on the first block that asks (J15).",
+      "details": [
+        "The language words are one string, since every visit downloads this file: the entry grew by under 1 kB.",
+        "A word with anything else on its line, or code that starts on the fence line, stays code, so older messages look as they did."
+      ],
+      "concepts": ["code blocks", "lazy loading"]
+    },
+    {
+      "path": "packages/ui/src/lib/highlighter.ts",
+      "plain": "Colours the code in a message by language. It is downloaded only when a message shows such a block.",
+      "summary": "The lazy chunk: refractor (Prism's grammars) with 20 languages registered by hand, cutting code into runs of one colour each, as text-syntax-* classes whose colours are theme variables (J15).",
+      "details": [
+        "The runs joined are the code exactly, so copying and screen readers get what they did before.",
+        "A block over 50 kB, 1,000 lines or holding a run of more than 500 characters without a space is left plain: Prism's time grows with the square of such a run (48 kB of base64 took over 3 s).",
+        "Chosen by measuring: about 31 kB gzipped against 31.0 kB for highlight.js's core, which gives tokens only through an internal hook, and 283 kB for Shiki."
+      ],
+      "concepts": ["code blocks", "lazy loading"]
+    },
+    {
       "path": "packages/ui/src/components/MentionTags.tsx",
       "plain": "Makes a person or channel tagged in the message box look tagged, rather than like ordinary words starting with @.",
       "summary": "Draws each mention in a message box as a tag behind its name.",
@@ -2024,6 +2045,7 @@
       "summary": "Renders the supported Slack-style message syntax into React elements.",
       "details": [
         "Handles fenced and inline code, bold/italic/strike, quotes, user/channel references and ordinary or labelled HTTP links without interpreting message text as arbitrary HTML.",
+        "A fenced block that names its language colours itself where codeColours is set (the timeline and the thread panel), drawn plain first and coloured when lib/highlighter.ts arrives (J15).",
         "Resolves mentions against supplied users/channels, with the same labels the composer shows (mentionDocument), and opens a message link in-place only when it belongs to a known address of this workspace (useOwnAddress, which LinkedMessages asks too).",
         "A labelled link that looks like a different host exposes the actual destination. Code/quote edge trimming avoids artificial blank lines around block elements.",
         "lineRuns splits text outside code blocks into text, quote, bulleted and numbered runs. Lines starting \"- \", \"* \" or \"• \" become a ul, and \"1. \" or \"1) \" (up to three digits, so a year is not one) an ol that counts on from its first number, as Discord's does. \"-5\", \"*bold*\" and a bare marker stay text, and a list marker inside a quote stays in the quote."
