@@ -100,5 +100,5 @@ export { anythingUnread, markEverythingRead, unreadEverywhere } from "./readAll.
 export type { Unread } from "./readAll.js";
 export { threadReplies, threadRootMessage, timelineMessages } from "./messageCache.js";
 export type { ChannelTimeline, ThreadPage } from "./messageCache.js";
-export type { EphemeralMessage } from "./workspace.js";
+export type { EphemeralMessage } from "./commands.js";
 export type { LocalAttachment, PendingMessage, WorkspaceState } from "./workspaceState.js";

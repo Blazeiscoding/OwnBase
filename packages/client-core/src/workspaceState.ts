@@ -22,7 +22,7 @@ import type { CommandHint } from "./api.js";
 import type { HuddleState } from "./huddle.js";
 import type { MessageCache } from "./messageCache.js";
 import type { FileDescription, StoredPending } from "./outbox.js";
-import type { EphemeralMessage } from "./workspace.js";
+import type { EphemeralMessage } from "./commands.js";
 
 export type ConnectionStatus =
   | "connecting"
