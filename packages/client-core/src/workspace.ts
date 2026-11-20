@@ -1,6 +1,5 @@
 import { createStore, type StoreApi } from "zustand/vanilla";
 import {
-  DEFAULT_CHANNEL_PREFS,
   PROTOCOL_VERSION,
   SEND_RETRY_WINDOW_MS,
   SOCKET_CLOSE,
@@ -80,6 +79,7 @@ import {
 import { answerOf, doneOf, failureOf, fileRefusal, notConnected } from "./answers.js";
 import { newNonce, storedPending, type OutgoingSend, type StoredPending } from "./outbox.js";
 import { OptimisticWrites, type WriteSpec } from "./optimisticWrites.js";
+import { Preferences } from "./preferences.js";
 import { pollChoicesKey, pollChoicesOfKey, serverPollChoices, type PollDraft } from "./polls.js";
 import type { CallLogLine, CallView, ScreenShareQuality } from "./huddle.js";
 import type { MicrophoneSettings, NoiseFilter, OpenSystemMicrophone } from "./devices.js";
@@ -258,6 +258,7 @@ export class WorkspaceClient {
   private readonly modals: Modals;
   private readonly calls: Calls;
   private readonly settings: WorkspaceSettings;
+  private readonly preferences: Preferences;
   /** The sends waiting to hear whether this device keeps their words (GL-02). */
   readonly kept = new LocalLedger();
   private ws: WebSocket | null = null;
@@ -333,6 +334,7 @@ export class WorkspaceClient {
     this.commands = new Commands(this.api, this.store, () => this.stopped);
     this.modals = new Modals(this.api, this.store);
     this.settings = new WorkspaceSettings(this.api, this.store, () => this.stopped);
+    this.preferences = new Preferences(this.api, this.store, this.writes, () => this.stopped);
     this.calls = new Calls(this.api, this.store, (msg) => this.sendSocket(msg));
     // A session that has ended keeps nothing it downloaded (F07).
     this.store.subscribe((now, before) => {
@@ -2608,24 +2610,16 @@ export class WorkspaceClient {
    * server has it; the refusal instead, such as at the limit (E8).
    */
   createSidebarSection(name: string): Promise<SidebarSection | ApiError> {
-    return answerOf(async () => {
-      const { section, sections } = await this.api.createSidebarSection(name);
-      this.keepSections(sections);
-      return section;
-    });
+    return this.preferences.createSidebarSection(name);
   }
 
   renameSidebarSection(id: ID, name: string): Promise<ApiError | null> {
-    return doneOf(async () =>
-      this.keepSections((await this.api.renameSidebarSection(id, name)).sections),
-    );
+    return this.preferences.renameSidebarSection(id, name);
   }
 
   /** Deletes one of this account's sections; its conversations go back where they would be. */
   deleteSidebarSection(id: ID): Promise<ApiError | null> {
-    return doneOf(async () =>
-      this.keepSections((await this.api.deleteSidebarSection(id)).sections),
-    );
+    return this.preferences.deleteSidebarSection(id);
   }
 
   /**
@@ -2634,21 +2628,7 @@ export class WorkspaceClient {
    * server last told this one.
    */
   orderSidebarSections(ids: ID[]): Promise<ApiError | null> {
-    return this.writes.write<SidebarSection[], ID[]>({ kind: "sectionOrder" }, ids, {
-      read: () => this.state.sidebarSections,
-      show: (sidebarSections) => this.store.setState({ sidebarSections }),
-      send: async (order) => (await this.api.orderSidebarSections(order)).sections,
-      apply: (sections, order) => {
-        const byId = new Map(sections.map((section) => [section.id, section]));
-        return order.flatMap((id) => byId.get(id) ?? []);
-      },
-    });
-  }
-
-  private keepSections(sections: SidebarSection[]): void {
-    if (this.stopped) return;
-    if (!this.writes.heard({ kind: "sectionOrder" }, sections))
-      this.store.setState({ sidebarSections: sections });
+    return this.preferences.orderSidebarSections(ids);
   }
 
   /**
@@ -2699,47 +2679,17 @@ export class WorkspaceClient {
    * already replaced it: an earlier request failing never undoes a later one.
    */
   setChannelPrefs(channelId: ID, patch: Partial<ChannelPrefs>): Promise<ApiError | null> {
-    // A level chosen here is this conversation's own from now on, as the
-    // server will say; shown so at once.
-    if (patch.notifyLevel !== undefined && patch.notifyChosen === undefined)
-      patch = { ...patch, notifyChosen: true };
-    return this.writes.write({ kind: "prefs", channelId }, patch, this.prefsSpec(channelId));
+    return this.preferences.setChannelPrefs(channelId, patch);
   }
 
   /** Tries again to save the notification choice for a channel that failed. */
   retryChannelPrefs(channelId: ID): void {
-    void this.writes.retry({ kind: "prefs", channelId });
-  }
-
-  private prefsSpec(channelId: ID): WriteSpec<ChannelPrefs, Partial<ChannelPrefs>> {
-    return {
-      read: () => this.state.prefs[channelId] ?? DEFAULT_CHANNEL_PREFS,
-      show: (prefs, { saving, failed }) =>
-        this.store.setState((s) => {
-          const prefsWrites = { ...s.prefsWrites };
-          const unsaved = failed && Object.keys(failed).length > 0 ? failed : null;
-          if (saving || unsaved) prefsWrites[channelId] = { saving, failed: unsaved };
-          else delete prefsWrites[channelId];
-          return { prefs: { ...s.prefs, [channelId]: prefs }, prefsWrites };
-        }),
-      send: async (change) => (await this.api.setChannelPrefs(channelId, change)).prefs,
-      merge: (earlier, later) => ({ ...earlier, ...later }),
-      apply: (prefs, change) => ({ ...prefs, ...change }),
-      unreplaced: (change, replacement) => {
-        const rest = omitKeys(change, Object.keys(replacement));
-        return Object.keys(rest).length > 0 ? rest : null;
-      },
-      keepFailed: true,
-      same: (a, b) =>
-        Object.keys({ ...a, ...b }).every(
-          (key) => a[key as keyof ChannelPrefs] === b[key as keyof ChannelPrefs],
-        ),
-    };
+    this.preferences.retryChannelPrefs(channelId);
   }
 
   /** Snooze notifications for `minutes`, or pass null to clear Do Not Disturb. */
   snoozeNotifications(minutes: number | null): Promise<ApiError | null> {
-    return this.snoozeNotificationsUntil(minutes === null ? null : Date.now() + minutes * 60_000);
+    return this.preferences.snoozeNotifications(minutes);
   }
 
   /**
@@ -2750,17 +2700,7 @@ export class WorkspaceClient {
    * now is.
    */
   snoozeNotificationsUntil(dndUntil: number | null): Promise<ApiError | null> {
-    if (!this.state.self) return Promise.resolve(notConnected());
-    return this.writes.write({ kind: "dnd" }, dndUntil, {
-      read: () => this.state.self?.dndUntil ?? null,
-      show: (until) =>
-        this.store.setState((s) => {
-          if (!s.self || s.self.dndUntil === until) return {};
-          const self = { ...s.self, dndUntil: until };
-          return { self, users: { ...s.users, [self.id]: self } };
-        }),
-      send: async (until) => (await this.api.updateMe({ dndUntil: until })).user.dndUntil,
-    });
+    return this.preferences.snoozeNotificationsUntil(dndUntil);
   }
 
   // ---------- huddles ----------
@@ -3065,12 +3005,7 @@ export class WorkspaceClient {
    * shown at once; put back when the server refused, resolving with why.
    */
   setNotifyDefault(level: NotifyLevel): Promise<ApiError | null> {
-    if (!this.state.self) return Promise.resolve(notConnected());
-    return this.writes.write<NotifyLevel>({ kind: "notifyDefault" }, level, {
-      read: () => this.state.notifyDefault,
-      show: (notifyDefault) => this.store.setState({ notifyDefault }),
-      send: async (chosen) => (await this.api.setNotifyDefault(chosen)).level,
-    });
+    return this.preferences.setNotifyDefault(level);
   }
 
   private changeSelf(request: () => Promise<{ user: User }>): Promise<ApiError | null> {
@@ -3305,10 +3240,4 @@ function withSaved(saved: Record<ID, true>, messageId: ID, on: boolean): Record<
   if (on) next[messageId] = true;
   else delete next[messageId];
   return next;
-}
-
-function omitKeys<T extends object>(values: T, keys: string[]): Partial<T> {
-  const out: Partial<T> = { ...values };
-  for (const key of keys) delete out[key as keyof T];
-  return out;
 }
