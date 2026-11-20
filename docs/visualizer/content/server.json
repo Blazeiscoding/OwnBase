@@ -196,6 +196,25 @@
       "concepts": ["event delivery", "retry ladder"]
     },
     {
+      "path": "packages/server/src/apps/sockets.ts",
+      "plain": "The connections apps open to the workspace with Slack's Socket Mode, so a bot with no public address can still be sent its events, commands and button presses.",
+      "summary": "AppSockets: upgrades to /apps/socket with a ticket, hello, envelopes acknowledged by envelope_id, ten connections per app, a ten-second ping, and disconnect with link_disabled or refresh_requested.",
+      "details": [
+        "An envelope goes to one of the app's connections in turn and is done when acknowledged. No connection, a connection that closes first, or no answer in four seconds rejects the send the way a URL that does not answer does, so events follow the retry ladder and commands fail as before.",
+        "A message from the app over 64 KB closes it with 1009, a connection more than 1 MB behind on reading is closed rather than queued for, and the heartbeat closes one whose token, app or Socket Mode setting has gone."
+      ],
+      "concepts": ["apps", "socket mode", "J14"]
+    },
+    {
+      "path": "packages/server/src/apps/socketTickets.ts",
+      "plain": "The single-use passes in the addresses apps.connections.open hands out, so an app's token never travels in a connection's URL.",
+      "summary": "SocketTickets: issue, spend once within thirty seconds, and forget an app's tickets when its app-level token changes; sixteen per app, in memory.",
+      "details": [
+        "Built like the download tickets: a spent, stale or forgotten ticket answers null, and a ticket is spent whatever the answer."
+      ],
+      "concepts": ["apps", "socket mode", "tickets", "J14"]
+    },
+    {
       "path": "packages/server/src/apps/store.ts",
       "plain": "Saves apps, their bot accounts, tokens, webhooks, commands and event subscriptions.",
       "summary": "AppStore (store.apps): apps, app tokens, webhooks, slash commands and event subscriptions, each table's row read in one place.",

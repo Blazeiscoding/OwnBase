@@ -37,6 +37,7 @@ import { Select } from "./Select.js";
 import { Swap } from "./Motion.js";
 import { useConfirm } from "./Confirm.js";
 import { ListStatus } from "./ListStatus.js";
+import { AppReceive } from "./AppReceive.js";
 import { buttonClass } from "./Button.js";
 import { Icon } from "./Icon.js";
 import { useToast } from "./Toast.js";
@@ -121,7 +122,10 @@ export function AppsDialog({ onClose }: { onClose: () => void }) {
   const [createError, setCreateError] = useState<string | null>(null);
   const nameInput = useRef<HTMLInputElement>(null);
   const [busy, setBusy] = useState(false);
-  /** Bot tokens from this session only; the server never returns them again. */
+  /**
+   * Bot tokens, and app-level tokens under `app:<id>`, from this session
+   * only; the server never returns them again.
+   */
   const [secrets, setSecrets] = useState<Record<string, string>>({});
   const [hookUrls, setHookUrls] = useState<Record<string, string>>({});
   const [rotateError, setRotateError] = useState<string | null>(null);
@@ -454,6 +458,17 @@ export function AppsDialog({ onClose }: { onClose: () => void }) {
               <AppScopes app={a} onChanged={load} />
             </FormSection>
 
+            <FormSection label="How it receives">
+              <AppReceive
+                app={a}
+                onChanged={load}
+                onToken={(token) => setSecrets((s) => ({ ...s, [`app:${a.id}`]: token }))}
+              />
+              {a.receive === "socket" && secrets[`app:${a.id}`] && (
+                <SecretRow label="App-level token" value={secrets[`app:${a.id}`]!} once />
+              )}
+            </FormSection>
+
             <FormSection label="Slash commands">
               <CommandList app={a} onChanged={load} />
             </FormSection>
@@ -463,7 +478,13 @@ export function AppsDialog({ onClose }: { onClose: () => void }) {
             </FormSection>
 
             <FormSection label="Interactivity">
-              <InteractivityUrl app={a} onChanged={load} />
+              {a.receive === "socket" ? (
+                <p className="text-[12px] text-ink-dim">
+                  Button presses and forms arrive over its connection.
+                </p>
+              ) : (
+                <InteractivityUrl app={a} onChanged={load} />
+              )}
             </FormSection>
           </li>
         ))}
@@ -1001,10 +1022,10 @@ function SlackDifferences() {
           <code className="font-mono">chat.postMessage</code> take the shapes Slack&rsquo;s do.
         </p>
         <p>
-          Not everything carries over. There is no OAuth or Socket Mode. An app here gets a bot
-          token and a signing secret, with the scopes ticked below. It receives events and button
-          presses over HTTP. A message&rsquo;s <code className="font-mono">ts</code> is an id, not a
-          time.
+          Not everything carries over. There is no OAuth. An app here gets a bot token and a signing
+          secret, with the scopes ticked below. It receives events and button presses at its URLs,
+          or over Socket Mode when it has no public address. A message&rsquo;s{" "}
+          <code className="font-mono">ts</code> is an id, not a time.
         </p>
         <p>
           <a
@@ -1070,9 +1091,10 @@ function CommandList({ app, onChanged }: { app: AppDetail; onChanged: () => void
     e.preventDefault();
     if (busy) return;
     setError(null);
+    const byUrl = app.receive === "url";
     const found = {
       command: commandName(command) ? undefined : "Name the command, such as /deploy.",
-      url: url.trim() ? undefined : "Give the address your service answers on.",
+      url: !byUrl || url.trim() ? undefined : "Give the address your service answers on.",
     };
     setProblems(found);
     if (found.command || found.url) {
@@ -1082,7 +1104,7 @@ function CommandList({ app, onChanged }: { app: AppDetail; onChanged: () => void
     setBusy(true);
     const added = await client.apps.createCommand(app.id, {
       command: command.trim(),
-      url: url.trim(),
+      ...(byUrl ? { url: url.trim() } : {}),
       description: description.trim(),
     });
     setBusy(false);
@@ -1119,7 +1141,7 @@ function CommandList({ app, onChanged }: { app: AppDetail; onChanged: () => void
           <li key={c.id} className="flex items-baseline gap-2 text-[12px]">
             <span className="font-mono text-copper">/{c.command}</span>
             <span className="min-w-0 flex-1 truncate font-mono text-[11px] text-ink-faint">
-              {c.url}
+              {c.url || "Over its connection"}
             </span>
             <button onClick={() => void remove(c)} className="text-ink-faint hover:text-alert">
               Remove
@@ -1148,22 +1170,24 @@ function CommandList({ app, onChanged }: { app: AppDetail; onChanged: () => void
           autoCapitalize="none"
           className="w-28 shrink-0"
         />
-        <TextField
-          ref={urlField}
-          size="small"
-          label="Request URL"
-          error={problems.url}
-          value={url}
-          onChange={(e) => {
-            setUrl(e.target.value);
-            setProblems((found) => ({ ...found, url: undefined }));
-          }}
-          placeholder="https://bot.example.com/deploy"
-          inputMode="url"
-          spellCheck={false}
-          autoCapitalize="none"
-          className="min-w-0 flex-1 basis-48"
-        />
+        {app.receive === "url" && (
+          <TextField
+            ref={urlField}
+            size="small"
+            label="Request URL"
+            error={problems.url}
+            value={url}
+            onChange={(e) => {
+              setUrl(e.target.value);
+              setProblems((found) => ({ ...found, url: undefined }));
+            }}
+            placeholder="https://bot.example.com/deploy"
+            inputMode="url"
+            spellCheck={false}
+            autoCapitalize="none"
+            className="min-w-0 flex-1 basis-48"
+          />
+        )}
         <TextField
           size="small"
           label="Description"
@@ -1376,14 +1400,18 @@ function SubscriptionList({ app, onChanged }: { app: AppDetail; onChanged: () =>
     e.preventDefault();
     if (busy) return;
     setError(null);
-    if (!url.trim()) {
+    const byUrl = app.receive === "url";
+    if (byUrl && !url.trim()) {
       setUrlProblem("Give the address that receives events.");
       urlField.current?.focus();
       return;
     }
     setUrlProblem(null);
     setBusy(true);
-    const failed = await client.apps.subscribe(app.id, { url: url.trim(), eventTypes: types });
+    const failed = await client.apps.subscribe(
+      app.id,
+      byUrl ? { url: url.trim(), eventTypes: types } : { eventTypes: types },
+    );
     setBusy(false);
     if (!failed) {
       setUrl("");
@@ -1421,7 +1449,7 @@ function SubscriptionList({ app, onChanged }: { app: AppDetail; onChanged: () =>
           <li key={sub.id} className="text-[12px]">
             <div className="flex items-baseline gap-2">
               <span className="min-w-0 flex-1 truncate font-mono text-[11px] text-ink-faint">
-                {sub.url}
+                {sub.url || "Over its connection"}
               </span>
               <span className="shrink-0 text-[11px] text-ink-dim">
                 {sub.eventTypes.length > 0 ? `${sub.eventTypes.length} types` : "all events"}
@@ -1467,24 +1495,26 @@ function SubscriptionList({ app, onChanged }: { app: AppDetail; onChanged: () =>
       </ul>
       <form onSubmit={(e) => void add(e)} noValidate className="mt-1.5">
         <div className="flex items-start gap-2">
-          <TextField
-            ref={urlField}
-            size="small"
-            label="Request URL"
-            error={urlProblem}
-            value={url}
-            onChange={(e) => {
-              setUrl(e.target.value);
-              setUrlProblem(null);
-            }}
-            placeholder="https://bot.example.com/events"
-            inputMode="url"
-            spellCheck={false}
-            autoCapitalize="none"
-            className="min-w-0 flex-1"
-          />
+          {app.receive === "url" && (
+            <TextField
+              ref={urlField}
+              size="small"
+              label="Request URL"
+              error={urlProblem}
+              value={url}
+              onChange={(e) => {
+                setUrl(e.target.value);
+                setUrlProblem(null);
+              }}
+              placeholder="https://bot.example.com/events"
+              inputMode="url"
+              spellCheck={false}
+              autoCapitalize="none"
+              className="min-w-0 flex-1"
+            />
+          )}
           <button type="submit" aria-disabled={busy || undefined} className={rowButton}>
-            {busy ? "Verifying…" : "Subscribe"}
+            {busy ? (app.receive === "url" ? "Verifying…" : "Subscribing…") : "Subscribe"}
           </button>
         </div>
         <div className="mt-1.5 flex flex-wrap gap-1">
@@ -1506,9 +1536,16 @@ function SubscriptionList({ app, onChanged }: { app: AppDetail; onChanged: () =>
           ))}
         </div>
         <p className="mt-1 text-[11px] text-ink-faint">
-          With none selected, the app gets every event. The URL must answer the{" "}
-          <code className="font-mono">url_verification</code> check. The app only gets events from
-          channels it has been added to.
+          With none selected, the app gets every event.{" "}
+          {app.receive === "url" ? (
+            <>
+              The URL must answer the <code className="font-mono">url_verification</code>{" "}
+              check.{" "}
+            </>
+          ) : (
+            "They arrive over its connection. "
+          )}
+          The app only gets events from channels it has been added to.
         </p>
       </form>
       {error && (

@@ -1,4 +1,10 @@
-import type { AppScope, CreateCommandBody, CreateSubscriptionBody, ID } from "@ownbase/protocol";
+import type {
+  AppReceive,
+  AppScope,
+  CreateCommandBody,
+  CreateSubscriptionBody,
+  ID,
+} from "@ownbase/protocol";
 import type { Api } from "./api.js";
 import { answerOf, doneOf } from "./answers.js";
 
@@ -42,6 +48,23 @@ export class AppActions {
 
   replaceSigningSecret(appId: ID) {
     return doneOf(() => this.api.replaceSigningSecret(appId));
+  }
+
+  /** The app-level token comes back once here; the app's open connections close. */
+  replaceAppLevelToken(appId: ID) {
+    return answerOf(async () => (await this.api.replaceAppLevelToken(appId)).token);
+  }
+
+  revokeAppLevelToken(appId: ID) {
+    return doneOf(() => this.api.revokeAppLevelToken(appId));
+  }
+
+  /**
+   * Going back to URLs is refused while a command or subscription has none,
+   * with a message naming them.
+   */
+  setReceive(appId: ID, receive: AppReceive) {
+    return doneOf(() => this.api.setAppReceive(appId, receive));
   }
 
   setInteractivityUrl(appId: ID, url: string) {
