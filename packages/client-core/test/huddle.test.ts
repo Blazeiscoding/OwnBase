@@ -1,15 +1,13 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { HuddleSignal, ID } from "@ownbase/protocol";
 import type { CallReport } from "@ownbase/protocol";
+import { HuddleSession, STALL_MS, withStereoScreenSound } from "../src/huddle.js";
 import {
   cameraEncoding,
   cameraEncodingFor,
-  HuddleSession,
   screenEncodingFor,
-  STALL_MS,
   viewHeight,
-  withStereoScreenSound,
-} from "../src/huddle.js";
+} from "../src/callSizing.js";
 import { testMicrophone } from "../src/devices.js";
 
 /** What a client says it sends, and how big it draws the other's picture: large unless said. */
