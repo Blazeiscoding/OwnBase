@@ -12,6 +12,7 @@ import { useTabs } from "../lib/useTabs.js";
 import { Swap, useChanges } from "../components/Motion.js";
 import { beginSingleSignOn, redeemSingleSignOn } from "../lib/singleSignOn.js";
 import type { SignedOutFrom } from "../lib/signOut.js";
+import { ForgotPasswordForm, NewPasswordForm } from "./JoinRecovery.js";
 
 /** How a sign-in came about, where it matters to what opens next. */
 export interface Connected {
@@ -36,6 +37,8 @@ export function AuthCard(props: {
   presetInviteCode?: string;
   presetClaimCode?: string;
   presetSsoCode?: string;
+  /** From a mailed link to set a new password (G10). */
+  resetToken?: string;
   platform: Pick<Platform, "kind">;
   onBack: () => void;
   onConnected: (server: SavedServer, how?: Connected) => void;
@@ -51,11 +54,13 @@ export function AuthCard(props: {
   // Where guests are welcome, joining as one comes first, unless this device
   // remembers an account here.
   const [mode, setMode] = useState<Mode>(
-    isFirstUser || props.presetInviteCode
-      ? "register"
-      : guestAllowed && !(props.savedHandle && !props.savedHandle.startsWith("guest-"))
-        ? "guest"
-        : "login",
+    props.resetToken
+      ? "login"
+      : isFirstUser || props.presetInviteCode
+        ? "register"
+        : guestAllowed && !(props.savedHandle && !props.savedHandle.startsWith("guest-"))
+          ? "guest"
+          : "login",
   );
   const [handle, setHandle] = useState(props.savedHandle ?? "");
   const [displayName, setDisplayName] = useState("");
@@ -114,6 +119,11 @@ export function AuthCard(props: {
   const ownerPasswordsOnly = props.info.signIn?.passwords === "owner_only";
   /** The desktop app sent the person to their browser to sign in there. */
   const [ssoAway, setSsoAway] = useState(false);
+  /** Getting back in by email (G10): asking for the link, or choosing a password from it. */
+  const [recovery, setRecovery] = useState<"forgot" | "reset" | null>(
+    props.resetToken && hasUsers ? "reset" : null,
+  );
+  const [passwordSet, setPasswordSet] = useState(false);
 
   // A remembered username leaves only the password to type.
   const focusFirst = useEffectEvent(() => {
@@ -379,7 +389,22 @@ export function AuthCard(props: {
         </p>
       </div>
 
-      {mustReplace ? (
+      {recovery === "reset" && props.resetToken ? (
+        <NewPasswordForm
+          url={props.url}
+          token={props.resetToken}
+          onDone={(signedInAs) => {
+            setHandle(signedInAs);
+            setPassword("");
+            setMode("login");
+            setPasswordSet(true);
+            setRecovery(null);
+          }}
+          onBack={() => setRecovery(null)}
+        />
+      ) : recovery === "forgot" ? (
+        <ForgotPasswordForm url={props.url} onBack={() => setRecovery(null)} />
+      ) : mustReplace ? (
         <>
           <p className="mb-4 rounded-xl border border-edge bg-ink/[0.04] px-3.5 py-3 text-sm text-ink-dim">
             Someone else set that password for you. Choose your own to finish signing in. The
@@ -502,7 +527,18 @@ export function AuthCard(props: {
         </>
       ) : (
         <>
-          {props.endedNote && !isFirstUser && (
+          {passwordSet && (
+            <p
+              role="status"
+              className="mb-5 flex items-start gap-2.5 rounded-xl border border-edge bg-ink/[0.04] px-3.5 py-3 text-sm text-ink-dim"
+            >
+              <Icon name="info" size={16} className="mt-0.5 shrink-0 text-ink-faint" />
+              <span>
+                Your new password is set, and every device was signed out. Sign in with it.
+              </span>
+            </p>
+          )}
+          {props.endedNote && !isFirstUser && !passwordSet && (
             <p
               role="status"
               className="mb-5 flex items-start gap-2.5 rounded-xl border border-edge bg-ink/[0.04] px-3.5 py-3 text-sm text-ink-dim"
@@ -737,6 +773,20 @@ export function AuthCard(props: {
                           : "Join workspace"}
                   </Swap>
                 </button>
+                {/* Only where the workspace sends email (G10); otherwise an admin resets it. */}
+                {mode === "login" && props.info.email && (
+                  <button
+                    type="button"
+                    disabled={busy}
+                    onClick={() => {
+                      setError(null);
+                      setRecovery("forgot");
+                    }}
+                    className="w-full text-center text-[13px] text-ink-dim underline-offset-2 transition-colors hover:text-ink hover:underline"
+                  >
+                    Forgot your password?
+                  </button>
+                )}
               </form>
             )}
           </div>

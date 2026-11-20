@@ -8,6 +8,10 @@ export type DeepLink =
   | { kind: "claim"; serverUrl: string; code: string }
   /** Back from a workspace's single sign-on, with the code that signs in (P9). */
   | { kind: "sso"; serverUrl: string; code: string }
+  /** A link mailed to set a new password (G10). */
+  | { kind: "reset"; serverUrl: string; token: string }
+  /** A link mailed to confirm an email address (G10). */
+  | { kind: "verifyEmail"; serverUrl: string; token: string }
   | { kind: "message"; serverUrl: string; channelId: string; messageId: string };
 
 /** Where a link leads, before the server it belongs to is attached. */
@@ -24,7 +28,8 @@ const TOKEN = /^[A-Za-z0-9_-]{1,64}$/;
  * <server>/#/join/<code> and <server>/#/c/<channel>/m/<message> for a browser,
  * where <server>/#/claim/<code> also claims a workspace nobody owns yet, and
  * <server>/#/sso/<code> or ownbase://sso?host=…&code=… comes back from its
- * single sign-on.
+ * single sign-on. Mail brings <server>/#/reset/<token>, to set a new
+ * password, and <server>/#/verify-email/<token>, to confirm an address.
  * Returns null for anything malformed rather than throwing.
  */
 export function parseDeepLink(raw: string): DeepLink | null {
@@ -78,6 +83,12 @@ function parseBrowserLink(url: URL): DeepLink | null {
   }
   if (parts.length === 2 && parts[0] === "sso" && TOKEN.test(parts[1]!)) {
     return { kind: "sso", serverUrl, code: parts[1]! };
+  }
+  if (parts.length === 2 && parts[0] === "reset" && TOKEN.test(parts[1]!)) {
+    return { kind: "reset", serverUrl, token: parts[1]! };
+  }
+  if (parts.length === 2 && parts[0] === "verify-email" && TOKEN.test(parts[1]!)) {
+    return { kind: "verifyEmail", serverUrl, token: parts[1]! };
   }
   if (
     parts.length === 4 &&

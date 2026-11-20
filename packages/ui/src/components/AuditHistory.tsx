@@ -44,6 +44,8 @@ export function describeAuditEntry(
       return `${actor} reactivated ${target}`;
     case "user.password_reset":
       return `${actor} reset ${possessive(target)} password`;
+    case "user.password_reset_by_email":
+      return `${actor} set a new password with a link sent by email`;
     case "user.two_step_reset":
       return `${actor} turned off ${possessive(target)} two-step sign-in`;
     case "report.resolved": {
@@ -158,6 +160,8 @@ export function describeAuditEntry(
       return `${actor} created an invite code`;
     case "invite.revoked":
       return `${actor} revoked an invite code`;
+    case "invite.emailed":
+      return `${actor} sent an invite link by email`;
     case "extension.action":
       return typeof d.did === "string" && d.did
         ? `${actor} ${d.did}`

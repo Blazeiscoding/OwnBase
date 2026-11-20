@@ -29,6 +29,7 @@ import { ProfileForm } from "./ProfileDialog.js";
 import { SettingsWindow } from "./SettingsWindow.js";
 import { VoiceVideoSettings } from "./VoiceVideoSettings.js";
 import { TwoStepSettings } from "./TwoStepSettings.js";
+import { EmailSettings } from "./EmailSettings.js";
 import { LinkedSignIns } from "./LinkedSignIns.js";
 import { BlockedPeople } from "./Blocking.js";
 import { buttonClass } from "./Button.js";
@@ -450,6 +451,7 @@ export function AccountDialog({
                 </fieldset>
               </form>
             </section>
+            <EmailSettings />
             <TwoStepSettings />
             <LinkedSignIns />
             <BlockedPeople />

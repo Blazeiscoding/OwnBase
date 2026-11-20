@@ -4,6 +4,7 @@ import { TITLE_BAR_HEIGHT } from "@ownbase/protocol/desktop";
 import { PlatformContext } from "./context.js";
 import type { Platform, SavedServer } from "./platform.js";
 import { parseDeepLink } from "./lib/deeplink.js";
+import { confirmEmailLink } from "./lib/emailLinks.js";
 import { normalizeServerUrlSafe } from "./lib/deeplinkHelpers.js";
 import { WorkspaceScreen } from "./screens/WorkspaceScreen.js";
 import { Dialog } from "./components/Dialog.js";
@@ -57,6 +58,8 @@ type Session =
       claimCode?: string;
       /** Back from the workspace's single sign-on, with the code that signs in (P9). */
       ssoCode?: string;
+      /** From a mailed link to set a new password (G10). */
+      resetToken?: string;
       /** The workspace ended this sign-in: say so, and offer to sign in there again. */
       signedOut?: SignedOutFrom;
     }
@@ -114,6 +117,15 @@ function RefusedLinkNotice({ count }: { count: number }) {
   return null;
 }
 
+/** Says how opening a mailed link to confirm an address went (G10). */
+function EmailLinkNotice({ notice }: { notice: { message: string; ok: boolean } | null }) {
+  const show = useTryNotice();
+  useEffect(() => {
+    if (notice) show.show({ message: notice.message, kind: notice.ok ? "success" : "error" });
+  }, [notice, show]);
+  return null;
+}
+
 function AppBoundary({ children }: { children: ReactNode }) {
   return (
     <ErrorBoundary>
@@ -130,6 +142,9 @@ export function App({ platform }: { platform: Platform }) {
   const [session, setSession] = useState<Session>({ view: "loading" });
   /** Links handed to the app that it could not read, each said once. */
   const [refusedLinks, setRefusedLinks] = useState(0);
+  const [emailLinkNotice, setEmailLinkNotice] = useState<{ message: string; ok: boolean } | null>(
+    null,
+  );
   /** Where the workspace on screen is, for Manage hosting's Invite people. */
   const workspaceNavigation = useRef<Navigation | null>(null);
   const keepNavigation = useCallback((navigation: Navigation | null) => {
@@ -337,6 +352,25 @@ export function App({ platform }: { platform: Platform }) {
           setSession({ view: "join", autoProbe: link.serverUrl, ssoCode: link.code });
           return;
         }
+        // Setting a new password signs the account out everywhere, this device included.
+        if (link.kind === "reset") {
+          closeWorkspace();
+          setSession({ view: "join", autoProbe: link.serverUrl, resetToken: link.token });
+          return;
+        }
+        if (link.kind === "verifyEmail") {
+          const said = await confirmEmailLink(link.serverUrl, link.token);
+          if (ticket !== navigation.current) return;
+          setEmailLinkNotice(said);
+          // The workspace on screen stays; otherwise the link opens it, as any link to it would.
+          if (openServerUrl.current === link.serverUrl) return;
+          if (known) openWorkspace(known, list);
+          else {
+            closeWorkspace();
+            setSession({ view: "join", autoProbe: link.serverUrl });
+          }
+          return;
+        }
         if (link.kind === "message") {
           // Already looking at this workspace: just move, don't reconnect.
           if (openServerUrl.current === link.serverUrl) {
@@ -536,6 +570,7 @@ export function App({ platform }: { platform: Platform }) {
         )}
         <WindowDialogs />
         <RefusedLinkNotice count={refusedLinks} />
+        <EmailLinkNotice notice={emailLinkNotice} />
         <div className="flex h-full flex-col">
           {platform.kind === "desktop" &&
             (saveErrorAbove || session.view === "loading" || session.view === "restore_failed") && (
@@ -627,6 +662,7 @@ export function App({ platform }: { platform: Platform }) {
                     inviteCode={session.inviteCode}
                     claimCode={session.claimCode}
                     ssoCode={session.ssoCode}
+                    resetToken={session.resetToken}
                     signedOut={session.signedOut}
                     onConnected={(server, how) => {
                       const pending = pendingTarget.current;

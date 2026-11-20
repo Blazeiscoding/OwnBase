@@ -21,6 +21,7 @@ import { useConfirm } from "./Confirm.js";
 import { useShareableServer } from "./ShareableServer.js";
 import { buttonClass } from "./Button.js";
 import { QrCode } from "./QrCode.js";
+import { InviteByEmail } from "./InviteByEmail.js";
 import { Select } from "./Select.js";
 import { useToast } from "./Toast.js";
 
@@ -291,6 +292,7 @@ export function InviteDialog(props: {
                 </button>
               </div>
             </div>
+            <InviteByEmail code={shown.code} />
           </div>
         ) : busy || invites === undefined ? (
           <p role="status" className="card-warm mb-4 rounded-xl p-4 text-sm text-ink-dim">
