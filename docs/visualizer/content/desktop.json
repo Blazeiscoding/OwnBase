@@ -78,6 +78,18 @@
       "concepts": ["registry", "identity", "migration", "safety hold"]
     },
     {
+      "path": "apps/desktop/src/main/hostedList.ts",
+      "plain": "Holds the list of workspaces this computer hosts while the app runs, and saves it to the settings file.",
+      "summary": "The hosting controller's in-memory list of hosted workspaces and its saving.",
+      "details": [
+        "load reads the list once, adopting folders it does not name (registry.ts), and converts what earlier versions kept under lastHosted only on the first start of this version. A settings file that cannot be read is not taken as an empty list, and is read again next time.",
+        "save writes the whole list; keep saves where the work it records is already done, and a failure is said in the status (unsaved) until a later save succeeds.",
+        "folderHolds reads what a listed workspace's folder holds without starting it: nothing, an unreadable database, another workspace, or this one.",
+        "legacyPointer and mostRecent say what earlier versions are told they hosted last; parseLastHosted reads what they wrote, refusing anything malformed."
+      ],
+      "concepts": ["registry", "persistence", "hosting"]
+    },
+    {
       "path": "apps/desktop/src/main/settings.ts",
       "plain": "Saves the desktop app's settings one change at a time, so two changes made together never overwrite each other.",
       "summary": "Provides one acknowledged queue for native settings reads, updates and writes.",
