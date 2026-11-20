@@ -445,14 +445,10 @@
       "details": [
         "A browser quietly recognizes the workspace serving its own origin; desktop discovery subscribes to LAN announcements. Hosted-but-stopped workspaces can offer resume instead of an endless connection attempt.",
         "Address probing normalizes the input and checks application/protocol compatibility before presenting authentication. A probe-attempt number rejects success from an ordinary cancelled or superseded address probe.",
-        "Saved sign-ins first validate their token and fall back to a password card when expired. The auth form handles registration, invites and initial-owner claiming through the typed API. A new account that comes back as owner founded the workspace, and onConnected says so, so the workspace opens on inviting people (UX-42).",
+        "Saved sign-ins first validate their token and fall back to the sign-in card (JoinSignIn.tsx) when expired. A sign-in the workspace ended reopens that card with a note saying so (endedNote).",
         "Since Q06 the saved-token path and the forced password replacement carry the same attempt ownership as ordinary probes, so a late answer after Cancel, another choice or unmount does nothing.",
-        "Where the server advertises guest_allowed, Join as guest comes first and asks only for a display name, beside Sign in and Create account. An answer to an abandoned or superseded attempt is ignored, and a refusal leaves the form ready to retry.",
-        "Its errors say whether the server was reached (UX-05): no answer is Could not reach the server, a wait that ran out says the server took too long, and an answer it has no words for repeats the server's own message, or says the server had a problem (5xx) or turned it down, with the code.",
-        "Its fields take inputClass('large') from TextField.tsx: taller and rounder than a dialog's, and lit from above while in use (field-spot), with the same border and invalid colours as every other field.",
         "Workspace icons (UX-60): the join card fetches the icon ServerInfo.iconVersion names, so anyone sees it before signing in; the workspace serving the page does too; saved workspaces show the copy this device kept (savedIcons), since their servers may be off; the stopped workspace offered under Hosted on this computer shows the icon read from its own database; a workspace found on the network shows the icon its announcement names, fetched from its own address (FoundServerRow). Each falls back to the gradient square.",
-        "Direct connect checks when Connect is pressed rather than greying it out: no address, or one normalizeServerUrl cannot read, is said under the field, which takes focus. While a workspace is being contacted Connect is aria-disabled, so focus stays on it.",
-        "Two-step sign-in (E11): a password answered with a challenge turns the card to its second step, a Code field (one-time-code, numeric) or, by Use a recovery code instead, a Recovery code field. A wrong code is said there; an expired second step goes back to the password, emptied. Signing in with a recovery code says how many are left before Continue, since the phone is probably gone, and one whose password was issued by someone else goes on to choosing a new one."
+        "Direct connect checks when Connect is pressed rather than greying it out: no address, or one normalizeServerUrl cannot read, is said under the field, which takes focus. While a workspace is being contacted Connect is aria-disabled, so focus stays on it."
       ],
       "concepts": [
         "LAN discovery",
@@ -461,6 +457,32 @@
         "cancellation",
         "Q06"
       ]
+    },
+    {
+      "path": "packages/ui/src/screens/JoinBrowse.tsx",
+      "plain": "The first card of the join screen: saved workspaces, workspaces found on your network, typing an address, and hosting your own.",
+      "summary": "The join screen's browse card: saved sign-ins, LAN results, direct connect, resume hosting and the host card.",
+      "details": [
+        "BrowseCard lists saved sign-ins (with Forget, which asks first), workspaces announced on the local network (FoundServerRow), and the workspace serving the page, then the address field. JoinScreen owns the probing and hands it the outcome as props.",
+        "Looking on the network goes on, but after SCAN_PATIENCE_MS it says what else to do instead of pulsing over an empty list.",
+        "ResumeHosted offers the workspace this computer hosted last while hosting is stopped: one click starts it again on its remembered port and reopens the saved sign-in (resumeTarget).",
+        "HostCard offers hosting as one of the two ways in, not a footnote; it is shown only where the platform can host."
+      ],
+      "concepts": ["LAN discovery", "saved credentials", "hosting"]
+    },
+    {
+      "path": "packages/ui/src/screens/JoinSignIn.tsx",
+      "plain": "The card where you sign in to a workspace, create an account or join as a guest.",
+      "summary": "The join screen's sign-in card: password, registration, guest, single sign-on and two-step sign-in.",
+      "details": [
+        "AuthCard handles signing in, registration, invites and initial-owner claiming through the typed API. A new account that comes back as owner founded the workspace, and onConnected says so (Connected.founded), so the workspace opens on inviting people (UX-42).",
+        "Every answer carries an attempt number, so a late answer after Back, another submit or unmount does nothing, as the screen's probes do (Q06).",
+        "Where the server advertises guest_allowed, Join as guest comes first and asks only for a display name, beside Sign in and Create account. An answer to an abandoned or superseded attempt is ignored, and a refusal leaves the form ready to retry.",
+        "Its errors say whether the server was reached (UX-05): no answer is Could not reach the server, a wait that ran out says the server took too long, and an answer it has no words for repeats the server's own message, or says the server had a problem (5xx) or turned it down, with the code.",
+        "Its fields take inputClass('large') from TextField.tsx: taller and rounder than a dialog's, and lit from above while in use (field-spot), with the same border and invalid colours as every other field.",
+        "Two-step sign-in (E11): a password answered with a challenge turns the card to its second step, a Code field (one-time-code, numeric) or, by Use a recovery code instead, a Recovery code field. A wrong code is said there; an expired second step goes back to the password, emptied. Signing in with a recovery code says how many are left before Continue, since the phone is probably gone, and one whose password was issued by someone else goes on to choosing a new one."
+      ],
+      "concepts": ["authentication", "guest access", "two-step sign-in", "single sign-on"]
     },
     {
       "path": "packages/ui/src/screens/WorkspaceScreen.tsx",
