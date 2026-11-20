@@ -43,6 +43,7 @@ import { AdminActions } from "./admin.js";
 import { AppActions } from "./apps.js";
 import { Commands } from "./commands.js";
 import { Lists } from "./lists.js";
+import { Modals } from "./modals.js";
 import { LocalLedger, type LocalOutcome } from "./localWork.js";
 import { FileCache, previewImageKey } from "./fileCache.js";
 import { AvatarCache } from "./avatars.js";
@@ -261,6 +262,7 @@ export class WorkspaceClient {
   readonly apps: AppActions;
   readonly lists: Lists;
   private readonly commands: Commands;
+  private readonly modals: Modals;
   /** The sends waiting to hear whether this device keeps their words (GL-02). */
   readonly kept = new LocalLedger();
   private ws: WebSocket | null = null;
@@ -334,6 +336,7 @@ export class WorkspaceClient {
     this.apps = new AppActions(this.api, () => void this.commands.loadCommands());
     this.lists = new Lists(this.api, this.store);
     this.commands = new Commands(this.api, this.store, () => this.stopped);
+    this.modals = new Modals(this.api, this.store);
     // A session that has ended keeps nothing it downloaded (F07).
     this.store.subscribe((now, before) => {
       if (now.status !== before.status && isSignedOut(now.status)) this.files.invalidateAll();
@@ -1219,7 +1222,7 @@ export class WorkspaceClient {
         break;
       }
       case "view.close":
-        this.forgetModals(event.viewIds);
+        this.modals.forgetModals(event.viewIds);
         break;
       case "typing":
         if (event.userId === s.self?.id) break;
@@ -1253,51 +1256,28 @@ export class WorkspaceClient {
 
   // ---------- actions ----------
 
-  /** Takes forms off the stack; the one left on top, if any, is shown. */
-  private forgetModals(viewIds: readonly ID[]): void {
-    const { modal, modalsBelow } = this.state;
-    const open = [...modalsBelow, ...(modal ? [modal] : [])];
-    const kept = open.filter((view) => !viewIds.includes(view.id));
-    if (kept.length === open.length) return;
-    this.store.setState({ modal: kept.at(-1) ?? null, modalsBelow: kept.slice(0, -1) });
-  }
-
   /**
    * Closes the form without answering it, going back to the one under it if
    * there is one. The server is told so the person's other devices follow;
    * the app is told nothing, as in Slack.
    */
-  dismissModal(viewId = this.state.modal?.id): void {
-    if (!viewId || this.state.modal?.id !== viewId) return;
-    this.forgetModals([viewId]);
-    void this.api.closeView(viewId).catch(() => {});
+  dismissModal(viewId?: ID): void {
+    this.modals.dismissModal(viewId);
   }
 
   dismissAllModals(): void {
-    const { modal, modalsBelow } = this.state;
-    const root = modalsBelow[0] ?? modal;
-    if (!root) return;
-    this.forgetModals([...modalsBelow, ...(modal ? [modal] : [])].map((view) => view.id));
-    void this.api.closeView(root.id).catch(() => {});
+    this.modals.dismissAllModals();
   }
 
   /**
    * Sends the filled-in form. Field errors come back keyed by block so the UI
    * can put each one under the field it belongs to; the form stays open then.
    */
-  async submitModal(
+  submitModal(
     values: Record<string, Record<string, string | string[]>>,
-    viewId = this.state.modal?.id,
+    viewId?: ID,
   ): Promise<ViewSubmitted | ApiError> {
-    const modal = this.state.modal;
-    if (!modal || modal.id !== viewId)
-      return { ok: false, errors: {}, message: "This form is no longer available." };
-    const result = await answerOf(() => this.api.submitView(modal.id, values));
-    // The server names what closed: none when the app changed the form or
-    // stacked another on it. Only ever closing keeps a late answer from
-    // reopening one.
-    if (!(result instanceof ApiError) && result.ok) this.forgetModals(result.closedViewIds);
-    return result;
+    return this.modals.submitModal(values, viewId);
   }
 
   /** Visible history is protected while inactive caches are evicted by recency. */
