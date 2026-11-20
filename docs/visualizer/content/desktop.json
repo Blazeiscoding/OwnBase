@@ -90,6 +90,18 @@
       "concepts": ["registry", "persistence", "hosting"]
     },
     {
+      "path": "apps/desktop/src/main/hostingLaunch.ts",
+      "plain": "Starts the workspace chosen to start with OwnBase when the app opens, reopens its public link if asked, and keeps what did not happen to show later.",
+      "summary": "What hosting does when OwnBase opens: the start-with-OwnBase choice, reopening a stable address, and launch errors.",
+      "details": [
+        "START_ON_LAUNCH_KEY names, by its folder, the workspace to start when the app opens; REOPEN_PUBLIC_KEY names which workspace and which stable address to reopen, so a changed address or another workspace is never published by it.",
+        "readLaunchFolder throws on a choice it cannot read rather than taking it as none, and keeps nothing, so reading again after the settings file is repaired finds it. A choice whose workspace has left the list is dropped; a restored copy on hold is never started by it.",
+        "startForLaunch keeps a failure in the status (launchError, part hosting or public-address) for the window to show, rather than losing it while no window is open. Only the run that started with OwnBase has its address reopened; one stopped or replaced meanwhile is left alone.",
+        "Only a stable address can be chosen to reopen: a temporary one differs every time, so reopening it would publish an address nobody was given."
+      ],
+      "concepts": ["start on launch", "public address", "hosting"]
+    },
+    {
       "path": "apps/desktop/src/main/hostedBackups.ts",
       "plain": "Backs up the workspaces this computer hosts, when asked and on their schedules, and keeps only the newest copies.",
       "summary": "Backups of hosted workspaces: by hand, scheduled, pruned and listed.",
