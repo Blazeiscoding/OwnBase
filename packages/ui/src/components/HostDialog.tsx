@@ -1,38 +1,32 @@
-import { useCallback, useEffect, useId, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { DEFAULT_PORT, WORKSPACE_NAME_MAX, type AccessPolicy } from "@ownbase/protocol";
 import { PORT_RULE, portFromText } from "@ownbase/protocol/desktop";
 import {
   failureCode,
   failureMessage,
   failureWithReason,
-  type AutoBackup,
   type HostedWorkspaces,
   type HostingStart,
   type HostingStatus,
-  type Platform,
   type StartedWorkspace,
 } from "../platform.js";
 import { useHostingStatus } from "../lib/hosting.js";
 import { useHostedIcon } from "../lib/workspaceIcon.js";
 import { useCopy } from "../lib/useCopy.js";
-import { formatBytes, formatDay, formatTime } from "../lib/format.js";
 import { inventorySummary } from "../lib/restoreInventory.js";
-import { isImeKey } from "../lib/textInput.js";
 import { useTabs } from "../lib/useTabs.js";
 import { Dialog, DialogScroll } from "./Dialog.js";
-import { inputClass, inputCls } from "./TextField.js";
-import { Swap } from "./Motion.js";
+import { inputCls } from "./TextField.js";
 import { buttonClass } from "./Button.js";
-import { EarlierCopies } from "./EarlierCopies.js";
 import { Icon } from "./Icon.js";
-import { JoinPolicyChoice } from "./JoinPolicyChoice.js";
-import { CallRelaySettings } from "./CallRelaySettings.js";
-import { QrCode } from "./QrCode.js";
-import { WorkspaceIcon } from "./WorkspaceIcon.js";
 import { useConfirm } from "./Confirm.js";
-import { BreakableAddress } from "./BreakableAddress.js";
-
-type Hosting = NonNullable<Platform["hosting"]>;
+import { LaunchProblem, type Hosting, type HostingBusy } from "./hostParts.js";
+import { StartupWhileStopped } from "./HostStartup.js";
+import { HostOverview } from "./HostOverview.js";
+import { HostInternet } from "./HostInternet.js";
+import { HostBackups } from "./HostBackups.js";
+import { HostAdvanced } from "./HostAdvanced.js";
+import { HostedList } from "./HostedList.js";
 
 /** The parts of managing a running workspace, each a tab (UX-62). */
 type Section = "overview" | "internet" | "backups" | "advanced";
@@ -42,675 +36,6 @@ const SECTION_NAMES: Record<Section, string> = {
   backups: "Backups",
   advanced: "Advanced",
 };
-
-/**
- * Whether the running workspace starts when OwnBase opens, and whether the
- * OS opens OwnBase when someone signs in. With both on, a workspace comes
- * back by itself after the computer restarts.
- */
-function StartWithComputer(props: {
-  hosting: Hosting;
-  folder: string;
-  name: string;
-  startsOnLaunch: boolean;
-  /** The stable public address set up for hosting, if there is one. */
-  publicAddress?: string;
-  /** It is reopened when this workspace starts with OwnBase. */
-  reopensPublic: boolean;
-  disabled: boolean;
-  /** What went wrong saving a choice, or null to clear it. */
-  onError: (text: string | null) => void;
-}) {
-  const setStart = props.hosting.setStartOnLaunch;
-  const login = props.hosting.openAtLogin;
-  const reopen = props.hosting.setReopenPublicOnLaunch;
-  const [atLogin, setAtLogin] = useState<boolean | null>(null);
-  const [saving, setSaving] = useState(false);
-  /** The choice just made, shown until the status agrees or saving fails. */
-  const [chosen, setChosen] = useState<boolean | null>(null);
-  const [reopenChosen, setReopenChosen] = useState<boolean | null>(null);
-  useEffect(() => {
-    if (chosen !== null && chosen === props.startsOnLaunch) setChosen(null);
-  }, [chosen, props.startsOnLaunch]);
-  useEffect(() => {
-    if (reopenChosen !== null && reopenChosen === props.reopensPublic) setReopenChosen(null);
-  }, [reopenChosen, props.reopensPublic]);
-  useEffect(() => {
-    if (!login) return;
-    let alive = true;
-    login.get().then(
-      (value) => {
-        if (alive) setAtLogin(value);
-      },
-      () => {},
-    );
-    return () => {
-      alive = false;
-    };
-  }, [login]);
-  async function save(action: () => Promise<unknown>, undo: () => void) {
-    setSaving(true);
-    props.onError(null);
-    try {
-      await action();
-    } catch (reason) {
-      undo();
-      props.onError(failureMessage(reason, "That choice could not be saved. Try again."));
-    } finally {
-      setSaving(false);
-    }
-  }
-
-  return (
-    <fieldset className="space-y-2" disabled={props.disabled || saving}>
-      <legend className="mb-1 text-ink-dim">When this computer starts</legend>
-      <label className="flex items-start gap-2 text-ink">
-        <input
-          type="checkbox"
-          className="mt-1"
-          checked={chosen ?? props.startsOnLaunch}
-          onChange={(event) => {
-            const start = event.target.checked;
-            setChosen(start);
-            void save(
-              () => setStart(start ? props.folder : null),
-              () => setChosen(null),
-            );
-          }}
-        />
-        <span>Start hosting {props.name} when OwnBase opens</span>
-      </label>
-      {login && atLogin !== null && (
-        <label className="flex items-start gap-2 text-ink">
-          <input
-            type="checkbox"
-            className="mt-1"
-            checked={atLogin}
-            onChange={(event) => {
-              const open = event.target.checked;
-              setAtLogin(open);
-              void save(
-                async () => setAtLogin(await login.set(open)),
-                () => setAtLogin(!open),
-              );
-            }}
-          />
-          <span>Open OwnBase when you sign in to this computer</span>
-        </label>
-      )}
-      {props.publicAddress && (
-        <label className="flex items-start gap-2 text-ink">
-          <input
-            type="checkbox"
-            className="mt-1"
-            checked={reopenChosen ?? props.reopensPublic}
-            disabled={!(chosen ?? props.startsOnLaunch)}
-            onChange={(event) => {
-              const next = event.target.checked;
-              setReopenChosen(next);
-              void save(
-                () => reopen(next),
-                () => setReopenChosen(null),
-              );
-            }}
-          />
-          <span>
-            Also reopen the public link at {props.publicAddress} when {props.name} starts. New
-            accounts will need an invite.
-          </span>
-        </label>
-      )}
-      <p className="text-xs text-ink-faint">
-        {atLogin === null
-          ? `${props.name} starts whenever OwnBase opens.`
-          : `With both on, ${props.name} comes back by itself after this computer restarts, as soon as you sign in. OwnBase waits in the tray.`}
-      </p>
-    </fieldset>
-  );
-}
-
-/**
- * What did not happen when OwnBase opened, shown whether or not anything
- * hosts now. A workspace can be live on this network while its public address
- * failed to reopen, and that is exactly the failure a host would otherwise
- * never see. It stays until that part recovers or the host dismisses it.
- */
-function LaunchProblem(props: {
-  hosting: Hosting;
-  message: string | undefined;
-  /** Tries the part that failed again, when this dialog can. */
-  onRetry: (() => void) | null;
-  disabled: boolean;
-  className?: string;
-  onError: (text: string | null) => void;
-}) {
-  const dismiss = props.hosting.dismissLaunchError;
-  const [saving, setSaving] = useState(false);
-  if (!props.message) return null;
-  return (
-    <div role="alert" className={`text-sm ${props.className ?? ""}`}>
-      <p className="text-alert">{props.message}</p>
-      <div className="mt-1 flex flex-wrap gap-3">
-        {props.onRetry && (
-          <button
-            type="button"
-            disabled={props.disabled || saving}
-            className={linkBtnCls}
-            onClick={props.onRetry}
-          >
-            Try again
-          </button>
-        )}
-        <button
-          type="button"
-          disabled={props.disabled || saving}
-          className={linkBtnCls}
-          onClick={() => {
-            setSaving(true);
-            props.onError(null);
-            dismiss().then(
-              () => setSaving(false),
-              () => {
-                setSaving(false);
-                props.onError("That message could not be dismissed. Try again.");
-              },
-            );
-          }}
-        >
-          Dismiss
-        </button>
-      </div>
-    </div>
-  );
-}
-
-/**
- * The same choices while nothing is running, so a workspace that fails to
- * start with OwnBase can be taken off it, and OwnBase off sign-in,
- * without having to start it first. Nothing here removes it from the list.
- */
-function StartupWhileStopped(props: {
-  hosting: Hosting;
-  /** The workspace chosen to start with OwnBase, if it is listed. */
-  chosen: { folder: string; name: string } | null;
-  /** Why starting with OwnBase did not happen, if it did not. */
-  launchError: string | undefined;
-  disabled: boolean;
-  onChanged: () => void;
-  onError: (text: string | null) => void;
-}) {
-  const setStart = props.hosting.setStartOnLaunch;
-  const login = props.hosting.openAtLogin;
-  const [atLogin, setAtLogin] = useState<boolean | null>(null);
-  const [saving, setSaving] = useState(false);
-  useEffect(() => {
-    if (!login) return;
-    let alive = true;
-    login.get().then(
-      (value) => {
-        if (alive) setAtLogin(value);
-      },
-      () => {},
-    );
-    return () => {
-      alive = false;
-    };
-  }, [login]);
-  if (!props.chosen && !props.launchError && !atLogin) return null;
-
-  async function save(action: () => Promise<unknown>) {
-    setSaving(true);
-    props.onError(null);
-    try {
-      await action();
-      props.onChanged();
-    } catch (reason) {
-      props.onError(failureMessage(reason, "That choice could not be saved. Try again."));
-    } finally {
-      setSaving(false);
-    }
-  }
-
-  return (
-    <section aria-label="When this computer starts" className="mb-5 space-y-2 text-sm">
-      <h3 className="text-[13px] font-semibold text-ink">When this computer starts</h3>
-      {props.chosen ? (
-        <p className="text-ink-dim">
-          {props.chosen.name} starts hosting when OwnBase opens.{" "}
-          <button
-            type="button"
-            disabled={props.disabled || saving}
-            className={linkBtnCls}
-            onClick={() => void save(() => setStart(null))}
-          >
-            Don’t start {props.chosen.name} with OwnBase
-          </button>
-        </p>
-      ) : (
-        props.launchError && (
-          <p className="text-ink-dim">
-            <button
-              type="button"
-              disabled={props.disabled || saving}
-              className={linkBtnCls}
-              onClick={() => void save(() => setStart(null))}
-            >
-              Start nothing when OwnBase opens
-            </button>
-          </p>
-        )
-      )}
-      {login && atLogin !== null && (
-        <label className="flex items-start gap-2 text-ink">
-          <input
-            type="checkbox"
-            className="mt-1"
-            checked={atLogin}
-            disabled={props.disabled || saving}
-            onChange={(event) => {
-              const open = event.target.checked;
-              setAtLogin(open);
-              void save(async () => {
-                try {
-                  setAtLogin(await login.set(open));
-                } catch (reason) {
-                  setAtLogin(!open);
-                  throw reason;
-                }
-              });
-            }}
-          />
-          <span>Open OwnBase when you sign in to this computer</span>
-        </label>
-      )}
-    </section>
-  );
-}
-
-const KEEP_CHOICES = [3, 7, 14, 30];
-
-/**
- * Backing the running workspace up by itself, every day or week, into a
- * folder the system asks for, keeping the newest few. The main process
- * chooses the folder; this only asks it to.
- */
-function AutoBackupSettings(props: {
-  hosting: Hosting;
-  folder: string;
-  name: string;
-  schedule: AutoBackup | null;
-  error: string | null;
-  /** Restored and not yet back in use, so its schedule is not running. */
-  held: boolean;
-  disabled: boolean;
-  /** What changed, or went wrong changing it; null clears what was said. */
-  onNote: (note: { ok: boolean; text: string } | null) => void;
-  onChanged: () => void;
-}) {
-  const setAutoBackup = props.hosting.setAutoBackup;
-  const retryBackups = props.hosting.retryBackups;
-  const [saving, setSaving] = useState(false);
-  const [retrying, setRetrying] = useState(false);
-  const schedule = props.schedule;
-  // A restored copy being looked inside has nothing to back up by itself yet.
-  if (props.held && !schedule) return null;
-
-  async function save(
-    next: { everyDays: 1 | 7; keep: number } | null,
-    chooseFolder: boolean,
-    said: (result: AutoBackup | null) => string,
-  ) {
-    setSaving(true);
-    props.onNote(null);
-    try {
-      const result = await setAutoBackup(props.folder, next, chooseFolder);
-      // No folder chosen: nothing changed, and nothing needs saying.
-      if (result === undefined) return;
-      props.onNote({ ok: true, text: said(result) });
-      props.onChanged();
-    } catch (reason) {
-      props.onNote({
-        ok: false,
-        text: failureMessage(reason, "The backup schedule could not be saved. Try again."),
-      });
-    } finally {
-      setSaving(false);
-    }
-  }
-
-  /** A failed backup is still due: this makes it now, rather than at the next check. */
-  async function retry() {
-    setRetrying(true);
-    props.onNote(null);
-    try {
-      await retryBackups();
-    } finally {
-      setRetrying(false);
-      // Whether it failed again, and why, comes back with the list.
-      props.onChanged();
-    }
-  }
-
-  const often = (everyDays: 1 | 7) => (everyDays === 1 ? "every day" : "every week");
-  return (
-    <fieldset className="space-y-2" disabled={props.disabled || saving || retrying}>
-      <legend className="mb-1 text-ink-dim">Automatic backups</legend>
-      {schedule ? (
-        <>
-          {props.held ? (
-            <p className="text-ink">
-              Automatic backups of {props.name} are paused until it is back in use. Nothing in{" "}
-              <span className="break-all font-mono text-xs">{schedule.destination}</span> is
-              deleted. After that, OwnBase backs it up {often(schedule.everyDays)} and keeps the
-              newest {schedule.keep}.
-            </p>
-          ) : (
-            <p className="text-ink">
-              OwnBase backs up {props.name} {often(schedule.everyDays)} to{" "}
-              <span className="break-all font-mono text-xs">{schedule.destination}</span> and keeps
-              the newest {schedule.keep}.
-            </p>
-          )}
-          {schedule.lastAt !== undefined && (
-            <p className="text-xs text-ink-dim">
-              Last backed up there {backedUpWhen(schedule.lastAt)}
-            </p>
-          )}
-          <div className="flex flex-wrap items-center gap-3">
-            <label className="flex items-center gap-2 text-ink-dim">
-              How often
-              <select
-                value={schedule.everyDays}
-                onChange={(event) => {
-                  const everyDays = Number(event.target.value) as 1 | 7;
-                  void save(
-                    { everyDays, keep: schedule.keep },
-                    false,
-                    () => `${props.name} will be backed up ${often(everyDays)}.`,
-                  );
-                }}
-                className="rounded border border-edge bg-ground px-2 py-1 text-ink"
-              >
-                <option value={1}>Every day</option>
-                <option value={7}>Every week</option>
-              </select>
-            </label>
-            <label className="flex items-center gap-2 text-ink-dim">
-              Keep
-              <select
-                value={schedule.keep}
-                onChange={(event) => {
-                  const keep = Number(event.target.value);
-                  void save(
-                    { everyDays: schedule.everyDays, keep },
-                    false,
-                    () => `The newest ${keep} backups of ${props.name} will be kept.`,
-                  );
-                }}
-                className="rounded border border-edge bg-ground px-2 py-1 text-ink"
-              >
-                {[...new Set([...KEEP_CHOICES, schedule.keep])]
-                  .sort((a, b) => a - b)
-                  .map((keep) => (
-                    <option key={keep} value={keep}>
-                      {keep} backups
-                    </option>
-                  ))}
-              </select>
-            </label>
-          </div>
-          <div className="flex gap-3">
-            <button
-              type="button"
-              className={linkBtnCls}
-              onClick={() =>
-                void save(
-                  { everyDays: schedule.everyDays, keep: schedule.keep },
-                  true,
-                  (result) => `${props.name} will be backed up into ${result?.destination}.`,
-                )
-              }
-            >
-              Choose another folder
-            </button>
-            <button
-              type="button"
-              className={linkBtnCls}
-              onClick={() =>
-                void save(
-                  null,
-                  false,
-                  () =>
-                    `Automatic backups of ${props.name} are off. Backups already made stay where they are.`,
-                )
-              }
-            >
-              Turn off
-            </button>
-          </div>
-        </>
-      ) : (
-        <>
-          <p className="text-xs text-ink-faint">
-            OwnBase can back up {props.name} every day to a folder you choose, ideally on another
-            drive. It keeps the newest seven and deletes older ones from that folder.
-          </p>
-          <button
-            type="button"
-            className={buttonClass("secondary")}
-            onClick={() =>
-              void save(
-                { everyDays: 1, keep: 7 },
-                true,
-                (result) =>
-                  `${props.name} will be backed up every day into ${result?.destination}.`,
-              )
-            }
-          >
-            Back up automatically…
-          </button>
-        </>
-      )}
-      {props.error && (
-        <div className="space-y-1">
-          <p role="alert" className="text-sm text-alert">
-            {props.error}
-          </p>
-          {/* Only removing older ones failed: the backup itself was made. */}
-          {schedule && schedule.failure?.kind !== "cleanup" && !props.held && (
-            <button type="button" className={linkBtnCls} onClick={() => void retry()}>
-              {retrying ? "Trying again…" : "Try again"}
-            </button>
-          )}
-        </div>
-      )}
-    </fieldset>
-  );
-}
-
-/**
- * Changes the port a stopped workspace starts on, where it is listed.
- * Escape calls it off rather than closing the dialog. Save always answers:
- * a port that is not one says so, and the port it has already just closes
- * the form, as there is nothing to save.
- */
-function PortForm(props: {
-  folder: string;
-  name: string;
-  port: number;
-  saving: boolean;
-  /** Resolves to why the port was refused, or null once it is saved. */
-  onSave: (port: number) => Promise<string | null>;
-  onCancel: () => void;
-}) {
-  const [draft, setDraft] = useState(String(props.port));
-  const [error, setError] = useState<string | null>(null);
-  const field = useRef<HTMLInputElement>(null);
-  const errorId = `port-error-${props.folder}`;
-  return (
-    <form
-      aria-label={`Port for ${props.name}`}
-      noValidate
-      className="min-w-0 flex-1"
-      onSubmit={(event) => {
-        event.preventDefault();
-        if (props.saving) return;
-        const port = portFromText(draft);
-        if (port === null) {
-          setError(PORT_RULE);
-          field.current?.focus();
-        } else if (port === props.port) props.onCancel();
-        else
-          void props.onSave(port).then((refusal) => {
-            setError(refusal);
-            if (refusal) field.current?.focus();
-          });
-      }}
-    >
-      <div className="flex gap-2">
-        <div className="w-24 shrink-0">
-          <input
-            ref={field}
-            // eslint-disable-next-line jsx-a11y/no-autofocus -- Change port swaps the line for this field, which takes focus in its place
-            autoFocus
-            inputMode="numeric"
-            aria-label={`New port for ${props.name}`}
-            maxLength={5}
-            value={draft}
-            readOnly={props.saving}
-            aria-invalid={!!error}
-            aria-errormessage={error ? errorId : undefined}
-            aria-describedby={error ? errorId : undefined}
-            onChange={(event) => {
-              setDraft(event.target.value);
-              setError(null);
-            }}
-            onKeyDown={(event) => {
-              if (event.key !== "Escape" || isImeKey(event.nativeEvent)) return;
-              event.preventDefault();
-              props.onCancel();
-            }}
-            className={inputClass("regular", "font-mono")}
-          />
-        </div>
-        <button
-          type="submit"
-          aria-disabled={props.saving || undefined}
-          className={buttonClass("secondary", "shrink-0")}
-        >
-          {props.saving ? "Saving…" : "Save"}
-        </button>
-        <button
-          type="button"
-          disabled={props.saving}
-          onClick={props.onCancel}
-          className={buttonClass("quiet", "shrink-0")}
-        >
-          Cancel
-        </button>
-      </div>
-      {error && (
-        <p id={errorId} role="alert" className="mt-1 text-xs text-alert">
-          {error}
-        </p>
-      )}
-    </form>
-  );
-}
-
-/** A small action written as a link, beside what it acts on. */
-const linkBtnCls =
-  "whitespace-nowrap text-xs font-medium text-ink underline decoration-ink-faint/60 underline-offset-2 hover:decoration-ink disabled:opacity-40";
-
-/**
- * Renames one hosted workspace where it is shown. Only the name changes: its
- * folder and everything in it stay where they are. Escape calls off the
- * rename rather than closing the dialog. Save always answers: with no name it
- * asks for one, and with the name it has already it just closes the form, as
- * there is nothing to save.
- */
-function RenameForm(props: {
-  folder: string;
-  name: string;
-  /** Something else is under way, so the name cannot be saved yet. */
-  blocked: boolean;
-  saving: boolean;
-  /** Resolves to why the name was refused, or null once it is saved. */
-  onSave: (name: string) => Promise<string | null>;
-  onCancel: () => void;
-}) {
-  const [draft, setDraft] = useState(props.name);
-  const [error, setError] = useState<string | null>(null);
-  const field = useRef<HTMLInputElement>(null);
-  const errorId = `rename-error-${props.folder}`;
-  const waiting = props.saving || props.blocked;
-  return (
-    <form
-      aria-label={`Rename ${props.name}`}
-      noValidate
-      className="min-w-0 flex-1"
-      onSubmit={(event) => {
-        event.preventDefault();
-        if (waiting) return;
-        if (!draft.trim()) {
-          setError("Give the workspace a name.");
-          field.current?.focus();
-        } else if (draft.trim() === props.name) props.onCancel();
-        else
-          void props.onSave(draft).then((refusal) => {
-            setError(refusal);
-            if (refusal) field.current?.focus();
-          });
-      }}
-    >
-      <div className="flex gap-2">
-        <input
-          ref={field}
-          // eslint-disable-next-line jsx-a11y/no-autofocus -- Rename swaps the line for this field, which takes focus in its place
-          autoFocus
-          aria-label={`New name for ${props.name}`}
-          maxLength={WORKSPACE_NAME_MAX}
-          value={draft}
-          // Read-only rather than disabled while saving, so focus stays here.
-          readOnly={props.saving}
-          aria-invalid={!!error}
-          aria-errormessage={error ? errorId : undefined}
-          aria-describedby={error ? errorId : undefined}
-          onChange={(event) => {
-            setDraft(event.target.value);
-            setError(null);
-          }}
-          onKeyDown={(event) => {
-            if (event.key !== "Escape" || isImeKey(event.nativeEvent)) return;
-            event.preventDefault();
-            props.onCancel();
-          }}
-          className={inputClass("regular", "min-w-0 flex-1")}
-        />
-        <button
-          type="submit"
-          aria-disabled={waiting || undefined}
-          className={buttonClass("secondary", "shrink-0")}
-        >
-          {props.saving ? "Saving…" : "Save"}
-        </button>
-        <button
-          type="button"
-          disabled={props.saving}
-          onClick={props.onCancel}
-          className={buttonClass("quiet", "shrink-0")}
-        >
-          Cancel
-        </button>
-      </div>
-      {error && (
-        <p id={errorId} role="alert" className="mt-1 text-xs text-alert">
-          {error}
-        </p>
-      )}
-    </form>
-  );
-}
 
 /**
  * What to do when the list of hosted workspaces cannot be read. The app says
@@ -751,53 +76,6 @@ function useHostedWorkspaces(hosting: Hosting, phase: string, revision: number) 
   return { hosted, failed };
 }
 
-/**
- * A hosted workspace's icon in the list, read from its own database: one
- * that is stopped shows its icon without being started.
- */
-function HostedIcon(props: {
-  hosting: Hosting;
-  folder: string;
-  name: string;
-  version: string | null | undefined;
-}) {
-  const icon = useHostedIcon(props.hosting, props.folder, props.version);
-  return (
-    <WorkspaceIcon name={props.name} src={icon} size={32} className="rounded-lg text-[13px]" />
-  );
-}
-
-/** An address to give people, with a button that copies it. */
-function AddressRow(props: {
-  url: string;
-  id: string;
-  copyKey: string;
-  copyLabel: ReturnType<typeof useCopy>["label"];
-  onCopy: () => void;
-}) {
-  return (
-    <div className="flex items-center justify-between gap-2">
-      <span id={props.id} className="min-w-0 font-mono text-ink">
-        <BreakableAddress text={props.url} />
-      </span>
-      <button
-        type="button"
-        aria-describedby={props.id}
-        onClick={props.onCopy}
-        className="shrink-0 rounded px-2 py-1 text-xs text-ink-dim hover:bg-ink/[0.05] hover:text-ink"
-      >
-        <Swap text>{props.copyLabel("Copy", "Copied", "Copy failed", props.copyKey)}</Swap>
-      </button>
-    </div>
-  );
-}
-
-/** "today, 3:04 PM" or "Monday, September 22, 3:04 PM". */
-function backedUpWhen(at: number): string {
-  const day = formatDay(at);
-  return `${day === "Today" || day === "Yesterday" ? day.toLowerCase() : day}, ${formatTime(at)}`;
-}
-
 export function HostDialog(props: {
   hosting: Hosting;
   state: ReturnType<typeof useHostingStatus>;
@@ -816,19 +94,7 @@ export function HostDialog(props: {
   const nameInput = useRef<HTMLInputElement>(null);
   /** The port for a new workspace, as typed. Empty for the usual one. */
   const [portText, setPortText] = useState("");
-  const [busy, setBusy] = useState<
-    | "starting"
-    | "stopping"
-    | "opening"
-    | "closing"
-    | "policy"
-    | "address"
-    | "backing-up"
-    | "removing"
-    | "restoring"
-    | "renaming"
-    | null
-  >(null);
+  const [busy, setBusy] = useState<HostingBusy>(null);
   const operationPending = useRef(false);
   const [section, setSection] = useState<Section>(props.initialSection ?? "overview");
   const [error, setError] = useState<{ message: string; tunnel?: boolean } | null>(null);
@@ -862,20 +128,6 @@ export function HostDialog(props: {
   useEffect(() => {
     void refresh();
   }, [refresh]);
-
-  // Once cloudflared is installed, the install button that had focus is gone,
-  // and Get a public link, which took its place, is what comes next.
-  const openButton = useRef<HTMLButtonElement>(null);
-  const tunnelWasMissing = useRef(false);
-  useEffect(() => {
-    if (
-      status?.tunnelAvailable &&
-      tunnelWasMissing.current &&
-      document.activeElement === document.body
-    )
-      openButton.current?.focus();
-    tunnelWasMissing.current = status?.tunnelAvailable === false;
-  }, [status?.tunnelAvailable]);
 
   const [listRevision, setListRevision] = useState(0);
   const { hosted, failed: listFailed } = useHostedWorkspaces(props.hosting, phase, listRevision);
@@ -1224,10 +476,6 @@ export function HostDialog(props: {
   const live = sections.length > 0;
   const shown = sections.includes(section) ? section : "overview";
   const tabs = useTabs({ label: "Hosting", tabs: sections, selected: shown, onSelect: setSection });
-  const addressId = useId();
-  // A phone opens what the code holds, so it holds a whole address: the
-  // public one where there is one, as it works from anywhere.
-  const qrTarget = publicUrl ?? (status?.lanUrls?.[0] ? `http://${status.lanUrls[0]}` : null);
 
   return (
     <Dialog
@@ -1263,568 +511,82 @@ export function HostDialog(props: {
               {/* Tall enough for the overview, so moving between sections keeps Stop hosting where it was. */}
               <div className="space-y-4 text-sm sm:min-h-[21rem]">
                 {shown === "overview" && (
-                  <>
-                    {status.folder && renaming === status.folder && phase === "running" ? (
-                      <RenameForm
-                        folder={status.folder}
-                        name={status.workspaceName ?? ""}
-                        blocked={unavailable}
-                        saving={busy === "renaming"}
-                        onSave={(next) =>
-                          saveName(status.folder!, status.workspaceName ?? "", next)
-                        }
-                        onCancel={closeRename}
-                      />
-                    ) : (
-                      <div className="flex items-start justify-between gap-3">
-                        <div className="flex min-w-0 flex-wrap items-center gap-x-2.5 gap-y-1">
-                          {phase === "running" && status.workspaceName && (
-                            <WorkspaceIcon
-                              name={status.workspaceName}
-                              src={liveIcon}
-                              size={28}
-                              className="rounded-lg text-xs"
-                            />
-                          )}
-                          <p
-                            role="status"
-                            className="min-w-0 break-words text-[15px] font-semibold text-ink"
-                          >
-                            {phase === "starting"
-                              ? "Starting workspace…"
-                              : phase === "stopping"
-                                ? "Stopping workspace…"
-                                : (status.workspaceName ?? "Workspace hosted on this computer")}
-                          </p>
-                          {phase === "running" && (
-                            <span className="inline-flex items-center gap-1.5 rounded-full bg-online/15 px-2 py-0.5 text-xs font-medium text-online">
-                              <span
-                                aria-hidden="true"
-                                className="fc-fill size-1.5 rounded-full bg-online"
-                              />
-                              {status.isolated ? "Only on this computer" : "Live"}
-                            </span>
-                          )}
-                        </div>
-                        {status.folder && status.workspaceName && phase === "running" && (
-                          <button
-                            id={`rename-${status.folder}`}
-                            type="button"
-                            disabled={unavailable}
-                            aria-label={`Rename ${status.workspaceName}`}
-                            onClick={() => setRenaming(status.folder!)}
-                            className={`${linkBtnCls} shrink-0`}
-                          >
-                            Rename
-                          </button>
-                        )}
-                      </div>
-                    )}
-                    <LaunchProblem
-                      hosting={props.hosting}
-                      message={status.launchError}
-                      onRetry={
-                        status.launchErrorPart === "public-address" &&
-                        status.launchErrorFolder === status.folder &&
-                        phase === "running" &&
-                        !status.isolated &&
-                        !status.openToAll &&
-                        !status.publicAddressError &&
-                        status.tunnelAvailable !== false
-                          ? () => void openToAll()
-                          : null
-                      }
-                      disabled={unavailable}
-                      onError={(text) => setBackupNote(text ? { ok: false, text } : null)}
-                    />
-                    {status.isolated && (
-                      <p role="status" className="card-warm rounded-xl p-3 text-sm">
-                        You are looking inside {status.workspaceName ?? "a restored workspace"}.
-                        Only this computer can reach it. It sends nothing it had waiting and calls
-                        no apps. When you are ready, stop it and choose Put back in use from the
-                        list.
-                      </p>
-                    )}
-                    {/* Only this computer reaches a workspace being looked inside. */}
-                    {!status.isolated && (publicUrl || !!status.lanUrls?.length) && (
-                      <div className="flex gap-4 rounded-xl border border-edge p-3">
-                        <div className="min-w-0 flex-1 space-y-3">
-                          {publicUrl && (
-                            <div>
-                              <p className="mb-1 text-ink-dim">
-                                {livePolicy === "invite_only"
-                                  ? "Public address"
-                                  : "Anyone can join at"}
-                              </p>
-                              <AddressRow
-                                url={publicUrl}
-                                id={`${addressId}-public`}
-                                copyLabel={copyLabel}
-                                onCopy={() => void copy(publicUrl, "public-overview")}
-                                copyKey="public-overview"
-                              />
-                            </div>
-                          )}
-                          {!!status.lanUrls?.length && (
-                            <div>
-                              <p className="mb-1 text-ink-dim">
-                                {publicUrl ? "On this network" : "Teammates can connect at"}
-                              </p>
-                              <ul className="space-y-1">
-                                {status.lanUrls.map((url, at) => (
-                                  <li key={url}>
-                                    <AddressRow
-                                      url={url}
-                                      id={`${addressId}-lan-${at}`}
-                                      copyLabel={copyLabel}
-                                      onCopy={() => void copy(url, `lan-${url}`)}
-                                      copyKey={`lan-${url}`}
-                                    />
-                                  </li>
-                                ))}
-                              </ul>
-                            </div>
-                          )}
-                          {qrTarget && (
-                            <p className="text-xs text-ink-faint">
-                              {publicUrl
-                                ? "Or scan the code with a phone to open the workspace."
-                                : "Or scan the code with a phone on this network to open the workspace."}
-                            </p>
-                          )}
-                        </div>
-                        {qrTarget && (
-                          <QrCode value={qrTarget} label={`QR code for ${qrTarget}`} size={104} />
-                        )}
-                      </div>
-                    )}
-                    {status.running &&
-                      !status.isolated &&
-                      !status.lanUrls?.length &&
-                      !publicUrl && (
-                        <p className="text-ink-dim">
-                          No network address is available. Check this computer’s network connection.
-                        </p>
-                      )}
-                    {status.connected !== undefined && phase === "running" && (
-                      <p className="text-ink-dim">
-                        Connected now:{" "}
-                        <span className="text-ink">
-                          {status.connected === 0
-                            ? "nobody"
-                            : status.connected === 1
-                              ? "1 person"
-                              : `${status.connected} people`}
-                        </span>
-                      </p>
-                    )}
-                    {phase === "running" &&
-                      (props.viewingHosted ? (
-                        props.onInvite && (
-                          <button
-                            type="button"
-                            className={buttonClass("primary")}
-                            disabled={unavailable}
-                            onClick={props.onInvite}
-                          >
-                            Invite people
-                          </button>
-                        )
-                      ) : (
-                        <button
-                          type="button"
-                          className={buttonClass("primary")}
-                          disabled={unavailable || !status.running || status.port === undefined}
-                          onClick={() =>
-                            status.port !== undefined && props.onStarted({ port: status.port })
-                          }
-                        >
-                          Open it
-                        </button>
-                      ))}
-                    {status.running && phase !== "stopping" && (
-                      <p className="text-ink-dim">
-                        {status.backgroundAvailable
-                          ? "Closing this window keeps the workspace running in the system tray. Use the tray to reopen OwnBase or stop hosting."
-                          : "Closing this window only minimizes OwnBase. Keep it running, or people lose their connection."}
-                      </p>
-                    )}
-                  </>
+                  <HostOverview
+                    hosting={props.hosting}
+                    status={status}
+                    phase={phase}
+                    liveIcon={liveIcon}
+                    publicUrl={publicUrl}
+                    livePolicy={livePolicy}
+                    busy={busy}
+                    unavailable={unavailable}
+                    renaming={renaming}
+                    setRenaming={setRenaming}
+                    saveName={saveName}
+                    closeRename={closeRename}
+                    openToAll={openToAll}
+                    setBackupNote={setBackupNote}
+                    copy={copy}
+                    copyLabel={copyLabel}
+                    viewingHosted={props.viewingHosted}
+                    onInvite={props.onInvite}
+                    onStarted={props.onStarted}
+                  />
                 )}
                 {shown === "internet" && (
-                  <>
-                    <div>
-                      <h3 className="font-semibold text-ink">
-                        Let people outside your network join
-                      </h3>
-                      <p className="mt-1 text-ink-dim">
-                        {publicUrl
-                          ? "The workspace has a public link now, so people can join from anywhere. Messages and files still stay on this computer."
-                          : "Right now only people on the same Wi-Fi or network as this computer can join. A public link lets people join from home or on mobile data too. Messages and files still stay on this computer."}
-                      </p>
-                    </div>
-                    {!status.isolated && (
-                      <div className="card-warm rounded-xl p-3">
-                        <div className="mb-1 flex items-center justify-between gap-3">
-                          <h3 className="font-semibold text-ink">Public link</h3>
-                          {publicUrl && (
-                            <span className="rounded-full bg-copper/15 px-2 py-0.5 text-xs text-copper">
-                              Public
-                            </span>
-                          )}
-                        </div>
-                        <p role="status" aria-live="polite" aria-atomic="true" className="sr-only">
-                          {publicUrl
-                            ? `Public link open at ${publicUrl}`
-                            : status.openToAll?.phase === "opening"
-                              ? "Opening public link"
-                              : "Public link closed"}
-                        </p>
-                        {tunnelError && (
-                          <p role="alert" className="mb-2 text-xs text-alert">
-                            {tunnelError}
-                          </p>
-                        )}
-                        {publicUrl ? (
-                          <>
-                            <p className="mb-2 text-xs text-ink-dim">
-                              {!status.publicAddress
-                                ? "This link works from anywhere while OwnBase is running. You get a new one each time you open it."
-                                : status.publicAddressManaged
-                                  ? "This address stays the same each time you open the link. Keep OwnBase and its Cloudflare connector running so people can connect."
-                                  : "This address stays the same each time you open the link. OwnBase can stop using it, but turning off the tunnel or proxy behind it is up to you."}
-                            </p>
-                            <div className="flex items-center justify-between gap-2 rounded-lg border border-edge bg-raised p-2">
-                              <a
-                                href={publicUrl}
-                                target="_blank"
-                                rel="noreferrer"
-                                className="min-w-0 font-mono text-xs text-ink underline decoration-ink-faint/60 underline-offset-2 hover:decoration-ink"
-                              >
-                                <BreakableAddress text={publicUrl} />
-                              </a>
-                              <button
-                                type="button"
-                                onClick={() => void copy(publicUrl, "public-address")}
-                                className="shrink-0 rounded px-2 py-1 text-xs text-ink-dim hover:bg-ink/[0.05]"
-                              >
-                                <Swap text>
-                                  {copyLabel(
-                                    "Copy address",
-                                    "Copied",
-                                    "Copy failed",
-                                    "public-address",
-                                  )}
-                                </Swap>
-                              </button>
-                            </div>
-                            {livePolicy && (
-                              <div className="mt-3">
-                                <JoinPolicyChoice
-                                  compact
-                                  legend="Who can join"
-                                  hint="Who can join through the public link. A change applies right away."
-                                  value={livePolicy}
-                                  disabled={!!busy}
-                                  onChange={(next) => void changeAccessPolicy(next)}
-                                />
-                              </div>
-                            )}
-                            <p className="mt-2 text-xs text-ink-dim">
-                              {livePolicy === "guest_allowed"
-                                ? "Anyone with this address can join as a guest for a day and post in public channels. Choosing either of the others signs every guest out."
-                                : livePolicy !== "invite_only"
-                                  ? "Anyone with this address can create an account. Send the address only to people you trust."
-                                  : invitesHere
-                                    ? "This address alone will not let anyone in. Send an invite link instead. It has this address and an invite code, so people join in one click."
-                                    : "This address alone will not let anyone in. To bring someone in, open the workspace, choose Invite people from its menu and send them that link."}
-                            </p>
-                            <div className="mt-3 flex flex-wrap items-center gap-2">
-                              {livePolicy === "invite_only" && invitesHere && (
-                                <button
-                                  type="button"
-                                  disabled={!!busy}
-                                  onClick={props.onInvite}
-                                  className={buttonClass("primary", "h-8 px-3 text-[13px]")}
-                                >
-                                  Get an invite link
-                                </button>
-                              )}
-                              <button
-                                type="button"
-                                disabled={!!busy}
-                                onClick={() => void endOpenToAll()}
-                                className="h-8 rounded-lg border border-edge px-3 text-xs text-ink-dim hover:text-ink disabled:opacity-40"
-                              >
-                                {busy === "closing"
-                                  ? externallyCarried
-                                    ? "Stopping use of address…"
-                                    : "Closing public link…"
-                                  : externallyCarried
-                                    ? "Stop using address"
-                                    : "Close public link"}
-                              </button>
-                            </div>
-                          </>
-                        ) : (
-                          <>
-                            {status.publicAddress ? (
-                              <div className="space-y-2 text-xs text-ink-dim">
-                                <p>
-                                  The public link will use your own address, which never changes.
-                                </p>
-                                <p className="font-mono text-ink">
-                                  <BreakableAddress text={status.publicAddress} />
-                                </p>
-                                {status.port !== undefined && (
-                                  <p>
-                                    {status.publicAddressManaged ? "In Cloudflare, route" : "Send"}{" "}
-                                    this address to{" "}
-                                    <code className="break-all text-ink">{`http://127.0.0.1:${status.port}`}</code>
-                                    .
-                                  </p>
-                                )}
-                                <p>Keep OwnBase running so teammates can connect.</p>
-                                {externallyCarried && (
-                                  <p>
-                                    The tunnel or proxy behind this address may already let people
-                                    reach the workspace, so saving it turned on invites. To make the
-                                    address stop working, turn off that tunnel or proxy yourself.
-                                  </p>
-                                )}
-                              </div>
-                            ) : (
-                              <p className="text-xs text-ink-dim">
-                                OwnBase asks Cloudflare for a free web address that leads to this
-                                computer. You do not need a Cloudflare account or any router
-                                settings. The address changes each time you open the link.
-                              </p>
-                            )}
-                            {status.tunnelAvailable === false ? (
-                              <div className="mt-3 text-xs text-ink-dim">
-                                {status.cloudflaredInstall ? (
-                                  <InstallCloudflared
-                                    install={status.cloudflaredInstall}
-                                    onInstall={props.hosting.installCloudflared}
-                                    disabled={!!busy}
-                                  />
-                                ) : (
-                                  <p>
-                                    Install cloudflared, a free program from Cloudflare, then press
-                                    Check again.
-                                  </p>
-                                )}
-                                <button
-                                  type="button"
-                                  disabled={!!busy}
-                                  onClick={() => void refresh()}
-                                  className="mt-2 font-medium text-ink underline decoration-ink-faint/60 underline-offset-2 hover:decoration-ink disabled:opacity-40"
-                                >
-                                  Check again
-                                </button>
-                              </div>
-                            ) : (
-                              <>
-                                <div className="mt-3">
-                                  <JoinPolicyChoice
-                                    compact
-                                    legend="Who can join"
-                                    hint="Who can join once the link is open."
-                                    value={openPolicy}
-                                    disabled={!!busy}
-                                    onChange={setOpenPolicy}
-                                  />
-                                </div>
-                                <button
-                                  ref={openButton}
-                                  type="button"
-                                  disabled={
-                                    unavailable ||
-                                    !!status.publicAddressError ||
-                                    status.openToAll?.phase === "opening"
-                                  }
-                                  onClick={() => void openToAll()}
-                                  className={buttonClass("primary", "mt-3 w-full")}
-                                >
-                                  {busy === "opening" || status.openToAll?.phase === "opening"
-                                    ? "Opening public link…"
-                                    : "Get a public link"}
-                                </button>
-                              </>
-                            )}
-                            <div className="mt-3 border-t border-edge pt-3">
-                              <label
-                                htmlFor="public-address"
-                                className="block text-xs font-medium text-ink-dim"
-                              >
-                                Your own address
-                              </label>
-                              <p id="public-address-help" className="mt-1 text-xs text-ink-dim">
-                                Only if you already run Tailscale Funnel, a reverse proxy or a
-                                tunnel of your own to this computer. Enter its address to keep the
-                                same link every time. Most people leave this empty, and OwnBase{" "}
-                                {status.publicAddressManaged
-                                  ? "uses the Cloudflare address set up for it"
-                                  : "gets a new address each time"}
-                                .
-                              </p>
-                              <form
-                                noValidate
-                                className="mt-2 flex gap-2"
-                                onSubmit={(event) => {
-                                  event.preventDefault();
-                                  void saveAddress();
-                                }}
-                              >
-                                <input
-                                  ref={addressField}
-                                  id="public-address"
-                                  type="url"
-                                  inputMode="url"
-                                  spellCheck={false}
-                                  placeholder="https://box.tail1234.ts.net"
-                                  value={addressValue}
-                                  // Off only when the environment fixes it; read-only
-                                  // while saving, so focus stays here.
-                                  disabled={status.publicAddressLocked}
-                                  readOnly={busy === "address"}
-                                  aria-describedby={`public-address-help${addressError ? " public-address-error" : ""}`}
-                                  aria-invalid={!!addressError}
-                                  aria-errormessage={
-                                    addressError ? "public-address-error" : undefined
-                                  }
-                                  onChange={(event) => {
-                                    setAddressDraft(event.target.value);
-                                    setAddressError(null);
-                                    setAddressUnchanged(false);
-                                  }}
-                                  className={inputClass(
-                                    "small",
-                                    "flex-1 font-mono disabled:opacity-40",
-                                  )}
-                                />
-                                {/* Never off for want of a change: sent unchanged, it says so. */}
-                                <button
-                                  type="submit"
-                                  disabled={status.publicAddressLocked}
-                                  aria-disabled={!!busy || undefined}
-                                  className="h-8 shrink-0 rounded-lg border border-edge px-3 text-xs text-ink-dim hover:text-ink disabled:opacity-40"
-                                >
-                                  {busy === "address" ? "Saving…" : "Save"}
-                                </button>
-                              </form>
-                              {status.publicAddressLocked && (
-                                <p className="mt-2 text-xs text-ink-dim">
-                                  An environment variable sets this address, so you cannot change it
-                                  here.
-                                </p>
-                              )}
-                              {addressError && (
-                                <p
-                                  id="public-address-error"
-                                  role="alert"
-                                  className="mt-2 text-xs text-alert"
-                                >
-                                  {addressError}
-                                </p>
-                              )}
-                              <p role="status" className="mt-2 text-xs text-ink-dim empty:hidden">
-                                {addressUnchanged ? "That address is already saved." : ""}
-                              </p>
-                            </div>
-                          </>
-                        )}
-                      </div>
-                    )}
-                    {!status.isolated && (
-                      <CallRelaySettings relay={props.hosting.relay} disabled={unavailable} />
-                    )}
-                  </>
+                  <HostInternet
+                    hosting={props.hosting}
+                    status={status}
+                    publicUrl={publicUrl}
+                    tunnelError={tunnelError}
+                    externallyCarried={externallyCarried}
+                    livePolicy={livePolicy}
+                    invitesHere={invitesHere}
+                    onInvite={props.onInvite}
+                    busy={busy}
+                    unavailable={unavailable}
+                    copy={copy}
+                    copyLabel={copyLabel}
+                    refresh={refresh}
+                    openPolicy={openPolicy}
+                    setOpenPolicy={setOpenPolicy}
+                    openToAll={openToAll}
+                    endOpenToAll={endOpenToAll}
+                    changeAccessPolicy={changeAccessPolicy}
+                    address={{
+                      addressField,
+                      addressValue,
+                      addressError,
+                      addressUnchanged,
+                      setAddressDraft,
+                      setAddressError,
+                      setAddressUnchanged,
+                      saveAddress,
+                    }}
+                  />
                 )}
                 {shown === "backups" && (
-                  <>
-                    <div className="flex flex-wrap items-center justify-between gap-3">
-                      <p className="min-w-0 text-ink-dim">
-                        {!runningEntry
-                          ? "Backups copy the workspace into a folder you choose."
-                          : runningEntry.lastBackupAt === null
-                            ? "This workspace has not been backed up from this computer yet."
-                            : `Last backed up ${backedUpWhen(runningEntry.lastBackupAt)}.`}
-                      </p>
-                      {status.folder && (
-                        <button
-                          type="button"
-                          disabled={unavailable}
-                          className={buttonClass("secondary", "shrink-0")}
-                          onClick={() =>
-                            void backUp(status.folder!, status.workspaceName ?? "the workspace")
-                          }
-                        >
-                          {busy === "backing-up" ? "Backing up…" : "Back up now"}
-                        </button>
-                      )}
-                    </div>
-                    {status.folder &&
-                      status.workspaceName &&
-                      phase === "running" &&
-                      runningEntry && (
-                        <AutoBackupSettings
-                          hosting={props.hosting}
-                          folder={status.folder}
-                          name={status.workspaceName}
-                          schedule={runningEntry.autoBackup ?? null}
-                          error={runningEntry.autoBackupError ?? null}
-                          held={!!runningEntry.restored}
-                          disabled={unavailable}
-                          onNote={setBackupNote}
-                          onChanged={() => setListRevision((n) => n + 1)}
-                        />
-                      )}
-                  </>
+                  <HostBackups
+                    hosting={props.hosting}
+                    status={status}
+                    phase={phase}
+                    runningEntry={runningEntry}
+                    busy={busy}
+                    unavailable={unavailable}
+                    backUp={backUp}
+                    setBackupNote={setBackupNote}
+                    setListRevision={setListRevision}
+                  />
                 )}
                 {shown === "advanced" && (
-                  <>
-                    {status.folder && status.workspaceName && phase === "running" && (
-                      <StartWithComputer
-                        hosting={props.hosting}
-                        folder={status.folder}
-                        name={status.workspaceName}
-                        startsOnLaunch={!!status.startsOnLaunch}
-                        publicAddress={status.publicAddressError ? undefined : status.publicAddress}
-                        reopensPublic={!!status.reopensPublicOnLaunch}
-                        disabled={unavailable}
-                        onError={(text) => setBackupNote(text ? { ok: false, text } : null)}
-                      />
-                    )}
-                    {status.dataDir && (
-                      <div>
-                        <div className="flex items-center justify-between gap-3">
-                          <p className="text-ink-dim">Workspace data folder</p>
-                          {status.folder && (
-                            <button
-                              type="button"
-                              onClick={() => void openFolder(status.folder!)}
-                              className={`${linkBtnCls} shrink-0`}
-                            >
-                              Open folder
-                            </button>
-                          )}
-                        </div>
-                        <p className="break-all font-mono text-xs text-ink">{status.dataDir}</p>
-                      </div>
-                    )}
-                    {status.port !== undefined && (
-                      <div>
-                        <p className="text-ink-dim">
-                          Local port: <span className="font-mono text-ink">{status.port}</span>
-                        </p>
-                        <p className="mt-1 text-xs text-ink-faint">
-                          To use another port, stop hosting, then choose Change port beside the
-                          workspace.
-                        </p>
-                      </div>
-                    )}
-                  </>
+                  <HostAdvanced
+                    hosting={props.hosting}
+                    status={status}
+                    phase={phase}
+                    unavailable={unavailable}
+                    openFolder={openFolder}
+                    setBackupNote={setBackupNote}
+                  />
                 )}
               </div>
             </DialogScroll>
@@ -1928,232 +690,31 @@ export function HostDialog(props: {
                 onError={(text) => setBackupNote(text ? { ok: false, text } : null)}
               />
               {existing.length > 0 && (
-                <section aria-label="Hosted on this computer" className="mb-5">
-                  <h3 className="mb-2 text-[13px] font-semibold text-ink">
-                    Hosted on this computer
-                  </h3>
-                  <ul className="space-y-2">
-                    {existing.map((w) => (
-                      <li
-                        key={w.folder}
-                        className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-edge px-3 py-2"
-                      >
-                        {changingPort === w.folder && !w.missing ? (
-                          <PortForm
-                            folder={w.folder}
-                            name={w.name}
-                            port={w.port}
-                            saving={busy === "renaming"}
-                            onSave={(port) => savePort(w.folder, w.name, port)}
-                            onCancel={() => {
-                              portReturn.current = w.folder;
-                              setChangingPort(null);
-                            }}
-                          />
-                        ) : renaming === w.folder && !w.missing ? (
-                          <RenameForm
-                            folder={w.folder}
-                            name={w.name}
-                            blocked={unavailable}
-                            saving={busy === "renaming"}
-                            onSave={(next) => saveName(w.folder, w.name, next)}
-                            onCancel={closeRename}
-                          />
-                        ) : (
-                          <>
-                            <HostedIcon
-                              hosting={props.hosting}
-                              folder={w.folder}
-                              name={w.name}
-                              // A missing folder has no database to read it from.
-                              version={w.missing ? null : w.iconVersion}
-                            />
-                            {/* Room for the name first: the buttons go to the next line before it narrows. */}
-                            <div className="min-w-[12rem] flex-1">
-                              <p className="truncate text-sm text-ink">{w.name}</p>
-                              <p className="text-xs text-ink-dim empty:hidden">
-                                {w.missing
-                                  ? "Its folder is missing, so it cannot start"
-                                  : [
-                                      w.restored && "Restored, not in use yet",
-                                      // The usual port is no news; one chosen, or taken
-                                      // because that one was busy, tells two apart.
-                                      w.port !== DEFAULT_PORT && `Port ${w.port}`,
-                                      w.startsOnLaunch && "Starts with OwnBase",
-                                      w.autoBackup &&
-                                        `${w.autoBackup.everyDays === 1 ? "Backs up daily" : "Backs up weekly"}${
-                                          w.restored ? " once back in use" : ""
-                                        }`,
-                                      w.lastBackupAt === null
-                                        ? "Not backed up yet"
-                                        : `Backed up ${backedUpWhen(w.lastBackupAt)}`,
-                                    ]
-                                      .filter(Boolean)
-                                      .join(" · ")}
-                              </p>
-                              {/* The running one says so under Automatic backups, with Try again. */}
-                              {w.autoBackupError && !w.running && (
-                                <p className="text-xs text-alert">{w.autoBackupError}</p>
-                              )}
-                              {!w.missing && (
-                                <div className="mt-1 flex flex-wrap gap-x-3 gap-y-1">
-                                  <button
-                                    id={`rename-${w.folder}`}
-                                    type="button"
-                                    disabled={unavailable}
-                                    aria-label={`Rename ${w.name}`}
-                                    onClick={() => setRenaming(w.folder)}
-                                    className={linkBtnCls}
-                                  >
-                                    Rename
-                                  </button>
-                                  <button
-                                    id={`port-${w.folder}`}
-                                    type="button"
-                                    disabled={unavailable}
-                                    aria-label={`Change port for ${w.name}`}
-                                    onClick={() => {
-                                      setRenaming(null);
-                                      setChangingPort(w.folder);
-                                    }}
-                                    className={linkBtnCls}
-                                  >
-                                    Change port
-                                  </button>
-                                  <button
-                                    type="button"
-                                    aria-label={`Open folder for ${w.name}`}
-                                    onClick={() => void openFolder(w.folder)}
-                                    className={linkBtnCls}
-                                  >
-                                    Open folder
-                                  </button>
-                                  {!w.running && (
-                                    <button
-                                      type="button"
-                                      disabled={unavailable}
-                                      aria-label={`Earlier copies of ${w.name}`}
-                                      aria-expanded={earlierOf === w.folder}
-                                      onClick={() =>
-                                        setEarlierOf(earlierOf === w.folder ? null : w.folder)
-                                      }
-                                      className={linkBtnCls}
-                                    >
-                                      Earlier copies
-                                    </button>
-                                  )}
-                                </div>
-                              )}
-                            </div>
-                            {!w.missing && (
-                              <button
-                                type="button"
-                                disabled={unavailable}
-                                aria-label={`Back up ${w.name}`}
-                                onClick={() => void backUp(w.folder, w.name)}
-                                className="shrink-0 rounded-lg border border-edge px-3 py-1.5 text-sm text-ink-dim hover:text-ink disabled:opacity-40"
-                              >
-                                Back up
-                              </button>
-                            )}
-                            {w.missing ? (
-                              <button
-                                type="button"
-                                disabled={unavailable}
-                                aria-label={`Remove ${w.name} from the list`}
-                                onClick={() => void removeMissing(w.folder, w.name)}
-                                className="shrink-0 rounded-lg border border-edge px-3 py-1.5 text-sm text-ink-dim hover:text-ink disabled:opacity-40"
-                              >
-                                Remove
-                              </button>
-                            ) : (
-                              <>
-                                {w.restored && !w.missing && (
-                                  <button
-                                    type="button"
-                                    disabled={unavailable}
-                                    aria-label={`Put ${w.name} back in use`}
-                                    onClick={() => setActivating(w.folder)}
-                                    className="shrink-0 rounded-lg border border-edge px-3 py-1.5 text-sm text-ink-dim hover:text-ink disabled:opacity-40"
-                                  >
-                                    Put back in use…
-                                  </button>
-                                )}
-                                <button
-                                  type="button"
-                                  disabled={unavailable || w.missing}
-                                  aria-label={
-                                    w.restored ? `Look inside ${w.name}` : `Start hosting ${w.name}`
-                                  }
-                                  onClick={() => void launch({ folder: w.folder })}
-                                  className="shrink-0 rounded-lg border border-edge px-3 py-1.5 text-sm text-ink hover:border-copper disabled:opacity-40"
-                                >
-                                  {w.restored ? "Look inside" : "Start"}
-                                </button>
-                              </>
-                            )}
-                          </>
-                        )}
-                        {earlierOf === w.folder && !w.missing && !w.running && (
-                          <EarlierCopies
-                            hosting={props.hosting}
-                            folder={w.folder}
-                            name={w.name}
-                            disabled={unavailable}
-                            onDone={(note) => {
-                              setEarlierOf(null);
-                              setBackupNote(note);
-                              setListRevision((n) => n + 1);
-                            }}
-                            onClose={() => setEarlierOf(null)}
-                          />
-                        )}
-                        {activating === w.folder && (
-                          <div
-                            role="region"
-                            aria-label={`Put ${w.name} back in use?`}
-                            className="mt-2 w-full space-y-2 rounded-lg border border-edge bg-ground p-3 text-sm text-ink-dim"
-                          >
-                            <p>
-                              {w.name} starts as the workspace itself: it sends the messages it had
-                              waiting, calls its apps again, and accepts every sign-in it held when
-                              the backup was taken, including ones ended since. Ask people to check
-                              their signed-in devices afterwards.
-                            </p>
-                            <div className="flex gap-3">
-                              <button
-                                type="button"
-                                disabled={unavailable}
-                                onClick={() => {
-                                  setActivating(null);
-                                  void launch({ folder: w.folder, activate: true });
-                                }}
-                                className="btn-shape bg-copper px-3 py-1.5 text-sm font-medium text-ground disabled:opacity-40"
-                              >
-                                Put back in use
-                              </button>
-                              <button
-                                type="button"
-                                onClick={() => setActivating(null)}
-                                className={linkBtnCls}
-                              >
-                                Not yet
-                              </button>
-                            </div>
-                          </div>
-                        )}
-                      </li>
-                    ))}
-                  </ul>
-                  {hosted!.unreadable.length > 0 && (
-                    <p className="mt-2 text-xs text-ink-dim">
-                      Could not read the workspace in{" "}
-                      {hosted!.unreadable.length === 1 ? "the folder" : "the folders"}{" "}
-                      {hosted!.unreadable.join(", ")}, so it is not listed.
-                    </p>
-                  )}
-                  <h3 className="mt-5 text-[13px] font-semibold text-ink">New workspace</h3>
-                </section>
+                <HostedList
+                  hosting={props.hosting}
+                  hosted={hosted}
+                  existing={existing}
+                  busy={busy}
+                  unavailable={unavailable}
+                  renaming={renaming}
+                  setRenaming={setRenaming}
+                  saveName={saveName}
+                  closeRename={closeRename}
+                  changingPort={changingPort}
+                  setChangingPort={setChangingPort}
+                  savePort={savePort}
+                  portReturn={portReturn}
+                  earlierOf={earlierOf}
+                  setEarlierOf={setEarlierOf}
+                  activating={activating}
+                  setActivating={setActivating}
+                  openFolder={openFolder}
+                  backUp={backUp}
+                  removeMissing={removeMissing}
+                  launch={launch}
+                  setBackupNote={setBackupNote}
+                  setListRevision={setListRevision}
+                />
               )}
               <form onSubmit={start} className="space-y-3">
                 <label className="block">
@@ -2231,91 +792,5 @@ export function HostDialog(props: {
         </DialogScroll>
       )}
     </Dialog>
-  );
-}
-
-const INSTALLED_WITH = { winget: "winget", homebrew: "Homebrew" } as const;
-
-/**
- * Installs cloudflared for a public link with what this computer has, or by
- * downloading Cloudflare's own release, and shows how far it has got. The
- * install is the main process's, so a window opened again while it runs
- * shows it too.
- */
-function InstallCloudflared(props: {
-  install: NonNullable<HostingStatus["cloudflaredInstall"]>;
-  onInstall: () => Promise<void>;
-  disabled: boolean;
-}) {
-  const [pressed, setPressed] = useState(false);
-  const [failure, setFailure] = useState<string | null>(null);
-  const { via, received, total } = props.install;
-  const installing = pressed || !!props.install.installing;
-  const downloading = via === "download" && installing && total !== undefined;
-
-  async function install() {
-    if (installing || props.disabled) return;
-    setPressed(true);
-    setFailure(null);
-    try {
-      await props.onInstall();
-    } catch (err) {
-      setFailure(
-        failureMessage(
-          err,
-          "cloudflared could not be installed. Install it yourself, then check again.",
-        ),
-      );
-    } finally {
-      setPressed(false);
-    }
-  }
-
-  return (
-    <>
-      <p>
-        A public link needs cloudflared, a free program from Cloudflare. This computer does not have
-        it yet.
-      </p>
-      {/* Kept in place while it installs, so focus stays where it was. */}
-      <button
-        type="button"
-        disabled={props.disabled && !installing}
-        aria-disabled={installing || undefined}
-        onClick={() => void install()}
-        className={buttonClass("primary", "mt-3 w-full aria-disabled:opacity-60")}
-      >
-        {installing ? "Installing cloudflared…" : "Install cloudflared"}
-      </button>
-      <p role="status" className="mt-2">
-        {!installing
-          ? via === "download"
-            ? "OwnBase downloads it from Cloudflare's page on GitHub and checks that it matches what Cloudflare published."
-            : `OwnBase installs it with ${INSTALLED_WITH[via]}, which this computer already has.`
-          : via === "download"
-            ? "Downloading from Cloudflare…"
-            : `Installing with ${INSTALLED_WITH[via]}. This can take a few minutes.`}
-      </p>
-      {/* Outside the status above, so a screen reader is not told every percent. */}
-      {downloading && (
-        <>
-          <progress
-            max={total}
-            value={received ?? 0}
-            aria-label="Downloading cloudflared"
-            className="mt-2 h-1.5 w-full accent-[var(--color-copper)]"
-          />
-          <p className="mt-1 tabular-nums">
-            {formatBytes(received ?? 0)} of {formatBytes(total)}
-          </p>
-        </>
-      )}
-      {failure && (
-        <p role="alert" className="mt-2 text-alert">
-          {failure}
-        </p>
-      )}
-      <p className="mt-3">Or install it yourself, then press Check again.</p>
-    </>
   );
 }

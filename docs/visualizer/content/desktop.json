@@ -38,19 +38,18 @@
     },
     {
       "path": "apps/desktop/src/main/hosting.ts",
-      "plain": "Starts and stops a workspace the desktop app hosts, runs its backups and restores, and opens or closes its public link.",
-      "summary": "Serializes the lifecycle of the locally hosted workspace and its public connector.",
+      "plain": "Starts and stops a workspace the desktop app hosts, and runs every hosting request one at a time.",
+      "summary": "Serializes the lifecycle of the locally hosted workspace, and composes the parts that back it up, restore it, start it with OwnBase and give it a public link.",
       "details": [
-        "listBackups finds a workspace's own backups in its schedule's folder (ownBackups, which pruneBackups shares), newest first, each checked by verifyBackup so a damaged one is listed as such. restoreOver puts one of them, or a backup folder chosen in the system's dialog, over a stopped workspace still on this computer (O01): only a copy of the same workspace id, with room for it, held (restoredHold) before anything is restored and taken off start-with-OwnBase; the server's restore moves the present folder aside as <folder>.superseded-<time>, which the result names, and puts it back if the restore fails.",
-        "A controller owns start/stop phases, a running server handle, registry changes, port selection, address publication and status snapshots.",
-        "It queues backup/restore operations, verifies workspace identity, persists automatic-backup attempts and backoff, and preserves restored-copy isolation until explicit activation.",
+        "A controller owns start/stop phases, the running server handle, port selection and status snapshots, and runs every request in one queue (serialized). The list (hostedList.ts), backups (hostedBackups.ts), restores (hostedRestores.ts), starting with OwnBase (hostingLaunch.ts) and the public link (publicLink.ts) are parts it creates and passes what they need; none of them reaches its state any other way.",
+        "It verifies workspace identity before starting, renaming or opening a folder, and preserves restored-copy isolation until explicit activation: a restored copy being looked inside listens on a port the system picks, never one a link may still aim at.",
         "N12 retains failed-cleanup resources and prevents reopening until cleanup succeeds; bounded cleanup is retryable.",
         "Since Q13 a shutdown waits its cleanup deadline for work ahead of it in the queue, then gives up its place and rejects, so a stop never runs after its caller was told it failed. Stop hosting shares that wait (stopInTurn), and when it gives up, the status's warning says other work, such as a backup, is still running, until that work ends.",
-        "setAccessPolicy changes who may join the running workspace. Opening and closing the public link save and restore the whole policy rather than the invite flag, and guests let in while the link is open leave with it.",
-        "The running workspace's name and who may join are its own (UX-60). The controller follows onWorkspaceChange: an owner or admin renaming it in Workspace settings renames its entry in the list (never writing a list not yet read), and Manage hosting shows a rule they chose. A step that read the rule before waiting, such as closing the public link or an Open to all that failed, puts back what it read only if no owner or admin chose meanwhile. Nothing hands a saved rule or name to a start.",
+        "setAccessPolicy changes who may join the running workspace; the public link saves and restores the whole policy around opening and closing.",
+        "The running workspace's name and who may join are its own (UX-60). The controller follows onWorkspaceChange: an owner or admin renaming it in Workspace settings renames its entry in the list (never writing a list not yet read), and a rule they chose is told to the public link so nothing puts back an older one. Nothing hands a saved rule or name to a start.",
         "The list gives each workspace's iconVersion, from the running server or read from a stopped one's database, and null for a missing folder; the status gives the running one's. icon(folder) answers a listed workspace's icon as a data URL, the same way, and a change made in Workspace settings is published with the status (UX-60)."
       ],
-      "concepts": ["state machine", "serialized operations", "backup", "ownership", "UX-60"]
+      "concepts": ["state machine", "serialized operations", "ownership", "UX-60"]
     },
     {
       "path": "apps/desktop/src/main/hostingService.ts",
@@ -76,6 +75,65 @@
         "A stopped workspace's identity, name and icon are read, and a rename written, by @ownbase/server/stoppedWorkspace, which the controller is given as one dependency, so the list shows a stopped workspace's icon without starting it (UX-60)."
       ],
       "concepts": ["registry", "identity", "migration", "safety hold"]
+    },
+    {
+      "path": "apps/desktop/src/main/hostedList.ts",
+      "plain": "Holds the list of workspaces this computer hosts while the app runs, and saves it to the settings file.",
+      "summary": "The hosting controller's in-memory list of hosted workspaces and its saving.",
+      "details": [
+        "load reads the list once, adopting folders it does not name (registry.ts), and converts what earlier versions kept under lastHosted only on the first start of this version. A settings file that cannot be read is not taken as an empty list, and is read again next time.",
+        "save writes the whole list; keep saves where the work it records is already done, and a failure is said in the status (unsaved) until a later save succeeds.",
+        "folderHolds reads what a listed workspace's folder holds without starting it: nothing, an unreadable database, another workspace, or this one.",
+        "legacyPointer and mostRecent say what earlier versions are told they hosted last; parseLastHosted reads what they wrote, refusing anything malformed."
+      ],
+      "concepts": ["registry", "persistence", "hosting"]
+    },
+    {
+      "path": "apps/desktop/src/main/hostedRestores.ts",
+      "plain": "Puts a backup back as a workspace this computer hosts, as a new one or over an earlier copy, without starting it.",
+      "summary": "Restores of hosted workspaces, held until they are put back in use.",
+      "details": [
+        "restore brings a backup back as a workspace hosted here: one this computer does not list gets a new folder, one it lists whose folder is gone comes back into that folder, and one still here is left alone.",
+        "restoreOver puts one of a stopped workspace's own backups (ownBackups), or a backup folder chosen in the system's dialog, over it (O01): only a copy of the same workspace id, with room for it. The server's restore moves the present folder aside as <folder>.superseded-<time>, which the result names, and puts it back if the restore fails.",
+        "restoreHeld lists and holds the copy (restoredHold), and takes it off starting with OwnBase, before anything is restored, so it can always be found and never starts by itself; when the restore fails and nothing changed in the folder, the list and that choice go back to how they were."
+      ],
+      "concepts": ["restore", "safety hold", "O01", "hosting"]
+    },
+    {
+      "path": "apps/desktop/src/main/hostingLaunch.ts",
+      "plain": "Starts the workspace chosen to start with OwnBase when the app opens, reopens its public link if asked, and keeps what did not happen to show later.",
+      "summary": "What hosting does when OwnBase opens: the start-with-OwnBase choice, reopening a stable address, and launch errors.",
+      "details": [
+        "START_ON_LAUNCH_KEY names, by its folder, the workspace to start when the app opens; REOPEN_PUBLIC_KEY names which workspace and which stable address to reopen, so a changed address or another workspace is never published by it.",
+        "readLaunchFolder throws on a choice it cannot read rather than taking it as none, and keeps nothing, so reading again after the settings file is repaired finds it. A choice whose workspace has left the list is dropped; a restored copy on hold is never started by it.",
+        "startForLaunch keeps a failure in the status (launchError, part hosting or public-address) for the window to show, rather than losing it while no window is open. Only the run that started with OwnBase has its address reopened; one stopped or replaced meanwhile is left alone.",
+        "Only a stable address can be chosen to reopen: a temporary one differs every time, so reopening it would publish an address nobody was given."
+      ],
+      "concepts": ["start on launch", "public address", "hosting"]
+    },
+    {
+      "path": "apps/desktop/src/main/hostedBackups.ts",
+      "plain": "Backs up the workspaces this computer hosts, when asked and on their schedules, and keeps only the newest copies.",
+      "summary": "Backups of hosted workspaces: by hand, scheduled, pruned and listed.",
+      "details": [
+        "backup copies a workspace, running or not, into a new folder named after it and the time, after checking the destination can be reached and has room, and that the folder still holds the workspace the list names; a copy of something else is removed rather than reported as this workspace's backup.",
+        "runDueBackups backs up every workspace whose schedule has come due, one at a time in the controller's queue, reserving the attempt before the copy so a killed app does not retry at once; retries wait an hour, doubling up to a day. One pass runs at a time, and a check asked for meanwhile runs once more after it. Quitting stops new passes.",
+        "pruneBackups keeps the newest recoverable copies: the one just made and others that pass verifyBackup. Only a folder named as backup names it, holding a copy of this very workspace, is ever removed.",
+        "ownBackups and listBackups find a workspace's own backups in its schedule's folder, newest first; backupAttention names the scheduled backups whose last try did not finish, for the tray (OPS-02)."
+      ],
+      "concepts": ["backup", "schedule", "retention", "OPS-02"]
+    },
+    {
+      "path": "apps/desktop/src/main/publicLink.ts",
+      "plain": "Gets the hosted workspace a public link and closes it again, deciding who may join while it is open.",
+      "summary": "The running workspace's public link: its tunnel, the address links use, and who may join meanwhile.",
+      "details": [
+        "open checks the run first (running, not a restored copy being looked inside, no stop or earlier close unfinished), refuses a configured stable address that cannot be used rather than falling back to a temporary one, and asks the owner to create their account before anyone can join through the link.",
+        "Who may join becomes the rule asked for, invited accounts only by default. Closing the link puts back the rule from before, unless an owner or admin chose one inside the workspace meanwhile (workspaceChoseRule); guests let in while it was open leave with it.",
+        "A connector that does not finish closing is kept (closeUnfinished), and nothing may reopen the link or change who can join until it closes (N12). A link opened elsewhere (carrier elsewhere) leaves joining invite-only when it closes.",
+        "The controller runs every step in its one queue and tells the link about the run through run(); stopping cancels an open still waiting and closes the link in the stop's own turn (endTunnel)."
+      ],
+      "concepts": ["tunnel", "access policy", "N12", "hosting"]
     },
     {
       "path": "apps/desktop/src/main/settings.ts",
@@ -1365,7 +1423,7 @@
         {
           "title": "Find the workspace folders",
           "description": "The desktop app reads its saved list of hosted workspaces and adds ordinary folders it finds. Restored copies on hold stay on hold, so they do not start like ordinary workspaces. If the list cannot be read, the app stops rather than treating it as empty.",
-          "files": ["apps/desktop/src/main/registry.ts", "apps/desktop/src/main/hosting.ts"],
+          "files": ["apps/desktop/src/main/registry.ts", "apps/desktop/src/main/hostedList.ts"],
           "detail": "Read the durable registry, adopt eligible ordinary folders, and preserve isolated/held restored copies. Unreadable registry state is refused instead of treated as an empty list."
         },
         {
@@ -1381,7 +1439,7 @@
         {
           "title": "Open an internet address",
           "description": "The app can open a temporary internet address through Cloudflare, a stable one with a Cloudflare account, or use one set up elsewhere. It checks the address really reaches this server before showing it, and shows status and errors. If closing the link is cancelled or fails, the app keeps track of it and blocks reopening or access changes until cleanup succeeds.",
-          "files": ["apps/desktop/src/main/tunnel.ts", "apps/desktop/src/main/hosting.ts"],
+          "files": ["apps/desktop/src/main/tunnel.ts", "apps/desktop/src/main/publicLink.ts"],
           "detail": "Open quick/named/configured connectors, probe the public route and show status/errors. Cancellation or failed cleanup keeps handles owned and blocks incompatible reopen/access changes."
         },
         {
@@ -1390,6 +1448,7 @@
           "files": [
             "apps/desktop/src/main/backupWorker.ts",
             "apps/desktop/src/main/hosting.ts",
+            "apps/desktop/src/main/hostedBackups.ts",
             "packages/server/src/backups/backup.ts",
             "apps/desktop/src/main/trayBackups.ts"
           ],

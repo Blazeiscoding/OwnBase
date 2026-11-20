@@ -23,12 +23,8 @@ import type { BackupJob } from "./backupWorker.js";
 import { CALL_RELAY_KEY, decodeRelay, encodeRelay, resolveDraft, summarize } from "./callRelay.js";
 import { createCloudflaredInstaller, downloadedCloudflared } from "./cloudflaredInstall.js";
 import type { CredentialProtector } from "./credentials.js";
-import {
-  createHostingController,
-  QUITTING,
-  REOPEN_PUBLIC_KEY,
-  START_ON_LAUNCH_KEY,
-} from "./hosting.js";
+import { createHostingController, QUITTING } from "./hosting.js";
+import { REOPEN_PUBLIC_KEY, START_ON_LAUNCH_KEY } from "./hostingLaunch.js";
 import { startHostedServer } from "./hostedServer.js";
 import type { Handlers } from "./ipcBoundary.js";
 import { lookup } from "./lookup.js";
