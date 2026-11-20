@@ -1087,6 +1087,15 @@
       "concepts": ["durable events", "ephemeral state", "reconnect", "N10 contract"]
     },
     {
+      "path": "packages/protocol/src/email.ts",
+      "plain": "Decides whether some text reads as an email address.",
+      "summary": "isEmailAddress and EMAIL_MAX (G10): one @, something before it, a dot inside the part after, no spaces, brackets or quotes, at most 254 characters; the server's request schema, --mail-from and the app's fields all use it.",
+      "details": [
+        "Written as plain string checks rather than a regular expression: CodeQL found the pattern it replaced could backtrack polynomially on a long address of repeated dotted parts."
+      ],
+      "concepts": ["email", "validation"]
+    },
+    {
       "path": "packages/protocol/src/errors.ts",
       "plain": "The list of every reason the server can give for turning a request down, so the app can only check for reasons that exist.",
       "summary": "ERROR_CODES and the ErrorCode type, used by the server's HttpError and the client's ApiError.",

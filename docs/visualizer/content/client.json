@@ -1201,7 +1201,9 @@
       "path": "packages/ui/src/lib/emailLinks.ts",
       "plain": "Opens a mailed link that confirms an email address, and says how it went.",
       "summary": "confirmEmailLink and emailLinkError (G10): App opens #/verify-email/<token> from any device, says the result as a notice, then goes on to the workspace as any link to it would.",
-      "details": [],
+      "details": [
+        "The token is all a confirm link needs, so it works from a phone or another browser that never signed in; App says the outcome as a notice under the header."
+      ],
       "concepts": ["email", "deep links"]
     },
     {
@@ -2667,14 +2669,18 @@
       "path": "packages/ui/src/components/EmailSettings.tsx",
       "plain": "The part of Account settings, under Security, where someone adds, changes or removes their email address.",
       "summary": "The account's address (G10): added or changed with the password and a mailed link, waiting until that is opened, removed after asking. Nothing shows where the workspace sends no email, or for a guest.",
-      "details": [],
+      "details": [
+        "A check that fails shows nothing, as where the workspace sends no email: the section never says it could not ask. After sending a link it says so once, and the waiting line returns when Account settings opens again."
+      ],
       "concepts": ["email", "account settings"]
     },
     {
       "path": "packages/ui/src/components/InviteByEmail.tsx",
       "plain": "Sends an invite's link to someone's email from the invite dialog.",
       "summary": "An address field under the invite link (G10), only where serverInfo.email is true; says when the invite no longer works or the mail server did not take it.",
-      "details": [],
+      "details": [
+        "The server waits for the mail server's answer before replying, so Invite sent is said only once the mail was taken, and a refusal leaves the address to try again or the link to copy."
+      ],
       "concepts": ["email", "invites"]
     },
     {
