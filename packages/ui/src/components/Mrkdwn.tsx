@@ -39,7 +39,7 @@ export function Mrkdwn({
   selfId,
   onChannelClick,
   highlightTerms = [],
-  codeColours = false,
+  codeColours,
 }: Props) {
   const openMessage = useContext(OpenMessageContext);
   const ours = useOwnAddress();
@@ -152,7 +152,7 @@ function CodeBlock({
   highlight,
 }: {
   block: string;
-  colours: boolean;
+  colours?: boolean;
   highlight: (value: string) => ReactNode;
 }) {
   const parsed = codeLanguage(block);
@@ -160,7 +160,7 @@ function CodeBlock({
   const language = colours && parsed?.language;
   const highlighter = useHighlighter(!!language);
   const runs = useMemo(
-    () => (highlighter && language ? highlighter(code, language) : null),
+    () => language && highlighter?.(code, language),
     [highlighter, code, language],
   );
   return (

@@ -8,7 +8,7 @@ import type { highlight } from "./highlighter.js";
  * every visit downloads it.
  */
 const WORDS =
-  "javascript js jsx|typescript ts tsx|json|markup html xml|css|python py|go golang|rust rs|java|c h|cpp c++|csharp cs c#|bash sh shell|sql|yaml yml|docker dockerfile|diff patch|markdown md|ruby rb|php";
+  "javascript js jsx|typescript ts tsx|json|markup html xml|css|python py|go|rust rs|java|c h|cpp c++|csharp cs c#|bash sh shell|sql|yaml yml|docker dockerfile|diff patch|markdown md|ruby rb|php";
 
 /**
  * A block's language and its code, when its first line is one known language
