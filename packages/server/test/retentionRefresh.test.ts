@@ -1,8 +1,7 @@
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { DatabaseSync } from "node:sqlite";
 import WebSocket from "ws";
 import { PROTOCOL_VERSION, type ServerToClient } from "@ownbase/protocol";
 import { createWorkspaceServer, type WorkspaceServer } from "../src/server.js";
@@ -36,6 +35,7 @@ beforeEach(async () => {
 });
 
 afterEach(async () => {
+  vi.useRealTimers();
   for (const ws of sockets.splice(0)) ws.close();
   await server?.stop();
   server = undefined;
@@ -97,14 +97,10 @@ async function connect(token: string, lastSeq: number | null = null) {
 
 const settle = () => new Promise((resolve) => setTimeout(resolve, 150));
 
-/** Makes every message old enough to go, as a day passing would. */
+/** Moves the clock the server reads two days on, so every message is old enough to go. */
 function age() {
-  const db = new DatabaseSync(join(directory, "workspace.db"));
-  try {
-    db.exec(`UPDATE messages SET created_at = created_at - ${2 * DAY}`);
-  } finally {
-    db.close();
-  }
+  vi.useFakeTimers({ toFake: ["Date"], shouldAdvanceTime: true });
+  vi.setSystemTime(Date.now() + 2 * DAY);
 }
 
 describe("retention and the people connected", () => {
