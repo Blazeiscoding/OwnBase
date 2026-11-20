@@ -4,6 +4,7 @@ import { render } from "./render.js";
 import userEvent from "@testing-library/user-event";
 import { ApiError, WorkspaceClient } from "@ownbase/client-core";
 import type { ServerToClient, User } from "@ownbase/protocol";
+import { NavigationContext, Navigation } from "../src/lib/navigation.js";
 import { ClientContext } from "../src/context.js";
 import { PeopleDialog } from "../src/components/PeopleDialog.js";
 import { accessibilityProblems } from "./accessibility.js";
@@ -62,7 +63,11 @@ async function people(
   const onClose = vi.fn();
   render(
     <ClientContext.Provider value={client}>
-      <PeopleDialog onClose={onClose} />
+      <NavigationContext.Provider
+        value={new Navigation(client, client.baseUrl, { channelId: null })}
+      >
+        <PeopleDialog onClose={onClose} />
+      </NavigationContext.Provider>
     </ClientContext.Provider>,
   );
   const dialog = screen.getByRole("dialog", { name: "People" });
@@ -154,7 +159,11 @@ describe("people's load, confirmations and refusals", () => {
       });
     render(
       <ClientContext.Provider value={client}>
-        <PeopleDialog onClose={() => {}} />
+        <NavigationContext.Provider
+          value={new Navigation(client, client.baseUrl, { channelId: null })}
+        >
+          <PeopleDialog onClose={() => {}} />
+        </NavigationContext.Provider>
       </ClientContext.Provider>,
     );
     const dialog = within(screen.getByRole("dialog", { name: "People" }));

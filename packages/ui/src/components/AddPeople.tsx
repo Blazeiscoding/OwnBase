@@ -23,6 +23,8 @@ export function AddPeople({
   where,
   disabled,
   autoFocus,
+  label = "Add someone",
+  quiet,
   onAdd,
 }: {
   /** Who can be added: not already in, not deactivated, not an app. */
@@ -32,6 +34,9 @@ export function AddPeople({
   disabled?: boolean;
   /** Takes focus as it appears, for a dialog opened to add people. */
   autoFocus?: boolean;
+  label?: string;
+  /** Says nothing on adding, for a form that is saved later, where nobody is added yet. */
+  quiet?: boolean;
   /** Adds them; says whether it worked (a failure is reported by the caller). */
   onAdd: (userId: ID) => Promise<boolean>;
 }) {
@@ -62,14 +67,14 @@ export function AddPeople({
     if (await onAdd(user.id)) {
       setQ("");
       list.choose(0);
-      toast({ message: `Added ${user.displayName} to ${where}.`, kind: "success" });
+      if (!quiet) toast({ message: `Added ${user.displayName} to ${where}.`, kind: "success" });
     }
   }
 
   return (
     <div>
       <label htmlFor={inputId} className="mb-1.5 block text-[13px] font-semibold text-ink">
-        Add someone
+        {label}
       </label>
       <div className="relative">
         <Icon

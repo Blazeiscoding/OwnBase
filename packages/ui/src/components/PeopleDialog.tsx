@@ -11,7 +11,7 @@ import { accountError } from "../lib/account.js";
 import { failureText } from "../lib/failure.js";
 import { useCopy } from "../lib/useCopy.js";
 import { AuditHistory } from "./AuditHistory.js";
-import { UserGroupsSection } from "./UserGroupsSection.js";
+import { useNavigation } from "../lib/navigation.js";
 import { buttonClass } from "./Button.js";
 import { ListStatus } from "./ListStatus.js";
 import { isImeKey } from "../lib/textInput.js";
@@ -486,7 +486,7 @@ export function PeopleDialog({ onClose }: { onClose: () => void }) {
             </button>
           )}
 
-          <UserGroupsSection />
+          <GroupsLink />
 
           <div>
             <AuditHistory />
@@ -602,4 +602,26 @@ function changeError(error: ApiError, name: string): string {
     default:
       return failureText(`Could not change ${name}'s account.`, error, "Try again.");
   }
+}
+
+/** Where user groups are made: a window of its own, named here since people go in them. */
+function GroupsLink() {
+  const nav = useNavigation();
+  const count = useWorkspace((s) => Object.keys(s.userGroups).length);
+  return (
+    <div className="mt-6 flex items-center justify-between gap-3 border-t border-edge pt-4">
+      <p className="text-sm text-ink-dim">
+        {count === 0
+          ? "Put people in groups, such as @design, to mention them all at once."
+          : `${count === 1 ? "1 group" : `${count} groups`}, such as @design, mention several people at once.`}
+      </p>
+      <button
+        type="button"
+        className={buttonClass("secondary", "shrink-0")}
+        onClick={() => nav.navigate({ to: "dialog", dialog: { kind: "groups" } })}
+      >
+        {count === 0 ? "Make a group" : "Manage groups"}
+      </button>
+    </div>
+  );
 }
