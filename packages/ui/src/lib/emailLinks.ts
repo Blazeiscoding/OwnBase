@@ -32,6 +32,8 @@ export function emailLinkError(err: unknown): string {
         return "This workspace no longer sends email. Ask an admin of the workspace instead.";
       case "too_many_requests":
         return "Too many tries for now. Wait a minute, then try again.";
+      default:
+        break;
     }
     if (err.message && err.message !== err.code) return err.message;
     return "The workspace's server turned that down. Try again, or ask whoever runs it.";
