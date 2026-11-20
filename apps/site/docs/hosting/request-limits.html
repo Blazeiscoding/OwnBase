@@ -20,7 +20,7 @@
     <link rel="stylesheet" href="/docs.css?v=30dafeac35" />
     <script src="/docs.js?v=123540c9d0" defer></script>
   </head>
-  <body class="docs-body" data-search="/docs/search.json?v=e8a96feb19" data-guide="hosting">
+  <body class="docs-body" data-search="/docs/search.json?v=23b4312509" data-guide="hosting">
     <a class="skip" href="#main">Skip to content</a>
 
     <header class="guide-head">
@@ -75,6 +75,7 @@
               <li><a href="/docs/hosting/changing-a-workspace-address-and-keeping-local-work">Changing a workspace address and keeping local work</a></li>
               <li><a href="/docs/hosting/desktop-saved-sign-ins">Desktop saved sign-ins</a></li>
               <li><a href="/docs/hosting/the-administrative-record">The administrative record</a></li>
+              <li><a href="/docs/hosting/email">Email</a></li>
               <li><a href="/docs/hosting/invites">Invites</a></li>
               <li><a href="/docs/hosting/who-may-join">Who may join</a></li>
               <li><a href="/docs/hosting/user-groups">User groups</a></li>
@@ -133,6 +134,10 @@ a second), and at most four such calls per account and sixteen per app may be
 waiting for an answer at once. A call past either cap is refused with <code>429</code>
 straight away rather than queued behind a slow app, and nothing is sent to the
 app for a refused call.</p>
+<p>Mail, where the server sends it (see <a href="/docs/hosting/email#email">Email</a>), is rationed twice: per
+email address, whoever asks (a burst of three, then one each five minutes), so
+nobody can fill someone&#39;s inbox, and per account or, for <strong>Forgot your
+password?</strong>, per network address (a burst of ten, then two a minute).</p>
 <p>Scheduled messages are bounded too: one account may have 200 waiting and the
 workspace 10,000, and past either the request is refused with <code>409</code> rather than
 queued. Messages that come due are sent ten at a time, with other requests served

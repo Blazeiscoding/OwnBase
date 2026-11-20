@@ -1,0 +1,190 @@
+<!doctype html>
+<!-- Written by scripts/generate-docs-site.mjs from docs/DEPLOYMENT.md. Edit that, not this. -->
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Email · Hosting OwnBase · OwnBase docs</title>
+    <meta name="description" content="The server sends no email unless you give it an SMTP account. With one, people can add an email address in Account settings → Security, get a link to set…" />
+    <link rel="canonical" href="https://ownbase.site/docs/hosting/email" />
+    <meta property="og:title" content="Email · Hosting OwnBase · OwnBase docs" />
+    <meta property="og:description" content="The server sends no email unless you give it an SMTP account. With one, people can add an email address in Account settings → Security, get a link to set…" />
+    <meta property="og:type" content="article" />
+    <meta property="og:url" content="https://ownbase.site/docs/hosting/email" />
+    <meta property="og:site_name" content="OwnBase" />
+    <meta property="og:image" content="https://ownbase.site/og.png?v=2" />
+    <meta name="theme-color" content="#0b0a20" />
+    <link rel="preload" href="/fonts/onest-latin-wght-normal.woff2" as="font" type="font/woff2" crossorigin />
+    <link rel="icon" href="/ownbase.svg?v=2" type="image/svg+xml" />
+    <link rel="stylesheet" href="/site.css?v=726c411de0" />
+    <link rel="stylesheet" href="/docs.css?v=30dafeac35" />
+    <script src="/docs.js?v=123540c9d0" defer></script>
+  </head>
+  <body class="docs-body" data-search="/docs/search.json?v=23b4312509" data-guide="hosting">
+    <a class="skip" href="#main">Skip to content</a>
+
+    <header class="guide-head">
+      <nav class="nav wrap" aria-label="Main">
+        <a class="brand" href="/">
+          <img src="/ownbase.svg?v=2" alt="" width="32" height="32" />
+          <span>OwnBase</span>
+          <span class="alpha">Alpha</span>
+        </a>
+        <ul class="nav-links">
+          <li><a href="/#host">Hosting</a></li>
+          <li><a href="/host">Guide</a></li>
+          <li><a href="/docs/" aria-current="page">Docs</a></li>
+          <li><a href="/#download">Download</a></li>
+          <li><a href="https://github.com/Blazeiscoding/OwnBase">GitHub</a></li>
+        </ul>
+        <a class="btn btn-small btn-light" href="/#download">Get OwnBase</a>
+      </nav>
+    </header>
+
+    <div class="docs wrap">
+      <aside class="docs-side">
+        <div class="docs-search" role="search" hidden>
+          <label class="sr-only" for="docs-query">Search the docs</label>
+          <input id="docs-query" type="search" placeholder="Search the docs" autocomplete="off" spellcheck="false" />
+          <p class="docs-status" aria-live="polite"></p>
+          <div class="docs-results" hidden></div>
+        </div>
+        <details class="docs-nav" open>
+          <summary>All sections</summary>
+          <nav aria-label="Docs">
+            <p class="docs-group">Hosting OwnBase</p>
+            <ul>
+              <li><a href="/docs/hosting/">Overview</a></li>
+              <li><a href="/docs/hosting/windows-and-lan">Windows and LAN</a></li>
+              <li><a href="/docs/hosting/temporary-internet-sharing-with-cloudflare-tunnel">Temporary internet sharing with Cloudflare Tunnel</a></li>
+              <li><a href="/docs/hosting/docker-and-vps">Docker and VPS</a></li>
+              <li><a href="/docs/hosting/a-linux-server-with-systemd">A Linux server with systemd</a></li>
+              <li><a href="/docs/hosting/a-windows-server-as-a-service">A Windows server, as a service</a></li>
+              <li><a href="/docs/hosting/voice-and-huddles">Voice and huddles</a></li>
+              <li><a href="/docs/hosting/attachment-storage">Attachment storage</a></li>
+              <li><a href="/docs/hosting/backups-restore-updates">Backups, restore, updates</a></li>
+              <li><a href="/docs/hosting/moving-in-from-slack">Moving in from Slack</a></li>
+              <li><a href="/docs/hosting/taking-your-data-out">Taking your data out</a></li>
+              <li><a href="/docs/hosting/deletion-and-retention">Deletion and retention</a></li>
+              <li><a href="/docs/hosting/integration-delivery">Integration delivery</a></li>
+              <li><a href="/docs/hosting/link-previews">Link previews</a></li>
+              <li><a href="/docs/hosting/notifications-while-the-browser-is-closed">Notifications while the browser is closed</a></li>
+              <li><a href="/docs/hosting/behind-a-reverse-proxy">Behind a reverse proxy</a></li>
+              <li><a href="/docs/hosting/request-limits">Request limits</a></li>
+              <li><a href="/docs/hosting/password-hashing">Password hashing</a></li>
+              <li><a href="/docs/hosting/changing-a-workspace-address-and-keeping-local-work">Changing a workspace address and keeping local work</a></li>
+              <li><a href="/docs/hosting/desktop-saved-sign-ins">Desktop saved sign-ins</a></li>
+              <li><a href="/docs/hosting/the-administrative-record">The administrative record</a></li>
+              <li><a href="/docs/hosting/email" aria-current="page">Email</a></li>
+              <li><a href="/docs/hosting/invites">Invites</a></li>
+              <li><a href="/docs/hosting/who-may-join">Who may join</a></li>
+              <li><a href="/docs/hosting/user-groups">User groups</a></li>
+              <li><a href="/docs/hosting/guests">Guests</a></li>
+              <li><a href="/docs/hosting/a-plans-members">A plan&#39;s members</a></li>
+              <li><a href="/docs/hosting/an-enterprise-license">An Enterprise license</a></li>
+              <li><a href="/docs/hosting/hosting-workspaces-for-others">Hosting workspaces for others</a></li>
+              <li><a href="/docs/hosting/current-boundaries">Current boundaries</a></li>
+            </ul>
+            <p class="docs-group">Integration API contract</p>
+            <ul>
+              <li><a href="/docs/integrations/">Overview</a></li>
+              <li><a href="/docs/integrations/setting-up-an-app">Setting up an app</a></li>
+              <li><a href="/docs/integrations/identifiers">Identifiers</a></li>
+              <li><a href="/docs/integrations/verifying-requests-from-this-server">Verifying requests from this server</a></li>
+              <li><a href="/docs/integrations/web-api-methods">Web API methods</a></li>
+              <li><a href="/docs/integrations/incoming-webhooks">Incoming webhooks</a></li>
+              <li><a href="/docs/integrations/slash-commands">Slash commands</a></li>
+              <li><a href="/docs/integrations/interactive-buttons">Interactive buttons</a></li>
+              <li><a href="/docs/integrations/modals">Modals</a></li>
+              <li><a href="/docs/integrations/events">Events</a></li>
+              <li><a href="/docs/integrations/socket-mode">Socket Mode</a></li>
+              <li><a href="/docs/integrations/block-kit">Block Kit</a></li>
+              <li><a href="/docs/integrations/the-native-client-protocol">The native client protocol</a></li>
+            </ul>
+          </nav>
+        </details>
+      </aside>
+
+      <main id="main" class="docs-main">
+        <p class="docs-crumb"><a href="/docs/">Docs</a> / <a href="/docs/hosting/">Hosting OwnBase</a></p>
+        <article class="doc">
+        <h1 id="email">Email</h1>
+        
+<p>The server sends no email unless you give it an SMTP account. With one, people
+can add an email address in <strong>Account settings → Security</strong>, get a link to set a
+new password from <strong>Forgot your password?</strong> on the sign-in screen, and be sent
+an invite from <strong>Invite people</strong>. Without one, none of that shows anywhere, and
+an admin resets a forgotten password from People as before.</p>
+<p>It needs three settings. The account goes in the environment, so its password
+stays out of the process list:</p>
+<pre tabindex="0"><code class="language-sh">OWNBASE_SMTP_URL=&#39;smtps://chat%40example.com:the-app-password@smtp.example.com:465&#39;
+OWNBASE_MAIL_FROM=&#39;Team chat &lt;chat@example.com&gt;&#39;
+ownbase-server --public-url https://chat.example.com</code></pre>
+<ul>
+<li><code>OWNBASE_SMTP_URL</code> (or <code>--smtp-url</code>): <code>smtps://</code> for a server that starts with
+TLS, usually port 465, or <code>smtp://</code> for one that upgrades to it, usually port 587. Write <code>@</code> in the username or password as <code>%40</code>, and <code>/</code> as <code>%2F</code>.</li>
+<li><code>OWNBASE_MAIL_FROM</code> (or <code>--mail-from</code>): the sender. Most providers accept only
+an address on a domain you have verified with them.</li>
+<li><code>--public-url</code>: where the links in each mail lead. The server will not start
+sending without it, since a link built on whatever address a request named
+could lead somewhere else with someone&#39;s token in it.</li>
+</ul>
+<p>The start-up lines say <code>Email: from … through smtps://user:REDACTED@host:465</code>.</p>
+<p>With Fastmail, for example: make an app password under <strong>Settings → Privacy &amp;
+Security → App passwords</strong>, then use
+<code>smtps://you%40fastmail.com:&lt;app password&gt;@smtp.fastmail.com:465</code> and an address
+of your account as the sender. Gmail works the same way with an app password and
+<code>smtp.gmail.com:465</code>. A sending service such as Postmark, Resend or Amazon SES
+gives you an SMTP username and password for the same URL shape.</p>
+<p>How it behaves:</p>
+<ul>
+<li><strong>An address counts once it is confirmed.</strong> Adding or changing one asks for
+the account&#39;s password, then mails a link that works once, for 24 hours. One
+confirmed address belongs to one account, in any letter case. Asking for an
+address another account has is answered as usual, and that mailbox is told
+instead, so the answer does not say who has an account.</li>
+<li><strong>A link to set a new password</strong> goes only to a confirmed address. It works
+once, for 30 minutes, and stops working if the password is changed another way
+first. Setting the new password signs the account out everywhere. Two-step
+sign-in is still asked for afterwards, so a mailbox alone does not get past it.
+While single sign-on is required, only the owner is sent one.</li>
+<li><strong>Asking for a link answers the same, as soon,</strong> for an address no account
+uses. The mail goes after the answer, so the time taken does not say either.</li>
+<li><strong>Mail is rationed</strong>: three to one address, then one each five minutes,
+whoever asks; ten requests from one account or network address, then two a
+minute. A refusal is the same for an address nobody uses.</li>
+<li><strong>An invite by email</strong> sends the invite&#39;s link from the dialog, for an invite
+that still works. The invite is the same one: revoking it stops the mailed
+link too. Whoever sends it is told if the mail server did not take it.</li>
+<li><strong>The mail</strong> is plain text with a small HTML copy: the workspace&#39;s name, what
+to do, the link and who to ask if it was not you. No pictures, nothing loaded
+from elsewhere, no tracking. Tokens sit after <code>#</code> in the link, so they reach
+neither the server&#39;s log nor another site.</li>
+</ul>
+        </article>
+        <nav class="docs-pager" aria-label="Pages"><a class="docs-prev" href="/docs/hosting/the-administrative-record"><span>Previous</span>The administrative record</a><a class="docs-next" href="/docs/hosting/invites"><span>Next</span>Invites</a></nav>
+        <p class="docs-source">This page is made from <a href="https://github.com/Blazeiscoding/OwnBase/blob/main/docs/DEPLOYMENT.md#email">docs/DEPLOYMENT.md</a>.</p>
+      </main>
+    </div>
+
+    <footer class="end guide-foot">
+      <div class="footer wrap">
+        <a class="brand" href="/">
+          <img src="/ownbase.svg?v=2" alt="" width="24" height="24" />
+          <span>OwnBase</span>
+        </a>
+        <ul class="footer-links">
+          <li><a href="/host">Hosting guide</a></li>
+          <li><a href="/docs/">Docs</a></li>
+          <li><a href="https://github.com/Blazeiscoding/OwnBase">GitHub</a></li>
+          <li><a href="https://github.com/Blazeiscoding/OwnBase/blob/main/SECURITY.md">Security</a></li>
+          <li><a href="https://github.com/Blazeiscoding/OwnBase/blob/main/docs/PLANS.md">Plans</a></li>
+        </ul>
+        <p class="legal">
+          OwnBase is in alpha. MIT licensed, except the Enterprise code in <code>ee/</code>. Not
+          affiliated with Slack or Salesforce.
+        </p>
+      </div>
+    </footer>
+  </body>
+</html>
