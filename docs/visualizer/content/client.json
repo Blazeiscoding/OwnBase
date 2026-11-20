@@ -43,8 +43,9 @@
     {
       "path": "packages/client-core/src/workspace.ts",
       "plain": "The heart of the app engine, which keeps you connected to one workspace, holds the app's copy of it and sends your messages.",
-      "summary": "Coordinates one live workspace connection and the local state the UI renders.",
+      "summary": "Coordinates one live workspace connection, applies what the server says to the local state the UI renders, and hands each kind of work to a part it owns.",
       "details": [
+        "Since G12 the client keeps the socket, the ready snapshot, the event and ephemeral reducers, typing, drafts and profile changes itself, and owns ten parts it hands the rest to: workspaceState.ts (the store's shape), commands.ts, modals.ts, calls.ts, workspaceSettings.ts, preferences.ts, messageActions.ts, readMarks.ts, sender.ts and historyLoader.ts. Each part gets the api, the store and what else it needs passed in; none is public. The UI still calls only WorkspaceClient, whose methods for those parts are one-line calls into them, so its public face did not change.",
         "A huddle goes on through a dropped socket: holdHuddle keeps the session (its media does not pass through the socket) and only a refusal that will not stop ends it. On the next ready snapshot resumeHuddle asks to go on with huddle.join: if the snapshot still lists this device in the room, every peer connection stays; if not, it closes its peers and dials again once let in. A refused rejoin, or huddle.moved from the server, ends the call and sets huddleEnded with the reason, which useHuddleEndedNotice shows once.",
         "WorkspaceClient combines Api, FileCache and a Zustand store. The store holds authenticated identity, users, channels, memberships, read cursors, loaded history, drafts, pending sends, app replies, forms and huddle state.",
         "The WebSocket hello includes the session token, protocol version and last observed event sequence. Ready snapshots and replay events rebuild the replica; reconnect delay grows up to 30 seconds. Authentication, forced-password and protocol refusals stop ordinary reconnect loops.",
@@ -84,6 +85,117 @@
         "Q10",
         "UX-60"
       ]
+    },
+    {
+      "path": "packages/client-core/src/workspaceState.ts",
+      "plain": "Describes everything the app keeps about one workspace while it is open, and what that is before anything arrives.",
+      "summary": "WorkspaceState, its starting value, and the connection, outbox and history types it names.",
+      "details": [
+        "WorkspaceState is the Zustand store's shape: identity, people, conversations, read cursors, loaded history, the outbox, drafts, private answers, forms, huddles and workspace settings. Every field says where it comes from and when it is null.",
+        "initialState is what a new client starts from; ConnectionStatus, PendingMessage, LocalAttachment, HistoryWindow and TimelineStatus are the shapes some fields take.",
+        "Moved out of workspace.ts in G12, so lists, notify, selectors and readAll read the store's shape without importing the client."
+      ],
+      "concepts": ["store shape", "G12"]
+    },
+    {
+      "path": "packages/client-core/src/commands.ts",
+      "plain": "Runs slash commands and keeps the private answers they give, only on this screen.",
+      "summary": "Commands loads the / hint list, runs a server command and keeps private answers within limits.",
+      "details": [
+        "runCommand posts the command; anything it says comes back over the socket as an ephemeral. A command that fails outright adds a local note in plain words.",
+        "keepEphemeral keeps at most 20 answers per conversation, 100 and about 400,000 characters across the workspace, cuts one answer past 40,000 characters, and counts what it lets go so the conversation can say so (REV-04).",
+        "loadCommands reads the hint list after connecting and when apps change; a failure keeps the list there was."
+      ],
+      "concepts": ["slash commands", "ephemeral answers", "REV-04", "G12"]
+    },
+    {
+      "path": "packages/client-core/src/modals.ts",
+      "plain": "Keeps the forms an app opens for you, one on top of another, and sends or closes them.",
+      "summary": "Modals holds the form stack an app opened and submits or dismisses it.",
+      "details": [
+        "The server says what is open, bottom first; forgetModals takes closed forms off and shows the one left on top.",
+        "dismissModal and dismissAllModals tell the server so the person's other devices follow; the app is told nothing, as in Slack.",
+        "submitModal is bound to a view id (N05) and closes only what the server names as closed, so a late answer never reopens a form."
+      ],
+      "concepts": ["app forms", "N05", "G12"]
+    },
+    {
+      "path": "packages/client-core/src/calls.ts",
+      "plain": "Keeps this device in a huddle: joining, staying in through a dropped connection, rings and the call buttons.",
+      "summary": "Calls owns the HuddleSession, admission and rejoin, rings, and the call controls the client offers.",
+      "details": [
+        "joinHuddle reads /api/rtc-config, loads the call code on demand, starts the microphone and asks the server to let this device in, giving up after ten seconds without an answer.",
+        "A dropped socket holds the call (holdHuddle); the next ready snapshot resumes it (resumeHuddle), keeping peers when the server kept this device's place and dialling again when not. A refused rejoin or huddle.moved ends the call with a reason in huddleEnded.",
+        "ringNoticeFor words what the caller's device says as a ring changes; declineRing says no to one. The participant, join-result and signal events reach the session through participantsChanged, joinResult and signal.",
+        "Moved out of workspace.ts in G12; huddle.ts, the session itself, is unchanged."
+      ],
+      "concepts": ["huddle admission", "rejoin", "rings", "E10", "G12"]
+    },
+    {
+      "path": "packages/client-core/src/workspaceSettings.ts",
+      "plain": "Changes what the workspace keeps for everyone in it, such as its name, icon, custom emoji and user groups.",
+      "summary": "WorkspaceSettings changes workspace-wide settings and keeps the store's copy as the server answers.",
+      "details": [
+        "renameWorkspace, setAccessPolicy, setLinkPreviews, setWorkspaceIcon, removeWorkspaceIcon and setEmojiAdding show what the server kept as soon as it answers, rather than when the event arrives.",
+        "Custom emoji (J12) and user groups (J13) are kept by name and by id; keepEmoji and forgetEmoji, keepGroup and forgetGroup are also what their events call, and forgetEmoji leaves a name that already belongs to a newer emoji."
+      ],
+      "concepts": ["workspace settings", "custom emoji", "user groups", "G12"]
+    },
+    {
+      "path": "packages/client-core/src/preferences.ts",
+      "plain": "Saves this account's own choices: its sidebar sections and what notifies it.",
+      "summary": "Preferences holds sidebar sections, per-conversation notification choices, snoozing and the notify default.",
+      "details": [
+        "Each choice shows at once and is saved through OptimisticWrites. A refused notification choice is kept in prefsWrites to try again, unless a later choice already replaced it.",
+        "orderSidebarSections shows the new order at once; a refusal shows the list the server last told this device (E8).",
+        "snoozeNotificationsUntil ends on the latest snooze chosen here whatever order the requests arrive in; setNotifyDefault puts the old default back when refused (v53)."
+      ],
+      "concepts": ["optimistic writes", "notification preferences", "E8", "G12"]
+    },
+    {
+      "path": "packages/client-core/src/messageActions.ts",
+      "plain": "Does what you do to a message, such as reacting, voting, pinning, saving it or setting a reminder, and shows it at once.",
+      "summary": "MessageActions holds reactions, votes, pins, saves, reminders and taking a link preview off.",
+      "details": [
+        "toggleReaction, vote, togglePin, toggleSaved and removeLinkPreview go through OptimisticWrites: shown at once, put back and answered with the server's refusal when it refuses.",
+        "pollPicks holds choices made here that the server has not been heard to have; settlePollPick lets one go once the server's choices match (E6).",
+        "setReminder keeps the server's answer at once; cancelReminder treats one already gone as removed (E4)."
+      ],
+      "concepts": ["optimistic writes", "polls", "reminders", "G12"]
+    },
+    {
+      "path": "packages/client-core/src/readMarks.ts",
+      "plain": "Remembers how far you have read each conversation and thread, and tells the server, even after a dropped connection.",
+      "summary": "ReadMarks holds read cursors, marks unread, thread follows and reading removal notes.",
+      "details": [
+        "markRead raises the cursor at once and sends the largest pending cursor per conversation, retrying every five seconds and on reconnect. A conversation marked unread is held so looking at it does not read it again; leaving it lifts the hold.",
+        "A thread's cursor lives in its follow record, so follow, mute, mark unread and read share one write per thread, sent in the order chosen (Q09). A failed mark unread rolls back only while it is still the latest for its conversation (Q10).",
+        "channelRead and channelUnread are what the client's channel.read and channel.unread cases run; readyCursor keeps a read still on its way over an older snapshot."
+      ],
+      "concepts": ["read cursors", "thread follows", "Q09", "Q10", "G12"]
+    },
+    {
+      "path": "packages/client-core/src/sender.ts",
+      "plain": "Gets your messages to the workspace: shown at once, files uploaded, tried again when the connection is back, and held when refused.",
+      "summary": "Sender owns the outbox as this window shows it, uploads, rate-limit waits, retries and refusals.",
+      "details": [
+        "send creates a nonce and a PendingMessage, refuses past 50 waiting sends per account, and hands a slash command to Commands. Uploaded file ids are kept so a retry does not upload twice.",
+        "A send turned away for coming too fast waits as long as the server said, at most a minute, and goes again in the order written. One the server refused waits for its author's Retry; one lost on the way goes again once the workspace answers.",
+        "outboxSnapshot, restoreOutbox and adoptRefusal are what LocalWork uses to keep the outbox across restarts and windows; a restored send older than the retry window, or whose files were not kept, waits and says why."
+      ],
+      "concepts": ["outbox", "nonce", "rate limits", "GL-02", "G12"]
+    },
+    {
+      "path": "packages/client-core/src/historyLoader.ts",
+      "plain": "Loads older and newer messages of conversations and threads as you scroll, and lets go of the ones you have not looked at lately.",
+      "summary": "HistoryLoader loads timeline and thread pages, replays events onto them and evicts the least recently seen.",
+      "details": [
+        "Each conversation accepts only its newest requested window; the one it replaces stops its transfer (REV-05). Identical requests share one load.",
+        "Events that arrive while a page is out are held (at most 2,000) and replayed onto it; too many fail the page so it can be asked again.",
+        "jumpToMessage opens a window around a message; loadNewer pages back toward the newest; loadTimeline with unreadAfter opens at the first unread (X3). At most 20 timelines and 20 threads are kept besides the open ones.",
+        "reset, stop and reloadAfterReady are what the client runs when a snapshot replaces history, when it closes, and once the new snapshot says which conversations are still there."
+      ],
+      "concepts": ["history pages", "event replay", "eviction", "REV-05", "G12"]
     },
     {
       "path": "packages/client-core/src/drafts.ts",

@@ -4,10 +4,11 @@ import {
   roleMayCall,
   type Channel,
   type ID,
+  type Message,
   type ThreadFollow,
   type User,
 } from "@ownbase/protocol";
-import type { ConnectionStatus, WorkspaceState } from "./workspace.js";
+import type { ConnectionStatus, WorkspaceState } from "./workspaceState.js";
 
 type ReadState = Pick<WorkspaceState, "memberships" | "channelLastSeq">;
 
@@ -114,4 +115,31 @@ export function selfMay(
   name: keyof typeof endpoints,
 ): boolean {
   return roleMayCall(endpoints[name].access, state.self?.role);
+}
+
+/** Followed threads with replies this account has not read. */
+export function unreadThreadCount(threadFollows: Record<ID, ThreadFollow>): number {
+  return Object.values(threadFollows).filter(isThreadUnread).length;
+}
+
+/**
+ * Whether this account has read a message; the server's count of unread
+ * messages is the same rule. The channel's cursor reads what the channel
+ * shows. A reply is read through its thread: by the thread's cursor, or, in a
+ * thread this account has no cursor for, as far as the membership's
+ * `repliesRead`. A reply also sent to the channel is read by either cursor.
+ */
+export function isMessageRead(
+  message: Pick<Message, "channelId" | "seq" | "threadRootId" | "broadcast">,
+  state: Pick<WorkspaceState, "memberships" | "threadFollows" | "repliesRead">,
+): boolean {
+  const channelRead = state.memberships[message.channelId] ?? 0;
+  if (!message.threadRootId) return message.seq <= channelRead;
+  const follow = state.threadFollows[message.threadRootId];
+  const threadRead = follow?.lastReadSeq;
+  // Also sent to the channel, and read there; unless the thread was marked
+  // unread since the channel was last read past where it then stood.
+  const held = follow?.unreadHold !== undefined && channelRead <= follow.unreadHold;
+  if (message.broadcast && message.seq <= channelRead && !held) return true;
+  return message.seq <= (threadRead ?? state.repliesRead[message.channelId] ?? 0);
 }

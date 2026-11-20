@@ -11,7 +11,7 @@ import { answerOf, doneOf } from "./answers.js";
 import type { Api, ApiError } from "./api.js";
 import { timelineMessages } from "./messageCache.js";
 import { PagedList } from "./pagedList.js";
-import type { WorkspaceState } from "./workspace.js";
+import type { WorkspaceState } from "./workspaceState.js";
 
 /** What Activity's tabs ask the server for. */
 export type ActivityAsk = "unread" | "mentions" | "threads";

@@ -79,28 +79,27 @@ export type {
 } from "./huddle.js";
 export { shownPoll } from "./polls.js";
 export type { PollDraft } from "./polls.js";
-export { OUTBOX_LIMIT, WorkspaceClient, isMessageRead, unreadThreadCount } from "./workspace.js";
-export type { SendAnswer } from "./workspace.js";
+export { WorkspaceClient } from "./workspace.js";
+export { OUTBOX_LIMIT } from "./sender.js";
+export type { SendAnswer } from "./sender.js";
 export {
   blockedPartner,
   deactivatedPartner,
   isSignedOut,
   isSnoozed,
   snoozedUntil,
+  isMessageRead,
   isThreadUnread,
   isUnread,
   mentionsElsewhere,
   selfIsAdministrator,
   selfMay,
+  unreadThreadCount,
   waitsForAttention,
 } from "./selectors.js";
 export { anythingUnread, markEverythingRead, unreadEverywhere } from "./readAll.js";
 export type { Unread } from "./readAll.js";
 export { threadReplies, threadRootMessage, timelineMessages } from "./messageCache.js";
 export type { ChannelTimeline, ThreadPage } from "./messageCache.js";
-export type {
-  EphemeralMessage,
-  LocalAttachment,
-  PendingMessage,
-  WorkspaceState,
-} from "./workspace.js";
+export type { EphemeralMessage } from "./commands.js";
+export type { LocalAttachment, PendingMessage, WorkspaceState } from "./workspaceState.js";

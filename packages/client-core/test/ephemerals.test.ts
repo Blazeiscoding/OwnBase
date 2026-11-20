@@ -6,7 +6,7 @@ import {
   EPHEMERAL_LIMITS,
   keepEphemeral,
   type EphemeralMessage,
-} from "../src/workspace.js";
+} from "../src/commands.js";
 
 /**
  * Private command answers are kept within limits (REV-04). The deep review
