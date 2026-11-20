@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { createHmac, generateKeyPairSync, sign } from "node:crypto";
 import { createSocket, type Socket as UdpSocket } from "node:dgram";
 import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
@@ -6,8 +6,7 @@ import { createServer, type Server } from "node:http";
 import { createServer as createTcpServer, type Server as TcpServer } from "node:net";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { DatabaseSync } from "node:sqlite";
-import type { SettingsPanel, User } from "@ownbase/protocol";
+import type { Channel, SettingsPanel, User } from "@ownbase/protocol";
 import { createWorkspaceServer, type WorkspaceServer } from "@ownbase/server";
 import { readZipEntries, readZipEntry } from "@ownbase/server/zip";
 import { parseSyslog, syslogMessage } from "../src/auditStream.js";
@@ -51,6 +50,7 @@ beforeEach(() => {
 });
 
 afterEach(async () => {
+  vi.useRealTimers();
   await server?.stop();
   server = undefined;
   clock = NOW;
@@ -65,7 +65,7 @@ async function start(text: string | null = license(), over: { allowPrivateHooks?
     mdns: false,
     rateLimits: false,
     logger: false,
-    retentionDays: 30,
+    retentionDays: 1,
     extensions: [enterprise({ license: text, trusted: [licenseKeys.publicKey], now: () => clock })],
     ...over,
   });
@@ -96,7 +96,9 @@ async function people() {
   const owner = await register("owner");
   const maya = await register("maya");
   const sam = await register("sam");
-  const general = server!.store.channels.byName("general")!.id;
+  const channels = (await call("/api/channels", owner.token, undefined, "GET")).data
+    .channels as Channel[];
+  const general = channels.find((c) => c.name === "general")!.id;
   const legal = (await call("/api/channels", owner.token, { type: "public", name: "legal" })).data
     .channel.id as string;
   return { owner, maya, sam, general, legal };
@@ -127,26 +129,33 @@ const audit = async (who: Account) =>
     details: Record<string, unknown>;
   }[];
 
-/** Ages every message, through a second connection, as the server's retention tests do. */
-function backdate(days: number) {
-  const db = new DatabaseSync(join(directory, "workspace.db"));
-  try {
-    db.exec(`UPDATE messages SET created_at = created_at - ${days * DAY}`);
-  } finally {
-    db.close();
-  }
+/** The administrative record, oldest first, as the owner reads it. */
+const auditIds = async (who: Account) =>
+  (
+    (await call("/api/admin/audit?limit=200", who.token, undefined, "GET")).data.entries as {
+      id: string;
+    }[]
+  )
+    .map((e) => e.id)
+    .reverse();
+
+/** Two days pass for the server, which shares this process's clock; retention keeps one. */
+function twoDaysLater() {
+  vi.useFakeTimers({ toFake: ["Date"], shouldAdvanceTime: true });
+  vi.setSystemTime(Date.now() + 2 * DAY);
 }
 
-const exists = (id: string) =>
-  server!.store.messages
-    .recorded({
-      from: 0,
-      to: Date.now() + DAY,
-      userIds: [],
-      channelIds: server!.store.channels.all().map((c) => c.id),
-      limit: 1000,
-    })
-    .some((m) => m.id === id);
+/** Whether `who` can still open the message, as a link to it would. */
+const exists = async (who: Account, channelId: string, id: string) => {
+  const { status } = await call(
+    `/api/channels/${channelId}/messages/${id}`,
+    who.token,
+    undefined,
+    "GET",
+  );
+  expect([200, 404]).toContain(status);
+  return status === 200;
+};
 
 describe("compliance in Workspace settings", () => {
   it("shows nothing without a license that has it", async () => {
@@ -213,10 +222,16 @@ describe("legal hold", () => {
     ] as const)
       expect(await remove(who, id)).toMatchObject({ status: 403, data: { error: "message_kept" } });
 
-    backdate(60);
+    twoDaysLater();
     expect(server!.applyRetention()).toBe(1);
-    expect(exists(loose.id)).toBe(false);
-    for (const id of [mayas.id, inLegal.id, thread.id, reply.id]) expect(exists(id)).toBe(true);
+    expect(await exists(owner, general, loose.id)).toBe(false);
+    for (const [channelId, id] of [
+      [general, mayas.id],
+      [legal, inLegal.id],
+      [general, thread.id],
+      [general, reply.id],
+    ] as const)
+      expect(await exists(owner, channelId, id)).toBe(true);
   });
 
   it("stays when the license ends: nothing can be added, and it can still be lifted", async () => {
@@ -442,9 +457,8 @@ describe("sending the administrative record", () => {
     answer = 200;
     await call(`/api/admin/users/${sam.user.id}`, owner.token, { deactivated: false }, "PATCH");
     await expect.poll(() => received.at(-1)?.entries.at(-1)?.action).toBe("user.reactivated");
-    const all = server!.store.audit.after(null, 1000).map((e) => e.id);
     // Every entry, once each and in order: none was skipped by the failure.
-    expect(sentIds()).toEqual(all);
+    expect(sentIds()).toEqual(await auditIds(owner));
     expect((await panel(owner, "audit-stream"))?.status).toMatch(/^Sent up to /);
   });
 
@@ -493,7 +507,9 @@ describe("sending the administrative record", () => {
         rest = rest.subarray(space + 1 + length);
       }
       // A new destination gets the whole record.
-      expect(frames.length).toBe(server!.store.audit.after(null, 1000).length);
+      expect(frames.map((frame) => JSON.parse(frame.slice(frame.indexOf("{"))).id)).toEqual(
+        await auditIds(owner),
+      );
     } finally {
       udp.close();
       await new Promise<void>((resolve) => tcp.close(() => resolve()));

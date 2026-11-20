@@ -716,7 +716,9 @@ describe("single sign-on through an OpenID provider", () => {
       by("changed the client secret in the settings for single sign-on, and stopped requiring it"),
       by("turned on single sign-on, and required it for everyone but the owner"),
     ]);
-    const recorded = JSON.stringify(server!.store.audit.after(null, 100));
+    const recorded = JSON.stringify(
+      (await call("/api/admin/audit?limit=200", owner.token, undefined, "GET")).data.entries,
+    );
     expect(recorded).not.toContain(provider.clientSecret);
     expect(recorded).not.toContain("another-provider-secret");
   });

@@ -165,7 +165,9 @@ describe("an Enterprise license in a running server", () => {
         text: "The Enterprise license for Acme Ltd ended on 7 October 2026, and its features are off. Chat keeps working.",
       },
     ]);
-    const general = server!.store.channels.byName("general")!.id;
+    const channels = (await call("/api/channels", member.token, undefined, "GET")).data
+      .channels as { id: string; name: string }[];
+    const general = channels.find((c) => c.name === "general")!.id;
     const posted = await call(`/api/channels/${general}/messages`, member.token, { text: "hi" });
     expect(posted.status).toBe(201);
     expect((await call("/api/admin/license", owner.token, undefined, "GET")).data.state).toBe(
