@@ -7,6 +7,7 @@ import { DeliveryStore } from "./apps/deliveryStore.js";
 import { AppStore } from "./apps/store.js";
 import { ChannelStore } from "./channels/store.js";
 import { Settings } from "./core/settings.js";
+import { EmailStore } from "./email/store.js";
 import { EmojiStore } from "./emoji/store.js";
 import { GroupStore } from "./groups/store.js";
 import { Outbox } from "./events/outbox.js";
@@ -54,6 +55,7 @@ export class Store {
   readonly audit: AuditLog;
   readonly reports: ReportStore;
   readonly push: PushStore;
+  readonly email: EmailStore;
   readonly emoji: EmojiStore;
   readonly groups: GroupStore;
 
@@ -75,6 +77,7 @@ export class Store {
     this.audit = new AuditLog(db);
     this.reports = new ReportStore(db, this);
     this.push = new PushStore(db);
+    this.email = new EmailStore(db);
     this.emoji = new EmojiStore(db);
     this.groups = new GroupStore(db);
   }

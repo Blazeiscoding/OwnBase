@@ -600,6 +600,174 @@
         }
       }
     },
+    "/api/me/email": {
+      "get": {
+        "operationId": "getMeEmail",
+        "tags": [
+          "me"
+        ],
+        "summary": "This account's email address (G10): the confirmed one, and one waiting to be.",
+        "description": "This account's email address (G10): the confirmed one, and one waiting to be.\n\nNeeds a signed-in account.",
+        "x-access": "member",
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Done."
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      },
+      "post": {
+        "operationId": "postMeEmail",
+        "tags": [
+          "me"
+        ],
+        "summary": "Sends a link to confirm an address for this account (G10), which counts once the link is opened.",
+        "description": "Sends a link to confirm an address for this account (G10), which counts once the link is opened. The answer is the same whether or not another account here uses the address, so it cannot be used to find out.\n\nNeeds a signed-in account.",
+        "x-access": "member",
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SetEmailBody"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Done."
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      },
+      "delete": {
+        "operationId": "deleteMeEmail",
+        "tags": [
+          "me"
+        ],
+        "summary": "Removes this account's email address, and any link waiting to confirm one (G10).",
+        "description": "Removes this account's email address, and any link waiting to confirm one (G10).\n\nNeeds a signed-in account.",
+        "x-access": "member",
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Done."
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    },
+    "/api/auth/email/confirm": {
+      "post": {
+        "operationId": "postAuthEmailConfirm",
+        "tags": [
+          "auth"
+        ],
+        "summary": "Opens a link that confirms an address (G10).",
+        "description": "Opens a link that confirms an address (G10). Each link works once.\n\nAnyone may call this, signed in or not.",
+        "x-access": "anyone",
+        "security": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/EmailLinkBody"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Done."
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    },
+    "/api/auth/password/forgot": {
+      "post": {
+        "operationId": "postAuthPasswordForgot",
+        "tags": [
+          "auth"
+        ],
+        "summary": "Emails a link to set a new password to the account that uses this address (G10).",
+        "description": "Emails a link to set a new password to the account that uses this address (G10). The answer is the same, and as quick, for an address no account uses, so it cannot be used to find out who has an account.\n\nAnyone may call this, signed in or not.",
+        "x-access": "anyone",
+        "security": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ForgotPasswordBody"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Done."
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    },
+    "/api/auth/password/reset": {
+      "post": {
+        "operationId": "postAuthPasswordReset",
+        "tags": [
+          "auth"
+        ],
+        "summary": "Sets a new password with the token from the emailed link (G10), which works once for 30 minutes.",
+        "description": "Sets a new password with the token from the emailed link (G10), which works once for 30 minutes. Every session of the account ends, and the next sign-in still asks for two-step sign-in's code.\n\nAnyone may call this, signed in or not.",
+        "x-access": "anyone",
+        "security": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ResetPasswordBody"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Done."
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    },
     "/api/auth/sessions": {
       "get": {
         "operationId": "getAuthSessions",
@@ -3831,8 +3999,8 @@
         "tags": [
           "admin"
         ],
-        "summary": "Password recovery for an installation with no email: an admin issues a temporary password and reads it to the person over whatever channel they trust.",
-        "description": "Password recovery for an installation with no email: an admin issues a temporary password and reads it to the person over whatever channel they trust. It is shown once, all their sessions end, and they are expected to change it. Who may be reset is resettable's to say.\n\nNeeds an administrator or the owner.",
+        "summary": "Password recovery where email cannot do it, because the server sends none or the person has no address there (G10): an admin issues a temporary password and…",
+        "description": "Password recovery where email cannot do it, because the server sends none or the person has no address there (G10): an admin issues a temporary password and reads it to the person over whatever channel they trust. It is shown once, all their sessions end, and they are expected to change it. Who may be reset is resettable's to say.\n\nNeeds an administrator or the owner.",
         "x-access": "admin",
         "security": [
           {
@@ -5749,6 +5917,50 @@
         }
       }
     },
+    "/api/invites/{code}/email": {
+      "post": {
+        "operationId": "postInvitesByCodeEmail",
+        "tags": [
+          "invites"
+        ],
+        "summary": "Emails an invite's link to someone (G10), where the server sends email.",
+        "description": "Emails an invite's link to someone (G10), where the server sends email. Whoever may revoke the invite may send it.\n\nNeeds a signed-in account.",
+        "x-access": "member",
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "code",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/EmailInviteBody"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Done."
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    },
     "/api/activity": {
       "get": {
         "operationId": "getActivity",
@@ -6245,6 +6457,70 @@
         },
         "required": [
           "code"
+        ]
+      },
+      "SetEmailBody": {
+        "type": "object",
+        "properties": {
+          "email": {
+            "type": "string",
+            "maxLength": 254,
+            "pattern": "^[^\\s@<>()\",;]+@[^\\s@<>()\",;]+\\.[^\\s@<>()\",;]+$"
+          },
+          "password": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 256
+          }
+        },
+        "required": [
+          "email",
+          "password"
+        ]
+      },
+      "EmailLinkBody": {
+        "type": "object",
+        "properties": {
+          "token": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128
+          }
+        },
+        "required": [
+          "token"
+        ]
+      },
+      "ForgotPasswordBody": {
+        "type": "object",
+        "properties": {
+          "email": {
+            "type": "string",
+            "maxLength": 254,
+            "pattern": "^[^\\s@<>()\",;]+@[^\\s@<>()\",;]+\\.[^\\s@<>()\",;]+$"
+          }
+        },
+        "required": [
+          "email"
+        ]
+      },
+      "ResetPasswordBody": {
+        "type": "object",
+        "properties": {
+          "token": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128
+          },
+          "password": {
+            "type": "string",
+            "minLength": 8,
+            "maxLength": 256
+          }
+        },
+        "required": [
+          "token",
+          "password"
         ]
       },
       "UpdateMeBody": {
@@ -7178,6 +7454,19 @@
             "maximum": 1000
           }
         }
+      },
+      "EmailInviteBody": {
+        "type": "object",
+        "properties": {
+          "email": {
+            "type": "string",
+            "maxLength": 254,
+            "pattern": "^[^\\s@<>()\",;]+@[^\\s@<>()\",;]+\\.[^\\s@<>()\",;]+$"
+          }
+        },
+        "required": [
+          "email"
+        ]
       },
       "ReadRemovalsBody": {
         "type": "object",

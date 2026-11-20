@@ -305,7 +305,8 @@ export class AccountStore {
    * Replaces someone's password. Their sessions are the caller's to revoke.
    * `mustChange` marks a password someone else chose. Until its owner replaces
    * it, the account can do nothing else, so a temporary password read out over
-   * the phone cannot quietly become a permanent one.
+   * the phone cannot quietly become a permanent one. A link mailed to set a
+   * new password stops working (G10): it was asked for before this one.
    */
   setPassword(userId: ID, passwordHash: string, salt: string, mustChange = false): void {
     this.db
@@ -313,6 +314,7 @@ export class AccountStore {
         "UPDATE users SET password_hash = ?, salt = ?, must_change_password = ? WHERE id = ?",
       )
       .run(passwordHash, salt, mustChange ? 1 : 0, userId);
+    this.store.email.dropLinks(userId, "reset");
   }
 
   /**

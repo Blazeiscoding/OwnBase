@@ -68,6 +68,51 @@ export function parsePublicUrl(raw: string, flag = "--public-url"): string {
   return url.href.replace(/\/+$/, "");
 }
 
+/** How the server sends email (G10), when its host gave it an SMTP account. */
+export interface MailSettings {
+  /** smtp://user:password@host:587, or smtps:// for TLS from the start. */
+  smtpUrl: string;
+  /** The sender, as `chat@example.com` or `Team chat <chat@example.com>`. */
+  from: string;
+}
+
+/**
+ * --smtp-url and --mail-from (G10). Neither is email off; one alone is a
+ * mistake. No message here quotes the URL, which holds the SMTP password.
+ */
+export function parseMailSettings(raw: {
+  smtpUrl: string | undefined;
+  from: string | undefined;
+}): MailSettings | undefined {
+  const smtpUrl = raw.smtpUrl?.trim() || undefined;
+  const from = raw.from?.trim() || undefined;
+  if (!smtpUrl && !from) return undefined;
+  if (!smtpUrl)
+    throw new ConfigError(
+      "--mail-from needs --smtp-url (or OWNBASE_SMTP_URL), the account to send through",
+    );
+  if (!from)
+    throw new ConfigError(
+      "--smtp-url needs --mail-from (or OWNBASE_MAIL_FROM), the address mail comes from",
+    );
+  let url: URL;
+  try {
+    url = new URL(smtpUrl);
+  } catch {
+    throw new ConfigError(
+      "--smtp-url needs an address such as smtps://user:password@smtp.example.com:465. Characters such as @ or / in the password are written %40 and %2F",
+    );
+  }
+  if (url.protocol !== "smtp:" && url.protocol !== "smtps:")
+    throw new ConfigError("--smtp-url must start with smtp:// or smtps://");
+  if (!url.hostname) throw new ConfigError("--smtp-url needs the mail server's host name");
+  if (!/^(?:[^<>\r\n]*<)?[^\s@<>]+@[^\s@<>]+\.[^\s@<>]+>?$/.test(from))
+    throw new ConfigError(
+      `--mail-from needs an address such as chat@example.com or "Team chat <chat@example.com>", not "${from}"`,
+    );
+  return { smtpUrl, from };
+}
+
 /** The longest plan name: it sits inside a sentence. */
 const PLAN_NAME_MAX = 40;
 

@@ -337,6 +337,34 @@ export const FLAGS = {
       ],
     },
   },
+  "smtp-url": {
+    type: "string",
+    env: "SMTP_URL",
+    help: {
+      usage: "--smtp-url <url>",
+      gapBefore: true,
+      lines: [
+        "Send email through this account, such as",
+        "smtps://user:password@smtp.example.com:465 (or smtp://",
+        "on port 587). It lets people get a link to set a new",
+        "password and be sent invites. Needs --mail-from and",
+        "--public-url, which the links lead to. Off unless set.",
+        "Better set with OWNBASE_SMTP_URL, which keeps the password",
+        "out of the process list.",
+      ],
+    },
+  },
+  "mail-from": {
+    type: "string",
+    env: "MAIL_FROM",
+    help: {
+      usage: "--mail-from <address>",
+      lines: [
+        'Who email comes from: chat@example.com, or "Team chat',
+        '<chat@example.com>". Also settable with OWNBASE_MAIL_FROM.',
+      ],
+    },
+  },
   "skip-upgrade-backup": {
     type: "boolean",
     default: false,
