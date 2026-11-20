@@ -20,7 +20,7 @@
     <link rel="stylesheet" href="/docs.css?v=30dafeac35" />
     <script src="/docs.js?v=123540c9d0" defer></script>
   </head>
-  <body class="docs-body" data-search="/docs/search.json?v=b3ed1d464c" data-guide="integrations">
+  <body class="docs-body" data-search="/docs/search.json?v=e8a96feb19" data-guide="integrations">
     <a class="skip" href="#main">Skip to content</a>
 
     <header class="guide-head">
@@ -96,6 +96,7 @@
               <li><a href="/docs/integrations/interactive-buttons">Interactive buttons</a></li>
               <li><a href="/docs/integrations/modals">Modals</a></li>
               <li><a href="/docs/integrations/events">Events</a></li>
+              <li><a href="/docs/integrations/socket-mode">Socket Mode</a></li>
               <li><a href="/docs/integrations/block-kit">Block Kit</a></li>
               <li><a href="/docs/integrations/the-native-client-protocol">The native client protocol</a></li>
             </ul>
@@ -130,6 +131,7 @@ which the SDK understands.</p>
 <div class="doc-table" tabindex="0" role="region" aria-label="Table"><table>
 <thead><tr><th>Method</th><th>Arguments honoured</th><th>Notes</th></tr></thead>
 <tbody>
+<tr><td><code>apps.connections.open</code></td><td>—</td><td>Takes the app-level <code>xapp-</code> token, not the bot token. Returns <code>url</code> for one Socket Mode connection.</td></tr>
 <tr><td><code>auth.test</code></td><td>—</td><td>Returns <code>url</code>, <code>team</code>, <code>user</code>, <code>team_id</code>, <code>user_id</code>, <code>bot_id</code>. Bolt calls this before it will start.</td></tr>
 <tr><td><code>chat.postMessage</code></td><td><code>channel</code>, <code>text</code>, <code>blocks</code>, <code>thread_ts</code></td><td>Returns <code>ok</code>, <code>channel</code>, <code>ts</code>, and this server&#39;s own <code>message</code> object.</td></tr>
 <tr><td><code>views.open</code></td><td><code>trigger_id</code>, <code>view</code></td><td>Returns <code>ok</code> and <code>view</code> with <code>id</code>, <code>callback_id</code>, <code>external_id</code>, <code>hash</code> and the stack&#39;s ids.</td></tr>
@@ -139,8 +141,7 @@ which the SDK understands.</p>
 </table></div>
 <p><strong>Any other method</strong> answers <code>unknown_method</code>. That includes <code>chat.update</code>,
 <code>chat.delete</code>, <code>chat.postEphemeral</code>, <code>conversations.*</code>, <code>users.*</code>,
-<code>reactions.*</code>, <code>files.*</code>, <code>views.publish</code>, and <code>apps.connections.open</code> — so <strong>Socket Mode is not supported</strong>; an app receives
-events and interactions over HTTP.</p>
+<code>reactions.*</code>, <code>files.*</code> and <code>views.publish</code>.</p>
 <h2 id="chatpostmessage"><code>chat.postMessage</code><a class="doc-anchor" href="#chatpostmessage" aria-label="Link to chat.postMessage">#</a></h2>
 <ul>
 <li><code>channel</code> is a channel id or <code>#name</code>. <strong>A user id is not accepted</strong>: this does

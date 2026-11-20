@@ -1,0 +1,215 @@
+<!doctype html>
+<!-- Written by scripts/generate-docs-site.mjs from docs/INTEGRATIONS.md. Edit that, not this. -->
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Socket Mode · Integration API contract · OwnBase docs</title>
+    <meta name="description" content="An app with no public address, such as a bot on a laptop or behind a home router, can open the connection itself, as with Slack&#39;s Socket Mode. On the…" />
+    <link rel="canonical" href="https://ownbase.site/docs/integrations/socket-mode" />
+    <meta property="og:title" content="Socket Mode · Integration API contract · OwnBase docs" />
+    <meta property="og:description" content="An app with no public address, such as a bot on a laptop or behind a home router, can open the connection itself, as with Slack&#39;s Socket Mode. On the…" />
+    <meta property="og:type" content="article" />
+    <meta property="og:url" content="https://ownbase.site/docs/integrations/socket-mode" />
+    <meta property="og:site_name" content="OwnBase" />
+    <meta property="og:image" content="https://ownbase.site/og.png?v=2" />
+    <meta name="theme-color" content="#0b0a20" />
+    <link rel="preload" href="/fonts/onest-latin-wght-normal.woff2" as="font" type="font/woff2" crossorigin />
+    <link rel="icon" href="/ownbase.svg?v=2" type="image/svg+xml" />
+    <link rel="stylesheet" href="/site.css?v=726c411de0" />
+    <link rel="stylesheet" href="/docs.css?v=30dafeac35" />
+    <script src="/docs.js?v=123540c9d0" defer></script>
+  </head>
+  <body class="docs-body" data-search="/docs/search.json?v=e8a96feb19" data-guide="integrations">
+    <a class="skip" href="#main">Skip to content</a>
+
+    <header class="guide-head">
+      <nav class="nav wrap" aria-label="Main">
+        <a class="brand" href="/">
+          <img src="/ownbase.svg?v=2" alt="" width="32" height="32" />
+          <span>OwnBase</span>
+          <span class="alpha">Alpha</span>
+        </a>
+        <ul class="nav-links">
+          <li><a href="/#host">Hosting</a></li>
+          <li><a href="/host">Guide</a></li>
+          <li><a href="/docs/" aria-current="page">Docs</a></li>
+          <li><a href="/#download">Download</a></li>
+          <li><a href="https://github.com/Blazeiscoding/OwnBase">GitHub</a></li>
+        </ul>
+        <a class="btn btn-small btn-light" href="/#download">Get OwnBase</a>
+      </nav>
+    </header>
+
+    <div class="docs wrap">
+      <aside class="docs-side">
+        <div class="docs-search" role="search" hidden>
+          <label class="sr-only" for="docs-query">Search the docs</label>
+          <input id="docs-query" type="search" placeholder="Search the docs" autocomplete="off" spellcheck="false" />
+          <p class="docs-status" aria-live="polite"></p>
+          <div class="docs-results" hidden></div>
+        </div>
+        <details class="docs-nav" open>
+          <summary>All sections</summary>
+          <nav aria-label="Docs">
+            <p class="docs-group">Hosting OwnBase</p>
+            <ul>
+              <li><a href="/docs/hosting/">Overview</a></li>
+              <li><a href="/docs/hosting/windows-and-lan">Windows and LAN</a></li>
+              <li><a href="/docs/hosting/temporary-internet-sharing-with-cloudflare-tunnel">Temporary internet sharing with Cloudflare Tunnel</a></li>
+              <li><a href="/docs/hosting/docker-and-vps">Docker and VPS</a></li>
+              <li><a href="/docs/hosting/a-linux-server-with-systemd">A Linux server with systemd</a></li>
+              <li><a href="/docs/hosting/a-windows-server-as-a-service">A Windows server, as a service</a></li>
+              <li><a href="/docs/hosting/voice-and-huddles">Voice and huddles</a></li>
+              <li><a href="/docs/hosting/attachment-storage">Attachment storage</a></li>
+              <li><a href="/docs/hosting/backups-restore-updates">Backups, restore, updates</a></li>
+              <li><a href="/docs/hosting/moving-in-from-slack">Moving in from Slack</a></li>
+              <li><a href="/docs/hosting/taking-your-data-out">Taking your data out</a></li>
+              <li><a href="/docs/hosting/deletion-and-retention">Deletion and retention</a></li>
+              <li><a href="/docs/hosting/integration-delivery">Integration delivery</a></li>
+              <li><a href="/docs/hosting/link-previews">Link previews</a></li>
+              <li><a href="/docs/hosting/notifications-while-the-browser-is-closed">Notifications while the browser is closed</a></li>
+              <li><a href="/docs/hosting/behind-a-reverse-proxy">Behind a reverse proxy</a></li>
+              <li><a href="/docs/hosting/request-limits">Request limits</a></li>
+              <li><a href="/docs/hosting/password-hashing">Password hashing</a></li>
+              <li><a href="/docs/hosting/changing-a-workspace-address-and-keeping-local-work">Changing a workspace address and keeping local work</a></li>
+              <li><a href="/docs/hosting/desktop-saved-sign-ins">Desktop saved sign-ins</a></li>
+              <li><a href="/docs/hosting/the-administrative-record">The administrative record</a></li>
+              <li><a href="/docs/hosting/invites">Invites</a></li>
+              <li><a href="/docs/hosting/who-may-join">Who may join</a></li>
+              <li><a href="/docs/hosting/user-groups">User groups</a></li>
+              <li><a href="/docs/hosting/guests">Guests</a></li>
+              <li><a href="/docs/hosting/a-plans-members">A plan&#39;s members</a></li>
+              <li><a href="/docs/hosting/an-enterprise-license">An Enterprise license</a></li>
+              <li><a href="/docs/hosting/hosting-workspaces-for-others">Hosting workspaces for others</a></li>
+              <li><a href="/docs/hosting/current-boundaries">Current boundaries</a></li>
+            </ul>
+            <p class="docs-group">Integration API contract</p>
+            <ul>
+              <li><a href="/docs/integrations/">Overview</a></li>
+              <li><a href="/docs/integrations/setting-up-an-app">Setting up an app</a></li>
+              <li><a href="/docs/integrations/identifiers">Identifiers</a></li>
+              <li><a href="/docs/integrations/verifying-requests-from-this-server">Verifying requests from this server</a></li>
+              <li><a href="/docs/integrations/web-api-methods">Web API methods</a></li>
+              <li><a href="/docs/integrations/incoming-webhooks">Incoming webhooks</a></li>
+              <li><a href="/docs/integrations/slash-commands">Slash commands</a></li>
+              <li><a href="/docs/integrations/interactive-buttons">Interactive buttons</a></li>
+              <li><a href="/docs/integrations/modals">Modals</a></li>
+              <li><a href="/docs/integrations/events">Events</a></li>
+              <li><a href="/docs/integrations/socket-mode" aria-current="page">Socket Mode</a></li>
+              <li><a href="/docs/integrations/block-kit">Block Kit</a></li>
+              <li><a href="/docs/integrations/the-native-client-protocol">The native client protocol</a></li>
+            </ul>
+          </nav>
+        </details>
+      </aside>
+
+      <main id="main" class="docs-main">
+        <p class="docs-crumb"><a href="/docs/">Docs</a> / <a href="/docs/integrations/">Integration API contract</a></p>
+        <article class="doc">
+        <h1 id="socket-mode">Socket Mode</h1>
+        
+<p>An app with no public address, such as a bot on a laptop or behind a home
+router, can open the connection itself, as with Slack&#39;s Socket Mode. On the
+app&#39;s card in Apps and integrations, choose <strong>Socket Mode</strong> under how it
+receives, and make an <strong>app-level token</strong> (<code>xapp-…</code>). The token is shown once,
+stored only as a hash, and can be replaced or taken away. It opens connections
+and nothing else: every other method refuses it.</p>
+<ul>
+<li>The app calls <code>apps.connections.open</code> with the app-level token. A bot token
+answers <code>not_allowed_token_type</code>, and an app still on URLs
+<code>socket_mode_disabled</code>. The answer&#39;s <code>url</code> is a WebSocket address on this
+server, at <code>/apps/socket</code>, good for one connection within thirty seconds.</li>
+<li>Once connected, the app is sent <code>{&quot;type&quot;: &quot;hello&quot;, &quot;num_connections&quot;: 1, …}</code>.</li>
+<li>Events, slash commands, button presses and form submissions arrive as Slack&#39;s
+envelopes: <code>envelope_id</code>, <code>type</code> (<code>events_api</code>, <code>slash_commands</code> or
+<code>interactive</code>), <code>payload</code> and <code>accepts_response_payload</code>. The payload is what
+the HTTP request would have carried: the <code>event_callback</code>, the command&#39;s
+fields as an object, or the <code>block_actions</code> or <code>view_submission</code> payload. An
+event&#39;s envelope also has <code>retry_attempt</code> and <code>retry_reason</code>.</li>
+<li>The app acknowledges with <code>{&quot;envelope_id&quot;: &quot;…&quot;}</code>. A <code>payload</code> beside it is
+what its HTTP answer would have been: a command&#39;s reply, a press&#39;s, or a
+form&#39;s <code>response_action</code>.</li>
+<li>With no connection open, or no acknowledgement within four seconds, an event
+counts as a failed attempt and is retried exactly as for a URL. A command or
+a press fails as it does for a URL that does not answer, and the person who
+ran it is told.</li>
+<li>An app may hold <strong>10</strong> connections, and each envelope goes to one of them. A
+message from the app over 64 KB closes its connection with <strong>1009</strong>. The
+server pings every connection every ten seconds and closes one that stops
+answering, or that has fallen too far behind reading what it is sent.</li>
+<li>The server sends <code>{&quot;type&quot;: &quot;disconnect&quot;, &quot;reason&quot;: &quot;link_disabled&quot;}</code> and
+closes the connection when the token is replaced or taken away, the app goes
+back to URLs, or the app is deleted or its bot deactivated. It sends
+<code>refresh_requested</code> when it stops.</li>
+<li>Commands and event subscriptions of an app on Socket Mode have no URL and no
+<code>url_verification</code> check, and its buttons need no interactivity URL. An app
+goes back to URLs only once none of its commands or subscriptions is without
+a URL; the refusal names them.</li>
+<li>A reverse proxy in front of the server must pass WebSocket upgrades on
+<code>/apps/socket</code> as well as on <code>/ws</code>.</li>
+</ul>
+<p>Bolt for JavaScript runs unchanged once both of its clients are pointed at this
+server. Checked against a local server with <code>@slack/bolt</code> 5.1: the message
+event, the command&#39;s reply in the channel and the button&#39;s rewrite all arrived.</p>
+<pre tabindex="0"><code class="language-js">import bolt from &quot;@slack/bolt&quot;;
+
+const slackApiUrl = &quot;https://chat.example.com/api/&quot;;
+const app = new bolt.App({
+  token: process.env.SLACK_BOT_TOKEN, // xoxb-…
+  appToken: process.env.SLACK_APP_TOKEN, // xapp-…
+  socketMode: true,
+  clientOptions: { slackApiUrl },
+  // Bolt&#39;s Socket Mode client takes its address from here.
+  installerOptions: { clientOptions: { slackApiUrl } },
+});
+
+app.message(&quot;ping&quot;, async ({ say }) =&gt; {
+  await say({
+    text: &quot;pong&quot;,
+    blocks: [
+      {
+        type: &quot;actions&quot;,
+        elements: [
+          { type: &quot;button&quot;, action_id: &quot;again&quot;, text: { type: &quot;plain_text&quot;, text: &quot;Again&quot; } },
+        ],
+      },
+    ],
+  });
+});
+app.command(&quot;/hello&quot;, async ({ command, ack }) =&gt; {
+  await ack({ response_type: &quot;in_channel&quot;, text: `Hello, ${command.text}` });
+});
+app.action(&quot;again&quot;, async ({ ack, respond }) =&gt; {
+  await ack();
+  await respond({ replace_original: true, text: &quot;Pressed again&quot; });
+});
+
+await app.start();</code></pre>
+        </article>
+        <nav class="docs-pager" aria-label="Pages"><a class="docs-prev" href="/docs/integrations/events"><span>Previous</span>Events</a><a class="docs-next" href="/docs/integrations/block-kit"><span>Next</span>Block Kit</a></nav>
+        <p class="docs-source">This page is made from <a href="https://github.com/Blazeiscoding/OwnBase/blob/main/docs/INTEGRATIONS.md#socket-mode">docs/INTEGRATIONS.md</a>.</p>
+      </main>
+    </div>
+
+    <footer class="end guide-foot">
+      <div class="footer wrap">
+        <a class="brand" href="/">
+          <img src="/ownbase.svg?v=2" alt="" width="24" height="24" />
+          <span>OwnBase</span>
+        </a>
+        <ul class="footer-links">
+          <li><a href="/host">Hosting guide</a></li>
+          <li><a href="/docs/">Docs</a></li>
+          <li><a href="https://github.com/Blazeiscoding/OwnBase">GitHub</a></li>
+          <li><a href="https://github.com/Blazeiscoding/OwnBase/blob/main/SECURITY.md">Security</a></li>
+          <li><a href="https://github.com/Blazeiscoding/OwnBase/blob/main/docs/PLANS.md">Plans</a></li>
+        </ul>
+        <p class="legal">
+          OwnBase is in alpha. MIT licensed, except the Enterprise code in <code>ee/</code>. Not
+          affiliated with Slack or Salesforce.
+        </p>
+      </div>
+    </footer>
+  </body>
+</html>

@@ -5,10 +5,10 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>Slash commands · Integration API contract · OwnBase docs</title>
-    <meta name="description" content="An administrator registers a command against a URL. When someone runs it, the app receives a form-encoded POST with command, text, team_id, team_domain,…" />
+    <meta name="description" content="An administrator registers a command against a URL, or with none for an app on Socket Mode. When someone runs it, the app receives a form-encoded POST…" />
     <link rel="canonical" href="https://ownbase.site/docs/integrations/slash-commands" />
     <meta property="og:title" content="Slash commands · Integration API contract · OwnBase docs" />
-    <meta property="og:description" content="An administrator registers a command against a URL. When someone runs it, the app receives a form-encoded POST with command, text, team_id, team_domain,…" />
+    <meta property="og:description" content="An administrator registers a command against a URL, or with none for an app on Socket Mode. When someone runs it, the app receives a form-encoded POST…" />
     <meta property="og:type" content="article" />
     <meta property="og:url" content="https://ownbase.site/docs/integrations/slash-commands" />
     <meta property="og:site_name" content="OwnBase" />
@@ -20,7 +20,7 @@
     <link rel="stylesheet" href="/docs.css?v=30dafeac35" />
     <script src="/docs.js?v=123540c9d0" defer></script>
   </head>
-  <body class="docs-body" data-search="/docs/search.json?v=b3ed1d464c" data-guide="integrations">
+  <body class="docs-body" data-search="/docs/search.json?v=e8a96feb19" data-guide="integrations">
     <a class="skip" href="#main">Skip to content</a>
 
     <header class="guide-head">
@@ -96,6 +96,7 @@
               <li><a href="/docs/integrations/interactive-buttons">Interactive buttons</a></li>
               <li><a href="/docs/integrations/modals">Modals</a></li>
               <li><a href="/docs/integrations/events">Events</a></li>
+              <li><a href="/docs/integrations/socket-mode">Socket Mode</a></li>
               <li><a href="/docs/integrations/block-kit">Block Kit</a></li>
               <li><a href="/docs/integrations/the-native-client-protocol">The native client protocol</a></li>
             </ul>
@@ -114,8 +115,9 @@
         <article class="doc">
         <h1 id="slash-commands">Slash commands</h1>
         
-<p>An administrator registers a command against a URL. When someone runs it, the
-app receives a form-encoded <code>POST</code> with <code>command</code>, <code>text</code>, <code>team_id</code>,
+<p>An administrator registers a command against a URL, or with none for an app on
+<a href="/docs/integrations/socket-mode#socket-mode">Socket Mode</a>. When someone runs it, the app receives a
+form-encoded <code>POST</code> with <code>command</code>, <code>text</code>, <code>team_id</code>,
 <code>team_domain</code>, <code>channel_id</code>, <code>channel_name</code>, <code>user_id</code>, <code>user_name</code>,
 <code>api_app_id</code>, <code>response_url</code> and <code>trigger_id</code>. There is no legacy verification
 <code>token</code>; check the signature instead.</p>
