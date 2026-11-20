@@ -2588,15 +2588,13 @@
     {
       "path": "packages/ui/src/components/AppsDialog.tsx",
       "plain": "Where bots and other connected apps are set up and managed, along with their slash commands and delivery status.",
-      "summary": "Manages bot apps, webhooks, commands, subscriptions and callback configuration.",
+      "summary": "The Apps and integrations dialog: the app list, the create form, and each app's card with its secrets, webhooks and forms.",
       "details": [
-        "Creates and removes integrations and exposes explicit credential replacement actions. Bot tokens shown once stay only in this UI session; rereadable secrets have reveal/copy controls.",
-        "Configures slash commands, event subscriptions and verified interactivity URLs; refreshes composer command hints when those change.",
-        "Delivery status distinguishes waiting, given-up and never-queued events and offers retry where supported.",
-        "Scopes (E18c): the create form has a What it may do disclosure (ScopePicker, posting only by default, as are template apps); each app's card has the same picker, saved as ticked through setAppScopes and taken back on failure (AppScopes); each subscription names the scopes its events are waiting on, from eventScopes and APP_EVENT_TYPES, with an Allow button. Scope names are shown beside plain words, since an app's own instructions name them. Nothing about scopes shows for a server before them.",
-        "It opens on templates (UX-63): Incoming webhook, Slash command and Post CI results, as tabs sharing one choice of app (a new one or an existing one) and channel, so a webhook made in one is ready in another. A webhook template makes the app and webhook in one click, fills its URL into the example and posts the example's message to the URL itself (postToWebhook). The command template adds the command, fills the app's signing secret into the example service (dotted out on screen, copied whole) and runs /command test in a chosen channel, showing the server's reason when the app fails. Each template's row is small Selects (Channel, Post as) and small TextFields (New app name, Command, Request URL), from the same classes as the app's own forms below.",
-        "OAuth, Socket Mode, scopes, ts and the link to the published integration contract are folded into How this differs from Slack.",
-        "Each app's Slash commands, Event subscriptions and Interactivity forms are fieldsets named by their legend, with small TextFields (Command, Request URL, Description). Their buttons are never off until filled in: sent empty, a form says what is missing under each field and focuses the first, and a request in flight is only aria-disabled. A refused event or interactivity address is said under the field. Saving the interactivity address works unchanged too, rechecking it, and says Saved and verified, or that buttons are off when it is empty."
+        "Creates and removes integrations and exposes explicit credential replacement actions. Bot tokens and app-level tokens shown once stay only in this UI session; rereadable secrets have reveal/copy controls.",
+        "It opens on the templates (AppTemplates), then How this differs from Slack, then Your apps. The create form has a What it may do disclosure (ScopePicker, posting only by default, as are template apps).",
+        "Each app's card holds its parts as fieldsets named by their legend: What it may do (AppScopes), How it receives (AppReceive), Slash commands (CommandList), Event subscriptions (SubscriptionList) and Interactivity (InteractivityUrl, or a note that presses arrive over the connection under Socket Mode). Each part reloads the list through onChanged.",
+        "While any subscription has deliveries waiting, the list is read again quietly every five seconds, keeping the last good rows when a read fails.",
+        "OAuth, Socket Mode, scopes, ts and the link to the published integration contract are folded into How this differs from Slack."
       ],
       "concepts": [
         "integration administration",
@@ -2606,6 +2604,67 @@
         "integration templates",
         "UX-63"
       ]
+    },
+    {
+      "path": "packages/ui/src/components/appParts.tsx",
+      "plain": "Small pieces that more than one part of the apps dialog uses.",
+      "summary": "SecretRow, rowButton and reason, shared by the app cards, the templates and the row forms.",
+      "details": [
+        "SecretRow shows a secret with Copy: shown once (bot tokens, app-level tokens, new webhook URLs) or dotted out with Reveal, and with Replace for a secret that may have leaked.",
+        "reason turns the server's refusal into a sentence. A bare code such as name_taken is said in words instead of shown as it is."
+      ],
+      "concepts": ["integration administration", "credential rotation"]
+    },
+    {
+      "path": "packages/ui/src/components/AppTemplates.tsx",
+      "plain": "The quick starts at the top of Apps and integrations: a webhook, a slash command or CI results, each set up in a click or two.",
+      "summary": "The templates the apps dialog opens on (UX-63): Incoming webhook, Slash command and Post CI results, each with an example to copy and a test.",
+      "details": [
+        "The three are tabs sharing one choice of app (a new one or an existing one) and channel, so a webhook made in one is ready in another.",
+        "A webhook template makes the app and webhook in one click, fills its URL into the example and posts the example's message to the URL itself (postToWebhook). The command template adds the command, fills the app's signing secret into the example service (dotted out on screen, copied whole) and runs /command test in a chosen channel, showing the server's reason when the app fails.",
+        "Each template's row is small Selects (Channel, Post as) and small TextFields (New app name, Command, Request URL), from the same classes as the app's own forms."
+      ],
+      "concepts": ["integration templates", "webhooks", "UX-63"]
+    },
+    {
+      "path": "packages/ui/src/components/AppScopes.tsx",
+      "plain": "Chooses what an app may do in the workspace, such as post or read messages.",
+      "summary": "Scopes (E18c): ScopePicker for the create form and each card, AppScopes saving a card's choice, and missingScopes for a subscription's events.",
+      "details": [
+        "An app made here, or from a template, may only post until more is ticked. A card's picker saves as ticked through setAppScopes and goes back on failure.",
+        "Scope names are shown beside plain words, since an app's own instructions name them. Nothing about scopes shows for a server before them.",
+        "missingScopes says which scopes a subscription's events are waiting on, from eventScopes and APP_EVENT_TYPES."
+      ],
+      "concepts": ["scopes", "E18c"]
+    },
+    {
+      "path": "packages/ui/src/components/AppCommands.tsx",
+      "plain": "The part of an app's card that adds and removes its slash commands.",
+      "summary": "CommandList: an app's slash commands, with a small form to add one (Command, Request URL, Description).",
+      "details": [
+        "The Add button is never off until filled in: sent empty, the form says what is missing under each field and focuses the first, and a request in flight is only aria-disabled. A refusal is said in reason's words."
+      ],
+      "concepts": ["slash commands", "checked forms"]
+    },
+    {
+      "path": "packages/ui/src/components/AppSubscriptions.tsx",
+      "plain": "The part of an app's card that chooses which workspace events are sent to the app, and shows whether they arrive.",
+      "summary": "SubscriptionList: an app's event subscriptions, their delivery status (DeliveryStatus) and a form to add one.",
+      "details": [
+        "DeliveryStatus says what is waiting, what is waiting to be retried once the app catches up, what was given up on, and what never got queued because the endpoint was too far behind. Retry failed sends what was given up on again.",
+        "Each subscription names the scopes its events are waiting on, with an Allow button.",
+        "A refused event address is said under the field, and the form's buttons are never off until filled in."
+      ],
+      "concepts": ["event subscriptions", "delivery queues", "checked forms"]
+    },
+    {
+      "path": "packages/ui/src/components/AppInteractivity.tsx",
+      "plain": "The part of an app's card that sets where its button presses and forms are sent.",
+      "summary": "InteractivityUrl: one address per app, like Slack's interactivity request URL, checked with the same handshake a subscription answers.",
+      "details": [
+        "Saving the address works unchanged too, checking it again, and says Saved and verified, or that buttons are off when it is empty. A refused address is said under the field."
+      ],
+      "concepts": ["callback contract", "checked forms"]
     },
     {
       "path": "packages/ui/src/components/AuditHistory.tsx",
