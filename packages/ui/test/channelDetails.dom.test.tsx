@@ -377,14 +377,14 @@ describe("adding someone to a channel", () => {
       within(dialog.getByRole("listbox", { name: "People to add" }))
         .getAllByRole("option")
         .map((option) => option.getAttribute("aria-label"));
-    expect(options()).toEqual(["Lee Park, @lee", "Priya Natarajan, @priya"]);
+    expect(options()).toEqual(["Lee Park @lee", "Priya Natarajan @priya"]);
     await user.type(box, "@pri");
-    expect(options()).toEqual(["Priya Natarajan, @priya"]);
+    expect(options()).toEqual(["Priya Natarajan @priya"]);
     await user.keyboard("{Enter}");
     expect(api.invite).toHaveBeenCalledWith("C_DESIGN", "U_PRIYA");
     expect(await screen.findByText("Added Priya Natarajan to #design.")).toBeInTheDocument();
     expect(box).toHaveValue("");
-    expect(options()).toEqual(["Lee Park, @lee"]);
+    expect(options()).toEqual(["Lee Park @lee"]);
     expect(await accessibilityProblems(screen.getByRole("dialog"))).toEqual([]);
   });
 

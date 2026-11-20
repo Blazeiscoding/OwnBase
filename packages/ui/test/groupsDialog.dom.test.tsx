@@ -170,7 +170,7 @@ describe("the list of groups", () => {
   it("shows how many each holds and opens one to change who is in it", async () => {
     const { client, user } = groupsWindow([design]);
     const update = vi.spyOn(client, "updateUserGroup").mockResolvedValue(design);
-    await user.click(screen.getByRole("button", { name: "Edit Design, @design, 2 people" }));
+    await user.click(screen.getByRole("button", { name: /^Edit ?Design.*@design.*2 people/ }));
     const form = dialog("Edit @design");
     expect(screen.getByRole("textbox", { name: "Handle" })).toHaveValue("design");
     await user.click(within(form).getByRole("button", { name: "Remove Alex Chen" }));

@@ -152,27 +152,24 @@ function GroupList({
                     type="button"
                     disabled={busy}
                     onClick={() => onOpen({ kind: "edit", group })}
-                    aria-label={`Edit ${group.name}, @${group.handle}, ${groupSize(group)}`}
                     className="flex min-w-0 flex-1 items-center gap-3 text-left"
                   >
+                    <span className="sr-only">Edit </span>
                     <span className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-ink/[0.07] text-ink-dim">
                       <Icon name="members" size={16} />
                     </span>
                     <span className="min-w-0 flex-1">
-                      <span className="flex items-baseline gap-2">
-                        <span className="truncate text-sm font-medium text-ink">{group.name}</span>
-                        <span className="truncate font-mono text-[11px] text-ink-faint">
-                          @{group.handle}
-                        </span>
+                      <span className="block truncate text-sm font-medium text-ink">
+                        {group.name}
                       </span>
                       <span className="block truncate text-[11px] text-ink-faint">
-                        {group.description
-                          ? `${groupSize(group)} · ${group.description}`
-                          : groupSize(group)}
+                        <span className="font-mono">@{group.handle}</span>
+                        {` · ${groupSize(group)}`}
+                        {group.description ? ` · ${group.description}` : ""}
                       </span>
                     </span>
                     {faces.length > 0 && (
-                      <span aria-hidden="true" className="flex shrink-0 items-center">
+                      <span aria-hidden="true" className="hidden shrink-0 items-center sm:flex">
                         {faces.map((user, i) => (
                           <span key={user.id} className={i > 0 ? "-ml-1.5" : ""}>
                             <span className="block rounded-full ring-2 ring-raised">

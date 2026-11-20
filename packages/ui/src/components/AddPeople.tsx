@@ -125,7 +125,7 @@ export function AddPeople({
             <li
               key={u.id}
               {...list.optionProps(i)}
-              aria-label={`${u.displayName}, @${u.handle}`}
+              aria-label={`${u.displayName} @${u.handle}`}
               onClick={() => void add(u)}
               className={`flex cursor-pointer items-center gap-2.5 rounded-lg px-2 py-1.5 text-sm ${
                 i === list.active ? "channel-row-active text-ink" : "text-ink-dim"
@@ -141,9 +141,9 @@ export function AddPeople({
                 />
               </span>
               <span className="min-w-0 flex-1 truncate">
-                {u.displayName} <span className="text-[12px] text-ink-faint">@{u.handle}</span>
+                {u.displayName} <span className="text-[12px] text-ink-dim">@{u.handle}</span>
               </span>
-              <span aria-hidden="true" className="text-[12px] text-ink-faint">
+              <span aria-hidden="true" className="text-[12px] text-ink-dim">
                 {i === list.active ? "Add ↵" : ""}
               </span>
             </li>
