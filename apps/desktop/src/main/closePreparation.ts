@@ -1,3 +1,5 @@
+const CLOSE_WITHIN_MS = 10_000;
+
 /** Keeps the renderer alive until its final work and the native settings queue are saved (N03). */
 export class ClosePreparation {
   private nextId = 0;
@@ -11,8 +13,6 @@ export class ClosePreparation {
     drain: () => Promise<void>;
     timer: ReturnType<typeof setTimeout>;
   } | null = null;
-
-  constructor(private readonly timeoutMs = 10_000) {}
 
   prepare(
     windowId: number | null,
@@ -37,7 +37,7 @@ export class ClosePreparation {
       drain,
       timer: setTimeout(
         () => this.finish(id, new Error("Saving local work did not finish in time.")),
-        this.timeoutMs,
+        CLOSE_WITHIN_MS,
       ),
     };
     this.pending = request;

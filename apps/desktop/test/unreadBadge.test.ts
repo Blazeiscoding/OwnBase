@@ -1,3 +1,4 @@
+import { existsSync } from "node:fs";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { UnreadIndicator, type UnreadSurfaces } from "../src/main/unreadBadge.js";
 
@@ -33,12 +34,32 @@ describe("what waits, on the taskbar button and the tray", () => {
   it("says 9+ past nine, and a dot for unread without a mention", () => {
     const { s, overlay, descriptions } = surfaces();
     const indicator = new UnreadIndicator(s);
-    indicator.set({ count: 12, dot: false });
-    vi.advanceTimersByTime(250);
+    for (const count of [9, 10, 12]) {
+      indicator.set({ count, dot: false });
+      vi.advanceTimersByTime(250);
+    }
     indicator.set({ count: 0, dot: true });
     vi.advanceTimersByTime(250);
-    expect(overlay).toEqual(["badge-9plus.png", "badge-dot.png"]);
-    expect(descriptions).toEqual(["12 unread mentions", "Unread messages"]);
+    expect(overlay).toEqual(["badge-9.png", "badge-9plus.png", "badge-9plus.png", "badge-dot.png"]);
+    expect(descriptions).toEqual([
+      "9 unread mentions",
+      "10 unread mentions",
+      "12 unread mentions",
+      "Unread messages",
+    ]);
+  });
+
+  it("has a picture in the app for every overlay it puts up", () => {
+    const { s, overlay } = surfaces();
+    const indicator = new UnreadIndicator(s);
+    for (let count = 0; count <= 100; count++) {
+      indicator.set({ count, dot: count % 2 === 0 });
+      vi.advanceTimersByTime(250);
+    }
+    const shown = new Set(overlay.filter((file): file is string => file !== null));
+    expect(shown.size).toBe(11);
+    for (const file of shown)
+      expect(existsSync(new URL(`../build/${file}`, import.meta.url)), file).toBe(true);
   });
 
   it("takes the overlay off and gives the tray its own icon back at zero", () => {

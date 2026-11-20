@@ -18,17 +18,12 @@ export type RecoveryStep = "reload" | "ask";
 export class RendererRecovery {
   private failures: number[] = [];
 
-  constructor(
-    private readonly policy: { maxReloads: number; windowMs: number } = RENDERER_RECOVERY,
-    private readonly now: () => number = Date.now,
-  ) {}
-
   /** The page died or did not load: whether to load it again, or to ask. */
   failed(): RecoveryStep {
-    const at = this.now();
-    this.failures = this.failures.filter((time) => at - time < this.policy.windowMs);
+    const at = Date.now();
+    this.failures = this.failures.filter((time) => at - time < RENDERER_RECOVERY.windowMs);
     this.failures.push(at);
-    return this.failures.length <= this.policy.maxReloads ? "reload" : "ask";
+    return this.failures.length <= RENDERER_RECOVERY.maxReloads ? "reload" : "ask";
   }
 
   /** Someone asked to try again: their try starts a fresh count. */
@@ -45,6 +40,8 @@ export function isRendererLoadFailure(errorCode: number, isMainFrame: boolean): 
   // -3 is ERR_ABORTED: another navigation took over, which is not a failure.
   return isMainFrame && errorCode !== -3;
 }
+
+const PLACE_MAX_BYTES = 32 * 1024;
 
 /** A place as the page reports it: its address and its history entry's state. */
 export interface Place {
@@ -67,10 +64,7 @@ export class PlaceCheckpoint {
   private place: Place | null = null;
   private restoring: Place | null = null;
 
-  constructor(
-    private readonly trusted: (url: string) => boolean,
-    private readonly maxBytes = 32 * 1024,
-  ) {}
+  constructor(private readonly trusted: (url: string) => boolean) {}
 
   /** Notes where the page is now. Says whether it was taken. */
   remember(url: unknown, state: unknown): boolean {
@@ -81,7 +75,7 @@ export class PlaceCheckpoint {
     } catch {
       return false;
     }
-    if (json === undefined || json.length > this.maxBytes) return false;
+    if (json === undefined || json.length > PLACE_MAX_BYTES) return false;
     this.place = { url, state: JSON.parse(json) as unknown };
     return true;
   }
