@@ -39,7 +39,10 @@ describe("listening to a client", () => {
   const emit = (_client: WorkspaceClient, messageId: string) =>
     net.deliver({
       type: "event",
-      envelope: { seq: ++seq, event: { type: "message.deleted", channelId: "C1", messageId } },
+      envelope: {
+        seq: ++seq,
+        event: { type: "message.deleted", channelId: "C1", messageId, threadRootId: null },
+      },
     });
 
   it("tells every listener, and stops telling only the one that left", () => {
