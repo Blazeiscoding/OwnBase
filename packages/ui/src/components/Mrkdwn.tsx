@@ -166,7 +166,7 @@ function CodeBlock({
   return (
     <code
       dir="ltr"
-      className="my-1 block overflow-x-auto rounded-lg border border-edge bg-ground px-3 py-2 font-mono text-[13px]"
+      className="my-1 block overflow-x-auto whitespace-pre rounded-lg border border-edge bg-ground px-3 py-2 font-mono text-[13px]"
     >
       {runs
         ? runs.map(([text, className], i) =>

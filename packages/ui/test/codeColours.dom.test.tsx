@@ -31,7 +31,7 @@ describe("colours in code blocks (J15)", () => {
     expect(kinds).toEqual(
       expect.arrayContaining([
         ["const", "text-syntax-keyword"],
-        ["// the answer", "text-syntax-comment"],
+        ["// the answer", "text-syntax-comment italic"],
         ["'a'", "text-syntax-string"],
         ["1", "text-syntax-number"],
         ["f", "text-syntax-name"],
