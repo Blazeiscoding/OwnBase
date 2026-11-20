@@ -991,7 +991,7 @@ export class WorkspaceClient {
    * there is one. The server is told so the person's other devices follow;
    * the app is told nothing, as in Slack.
    */
-  dismissModal(viewId?: ID): void {
+  dismissModal(viewId = this.state.modal?.id): void {
     this.modals.dismissModal(viewId);
   }
 
@@ -1005,7 +1005,7 @@ export class WorkspaceClient {
    */
   submitModal(
     values: Record<string, Record<string, string | string[]>>,
-    viewId?: ID,
+    viewId = this.state.modal?.id,
   ): Promise<ViewSubmitted | ApiError> {
     return this.modals.submitModal(values, viewId);
   }
