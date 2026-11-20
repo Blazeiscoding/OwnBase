@@ -23,6 +23,8 @@ export function AddPeople({
   where,
   disabled,
   autoFocus,
+  label = "Add someone",
+  quiet,
   onAdd,
 }: {
   /** Who can be added: not already in, not deactivated, not an app. */
@@ -32,6 +34,9 @@ export function AddPeople({
   disabled?: boolean;
   /** Takes focus as it appears, for a dialog opened to add people. */
   autoFocus?: boolean;
+  label?: string;
+  /** Says nothing on adding, for a form that is saved later, where nobody is added yet. */
+  quiet?: boolean;
   /** Adds them; says whether it worked (a failure is reported by the caller). */
   onAdd: (userId: ID) => Promise<boolean>;
 }) {
@@ -62,14 +67,14 @@ export function AddPeople({
     if (await onAdd(user.id)) {
       setQ("");
       list.choose(0);
-      toast({ message: `Added ${user.displayName} to ${where}.`, kind: "success" });
+      if (!quiet) toast({ message: `Added ${user.displayName} to ${where}.`, kind: "success" });
     }
   }
 
   return (
     <div>
       <label htmlFor={inputId} className="mb-1.5 block text-[13px] font-semibold text-ink">
-        Add someone
+        {label}
       </label>
       <div className="relative">
         <Icon
@@ -120,7 +125,7 @@ export function AddPeople({
             <li
               key={u.id}
               {...list.optionProps(i)}
-              aria-label={`${u.displayName}, @${u.handle}`}
+              aria-label={`${u.displayName} @${u.handle}`}
               onClick={() => void add(u)}
               className={`flex cursor-pointer items-center gap-2.5 rounded-lg px-2 py-1.5 text-sm ${
                 i === list.active ? "channel-row-active text-ink" : "text-ink-dim"
@@ -136,9 +141,9 @@ export function AddPeople({
                 />
               </span>
               <span className="min-w-0 flex-1 truncate">
-                {u.displayName} <span className="text-[12px] text-ink-faint">@{u.handle}</span>
+                {u.displayName} <span className="text-[12px] text-ink-dim">@{u.handle}</span>
               </span>
-              <span aria-hidden="true" className="text-[12px] text-ink-faint">
+              <span aria-hidden="true" className="text-[12px] text-ink-dim">
                 {i === list.active ? "Add ↵" : ""}
               </span>
             </li>

@@ -50,6 +50,7 @@ export type Dialog =
   | { kind: "diagnostics"; callLog?: boolean }
   | { kind: "apps" }
   | { kind: "people" }
+  | { kind: "groups" }
   | { kind: "reports" }
   | { kind: "workspace" }
   | { kind: "guest-account" };
@@ -98,6 +99,7 @@ const ROUTE_DIALOG_KINDS = {
   account: "account",
   workspace: "workspace",
   people: "people",
+  groups: "groups",
   reports: "reports",
   apps: "apps",
   invite: "invite",

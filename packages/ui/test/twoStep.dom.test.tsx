@@ -7,6 +7,7 @@ import type { ServerInfo, ServerToClient, User } from "@ownbase/protocol";
 import { AccountDialog } from "../src/components/AccountDialog.js";
 import { PeopleDialog } from "../src/components/PeopleDialog.js";
 import { JoinScreen } from "../src/screens/JoinScreen.js";
+import { NavigationContext, Navigation } from "../src/lib/navigation.js";
 import { ClientContext, PlatformContext } from "../src/context.js";
 import type { HostingStatus, Platform, SavedServer } from "../src/platform.js";
 import { accessibilityProblems } from "./accessibility.js";
@@ -409,7 +410,11 @@ describe("resetting someone's two-step sign-in", () => {
     const reset = vi.spyOn(client.api, "resetTwoStep").mockResolvedValue({ ok: true });
     render(
       <ClientContext.Provider value={client}>
-        <PeopleDialog onClose={() => {}} />
+        <NavigationContext.Provider
+          value={new Navigation(client, client.baseUrl, { channelId: null })}
+        >
+          <PeopleDialog onClose={() => {}} />
+        </NavigationContext.Provider>
       </ClientContext.Provider>,
     );
     const dialog = within(screen.getByRole("dialog", { name: "People" }));

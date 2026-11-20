@@ -207,6 +207,15 @@ export const ACTIONS = [
     run: (ctx) => ctx.nav.navigate({ to: "dialog", dialog: { kind: "people" } }),
   },
   {
+    id: "groups",
+    label: "Groups",
+    icon: "at",
+    keywords: "user groups mention teams handle",
+    palette: { label: "Manage groups" },
+    available: admin,
+    run: (ctx) => ctx.nav.navigate({ to: "dialog", dialog: { kind: "groups" } }),
+  },
+  {
     id: "reports",
     label: "Reported messages",
     icon: "flag",
@@ -337,6 +346,7 @@ export const WORKSPACE_MENU: readonly MenuPlace[] = [
   { id: "create-account" },
   { id: "invite" },
   { id: "people" },
+  { id: "groups" },
   {
     id: "reports",
     hint: (ctx) => (ctx.state.openReports ? `${ctx.state.openReports} waiting` : undefined),

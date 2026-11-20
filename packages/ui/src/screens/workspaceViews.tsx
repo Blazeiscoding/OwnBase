@@ -61,6 +61,9 @@ const AppsDialog = lazy(() =>
 const PeopleDialog = lazy(() =>
   import("../components/PeopleDialog.js").then((module) => ({ default: module.PeopleDialog })),
 );
+const GroupsDialog = lazy(() =>
+  import("../components/GroupsDialog.js").then((module) => ({ default: module.GroupsDialog })),
+);
 const ReportsDialog = lazy(() =>
   import("../components/ReportsDialog.js").then((module) => ({ default: module.ReportsDialog })),
 );
@@ -470,6 +473,12 @@ const DIALOGS: { [K in Exclude<DialogKind, "none">]: DialogView<K> } = {
     action: "people",
     admin: true,
     render: (_, { close }) => <PeopleDialog onClose={close} />,
+  },
+  groups: {
+    loading: "Loading settings",
+    action: "groups",
+    admin: true,
+    render: (_, { close }) => <GroupsDialog onClose={close} />,
   },
   reports: {
     loading: "Loading settings",
