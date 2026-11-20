@@ -1,7 +1,8 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { HuddleSignal, ID } from "@ownbase/protocol";
 import type { CallReport } from "@ownbase/protocol";
-import { HuddleSession, STALL_MS, withStereoScreenSound } from "../src/huddle.js";
+import { HuddleSession, STALL_MS } from "../src/huddle.js";
+import { withStereoScreenSound } from "../src/screenShare.js";
 import {
   cameraEncoding,
   cameraEncodingFor,
