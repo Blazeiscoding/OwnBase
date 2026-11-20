@@ -21,7 +21,6 @@ export function EmailSettings() {
   const id = useId();
   /** Undefined until asked; null where the workspace sends no email. */
   const [status, setStatus] = useState<EmailAddressInfo | null | undefined>(undefined);
-  const [loadError, setLoadError] = useState(false);
   const [editing, setEditing] = useState(false);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -36,12 +35,10 @@ export function EmailSettings() {
   const load = useCallback(async () => {
     const answer = await client.account.emailAddress();
     if (!alive.current) return;
-    if (answer instanceof ApiError) {
-      setLoadError(true);
-      return;
-    }
+    // A failed check shows nothing new, as where the workspace sends no email.
+    // One that worked before is kept, and is asked again next time.
+    if (answer instanceof ApiError) return;
     setStatus(answer);
-    setLoadError(false);
   }, [client]);
   useEffect(() => {
     alive.current = true;
@@ -54,7 +51,7 @@ export function EmailSettings() {
     if (editing) field.current?.focus();
   }, [editing]);
 
-  if (!owned || status === null || (status === undefined && !loadError)) return null;
+  if (!owned || !status) return null;
 
   function open() {
     setEditing(true);
@@ -118,23 +115,11 @@ export function EmailSettings() {
         Email address
       </h3>
       <p className="mt-1 text-sm text-ink-dim">
-        {status?.email
+        {status.email
           ? `${status.email}. If you forget your password, a link to set a new one goes here. Only you see it.`
           : "Add one so that, if you forget your password, a link to set a new one can go to it. Only you see it."}
       </p>
-      {loadError && (
-        <p role="alert" className="mt-3 text-sm text-alert">
-          Could not check your email address.{" "}
-          <button
-            type="button"
-            className="underline underline-offset-2"
-            onClick={() => void load()}
-          >
-            Try again
-          </button>
-        </p>
-      )}
-      {status?.pending && !editing && (
+      {status.pending && !editing && (
         <p className="mt-3 text-sm text-ink-dim">
           Waiting for you to open the link sent to {status.pending}. It works for 24 hours.
         </p>
@@ -150,7 +135,7 @@ export function EmailSettings() {
         </p>
       )}
 
-      {status && !editing && (
+      {!editing && (
         <div className="mt-3 flex flex-wrap gap-2">
           <button type="button" className={buttonClass("secondary")} onClick={open}>
             {status.email ? "Change address" : "Add email address"}

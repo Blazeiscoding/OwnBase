@@ -226,6 +226,16 @@ describe("the email address in Account settings", () => {
     expect(screen.queryByRole("heading", { name: "Email address" })).toBeNull();
   });
 
+  it("is not there, and says nothing, when the workspace cannot be asked", async () => {
+    const client = workspace(info());
+    vi.mocked(client.api.serverInfo).mockRejectedValue(new ApiError(0, "network_error"));
+    settings(client);
+    await waitFor(() => expect(client.api.serverInfo).toHaveBeenCalled());
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(screen.queryByRole("heading", { name: "Email address" })).toBeNull();
+    expect(screen.queryByRole("alert")).toBeNull();
+  });
+
   it("is added with the password, and waits for its link to be opened", async () => {
     const client = workspace(info());
     const read = vi
