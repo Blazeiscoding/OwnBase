@@ -21,18 +21,27 @@ import typescript from "refractor/typescript";
 import yaml from "refractor/yaml";
 
 /** The colours a code block draws: one theme variable each. */
-export type SyntaxKind =
-  | "comment"
-  | "keyword"
-  | "string"
-  | "number"
-  | "name"
-  | "punctuation"
-  | "added"
-  | "removed";
+type SyntaxKind =
+  "comment" | "keyword" | "string" | "number" | "name" | "punctuation" | "added" | "removed";
 
-/** A stretch of a block's code and its colour; null is the block's own text colour. */
-export type CodeRun = readonly [text: string, kind: SyntaxKind | null];
+/**
+ * Each colour's class, here rather than where blocks are drawn, so that
+ * every visit's download carries none of this. Written out whole, since
+ * Tailwind finds the classes it builds by reading the source.
+ */
+const CLASS: Record<SyntaxKind, string> = {
+  comment: "text-syntax-comment",
+  keyword: "text-syntax-keyword",
+  string: "text-syntax-string",
+  number: "text-syntax-number",
+  name: "text-syntax-name",
+  punctuation: "text-syntax-punctuation",
+  added: "text-syntax-added",
+  removed: "text-syntax-removed",
+};
+
+/** A stretch of a block's code and the class of its colour; null is the block's own text colour. */
+export type CodeRun = readonly [text: string, className: string | null];
 
 for (const syntax of [
   markup,
@@ -118,11 +127,28 @@ function kindOf(node: Node): SyntaxKind | null {
   return null;
 }
 
+/** Past these, a block is drawn plain: colouring it would hold up the timeline. */
+export const MAX_COLOURED_CHARACTERS = 50_000;
+export const MAX_COLOURED_LINES = 1_000;
 /**
- * `code` cut into runs of one colour each, in order. Joined, they are `code`
- * exactly, so copying and reading a block are what they were without colour.
+ * The longest run without a space a coloured block may hold. Prism's time
+ * grows with the square of such a run: a pasted key, base64 or a minified
+ * line of 48 kB took over 3 s.
  */
-export function highlight(code: string, language: string): CodeRun[] {
+export const MAX_COLOURED_WORD = 500;
+
+/**
+ * `code` cut into runs of one colour each, in order, or null for a block too
+ * big to colour. Joined, the runs are `code` exactly, so copying and reading
+ * a block are what they were without colour.
+ */
+export function highlight(code: string, language: string): CodeRun[] | null {
+  if (
+    code.length > MAX_COLOURED_CHARACTERS ||
+    code.split("\n").length > MAX_COLOURED_LINES ||
+    code.split(/\s/).some((word) => word.length > MAX_COLOURED_WORD)
+  )
+    return null;
   const runs: [string, SyntaxKind | null][] = [];
   const walk = (nodes: readonly Node[], inherited: SyntaxKind | null) => {
     for (const node of nodes) {
@@ -136,5 +162,5 @@ export function highlight(code: string, language: string): CodeRun[] {
     }
   };
   walk(refractor.highlight(code, language).children, null);
-  return runs;
+  return runs.map(([text, kind]) => [text, kind && CLASS[kind]]);
 }

@@ -1,58 +1,14 @@
-import { useEffect, useSyncExternalStore } from "react";
-import type { CodeRun } from "./highlighter.js";
-
-export type { CodeRun, SyntaxKind } from "./highlighter.js";
+import { useEffect, useState } from "react";
+import type { highlight } from "./highlighter.js";
 
 /**
- * The words a code block's opening fence may carry, as Markdown's do, and the
- * language each names. Only these: a word not here is the code's first line.
+ * The words a code block's opening fence may carry, as Markdown's do: each
+ * language's name as the highlighter knows it, then the other words for it.
+ * Only these: a word not here is the code's first line. One string, since
+ * every visit downloads it.
  */
-const LANGUAGES: Record<string, string> = {
-  js: "javascript",
-  javascript: "javascript",
-  jsx: "javascript",
-  mjs: "javascript",
-  ts: "typescript",
-  typescript: "typescript",
-  tsx: "typescript",
-  json: "json",
-  html: "markup",
-  xml: "markup",
-  svg: "markup",
-  css: "css",
-  py: "python",
-  python: "python",
-  go: "go",
-  golang: "go",
-  rs: "rust",
-  rust: "rust",
-  java: "java",
-  c: "c",
-  h: "c",
-  cpp: "cpp",
-  "c++": "cpp",
-  cc: "cpp",
-  hpp: "cpp",
-  cs: "csharp",
-  csharp: "csharp",
-  "c#": "csharp",
-  sh: "bash",
-  bash: "bash",
-  shell: "bash",
-  zsh: "bash",
-  sql: "sql",
-  yaml: "yaml",
-  yml: "yaml",
-  dockerfile: "docker",
-  docker: "docker",
-  diff: "diff",
-  patch: "diff",
-  md: "markdown",
-  markdown: "markdown",
-  rb: "ruby",
-  ruby: "ruby",
-  php: "php",
-};
+const WORDS =
+  "javascript js jsx|typescript ts tsx|json|markup html xml|css|python py|go golang|rust rs|java|c h|cpp c++|csharp cs c#|bash sh shell|sql|yaml yml|docker dockerfile|diff patch|markdown md|ruby rb|php";
 
 /**
  * A block's language and its code, when its first line is one known language
@@ -61,65 +17,35 @@ const LANGUAGES: Record<string, string> = {
  */
 export function codeLanguage(block: string): { language: string; code: string } | null {
   const end = block.indexOf("\n");
-  if (end === -1) return null;
   const word = block.slice(0, end).trimEnd().toLowerCase();
-  if (!Object.hasOwn(LANGUAGES, word)) return null;
-  return { language: LANGUAGES[word]!, code: block.slice(end + 1) };
+  const names = end > 0 && WORDS.split("|").find((group) => group.split(" ").includes(word));
+  return names ? { language: names.split(" ")[0]!, code: block.slice(end + 1) } : null;
 }
 
-/** Past this, a block is drawn plain: colouring it would hold up the timeline. */
-export const MAX_COLOURED_CHARACTERS = 50_000;
-export const MAX_COLOURED_LINES = 1_000;
+type Highlight = typeof highlight;
 
-export function colourable(code: string): boolean {
-  if (code.length > MAX_COLOURED_CHARACTERS) return false;
-  let lines = 1;
-  for (let i = code.indexOf("\n"); i !== -1; i = code.indexOf("\n", i + 1))
-    if (++lines > MAX_COLOURED_LINES) return false;
-  return true;
-}
-
-type Highlight = (code: string, language: string) => CodeRun[];
-
-let loaded: Highlight | null = null;
-let loading: Promise<Highlight> | null = null;
-const listeners = new Set<() => void>();
+let loaded: Highlight | undefined;
+let loading: Promise<Highlight> | undefined;
 
 /**
  * The highlighter, loaded once for the whole app on the first block that asks
- * for it, so a visit that shows no code block downloads none of it. A failed
- * load (the app went offline) leaves blocks plain, and the next block to draw
- * tries again.
+ * for it, so a visit that shows no code block downloads none of it. If it
+ * fails to load, blocks stay plain until the app is opened again.
  */
 export function loadHighlighter(): Promise<Highlight> {
-  loading ??= import("./highlighter.js").then(
-    (module) => {
-      loaded = module.highlight;
-      for (const listener of listeners) listener();
-      return module.highlight;
-    },
-    (error: unknown) => {
-      loading = null;
-      throw error;
-    },
-  );
-  return loading;
+  return (loading ??= import("./highlighter.js").then((module) => (loaded = module.highlight)));
 }
 
-function subscribe(listener: () => void) {
-  listeners.add(listener);
-  return () => listeners.delete(listener);
-}
-
-/** The highlighter once it has loaded, asking for it when `wanted`; null until then. */
-export function useHighlighter(wanted: boolean): Highlight | null {
-  const current = useSyncExternalStore(
-    subscribe,
-    () => loaded,
-    () => null,
-  );
+/** The highlighter once it has loaded, asking for it when `wanted`. */
+export function useHighlighter(wanted: boolean): Highlight | undefined {
+  const [current, setCurrent] = useState(() => loaded);
   useEffect(() => {
-    if (wanted && !loaded) loadHighlighter().catch(() => {});
-  }, [wanted]);
-  return wanted ? current : null;
+    // Wrapped, since state set to a function would call it.
+    if (wanted && !current)
+      loadHighlighter().then(
+        (highlight) => setCurrent(() => highlight),
+        () => {},
+      );
+  }, [wanted, current]);
+  return current;
 }

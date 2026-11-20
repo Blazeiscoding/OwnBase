@@ -4,7 +4,7 @@ import type { Channel, CustomEmoji, UserGroup } from "@ownbase/protocol";
 import { OpenMessageContext } from "../context.js";
 import { CustomEmojiImage, customEmojiFor, useCustomEmoji } from "./CustomEmoji.js";
 import { GroupMention } from "./GroupMention.js";
-import { codeLanguage, colourable, useHighlighter, type SyntaxKind } from "../lib/codeColours.js";
+import { codeLanguage, useHighlighter } from "../lib/codeColours.js";
 import { parseDeepLink } from "../lib/deeplink.js";
 import { channelMentionLabel, userMentionLabel } from "../lib/mentionDocument.js";
 import { useOwnAddress } from "./ShareableServer.js";
@@ -140,18 +140,6 @@ export function Mrkdwn({
   );
 }
 
-/** Each syntax colour's class, one theme variable each (theme.css). */
-const SYNTAX_CLASS: Record<SyntaxKind, string> = {
-  comment: "text-syntax-comment",
-  keyword: "text-syntax-keyword",
-  string: "text-syntax-string",
-  number: "text-syntax-number",
-  name: "text-syntax-name",
-  punctuation: "text-syntax-punctuation",
-  added: "text-syntax-added",
-  removed: "text-syntax-removed",
-};
-
 /**
  * A fenced block. A language word alone on the fence line, as Markdown writes
  * one, names its language and is not drawn. Where colours are asked for, the
@@ -168,9 +156,9 @@ function CodeBlock({
   highlight: (value: string) => ReactNode;
 }) {
   const parsed = codeLanguage(block);
-  const code = parsed ? trimAtFences(parsed.code, false, true) : trimAtFences(block, true, true);
-  const language = colours && parsed && colourable(code) ? parsed.language : null;
-  const highlighter = useHighlighter(language !== null);
+  const code = trimAtFences(parsed?.code ?? block, !parsed, true);
+  const language = colours && parsed?.language;
+  const highlighter = useHighlighter(!!language);
   const runs = useMemo(
     () => (highlighter && language ? highlighter(code, language) : null),
     [highlighter, code, language],
@@ -178,17 +166,16 @@ function CodeBlock({
   return (
     <code
       dir="ltr"
-      data-language={parsed?.language}
       className="my-1 block overflow-x-auto rounded-lg border border-edge bg-ground px-3 py-2 font-mono text-[13px]"
     >
       {runs
-        ? runs.map(([text, kind], i) =>
-            kind ? (
-              <span key={i} className={SYNTAX_CLASS[kind]}>
+        ? runs.map(([text, className], i) =>
+            className ? (
+              <span key={i} className={className}>
                 {text}
               </span>
             ) : (
-              <Fragment key={i}>{text}</Fragment>
+              text
             ),
           )
         : highlight(code)}

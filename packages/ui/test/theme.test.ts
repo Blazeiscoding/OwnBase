@@ -142,7 +142,16 @@ describe("the other themes", () => {
   });
 
   it("keep every code colour readable on a code block's ground, in Onyx and White (J15)", () => {
-    const kinds = ["comment", "keyword", "string", "number", "name", "punctuation", "added", "removed"];
+    const kinds = [
+      "comment",
+      "keyword",
+      "string",
+      "number",
+      "name",
+      "punctuation",
+      "added",
+      "removed",
+    ];
     const pairs = kinds.map((kind): [string, string] => [`syntax-${kind}`, "ground"]);
     for (const theme of ["dark", "light"] as const) {
       for (const [text] of pairs) expect(colourTokens(theme), theme).toHaveProperty(text);

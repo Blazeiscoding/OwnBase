@@ -6,6 +6,7 @@ import { createStore } from "zustand/vanilla";
 import type { WorkspaceClient } from "@ownbase/client-core";
 import { escapeMrkdwn, type Channel, type ID, type User } from "@ownbase/protocol";
 import { Mrkdwn } from "../src/components/Mrkdwn.js";
+import { codeLanguage } from "../src/lib/codeColours.js";
 import { ClientContext } from "../src/context.js";
 
 const users: Record<ID, User> = {
@@ -85,37 +86,41 @@ describe("Mrkdwn", () => {
 
   describe("a code block's language word (J15)", () => {
     it("reads a known language alone on the fence line, and does not draw it", () => {
-      const html = render("```ts\nconst x = 1;\n```");
-      expect(html).toMatch(/<code[^>]* data-language="typescript"[^>]*>const x = 1;<\/code>/);
-      expect(html).not.toContain("ts\n");
+      expect(codeLanguage("ts\nconst x = 1;\n")).toEqual({
+        language: "typescript",
+        code: "const x = 1;\n",
+      });
+      expect(render("```ts\nconst x = 1;\n```")).toMatch(/<code[^>]*>const x = 1;<\/code>/);
     });
 
     it("reads a language however it is written, and keeps the lines after it", () => {
-      expect(render("```Python\n\nprint(1)\n```")).toMatch(
-        /<code[^>]* data-language="python"[^>]*>\nprint\(1\)<\/code>/,
-      );
-      expect(render("```c++\nint x;\n```")).toContain('data-language="cpp"');
+      expect(codeLanguage("Python \n\nprint(1)")).toEqual({
+        language: "python",
+        code: "\nprint(1)",
+      });
+      expect(codeLanguage("c++\nint x;")?.language).toBe("cpp");
+      expect(render("```Python\n\nprint(1)\n```")).toMatch(/<code[^>]*>\nprint\(1\)<\/code>/);
     });
 
     it("draws a block with no word exactly as before", () => {
-      const html = render("```\nconst x = 1;\n```");
-      expect(html).not.toContain("data-language");
-      expect(html).toMatch(/<code[^>]*>const x = 1;<\/code>/);
+      expect(codeLanguage("\nconst x = 1;\n")).toBeNull();
+      expect(render("```\nconst x = 1;\n```")).toMatch(/<code[^>]*>const x = 1;<\/code>/);
     });
 
     it("draws an unknown word as code, as before", () => {
-      const html = render("```deploy\npnpm build\n```");
-      expect(html).not.toContain("data-language");
-      expect(html).toMatch(/<code[^>]*>deploy\npnpm build<\/code>/);
+      expect(codeLanguage("deploy\npnpm build\n")).toBeNull();
+      expect(render("```deploy\npnpm build\n```")).toMatch(/<code[^>]*>deploy\npnpm build<\/code>/);
     });
 
     it("leaves code that starts on the fence line as it was", () => {
-      const html = render("```const x = 1```");
-      expect(html).not.toContain("data-language");
-      expect(html).toMatch(/<code[^>]*>const x = 1<\/code>/);
-      // A language name with more after it is code too.
+      expect(codeLanguage("const x = 1")).toBeNull();
+      expect(render("```const x = 1```")).toMatch(/<code[^>]*>const x = 1<\/code>/);
+      // A language name with more after it is code too, two names included.
+      expect(codeLanguage("ts const x\n")).toBeNull();
+      expect(codeLanguage("c h\nint x;")).toBeNull();
       expect(render("```ts const x\n```")).toMatch(/<code[^>]*>ts const x<\/code>/);
       // And so is a language name that is all the block holds.
+      expect(codeLanguage("ts")).toBeNull();
       expect(render("```ts```")).toMatch(/<code[^>]*>ts<\/code>/);
     });
   });

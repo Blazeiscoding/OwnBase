@@ -1,12 +1,13 @@
 import { act, render } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 import { Mrkdwn } from "../src/components/Mrkdwn.js";
+import { loadHighlighter } from "../src/lib/codeColours.js";
 import {
   MAX_COLOURED_CHARACTERS,
   MAX_COLOURED_LINES,
-  colourable,
-  loadHighlighter,
-} from "../src/lib/codeColours.js";
+  MAX_COLOURED_WORD,
+  highlight,
+} from "../src/lib/highlighter.js";
 
 const SOURCE = "const x: number = 1; // the answer\nfunction f() {\n  return 'a';\n}";
 
@@ -80,13 +81,23 @@ describe("the size limit (J15)", () => {
 
   it("colours up to 1,000 lines and no more", () => {
     expect(MAX_COLOURED_LINES).toBe(1_000);
-    expect(colourable(lines(1_000))).toBe(true);
-    expect(colourable(lines(1_001))).toBe(false);
+    expect(highlight(lines(1_000), "typescript")).not.toBeNull();
+    expect(highlight(lines(1_001), "typescript")).toBeNull();
   });
 
   it("colours up to 50 kB and no more", () => {
     expect(MAX_COLOURED_CHARACTERS).toBe(50_000);
-    expect(colourable("x".repeat(50_000))).toBe(true);
-    expect(colourable("x".repeat(50_001))).toBe(false);
+    expect(highlight("x ".repeat(25_000), "typescript")).not.toBeNull();
+    expect(highlight("x ".repeat(25_000) + "x", "typescript")).toBeNull();
+  });
+
+  it("colours no block holding a run of more than 500 characters without a space", () => {
+    // Prism takes time that grows with the square of such a run: 48 kB of
+    // base64 in one string took over 3 s, where 410 lines of code take 20 ms.
+    expect(MAX_COLOURED_WORD).toBe(500);
+    // The run is the quotes, the letters and the semicolon.
+    const run = (length: number) => `const key = '${"a".repeat(length - 3)}';\n`;
+    expect(highlight(run(500), "typescript")).not.toBeNull();
+    expect(highlight(run(501), "typescript")).toBeNull();
   });
 });
