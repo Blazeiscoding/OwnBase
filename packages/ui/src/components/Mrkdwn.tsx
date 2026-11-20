@@ -1,9 +1,10 @@
-import { Fragment, useContext, type ReactNode } from "react";
+import { Fragment, useContext, useMemo, type ReactNode } from "react";
 import { broadcastLabel, type ID, type User } from "@ownbase/protocol";
 import type { Channel, CustomEmoji, UserGroup } from "@ownbase/protocol";
 import { OpenMessageContext } from "../context.js";
 import { CustomEmojiImage, customEmojiFor, useCustomEmoji } from "./CustomEmoji.js";
 import { GroupMention } from "./GroupMention.js";
+import { codeLanguage, useHighlighter } from "../lib/codeColours.js";
 import { parseDeepLink } from "../lib/deeplink.js";
 import { channelMentionLabel, userMentionLabel } from "../lib/mentionDocument.js";
 import { useOwnAddress } from "./ShareableServer.js";
@@ -16,6 +17,11 @@ interface Props {
   selfId?: ID;
   onChannelClick?: (id: ID) => void;
   highlightTerms?: readonly string[];
+  /**
+   * Colour code blocks that name their language: the timeline and the thread
+   * panel ask. Lists of matches, saved and pinned messages stay plain.
+   */
+  codeColours?: boolean;
 }
 
 /**
@@ -33,6 +39,7 @@ export function Mrkdwn({
   selfId,
   onChannelClick,
   highlightTerms = [],
+  codeColours,
 }: Props) {
   const openMessage = useContext(OpenMessageContext);
   const ours = useOwnAddress();
@@ -65,13 +72,12 @@ export function Mrkdwn({
     <span className="whitespace-pre-wrap break-words leading-[1.45]">
       {blocks.map((block, i) =>
         i % 2 === 1 ? (
-          <code
+          <CodeBlock
             key={i}
-            dir="ltr"
-            className="my-1 block overflow-x-auto rounded-lg border border-edge bg-ground px-3 py-2 font-mono text-[13px]"
-          >
-            {highlight(trimAtFences(block, true, true))}
-          </code>
+            block={block}
+            colours={codeColours && !pattern}
+            highlight={highlight}
+          />
         ) : (
           <Fragment key={i}>
             {lineRuns(trimAtFences(block, i > 0, i < blocks.length - 1)).map((run, j) => {
@@ -131,6 +137,49 @@ export function Mrkdwn({
         ),
       )}
     </span>
+  );
+}
+
+/**
+ * A fenced block. A language word alone on the fence line, as Markdown writes
+ * one, names its language and is not drawn. Where colours are asked for, the
+ * block draws plain at once and takes them when the highlighter arrives; only
+ * the colours change, so the timeline does not move.
+ */
+function CodeBlock({
+  block,
+  colours,
+  highlight,
+}: {
+  block: string;
+  colours?: boolean;
+  highlight: (value: string) => ReactNode;
+}) {
+  const parsed = codeLanguage(block);
+  const code = trimAtFences(parsed?.code ?? block, !parsed, true);
+  const language = colours && parsed?.language;
+  const highlighter = useHighlighter(!!language);
+  const runs = useMemo(
+    () => language && highlighter?.(code, language),
+    [highlighter, code, language],
+  );
+  return (
+    <code
+      dir="ltr"
+      className="my-1 block overflow-x-auto rounded-lg border border-edge bg-ground px-3 py-2 font-mono text-[13px]"
+    >
+      {runs
+        ? runs.map(([text, className], i) =>
+            className ? (
+              <span key={i} className={className}>
+                {text}
+              </span>
+            ) : (
+              text
+            ),
+          )
+        : highlight(code)}
+    </code>
   );
 }
 

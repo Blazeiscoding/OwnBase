@@ -560,6 +560,7 @@ const MessageRow = memo(function MessageRow({
                   channels={channels}
                   selfId={selfId}
                   onChannelClick={onChannelClick}
+                  codeColours
                 />
                 {message.editedAt && (
                   <span

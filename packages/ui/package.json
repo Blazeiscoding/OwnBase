@@ -17,6 +17,7 @@
     "@ownbase/client-core": "workspace:*",
     "@ownbase/protocol": "workspace:*",
     "@sapphi-red/web-noise-suppressor": "0.4.1",
+    "refractor": "5.0.0",
     "uqr": "0.1.3",
     "zustand": "^5.1.0"
   },

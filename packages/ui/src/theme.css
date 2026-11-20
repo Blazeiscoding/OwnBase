@@ -80,6 +80,15 @@
   --color-away: #f3ba25; /* here but idle */
   --color-alert: #fa706a; /* mentions, errors, leaving, destructive */
   --color-mention: rgba(249, 115, 22, 0.08); /* a message that names you */
+  /* Code blocks' colours, on the ground colour (J15). */
+  --color-syntax-comment: #9d9ea6;
+  --color-syntax-keyword: #c99cfc;
+  --color-syntax-string: #75d78d;
+  --color-syntax-number: #faae60;
+  --color-syntax-name: #7cbdff;
+  --color-syntax-punctuation: #b9bac0;
+  --color-syntax-added: #5adc83;
+  --color-syntax-removed: #fc7a73;
 
   /*
    * Onest: open and round like Discord's own face, and bundled. Emoji are
@@ -536,6 +545,14 @@ body:has(> .call-dock) > .settings-backdrop[data-ownbase-modal] {
   --color-away: #b08400;
   --color-alert: #c52b30;
   --color-mention: rgba(163, 70, 0, 0.06);
+  --color-syntax-comment: #5f6068;
+  --color-syntax-keyword: #7f36bc;
+  --color-syntax-string: #067132;
+  --color-syntax-number: #965800;
+  --color-syntax-name: #0065b0;
+  --color-syntax-punctuation: #4e4f57;
+  --color-syntax-added: #007134;
+  --color-syntax-removed: #c2272d;
   --card-edge: rgba(15, 15, 19, 0.09);
   --card-edge-hover: rgba(15, 15, 19, 0.18);
   --card-fill: rgba(255, 255, 255, 0.6);
@@ -561,6 +578,14 @@ body:has(> .call-dock) > .settings-backdrop[data-ownbase-modal] {
     --color-away: #b08400;
     --color-alert: #c52b30;
     --color-mention: rgba(163, 70, 0, 0.06);
+    --color-syntax-comment: #5f6068;
+    --color-syntax-keyword: #7f36bc;
+    --color-syntax-string: #067132;
+    --color-syntax-number: #965800;
+    --color-syntax-name: #0065b0;
+    --color-syntax-punctuation: #4e4f57;
+    --color-syntax-added: #007134;
+    --color-syntax-removed: #c2272d;
     --card-edge: rgba(15, 15, 19, 0.09);
     --card-edge-hover: rgba(15, 15, 19, 0.18);
     --card-fill: rgba(255, 255, 255, 0.6);
@@ -615,6 +640,14 @@ body:has(> .call-dock) > .settings-backdrop[data-ownbase-modal] {
   --color-away: #f3ba25;
   --color-alert: #fa706a;
   --color-mention: rgba(249, 115, 22, 0.08);
+  --color-syntax-comment: #9d9ea6;
+  --color-syntax-keyword: #c99cfc;
+  --color-syntax-string: #75d78d;
+  --color-syntax-number: #faae60;
+  --color-syntax-name: #7cbdff;
+  --color-syntax-punctuation: #b9bac0;
+  --color-syntax-added: #5adc83;
+  --color-syntax-removed: #fc7a73;
   --sheen: inset 0 1px 0 rgb(255 255 255 / 0.06);
   --shadow-float:
     0 0 0 1px rgb(0 0 0 / 0.04), 0 2px 4px -1px rgb(0 0 0 / 0.18),
@@ -2063,6 +2096,14 @@ textarea::placeholder {
   mark {
     background: Mark;
     color: MarkText;
+  }
+  /*
+   * Code blocks' colours give way to the theme's text colour, which reads at
+   * the theme's own contrast. The browser draws them so anyway; said here, a
+   * checker such as axe, which reads the colours written, sees it too.
+   */
+  code [class*="text-syntax-"] {
+    color: CanvasText;
   }
   /* A switch drawn as a track and a thumb: both kept, in the theme's colours. */
   input[role="switch"] + span {

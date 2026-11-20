@@ -960,7 +960,10 @@ function PendingRow({ pending }: { pending: PendingMessage }) {
               channels={channels}
             />
           ) : (
-            pending.text && <Mrkdwn text={pending.text} users={users} channels={channels} />
+            // Coloured as it will be once sent, so the colours do not flicker off and on.
+            pending.text && (
+              <Mrkdwn text={pending.text} users={users} channels={channels} codeColours />
+            )
           )}
           <PendingAttachments attachments={pending.attachments} progress={pending.uploadProgress} />
           {pending.forward && (

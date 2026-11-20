@@ -20,7 +20,18 @@ export const INPUTS = {
   accent: "#f97316",
   /** Surfaces and inks: one graphite hue, this much colour at middle lightness, less toward black and white. */
   neutral: { hue: 282, chroma: 0.014 },
-  hues: { online: 151, away: 85, alert: 25 },
+  hues: {
+    online: 151,
+    away: 85,
+    alert: 25,
+    // Code blocks' colours (J15). Comments and punctuation are graphite.
+    "syntax-keyword": 305,
+    "syntax-string": 150,
+    "syntax-number": 65,
+    "syntax-name": 250,
+    "syntax-added": 151,
+    "syntax-removed": 25,
+  },
   /** Where each colour sits in each theme, as [lightness, chroma]; chroma is lowered to fit. */
   themes: {
     dark: {
@@ -39,6 +50,14 @@ export const INPUTS = {
       // Amber, as Discord and Teams show idle: never mistaken for online.
       away: [0.82, 0.16],
       alert: [0.71, 0.17],
+      "syntax-comment": 0.7,
+      "syntax-keyword": [0.77, 0.14],
+      "syntax-string": [0.8, 0.14],
+      "syntax-number": [0.81, 0.13],
+      "syntax-name": [0.78, 0.12],
+      "syntax-punctuation": 0.79,
+      "syntax-added": [0.8, 0.17],
+      "syntax-removed": [0.73, 0.16],
     },
     light: {
       deep: 0.935,
@@ -55,6 +74,14 @@ export const INPUTS = {
       online: [0.465, 0.12],
       away: [0.64, 0.14],
       alert: [0.54, 0.19],
+      "syntax-comment": 0.49,
+      "syntax-keyword": [0.5, 0.2],
+      "syntax-string": [0.48, 0.13],
+      "syntax-number": [0.52, 0.13],
+      "syntax-name": [0.5, 0.16],
+      "syntax-punctuation": 0.43,
+      "syntax-added": [0.48, 0.13],
+      "syntax-removed": [0.53, 0.19],
     },
   },
   /** Discord's red for what names you, as [lightness, chroma]: white on it reads at 4.5:1 in both themes. */
@@ -146,7 +173,7 @@ function themeColours(theme) {
     else if (typeof value === "number") {
       const { hue, chroma } = INPUTS.neutral;
       colours[name] = toGamut([value, chroma * 4 * value * (1 - value), hue]);
-    } else colours[name] = toGamut([value[0], value[1], hues[ROLE_HUE[name]]]);
+    } else colours[name] = toGamut([value[0], value[1], hues[ROLE_HUE[name] ?? name]]);
   }
   return colours;
 }
