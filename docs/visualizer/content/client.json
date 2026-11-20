@@ -2554,6 +2554,16 @@
       "concepts": ["moderation", "reports", "admin", "E12"]
     },
     {
+      "path": "packages/ui/src/components/AppReceive.tsx",
+      "plain": "The part of an app's card that says how it is sent things: at its URLs, or over connections it opens itself with Socket Mode.",
+      "summary": "AppReceive: a radio group saved through setAppReceive, and on Socket Mode the number of connections open and buttons to make, replace or take away the app-level token.",
+      "details": [
+        "Going back to URLs while a command or subscription has none shows the server's refusal, which names them, and the choice stays where it was.",
+        "Replacing or taking away a token asks first, since the app's connections close. A new token is handed to the card, which shows it once beside the other secrets."
+      ],
+      "concepts": ["apps", "socket mode", "J14"]
+    },
+    {
       "path": "packages/ui/src/components/AppsDialog.tsx",
       "plain": "Where bots and other connected apps are set up and managed, along with their slash commands and delivery status.",
       "summary": "Manages bot apps, webhooks, commands, subscriptions and callback configuration.",

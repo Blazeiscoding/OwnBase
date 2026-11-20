@@ -3,6 +3,7 @@ import type { ServerContext } from "../core/context.js";
 import { hashToken } from "../auth.js";
 import { slackRefusal, type Posting } from "../messages/posting.js";
 import { blocksToActions, payloadToText } from "./blockKit.js";
+import type { AppSockets } from "./sockets.js";
 
 /**
  * A failed Slack Web API call, answered the way Slack answers one: HTTP 200
@@ -41,7 +42,10 @@ export const structured = (value: unknown): unknown => {
  * and the Web API methods `auth.test` and `chat.postMessage`. The `views.*`
  * methods are with the forms they open (views.ts).
  */
-export function registerSlackApi(ctx: ServerContext, { posting }: { posting: Posting }) {
+export function registerSlackApi(
+  ctx: ServerContext,
+  { posting, sockets }: { posting: Posting; sockets: AppSockets },
+) {
   const { store, settings, route, ration, network } = ctx;
 
   route(endpoints.postToWebhook, async ({ req, reply, params }) => {
@@ -100,6 +104,13 @@ export function registerSlackApi(ctx: ServerContext, { posting }: { posting: Pos
       bot_id: owner.id,
       is_enterprise_install: false,
     };
+  });
+
+  route(endpoints.appsConnectionsOpen, async ({ req, bot: owner }) => {
+    if (owner.receive !== "socket") return slackError("socket_mode_disabled");
+    const ticket = sockets.tickets.issue(owner.id, store.apps.appLevelTokenHash(owner.id) ?? "");
+    const origin = network.requestOrigin(req).replace(/^http/, "ws");
+    return { ok: true, url: `${origin}/apps/socket?ticket=${ticket}` };
   });
 
   route(endpoints.chatPostMessage, async ({ req, reply, bot: owner }) => {

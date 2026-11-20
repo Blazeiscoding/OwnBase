@@ -62,6 +62,7 @@ function server() {
       Object.entries(people).find(([token]) => hashToken(token) === tokenHash)?.[1] ?? null,
     mustChangePassword: (id) => id === "L",
     appForToken: () => null,
+    appForAppLevelToken: () => null,
   });
   route(declared.guests, async ({ user }) => ({ id: user.id }));
   route(declared.members, async ({ user, body }) => ({ id: user.id, count: body.count }));

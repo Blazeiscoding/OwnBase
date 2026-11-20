@@ -76,6 +76,11 @@ export function isPrivateAddress(ip: string): boolean {
   return false;
 }
 
+/** How long a call out waits for its answer, unless it says otherwise. */
+export const OUTBOUND_TIMEOUT_MS = 4000;
+/** The most of an answer a call out reads, unless it says otherwise. */
+export const OUTBOUND_MAX_BYTES = 64 * 1024;
+
 export interface OutboundOptions {
   /** Skips the private-range check. Set by --allow-private-hooks. */
   allowPrivate?: boolean;
@@ -146,8 +151,8 @@ function exchange(
   headers: Record<string, string>,
   opts: OutboundOptions & { truncate?: boolean },
 ): Promise<RawResponse> {
-  const timeoutMs = opts.timeoutMs ?? 4000;
-  const maxBytes = opts.maxBytes ?? 64 * 1024;
+  const timeoutMs = opts.timeoutMs ?? OUTBOUND_TIMEOUT_MS;
+  const maxBytes = opts.maxBytes ?? OUTBOUND_MAX_BYTES;
   const refused = refusal(parsed, opts);
   if (refused) return Promise.reject(refused);
   if (opts.signal?.aborted) {
@@ -352,7 +357,7 @@ export async function getFromUrl(
   url: string,
   opts: OutboundOptions & { accept: string; maxRedirects?: number; truncate?: boolean },
 ): Promise<FetchedPage> {
-  const until = Date.now() + (opts.timeoutMs ?? 4000);
+  const until = Date.now() + (opts.timeoutMs ?? OUTBOUND_TIMEOUT_MS);
   let current = parseUrl(url);
   for (let hop = 0; ; hop++) {
     if (current instanceof OutboundError) throw current;

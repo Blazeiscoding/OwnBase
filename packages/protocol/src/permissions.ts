@@ -9,7 +9,7 @@ export function isAdministrator(role: Role | undefined | null): boolean {
 /**
  * Whether an account of `role` may call a route of `access`, as the server
  * decides it; `role` is undefined when nobody is signed in. A bot's routes
- * take an app's token, never a person's.
+ * and an app's take an app's token, never a person's.
  */
 export function roleMayCall(access: Access, role: Role | undefined | null): boolean {
   switch (access) {
@@ -24,6 +24,7 @@ export function roleMayCall(access: Access, role: Role | undefined | null): bool
     case "owner":
       return role === "owner";
     case "bot":
+    case "app":
       return false;
   }
 }

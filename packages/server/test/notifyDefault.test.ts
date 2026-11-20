@@ -169,6 +169,9 @@ describe("the default for what notifies", () => {
     `);
     db.exec("ALTER TABLE scheduled_files DROP COLUMN position");
     db.exec("ALTER TABLE scheduled_messages ADD COLUMN file_ids TEXT NOT NULL DEFAULT '[]'");
+    db.exec("DROP INDEX idx_apps_app_token");
+    db.exec("ALTER TABLE apps DROP COLUMN app_token_hash");
+    db.exec("ALTER TABLE apps DROP COLUMN receive");
     db.exec("DROP TABLE user_group_members");
     db.exec("DROP TABLE user_groups");
     db.exec("DROP TABLE custom_emoji");

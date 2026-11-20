@@ -35,6 +35,8 @@ export function registerAdmin(
     messages: ReturnType<typeof registerMessages>;
     files: Files;
     backups: Backups;
+    /** Apps' Socket Mode connections open now. */
+    appSockets: () => number;
   },
 ) {
   const { opts, db, store, gateway, route, ration, mutate, network } = ctx;
@@ -121,7 +123,11 @@ export function registerAdmin(
         failures: messages.retention.failures,
       },
       backups: backups.summary(),
-      connections: { sockets: gateway.socketCount(), people: gateway.onlineUserIds().length },
+      connections: {
+        sockets: gateway.socketCount(),
+        people: gateway.onlineUserIds().length,
+        appSockets: deps.appSockets(),
+      },
       eventLoopDelayMs: lastMinuteDelay,
       backgroundFailures: ctx.background.failures().map(([queue, failing]) => ({
         queue,

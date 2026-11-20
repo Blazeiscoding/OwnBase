@@ -10,7 +10,7 @@ import { requireChannelAccess, type ServerContext } from "../core/context.js";
 import { HttpError } from "../httpError.js";
 import type { Posting } from "../messages/posting.js";
 import type { AppCalls } from "./calls.js";
-import { hostOf } from "./manage.js";
+import { hostOf, requireUrl } from "./manage.js";
 import type { AppReplies } from "./replies.js";
 import type { NewTrigger } from "./views.js";
 
@@ -69,11 +69,13 @@ export function registerCommands(
     if (reserved(body.command) || store.apps.commandByName(body.command)) {
       throw new HttpError(409, "command_taken", `/${body.command} is already in use`);
     }
+    // An app on Socket Mode is sent its commands over its sockets, with no URL.
+    const url = owner.receive === "socket" ? "" : requireUrl(body.url);
     const command = store.transaction(() => {
       const created = store.apps.createCommand({
         appId: owner.id,
         command: body.command,
-        url: body.url,
+        url,
         description: body.description ?? "",
         usageHint: body.usageHint ?? "",
       });
@@ -86,7 +88,7 @@ export function registerCommands(
           appId: owner.id,
           name: owner.name,
           command: `/${body.command}`,
-          host: hostOf(body.url),
+          ...(url ? { host: hostOf(url) } : {}),
         },
       });
       return created;
@@ -178,7 +180,7 @@ export function registerCommands(
         botUserId: found.app.botUserId,
         threadRootId,
       };
-      const form = new URLSearchParams({
+      const fields = {
         command: `/${name}`,
         text: args,
         team_id: settings.get("workspaceId"),
@@ -195,11 +197,15 @@ export function registerCommands(
           appId: found.app.id,
           botUserId: found.app.botUserId,
         }),
-      }).toString();
+      };
 
       let why: string;
       try {
-        const res = await calls.postForm(found.app.id, found.command.url, form);
+        const res = await calls.callApp(found.app, {
+          type: "slash_commands",
+          url: found.command.url,
+          fields,
+        });
         if (res.status >= 200 && res.status < 300) {
           replies.deliverReply(target, res.body, res.contentType);
           return { ok: true };

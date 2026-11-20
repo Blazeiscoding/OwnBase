@@ -58,7 +58,7 @@ describe("the Web API methods the document lists", () => {
 
   it("are exactly the ones the server implements", () => {
     const implemented = Object.values(endpoints as Record<string, EndpointSpec>)
-      .filter((endpoint) => endpoint.access === "bot")
+      .filter((endpoint) => endpoint.access === "bot" || endpoint.access === "app")
       .map((endpoint) => endpoint.path.slice("/api/".length));
     expect(documented.length).toBeGreaterThan(0);
     expect([...documented].sort()).toEqual(implemented.sort());
@@ -100,7 +100,7 @@ describe("the Web API methods the document lists", () => {
     });
 
     it("names any other Slack method as unknown", async () => {
-      for (const method of ["chat.update", "conversations.list", "apps.connections.open"]) {
+      for (const method of ["chat.update", "conversations.list", "apps.uninstall"]) {
         expect(await post(`/api/${method}`), method).toEqual({
           status: 200,
           body: { ok: false, error: "unknown_method" },

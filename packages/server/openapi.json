@@ -3078,6 +3078,116 @@
         }
       }
     },
+    "/api/apps/{id}/app-token": {
+      "post": {
+        "operationId": "postAppsByIdAppToken",
+        "tags": [
+          "apps"
+        ],
+        "summary": "A new app-level token (`xapp-`) for Socket Mode, replacing the one the app had and closing the sockets opened with it.",
+        "description": "A new app-level token (`xapp-`) for Socket Mode, replacing the one the app had and closing the sockets opened with it. Shown this once and stored hashed. It opens sockets and nothing else.\n\nNeeds an administrator or the owner.",
+        "x-access": "admin",
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Done."
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      },
+      "delete": {
+        "operationId": "deleteAppsByIdAppToken",
+        "tags": [
+          "apps"
+        ],
+        "summary": "Takes the app-level token away, and closes the sockets opened with it.",
+        "description": "Takes the app-level token away, and closes the sockets opened with it.\n\nNeeds an administrator or the owner.",
+        "x-access": "admin",
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Done."
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    },
+    "/api/apps/{id}/receive": {
+      "put": {
+        "operationId": "putAppsByIdReceive",
+        "tags": [
+          "apps"
+        ],
+        "summary": "How the app is sent events, commands and button presses: posted to its URLs, or over sockets it opens (Socket Mode).",
+        "description": "How the app is sent events, commands and button presses: posted to its URLs, or over sockets it opens (Socket Mode). Going back to URLs is refused while a subscription or command has no URL, and the refusal names them.\n\nNeeds an administrator or the owner.",
+        "x-access": "admin",
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AppReceiveBody"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Done."
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    },
     "/api/apps/{id}/signing-secret": {
       "post": {
         "operationId": "postAppsByIdSigningSecret",
@@ -3319,6 +3429,55 @@
         "security": [
           {
             "botToken": []
+          }
+        ],
+        "requestBody": {
+          "required": false,
+          "description": "Slack's arguments for this method, as listed in docs/INTEGRATIONS.md.",
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": true
+              }
+            },
+            "application/x-www-form-urlencoded": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": true
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Slack's answer, refusals included.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SlackAnswer"
+                }
+              }
+            }
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          }
+        }
+      }
+    },
+    "/api/apps.connections.open": {
+      "post": {
+        "operationId": "apps.connections.open",
+        "tags": [
+          "slack"
+        ],
+        "summary": "Slack's apps.connections.open, called with an app-level token: the address of one Socket Mode connection, good once and for a short while.",
+        "description": "Slack's apps.connections.open, called with an app-level token: the address of one Socket Mode connection, good once and for a short while. A bot token is refused with `not_allowed_token_type`, as Slack does.\n\nCalled with an app's app-level token, for Socket Mode. A failure is HTTP 200 with `ok: false`.",
+        "x-access": "app",
+        "security": [
+          {
+            "appToken": []
           }
         ],
         "requestBody": {
@@ -5886,6 +6045,11 @@
         "type": "http",
         "scheme": "bearer",
         "description": "An app's `xoxb-` bot token. Slack's methods also take it as a `token` field in the body."
+      },
+      "appToken": {
+        "type": "http",
+        "scheme": "bearer",
+        "description": "An app's `xapp-` app-level token, which opens Socket Mode connections and nothing else."
       }
     },
     "schemas": {
@@ -6554,6 +6718,21 @@
           "scopes"
         ]
       },
+      "AppReceiveBody": {
+        "type": "object",
+        "properties": {
+          "receive": {
+            "type": "string",
+            "enum": [
+              "url",
+              "socket"
+            ]
+          }
+        },
+        "required": [
+          "receive"
+        ]
+      },
       "CreateWebhookBody": {
         "type": "object",
         "properties": {
@@ -6588,8 +6767,7 @@
           }
         },
         "required": [
-          "command",
-          "url"
+          "command"
         ]
       },
       "RunCommandBody": {
@@ -6787,10 +6965,7 @@
               ]
             }
           }
-        },
-        "required": [
-          "url"
-        ]
+        }
       },
       "ScheduleMessageBody": {
         "type": "object",

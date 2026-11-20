@@ -193,7 +193,9 @@ export function registerAppReplies(
 
     const owner = store.apps.forBotUser(message.userId);
     if (!owner) throw new HttpError(400, "not_an_app_message");
-    if (!owner.interactivityUrl) throw new HttpError(400, "no_interactivity_url");
+    // An app on Socket Mode is sent presses over its socket, with no URL.
+    if (owner.receive === "url" && !owner.interactivityUrl)
+      throw new HttpError(400, "no_interactivity_url");
 
     const release = calls.admit(me.id, owner.id);
     try {
@@ -208,7 +210,7 @@ export function registerAppReplies(
         { ...target, originMessageId: message.id },
         network.requestOrigin(req),
       );
-      const payload = JSON.stringify({
+      const payload = {
         type: "block_actions",
         team: { id: settings.get("workspaceId"), domain: settings.get("workspaceName") },
         user: { id: me.id, username: me.handle, name: me.displayName },
@@ -234,13 +236,15 @@ export function registerAppReplies(
             action_ts: String(Date.now() / 1000),
           },
         ],
-      });
-      // Slack sends the JSON as a form field named payload.
-      const form = new URLSearchParams({ payload }).toString();
+      };
 
       let why: string;
       try {
-        const res = await calls.postForm(owner.id, owner.interactivityUrl, form);
+        const res = await calls.callApp(owner, {
+          type: "interactive",
+          url: owner.interactivityUrl,
+          payload,
+        });
         if (res.status >= 200 && res.status < 300) {
           deliverReply(target, res.body, res.contentType, message.id);
           return { ok: true };

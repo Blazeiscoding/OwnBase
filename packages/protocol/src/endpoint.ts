@@ -8,9 +8,11 @@ import type * as rest from "./rest.js";
  * - `member`: a signed-in account that is not a guest;
  * - `admin`: the owner or an admin;
  * - `owner`: the owner alone;
- * - `bot`: an app, with its bot token, as Slack's Web API is called.
+ * - `bot`: an app, with its bot token, as Slack's Web API is called;
+ * - `app`: an app, with its app-level token, which opens Socket Mode and
+ *   nothing else.
  */
-export type Access = "public" | "guest" | "member" | "admin" | "owner" | "bot";
+export type Access = "public" | "guest" | "member" | "admin" | "owner" | "bot" | "app";
 
 export type HttpMethod = "GET" | "POST" | "PUT" | "PATCH" | "DELETE";
 
