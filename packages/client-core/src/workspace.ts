@@ -42,6 +42,7 @@ import { AppActions } from "./apps.js";
 import { Calls } from "./calls.js";
 import { Commands } from "./commands.js";
 import { Lists } from "./lists.js";
+import { MessageActions, withSaved } from "./messageActions.js";
 import { Modals } from "./modals.js";
 import { LocalLedger, type LocalOutcome } from "./localWork.js";
 import { FileCache, previewImageKey } from "./fileCache.js";
@@ -64,23 +65,21 @@ import {
   isMessageEvent,
   keepMessages,
   messageEventChannel,
-  patchMessage,
   reduceMessages,
   stampMessages,
   threadRootMessage,
   timelineMessages,
   unhandled,
   windowTimeline,
-  withReaction,
   type ChannelTimeline,
   type MessageCache,
   type MessageEvent,
 } from "./messageCache.js";
-import { answerOf, doneOf, failureOf, fileRefusal, notConnected } from "./answers.js";
+import { answerOf, doneOf, failureOf, fileRefusal } from "./answers.js";
 import { newNonce, storedPending, type OutgoingSend, type StoredPending } from "./outbox.js";
 import { OptimisticWrites, type WriteSpec } from "./optimisticWrites.js";
 import { Preferences } from "./preferences.js";
-import { pollChoicesKey, pollChoicesOfKey, serverPollChoices, type PollDraft } from "./polls.js";
+import { pollChoicesKey, serverPollChoices, type PollDraft } from "./polls.js";
 import type { CallLogLine, CallView, ScreenShareQuality } from "./huddle.js";
 import type { MicrophoneSettings, NoiseFilter, OpenSystemMicrophone } from "./devices.js";
 
@@ -259,6 +258,7 @@ export class WorkspaceClient {
   private readonly calls: Calls;
   private readonly settings: WorkspaceSettings;
   private readonly preferences: Preferences;
+  private readonly messageActions: MessageActions;
   /** The sends waiting to hear whether this device keeps their words (GL-02). */
   readonly kept = new LocalLedger();
   private ws: WebSocket | null = null;
@@ -335,6 +335,7 @@ export class WorkspaceClient {
     this.modals = new Modals(this.api, this.store);
     this.settings = new WorkspaceSettings(this.api, this.store, () => this.stopped);
     this.preferences = new Preferences(this.api, this.store, this.writes, () => this.stopped);
+    this.messageActions = new MessageActions(this.api, this.store, this.writes);
     this.calls = new Calls(this.api, this.store, (msg) => this.sendSocket(msg));
     // A session that has ended keeps nothing it downloaded (F07).
     this.store.subscribe((now, before) => {
@@ -853,7 +854,7 @@ export class WorkspaceClient {
         if (event.pollOnly && !event.message.poll?.anonymous) {
           const messageId = event.message.id;
           const mine = serverPollChoices(event.message, s.self?.id, null);
-          this.settlePollPick(s, patch, messageId, mine);
+          this.messageActions.settlePollPick(s, patch, messageId, mine);
           heard.push(() => this.writes.heard({ kind: "poll", messageId }, pollChoicesKey(mine)));
         }
         break;
@@ -1175,7 +1176,7 @@ export class WorkspaceClient {
         if (event.choices.length > 0) pollChoices[event.messageId] = event.choices;
         else delete pollChoices[event.messageId];
         const patch: Partial<WorkspaceState> = { pollChoices };
-        this.settlePollPick(s, patch, event.messageId, event.choices);
+        this.messageActions.settlePollPick(s, patch, event.messageId, event.choices);
         this.store.setState(patch);
         this.writes.heard(
           { kind: "poll", messageId: event.messageId },
@@ -2186,40 +2187,12 @@ export class WorkspaceClient {
     this.store.setState((s) => ({ pending: s.pending.filter((x) => x.nonce !== nonce) }));
   }
 
-  /** Shows a change to one held message at once, before the server has it. */
-  private showOnMessage(messageId: ID, change: (message: Message) => Message): void {
-    this.store.setState((s) => {
-      const messages = patchMessage(s, messageId, change).messages;
-      return messages === s.messages ? {} : { messages };
-    });
-  }
-
-  private heldOr(message: Message): Message {
-    return this.state.messages[message.id] ?? message;
-  }
-
   /**
    * Adds this account's reaction, or takes it back, shown at once (see
    * `OptimisticWrites`). Resolves with the server's refusal, or null.
    */
   toggleReaction(message: Message, emoji: string): Promise<ApiError | null> {
-    const selfId = this.state.self?.id;
-    if (!selfId) return Promise.resolve(notConnected());
-    const mine = (m: Message) =>
-      m.reactions.some((g) => g.emoji === emoji && g.userIds.includes(selfId));
-    return this.writes.write(
-      { kind: "reaction", messageId: message.id, emoji },
-      !mine(this.heldOr(message)),
-      {
-        read: () => mine(this.heldOr(message)),
-        show: (on) => this.showOnMessage(message.id, (m) => withReaction(m, emoji, selfId, on)),
-        send: async (on) => {
-          await (on
-            ? this.api.addReaction(message.id, emoji)
-            : this.api.removeReaction(message.id, emoji));
-        },
-      },
-    );
+    return this.messageActions.toggleReaction(message, emoji);
   }
 
   /**
@@ -2228,86 +2201,17 @@ export class WorkspaceClient {
    * with the server's refusal, such as for a poll closed meanwhile, or null.
    */
   vote(message: Message, choices: number[]): Promise<ApiError | null> {
-    const messageId = message.id;
-    const key = { kind: "poll", messageId } as const;
-    const anonymous = message.poll?.anonymous ?? false;
-    const shown = (s: WorkspaceState) =>
-      pollChoicesKey(s.pollPicks[messageId] ?? this.serverChoicesIn(messageId, anonymous, s));
-    return this.writes.write(key, pollChoicesKey(choices), {
-      read: () => shown(this.state),
-      show: (chosen) =>
-        this.store.setState((s) => {
-          const server = this.serverChoicesIn(messageId, anonymous, s);
-          // Settled, and what the server is known to have: nothing to hold.
-          if (!this.writes.isPending(key) && pollChoicesKey(server) === chosen) {
-            if (!s.pollPicks[messageId]) return {};
-            const { [messageId]: _settled, ...pollPicks } = s.pollPicks;
-            return { pollPicks };
-          }
-          return { pollPicks: { ...s.pollPicks, [messageId]: pollChoicesOfKey(chosen) } };
-        }),
-      send: async (chosen) => {
-        const answer = await this.api.votePoll(messageId, pollChoicesOfKey(chosen));
-        if (anonymous)
-          this.store.setState((s) => {
-            const pollChoices = { ...s.pollChoices };
-            if (answer.choices.length > 0) pollChoices[messageId] = answer.choices;
-            else delete pollChoices[messageId];
-            return { pollChoices };
-          });
-        return pollChoicesKey(answer.choices);
-      },
-    });
+    return this.messageActions.vote(message, choices);
   }
 
   /** Its author closes a poll for good. Resolves with the server's refusal, or null. */
   closePoll(message: Message): Promise<ApiError | null> {
-    return doneOf(async () => {
-      const { message: closed } = await this.api.closePoll(message.id);
-      const closedAt = closed.poll?.closedAt ?? null;
-      // Only that it closed: the counts are whatever was last heard.
-      this.showOnMessage(message.id, (m) =>
-        m.poll && m.poll.closedAt === null ? { ...m, poll: { ...m.poll, closedAt } } : m,
-      );
-    });
-  }
-
-  /** What the server has as this account's choices in a poll, from what is held of it. */
-  private serverChoicesIn(messageId: ID, anonymous: boolean, s = this.state): number[] {
-    if (anonymous) return s.pollChoices[messageId] ?? [];
-    const message = s.messages[messageId];
-    return message ? serverPollChoices(message, s.self?.id, null) : [];
-  }
-
-  /**
-   * The server is heard to have `server` as this account's choices in a poll.
-   * A pick made here and settled is dropped once it matches; one still being
-   * sent stays shown until its answer.
-   */
-  private settlePollPick(
-    s: WorkspaceState,
-    patch: Partial<WorkspaceState>,
-    messageId: ID,
-    server: number[],
-  ): void {
-    const picks = patch.pollPicks ?? s.pollPicks;
-    const picked = picks[messageId];
-    if (!picked || this.writes.isPending({ kind: "poll", messageId })) return;
-    if (pollChoicesKey(picked) !== pollChoicesKey(server)) return;
-    const { [messageId]: _settled, ...rest } = picks;
-    patch.pollPicks = rest;
+    return this.messageActions.closePoll(message);
   }
 
   /** Pins a message or takes its pin off, shown at once; the channel-wide event confirms it. */
   togglePin(message: Message): Promise<ApiError | null> {
-    return this.writes.write({ kind: "pin", messageId: message.id }, !message.pinned, {
-      read: () => this.heldOr(message).pinned,
-      show: (pinned) =>
-        this.showOnMessage(message.id, (m) => (m.pinned === pinned ? m : { ...m, pinned })),
-      send: async (pinned) => {
-        await (pinned ? this.api.pinMessage(message.id) : this.api.unpinMessage(message.id));
-      },
-    });
+    return this.messageActions.togglePin(message);
   }
 
   /**
@@ -2317,16 +2221,7 @@ export class WorkspaceClient {
    * rather than flipping.
    */
   toggleSaved(messageId: ID, save = !this.state.saved[messageId]): Promise<ApiError | null> {
-    return this.writes.write({ kind: "save", messageId }, save, {
-      read: () => !!this.state.saved[messageId],
-      show: (on) =>
-        this.store.setState((s) =>
-          !!s.saved[messageId] === on ? {} : { saved: withSaved(s.saved, messageId, on) },
-        ),
-      send: async (on) => {
-        await (on ? this.api.saveMessage(messageId) : this.api.unsaveMessage(messageId));
-      },
-    });
+    return this.messageActions.toggleSaved(messageId, save);
   }
 
   /**
@@ -2445,25 +2340,12 @@ export class WorkspaceClient {
    * has it. Resolves with its refusal, such as for a time already past, or null.
    */
   setReminder(messageId: ID, at: number): Promise<ApiError | null> {
-    return doneOf(async () => {
-      const { reminder } = await this.api.setReminder(messageId, at);
-      this.store.setState((s) => ({ reminders: { ...s.reminders, [messageId]: reminder } }));
-    });
+    return this.messageActions.setReminder(messageId, at);
   }
 
   /** Removes a reminder, done or cancelled. One already gone counts as removed. */
   async cancelReminder(messageId: ID): Promise<ApiError | null> {
-    try {
-      await this.api.cancelReminder(messageId);
-    } catch (error) {
-      if (!(error instanceof ApiError && error.status === 404)) return failureOf(error);
-    }
-    this.store.setState((s) => {
-      if (!s.reminders[messageId]) return {};
-      const { [messageId]: _gone, ...reminders } = s.reminders;
-      return { reminders };
-    });
-    return null;
+    return this.messageActions.cancelReminder(messageId);
   }
 
   /**
@@ -2581,20 +2463,7 @@ export class WorkspaceClient {
    * back and resolves with why.
    */
   removeLinkPreview(message: Message, previewId: ID): Promise<ApiError | null> {
-    const has = (m: Message) => m.previews.some((p) => p.id === previewId);
-    return this.writes.write({ kind: "linkPreview", previewId }, false, {
-      read: () => has(this.heldOr(message)),
-      show: (shown) =>
-        this.showOnMessage(message.id, (m) => {
-          if (has(m) === shown) return m;
-          return shown
-            ? { ...m, previews: message.previews }
-            : { ...m, previews: m.previews.filter((p) => p.id !== previewId) };
-        }),
-      send: async () => {
-        await this.api.removeLinkPreview(previewId);
-      },
-    });
+    return this.messageActions.removeLinkPreview(message, previewId);
   }
 
   /**
@@ -3233,11 +3102,4 @@ function liveMessages(
   return envelope.event.type === "message.created"
     ? windowTimeline(next, envelope.event.message.channelId, "oldest")
     : next;
-}
-
-function withSaved(saved: Record<ID, true>, messageId: ID, on: boolean): Record<ID, true> {
-  const next = { ...saved };
-  if (on) next[messageId] = true;
-  else delete next[messageId];
-  return next;
 }
