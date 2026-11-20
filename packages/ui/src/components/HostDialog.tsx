@@ -37,7 +37,8 @@ import {
   type Hosting,
   type HostingBusy,
 } from "./hostParts.js";
-import { StartWithComputer, StartupWhileStopped } from "./HostStartup.js";
+import { StartupWhileStopped } from "./HostStartup.js";
+import { HostAdvanced } from "./HostAdvanced.js";
 import { HostBackups } from "./HostBackups.js";
 
 /** The parts of managing a running workspace, each a tab (UX-62). */
@@ -1164,48 +1165,14 @@ export function HostDialog(props: {
                   />
                 )}
                 {shown === "advanced" && (
-                  <>
-                    {status.folder && status.workspaceName && phase === "running" && (
-                      <StartWithComputer
-                        hosting={props.hosting}
-                        folder={status.folder}
-                        name={status.workspaceName}
-                        startsOnLaunch={!!status.startsOnLaunch}
-                        publicAddress={status.publicAddressError ? undefined : status.publicAddress}
-                        reopensPublic={!!status.reopensPublicOnLaunch}
-                        disabled={unavailable}
-                        onError={(text) => setBackupNote(text ? { ok: false, text } : null)}
-                      />
-                    )}
-                    {status.dataDir && (
-                      <div>
-                        <div className="flex items-center justify-between gap-3">
-                          <p className="text-ink-dim">Workspace data folder</p>
-                          {status.folder && (
-                            <button
-                              type="button"
-                              onClick={() => void openFolder(status.folder!)}
-                              className={`${linkBtnCls} shrink-0`}
-                            >
-                              Open folder
-                            </button>
-                          )}
-                        </div>
-                        <p className="break-all font-mono text-xs text-ink">{status.dataDir}</p>
-                      </div>
-                    )}
-                    {status.port !== undefined && (
-                      <div>
-                        <p className="text-ink-dim">
-                          Local port: <span className="font-mono text-ink">{status.port}</span>
-                        </p>
-                        <p className="mt-1 text-xs text-ink-faint">
-                          To use another port, stop hosting, then choose Change port beside the
-                          workspace.
-                        </p>
-                      </div>
-                    )}
-                  </>
+                  <HostAdvanced
+                    hosting={props.hosting}
+                    status={status}
+                    phase={phase}
+                    unavailable={unavailable}
+                    openFolder={openFolder}
+                    setBackupNote={setBackupNote}
+                  />
                 )}
               </div>
             </DialogScroll>
