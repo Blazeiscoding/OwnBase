@@ -17,12 +17,6 @@ import { ToastProvider } from "../src/components/Toast.js";
 import { renderPart } from "./workspaceParts.js";
 import { accessibilityProblems } from "./accessibility.js";
 
-vi.mock("../src/lib/callPreferences.js", async (original) => ({
-  ...(await original<typeof import("../src/lib/callPreferences.js")>()),
-  useCallPreferences: () => ({ joinHuddle: vi.fn(), devices: {} }),
-}));
-vi.mock("../src/lib/ringTone.js", () => ({ startRingTone: () => () => {} }));
-
 /**
  * Blocking and reporting in the app (E12): a blocked person's messages fold
  * away, their DM leaves the sidebar, their rings stay silent, and they are

@@ -890,6 +890,21 @@ describe("the search dialog", () => {
       );
     });
 
+    it("leaves an input method's Enter to it, rather than searching on it", async () => {
+      // A form submits on Enter from its field: the browser does not when
+      // the keydown is cancelled, which is the dialog's only say in it.
+      const user = userEvent.setup();
+      const { dialog, box } = renderSearch(ready());
+      await user.type(box, "launch has:link");
+      expect(fireEvent.keyDown(box, { key: "Enter", isComposing: true })).toBe(false);
+      expect(fireEvent.keyDown(box, { key: "Enter", keyCode: 229 })).toBe(false);
+      expect(box).toHaveValue("launch has:link");
+      expect(chips(dialog)).toEqual([]);
+
+      await user.keyboard("{Enter}");
+      expect(chips(dialog)).toEqual(["Has a link"]);
+    });
+
     it("puts the caret back where it was once a modifier leaves the field", async () => {
       const user = userEvent.setup();
       const { dialog, box } = renderSearch(ready());

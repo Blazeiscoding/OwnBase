@@ -1,18 +1,16 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { createWorkspaceServer, type WorkspaceServer } from "@ownbase/server";
-import type { ClientToServer, ServerToClient } from "@ownbase/protocol";
 import { Api, WorkspaceClient } from "../src/index.js";
 import { HuddleSession } from "../src/huddle.js";
+import { network } from "./network.js";
+
+const net = network();
 
 let server: WorkspaceServer;
 let client: WorkspaceClient;
 let channelId: string;
+let token: string;
 const tracks: { enabled: boolean; stop: ReturnType<typeof vi.fn> }[] = [];
-
-interface Internals {
-  handleServerMessage(message: ServerToClient): void;
-  sendSocket(message: ClientToServer): void;
-}
 
 beforeEach(async () => {
   tracks.length = 0;
@@ -42,6 +40,7 @@ beforeEach(async () => {
     displayName: "Caller",
     password: "password123",
   });
+  token = account.token;
   client = new WorkspaceClient(base, account.token);
   client.connect();
   await expect.poll(() => client.state.status).toBe("online");
@@ -58,30 +57,30 @@ afterEach(async () => {
   vi.unstubAllGlobals();
 });
 
-function internals(): Internals {
-  return client as unknown as Internals;
-}
-
+/** From here on, what the client sends never reaches the server, which the test answers for. */
 function holdJoin() {
-  const sent: ClientToServer[] = [];
   vi.spyOn(client.api, "rtcConfig").mockResolvedValue({ iceServers: [] });
-  vi.spyOn(internals(), "sendSocket").mockImplementation((message) => sent.push(message));
-  return sent;
+  net.lose(token);
+  const before = net.sent(token).length;
+  return () => net.sent(token).slice(before);
 }
 
 function result(requestId: string, accepted: boolean) {
-  internals().handleServerMessage({
-    type: "ephemeral",
-    event: accepted
-      ? { type: "huddle.join.result", channelId, requestId, accepted: true }
-      : {
-          type: "huddle.join.result",
-          channelId,
-          requestId,
-          accepted: false,
-          message: "Try later.",
-        },
-  });
+  net.deliver(
+    {
+      type: "ephemeral",
+      event: accepted
+        ? { type: "huddle.join.result", channelId, requestId, accepted: true }
+        : {
+            type: "huddle.join.result",
+            channelId,
+            requestId,
+            accepted: false,
+            message: "Try later.",
+          },
+    },
+    token,
+  );
 }
 
 describe("huddle join acknowledgement", () => {
@@ -89,11 +88,11 @@ describe("huddle join acknowledgement", () => {
     const sent = holdJoin();
     const first = client.joinHuddle(channelId, { muted: true });
     await expect
-      .poll(() => sent.filter((message) => message.type === "huddle.join").length)
+      .poll(() => sent().filter((message) => message.type === "huddle.join").length)
       .toBe(1);
     expect(tracks[0]!.enabled).toBe(false);
     expect(client.state.huddle).toBeNull();
-    const firstJoin = sent.find((message) => message.type === "huddle.join")!;
+    const firstJoin = sent().find((message) => message.type === "huddle.join")!;
     if (firstJoin.type !== "huddle.join") throw new Error("missing join");
     result(firstJoin.requestId!, true);
     await first;
@@ -104,10 +103,10 @@ describe("huddle join acknowledgement", () => {
 
     const second = client.joinHuddle(channelId);
     await expect
-      .poll(() => sent.filter((message) => message.type === "huddle.join").length)
+      .poll(() => sent().filter((message) => message.type === "huddle.join").length)
       .toBe(2);
     expect(tracks[1]!.enabled).toBe(true);
-    const secondJoin = sent.filter((message) => message.type === "huddle.join")[1]!;
+    const secondJoin = sent().filter((message) => message.type === "huddle.join")[1]!;
     result(secondJoin.requestId!, true);
     await second;
     expect(client.state.huddle?.micMuted).toBe(false);
@@ -132,12 +131,12 @@ describe("huddle join acknowledgement", () => {
     const sent = holdJoin();
     client.store.setState({ huddles: { [channelId]: ["cached-peer"] } });
     const joining = client.joinHuddle(channelId);
-    await expect.poll(() => sent.some((message) => message.type === "huddle.join")).toBe(true);
+    await expect.poll(() => sent().some((message) => message.type === "huddle.join")).toBe(true);
     expect(tracks[0]!.stop).not.toHaveBeenCalled();
     expect(client.state.huddle).toBeNull();
     expect(HuddleSession.prototype.syncParticipants).not.toHaveBeenCalled();
 
-    const join = sent.find((message) => message.type === "huddle.join")!;
+    const join = sent().find((message) => message.type === "huddle.join")!;
     if (join.type !== "huddle.join") throw new Error("missing join");
     result(join.requestId!, true);
     await joining;
@@ -150,14 +149,14 @@ describe("huddle join acknowledgement", () => {
     const first = client.joinHuddle(channelId);
     const firstRejected = expect(first).rejects.toThrow("cancelled");
     await expect
-      .poll(() => sent.filter((message) => message.type === "huddle.join").length)
+      .poll(() => sent().filter((message) => message.type === "huddle.join").length)
       .toBe(1);
     const second = client.joinHuddle(channelId);
     await firstRejected;
     await expect
-      .poll(() => sent.filter((message) => message.type === "huddle.join").length)
+      .poll(() => sent().filter((message) => message.type === "huddle.join").length)
       .toBe(2);
-    const joins = sent.filter((message) => message.type === "huddle.join");
+    const joins = sent().filter((message) => message.type === "huddle.join");
     result(joins[0]!.requestId!, false);
     expect(tracks[1]!.stop).not.toHaveBeenCalled();
     result(joins[1]!.requestId!, true);
@@ -172,19 +171,19 @@ describe("huddle join acknowledgement", () => {
     const joining = client.joinHuddle(channelId);
     const rejected = expect(joining).rejects.toThrow("Check your connection");
     await vi.advanceTimersByTimeAsync(0);
-    expect(sent.some((message) => message.type === "huddle.join")).toBe(true);
+    expect(sent().some((message) => message.type === "huddle.join")).toBe(true);
     await vi.advanceTimersByTimeAsync(10_000);
     await rejected;
     expect(tracks[0]!.stop).toHaveBeenCalledOnce();
     expect(client.state.huddle).toBeNull();
-    expect(sent.at(-1)).toEqual({ type: "huddle.leave", channelId });
+    expect(sent().at(-1)).toEqual({ type: "huddle.leave", channelId });
   });
 
   it("releases pending media when the client disconnects before admission", async () => {
     const sent = holdJoin();
     const joining = client.joinHuddle(channelId);
     const rejected = expect(joining).rejects.toThrow("cancelled");
-    await expect.poll(() => sent.some((message) => message.type === "huddle.join")).toBe(true);
+    await expect.poll(() => sent().some((message) => message.type === "huddle.join")).toBe(true);
     client.destroy();
     await rejected;
     expect(tracks[0]!.stop).toHaveBeenCalledOnce();
@@ -201,10 +200,10 @@ describe("how big the call draws everyone (E13b)", () => {
     const sent = holdJoin();
     const joining = client.joinHuddle(channelId);
     await expect
-      .poll(() => sent.filter((message) => message.type === "huddle.join").length)
+      .poll(() => sent().filter((message) => message.type === "huddle.join").length)
       .toBe(1);
     expect(setViews).toHaveBeenLastCalledWith(drawn);
-    const join = sent.find((message) => message.type === "huddle.join")!;
+    const join = sent().find((message) => message.type === "huddle.join")!;
     if (join.type !== "huddle.join") throw new Error("missing join");
     result(join.requestId!, true);
     await joining;

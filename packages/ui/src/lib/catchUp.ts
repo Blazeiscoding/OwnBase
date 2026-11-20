@@ -14,9 +14,6 @@ export interface CatchUpOptions {
   stillNews: (message: Message) => boolean;
   /** Shows the messages, oldest first. Never called with none. */
   show: (messages: Message[]) => void;
-  intervalMs?: number;
-  quietMs?: number;
-  now?: () => number;
 }
 
 /**
@@ -30,21 +27,14 @@ export class CatchUpSummary {
   private readonly held = new Map<ID, Message>();
   private lastShownAt = Number.NEGATIVE_INFINITY;
   private timer: ReturnType<typeof setTimeout> | null = null;
-  private readonly intervalMs: number;
-  private readonly quietMs: number;
-  private readonly now: () => number;
 
-  constructor(private readonly options: CatchUpOptions) {
-    this.intervalMs = options.intervalMs ?? CATCH_UP_INTERVAL_MS;
-    this.quietMs = options.quietMs ?? CATCH_UP_QUIET_MS;
-    this.now = options.now ?? Date.now;
-  }
+  constructor(private readonly options: CatchUpOptions) {}
 
   /** A missed message that would have notified, had it arrived live. */
   hold(message: Message): void {
     this.held.set(message.id, message);
     if (this.timer) clearTimeout(this.timer);
-    const wait = Math.max(this.quietMs, this.lastShownAt + this.intervalMs - this.now());
+    const wait = Math.max(CATCH_UP_QUIET_MS, this.lastShownAt + CATCH_UP_INTERVAL_MS - Date.now());
     this.timer = setTimeout(() => this.flush(), wait);
   }
 
@@ -67,7 +57,7 @@ export class CatchUpSummary {
     this.held.clear();
     // Nothing shown, so the next catch-up need not wait for this one.
     if (messages.length === 0) return;
-    this.lastShownAt = this.now();
+    this.lastShownAt = Date.now();
     this.options.show(messages);
   }
 }

@@ -1,16 +1,12 @@
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { CallRelaySettings } from "../src/components/CallRelaySettings.js";
 import type { CallRelayDraft, CallRelaySetting } from "../src/platform.js";
 import { accessibilityProblems } from "./accessibility.js";
+import { RELAYED, stubRelayConnections, type RelayAnswer } from "./relayConnection.js";
 
-const probe = vi.hoisted(() => ({ result: "works" as "works" | "refused" | "unreachable" }));
-vi.mock("../src/lib/relayProbe.js", () => ({
-  probeRelay: vi.fn(async () => probe.result),
-}));
-
-const { CallRelaySettings } = await import("../src/components/CallRelaySettings.js");
-const { probeRelay } = await import("../src/lib/relayProbe.js");
+afterEach(() => vi.unstubAllGlobals());
 
 /** A field's error line, found through the field rather than by its words. */
 function problemOf(field: HTMLElement): string {
@@ -85,16 +81,24 @@ describe("the call relay in Manage hosting", () => {
     const relay = fakeRelay({ kind: "cloudflare", keyId: "4c1b5e7f9a" });
     render(<CallRelaySettings relay={relay} />);
     const user = userEvent.setup();
+    let answer: RelayAnswer = [{ candidate: RELAYED }, { candidate: null }];
+    const made = stubRelayConnections(() => answer);
     await user.click(await screen.findByRole("button", { name: "Test" }));
     expect(relay.test).toHaveBeenCalledWith({ kind: "cloudflare", keyId: "4c1b5e7f9a" });
-    expect(probeRelay).toHaveBeenCalledWith([
-      { urls: ["turn:turn.cloudflare.com:3478?transport=udp"], username: "u", credential: "p" },
-    ]);
     expect(
       await screen.findByText("The relay works: this computer reached it and got a route."),
     ).toBeTruthy();
+    // Checked with the routes the app gave for this relay, as a call would ask.
+    expect(made.map((connection) => connection.config)).toEqual([
+      {
+        iceServers: [
+          { urls: ["turn:turn.cloudflare.com:3478?transport=udp"], username: "u", credential: "p" },
+        ],
+        iceTransportPolicy: "relay",
+      },
+    ]);
 
-    probe.result = "refused";
+    answer = [{ errorCode: 401 }, { candidate: null }];
     await user.click(screen.getByRole("button", { name: "Test" }));
     expect(await screen.findByText("The relay refused the username or password.")).toBeTruthy();
 

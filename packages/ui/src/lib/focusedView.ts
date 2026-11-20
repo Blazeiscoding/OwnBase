@@ -107,8 +107,8 @@ export function inOneWindow(
   account: string | null,
   name: string,
   start: () => () => void,
-  locks: LockManager | undefined = typeof navigator === "undefined" ? undefined : navigator.locks,
 ): () => void {
+  const locks = typeof navigator === "undefined" ? undefined : navigator.locks;
   if (!account || !locks) return start();
   if (focusedElsewhere(account)) return () => {};
   let stopped = false;

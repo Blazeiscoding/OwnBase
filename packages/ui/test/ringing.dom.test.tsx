@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { act, cleanup, screen, waitFor, within } from "@testing-library/react";
 import { render } from "./render.js";
 import userEvent from "@testing-library/user-event";
@@ -16,22 +16,46 @@ import { ConfirmProvider } from "../src/components/Confirm.js";
 import { ringContent } from "../src/lib/notificationPreview.js";
 import { accessibilityProblems } from "./accessibility.js";
 
-const joinHuddle = vi.fn(async () => {});
-vi.mock("../src/lib/callPreferences.js", async (original) => {
-  const { SCREEN_SHARE_QUALITY } = await import("@ownbase/client-core");
-  return {
-    ...(await original<typeof import("../src/lib/callPreferences.js")>()),
-    // Joining asks for devices and a microphone, which jsdom has neither of.
-    useCallPreferences: () => ({
-      joinHuddle,
-      devices: {},
-      screenShare: { quality: SCREEN_SHARE_QUALITY, sound: true },
-    }),
-  };
+/**
+ * Web Audio, which jsdom lacks, stood in for: each context the ring tone
+ * makes, how many notes it played and whether it was closed.
+ */
+function stubWebAudio() {
+  const made: { notes: number; closed: boolean }[] = [];
+  const level = () => ({ value: 0, setValueAtTime() {}, exponentialRampToValueAtTime() {} });
+  class FakeAudioContext {
+    private readonly record = { notes: 0, closed: false };
+    currentTime = 0;
+    destination = {};
+    constructor() {
+      made.push(this.record);
+    }
+    createGain() {
+      return { gain: level(), connect() {} };
+    }
+    createOscillator() {
+      const record = this.record;
+      return {
+        type: "",
+        frequency: level(),
+        connect() {},
+        start: () => record.notes++,
+        stop() {},
+      };
+    }
+    async resume() {}
+    async close() {
+      this.record.closed = true;
+    }
+  }
+  vi.stubGlobal("AudioContext", FakeAudioContext);
+  return made;
+}
+
+let tones: ReturnType<typeof stubWebAudio>;
+beforeEach(() => {
+  tones = stubWebAudio();
 });
-const stopRinging = vi.fn();
-const startRingTone = vi.fn(() => stopRinging);
-vi.mock("../src/lib/ringTone.js", () => ({ startRingTone: () => startRingTone() }));
 
 /**
  * Ringing for direct calls (E10): the prompt someone rung sees, with its
@@ -81,9 +105,7 @@ afterEach(() => {
   cleanup();
   for (const client of clients.splice(0)) client.destroy();
   vi.restoreAllMocks();
-  joinHuddle.mockClear();
-  startRingTone.mockClear();
-  stopRinging.mockClear();
+  vi.unstubAllGlobals();
 });
 
 function workspace(rings: Record<string, HuddleRing> = { C_DM: ring() }) {
@@ -101,6 +123,8 @@ function workspace(rings: Record<string, HuddleRing> = { C_DM: ring() }) {
     status: "online",
     workspaceName: "Rocket Team",
   });
+  // Joining opens a microphone, which jsdom has none of.
+  const join = vi.spyOn(client, "joinHuddle").mockResolvedValue();
   const notify = vi.fn();
   const platform: Platform = {
     kind: "web",
@@ -117,7 +141,7 @@ function workspace(rings: Record<string, HuddleRing> = { C_DM: ring() }) {
         </ConfirmProvider>
       </ToastProvider>,
     );
-  return { client, notify, shown, user: userEvent.setup() };
+  return { client, join, notify, shown, user: userEvent.setup() };
 }
 
 describe("a ring someone gets", () => {
@@ -130,22 +154,23 @@ describe("a ring someone gets", () => {
     expect(screen.getByRole("alert")).toHaveTextContent("Maya Chen is calling");
     // On the body, where the modal layer leaves it usable (Modal.tsx).
     expect(prompt.closest("[data-ownbase-call]")?.parentElement).toBe(document.body);
-    expect(startRingTone).toHaveBeenCalledTimes(1);
+    expect(tones).toHaveLength(1);
+    expect(tones[0]!.notes).toBeGreaterThan(0);
     expect(await accessibilityProblems(prompt.parentElement!)).toEqual([]);
 
     act(() => client.store.setState({ rings: {} }));
     expect(screen.queryByRole("region", { name: /is calling/ })).toBeNull();
-    expect(stopRinging).toHaveBeenCalledTimes(1);
+    expect(tones).toEqual([expect.objectContaining({ closed: true })]);
   });
 
   it("joins from Join, opening the conversation, and says no from Decline", async () => {
-    const { client, shown, user } = workspace();
+    const { client, join, shown, user } = workspace();
     const declineRing = vi.spyOn(client, "declineRing");
     const onOpen = vi.fn();
     shown(<IncomingCall onOpen={onOpen} preview="full" tag="sam" />);
     await user.click(screen.getByRole("button", { name: "Join" }));
     expect(onOpen).toHaveBeenCalledWith("C_DM");
-    expect(joinHuddle).toHaveBeenCalledWith(client, "C_DM", expect.any(Function));
+    await waitFor(() => expect(join).toHaveBeenCalledWith("C_DM", expect.anything()));
 
     await user.click(screen.getByRole("button", { name: "Decline" }));
     expect(declineRing).toHaveBeenCalledWith("C_DM");
@@ -167,7 +192,7 @@ describe("a ring someone gets", () => {
     });
     const { container } = shown(<IncomingCall onOpen={vi.fn()} preview="full" tag="sam" />);
     expect(container).toBeEmptyDOMElement();
-    expect(startRingTone).not.toHaveBeenCalled();
+    expect(tones).toEqual([]);
   });
 
   it("tells the system once while the window is behind, as much as the device allows", () => {
@@ -221,7 +246,7 @@ describe("a ring someone gets", () => {
     act(() => client.store.setState({ self: { ...sam, dndUntil: Date.now() + 60_000 } }));
     shown(<IncomingCall onOpen={vi.fn()} preview="full" tag="sam" />);
     expect(screen.getByRole("region", { name: "Maya Chen is calling" })).toBeInTheDocument();
-    expect(startRingTone).not.toHaveBeenCalled();
+    expect(tones).toEqual([]);
     expect(notify).not.toHaveBeenCalled();
     cleanup();
 
@@ -242,7 +267,7 @@ describe("a ring someone gets", () => {
     );
     muted.shown(<IncomingCall onOpen={vi.fn()} preview="full" tag="sam" />);
     expect(screen.getByRole("region", { name: "Maya Chen is calling" })).toBeInTheDocument();
-    expect(startRingTone).not.toHaveBeenCalled();
+    expect(tones).toEqual([]);
     expect(muted.notify).not.toHaveBeenCalled();
   });
 });
@@ -269,11 +294,11 @@ describe("a missed huddle's note", () => {
   });
 
   it("offers the one who missed it a call back, or the huddle still going", async () => {
-    const { client, shown, user } = workspace({});
+    const { client, join, shown, user } = workspace({});
     const { container } = shown(<CallNote message={note("U_MAYA")} />);
     expect(container).toHaveTextContent("Missed huddle");
     await user.click(screen.getByRole("button", { name: "Call back" }));
-    expect(joinHuddle).toHaveBeenCalledWith(client, "C_DM", expect.any(Function));
+    await waitFor(() => expect(join).toHaveBeenCalledWith("C_DM", expect.anything()));
     act(() => client.store.setState({ huddles: { C_DM: ["U_MAYA"] } }));
     expect(screen.getByRole("button", { name: "Join huddle" })).toBeInTheDocument();
     // Already in it here: nothing to press.
@@ -284,20 +309,18 @@ describe("a missed huddle's note", () => {
 
   // Before, Call back left a huddle in another conversation without asking.
   it("asks before leaving a huddle in another conversation to call back", async () => {
-    const { client, shown, user } = workspace({});
+    const { client, join, shown, user } = workspace({});
     client.store.setState({ huddle: { channelId: "C_GROUP" } as HuddleState });
     shown(<CallNote message={note("U_MAYA")} />);
     await user.click(screen.getByRole("button", { name: "Call back" }));
     const ask = await screen.findByRole("dialog", { name: "Switch huddles?" });
     await user.click(within(ask).getByRole("button", { name: "Cancel" }));
-    expect(joinHuddle).not.toHaveBeenCalled();
+    expect(join).not.toHaveBeenCalled();
 
     await user.click(screen.getByRole("button", { name: "Call back" }));
     const again = await screen.findByRole("dialog", { name: "Switch huddles?" });
     await user.click(within(again).getByRole("button", { name: "Switch" }));
-    await waitFor(() =>
-      expect(joinHuddle).toHaveBeenCalledWith(client, "C_DM", expect.any(Function)),
-    );
+    await waitFor(() => expect(join).toHaveBeenCalledWith("C_DM", expect.anything()));
   });
 
   it("tells the caller nobody answered, with nothing to press and no way to edit it", () => {

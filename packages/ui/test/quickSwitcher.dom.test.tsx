@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { act, cleanup, screen, within } from "@testing-library/react";
+import { act, cleanup, fireEvent, screen, within } from "@testing-library/react";
 import { render } from "./render.js";
 import userEvent from "@testing-library/user-event";
 import { ApiError, WorkspaceClient } from "@ownbase/client-core";
@@ -294,6 +294,29 @@ describe("the palette's actions", () => {
     expect(onClose).toHaveBeenCalled();
     expect(ran).toEqual(["theme"]);
     expect(await accessibilityProblems(screen.getByRole("dialog"))).toEqual([]);
+  });
+
+  it("leaves an input method's Enter to it, jumping or searching only on a plain one", async () => {
+    // Enter chooses among an input method's candidates, mid-word.
+    const user = userEvent.setup();
+    const onSearch = vi.fn();
+    const { onOpen, options } = switcherWith({ onSearch });
+    const field = screen.getByRole("combobox");
+    await user.type(field, "des");
+    fireEvent.keyDown(field, { key: "Enter", isComposing: true });
+    fireEvent.keyDown(field, { key: "Enter", keyCode: 229 });
+    expect(onOpen).not.toHaveBeenCalled();
+    await user.keyboard("{Enter}");
+    expect(onOpen).toHaveBeenCalledTimes(1);
+
+    cleanup();
+    switcherWith({ onSearch });
+    await user.type(screen.getByRole("combobox"), "release notes");
+    expect(options()).toEqual(["Search messages for “release notes”"]);
+    fireEvent.keyDown(screen.getByRole("combobox"), { key: "Enter", keyCode: 229 });
+    expect(onSearch).not.toHaveBeenCalled();
+    await user.keyboard("{Enter}");
+    expect(onSearch).toHaveBeenCalledWith("release notes");
   });
 
   it("ends with searching messages for what was typed", async () => {

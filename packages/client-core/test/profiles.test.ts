@@ -6,6 +6,9 @@ import { crc32, deflateSync } from "node:zlib";
 import { currentZoneName } from "@ownbase/protocol";
 import { createWorkspaceServer, type WorkspaceServer } from "@ownbase/server";
 import { Api, WorkspaceClient, type WorkspaceState, ApiError } from "../src/index.js";
+import { network } from "./network.js";
+
+const net = network();
 
 /**
  * Profiles on the client (E9): the device's time zone is kept for an account
@@ -141,10 +144,10 @@ describe("profiles on the client", () => {
     laptop.setIdle(true);
     await until(watcher, () => watcher.state.presence[aliceId] === "away", "away");
     // The server restarts its sockets; the laptop, still idle, says so again.
-    const connection = laptop as unknown as { ws: WebSocket; reconnectDelay: number };
-    connection.reconnectDelay = 10;
-    connection.ws.close();
+    net.drop(aliceToken);
     await until(watcher, () => watcher.state.presence[aliceId] === "offline", "gone");
+    await until(laptop, (s) => s.status === "reconnecting", "the drop");
+    net.networkBack();
     await until(laptop, (s) => s.status === "online", "reconnected");
     await until(watcher, () => watcher.state.presence[aliceId] === "away", "away again");
     laptop.setIdle(false);

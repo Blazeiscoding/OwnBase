@@ -10,7 +10,6 @@ import {
 } from "../src/lib/textInput.js";
 
 const here = dirname(fileURLToPath(import.meta.url));
-const source = (file: string) => readFileSync(resolve(here, "../src", file), "utf8");
 
 describe("a key that belongs to an input method", () => {
   it("is recognised from the standard flag", () => {
@@ -25,25 +24,6 @@ describe("a key that belongs to an input method", () => {
     expect(isImeKey({ isComposing: false, keyCode: 13 })).toBe(false);
     expect(isImeKey({})).toBe(false);
   });
-});
-
-describe("every text field that acts on Enter asks first", () => {
-  // The composer was guarded and the others were not, which is the shape this
-  // mistake always has: the field somebody tested in is fine and the rest take
-  // the same Enter and do something irreversible with it.
-  const fields = [
-    ["components/Composer.tsx", "sending a message"],
-    ["components/MessageEditor.tsx", "saving an edit"],
-    ["components/QuickSwitcher.tsx", "jumping to a channel, and running a search"],
-  ] as const;
-
-  for (const [file, what] of fields) {
-    it(`guards ${what}`, () => {
-      expect(source(file), `${file} acts on Enter without checking for an input method`).toContain(
-        "isImeKey(",
-      );
-    });
-  }
 });
 
 describe("putting the caret back after a rewrite", () => {
@@ -92,16 +72,6 @@ describe("asking for less motion", () => {
     const block = /@media \(prefers-reduced-motion: reduce\) \{([\s\S]*?)\n\}/.exec(css);
     expect(block, "theme.css has no reduced-motion block").not.toBeNull();
     expect(block![1]).toContain("animation-iteration-count: 1 !important");
-  });
-
-  it("does not restore the caret a frame late, where a keystroke fits", () => {
-    // requestAnimationFrame is the version of this that has the bug in it.
-    for (const box of ["components/Composer.tsx", "components/MessageEditor.tsx"])
-      expect(source(box)).not.toContain("requestAnimationFrame");
-    // Both boxes rewrite through the mention field, which restores the caret.
-    expect(source("components/Composer.tsx")).toContain("useMentionField(");
-    expect(source("components/MessageEditor.tsx")).toContain("useMentionField(");
-    expect(source("lib/useMentionField.ts")).toContain("caretToRestore(");
   });
 });
 

@@ -2,6 +2,9 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import type { Channel, Message } from "@ownbase/protocol";
 import { ApiError, WorkspaceClient, type Api } from "../src/index.js";
 import { timelineMessages } from "../src/messageCache.js";
+import { network } from "./network.js";
+
+const net = network({ offline: true });
 
 /**
  * History transfers stop once nothing will use them, and an identical request
@@ -109,8 +112,12 @@ describe("history requests (REV-05)", () => {
     const c = client();
     const pages = held<Page>();
     vi.spyOn(c.api, "listMessages").mockImplementation((_id, opts) => pages.start(opts?.signal));
+    c.connect();
     const load = c.loadTimeline("C1");
-    (c as unknown as { removeChannel(id: string): void }).removeChannel("C1");
+    net.deliver({
+      type: "ephemeral",
+      event: { type: "channel.access", channelId: "C1", channel: null, membership: null },
+    });
     expect(pages.calls[0]!.signal?.aborted).toBe(true);
     await expect(load).resolves.toBeUndefined();
   });
