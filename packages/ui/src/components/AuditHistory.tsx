@@ -88,6 +88,23 @@ export function describeAuditEntry(
       return has("name") ? `${actor} added the emoji :${d.name}:` : `${actor} added an emoji`;
     case "emoji.removed":
       return has("name") ? `${actor} removed the emoji :${d.name}:` : `${actor} removed an emoji`;
+    case "group.created":
+      return `${actor} made the group ${groupOf(d)}${has("members") ? ` with ${people(d.members)}` : ""}`;
+    case "group.updated": {
+      const group = groupOf(d);
+      const done = [
+        ...(has("previousHandle") ? [`renamed the group @${d.previousHandle} to ${group}`] : []),
+        ...(has("added") ? [`added ${people(d.added)}`] : []),
+        ...(has("removed") ? [`removed ${people(d.removed)}`] : []),
+      ];
+      if (done.length === 0) return `${actor} changed the group ${group}`;
+      // Who came and went reads as of the group, named once.
+      if (!has("previousHandle")) done[0] = `${done[0]} ${has("added") ? "to" : "from"} ${group}`;
+      const last = done.pop()!;
+      return `${actor} ${done.length > 0 ? `${done.join(", ")} and ${last}` : last}`;
+    }
+    case "group.deleted":
+      return `${actor} deleted the group ${groupOf(d)}`;
     case "workspace.copy_made":
       return `${actor} made a copy of the workspace to download`;
     case "workspace.copy_downloaded":
@@ -154,6 +171,15 @@ const WHO_CAN_JOIN: Record<string, string> = {
   account_required: "anyone who creates an account",
   guest_allowed: "anyone, guests included",
 };
+
+/** A user group as an entry names it: by the handle it had then. */
+function groupOf(details: AuditEntry["details"]): string {
+  return typeof details.handle === "string" ? `@${details.handle}` : "a group";
+}
+
+function people(count: unknown): string {
+  return count === 1 ? "1 person" : `${String(count)} people`;
+}
 
 function capitalise(text: string): string {
   return text.charAt(0).toUpperCase() + text.slice(1);

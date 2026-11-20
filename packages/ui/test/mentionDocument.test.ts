@@ -48,6 +48,20 @@ describe("what a message box shows for its stored text", () => {
     expect(replaceShown(doc, 0, 0, "").stored).toBe("ask <@U_GONE> in <#C_HIDDEN>");
   });
 
+  it("reads a user group by its handle now and keeps its token, label and all (J13)", () => {
+    const groups = {
+      G1: { id: "G1", handle: "design", name: "Design", description: "", memberIds: [] },
+    };
+    const stored = "ask <!subteam^G1|@old> and <!subteam^G9|@gone>";
+    const doc = projectMentions(stored, { ...names, groups });
+    expect(doc.shown).toBe("ask @design and @gone");
+    expect(doc.segments.filter((s) => s.mention).map((s) => s.stored)).toEqual([
+      "<!subteam^G1|@old>",
+      "<!subteam^G9|@gone>",
+    ]);
+    expect(replaceShown(doc, doc.shown.length, doc.shown.length, "!").stored).toBe(`${stored}!`);
+  });
+
   it("tells two people with the same name apart by what it stores", () => {
     const doc = projectMentions("<@U_SAM> <@U_SAM2>", names);
     expect(doc.shown).toBe("@Sam Rivera @Sam Rivera");

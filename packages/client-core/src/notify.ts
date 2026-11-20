@@ -1,4 +1,5 @@
 import {
+  groupMentionLabel,
   notificationWords,
   notifyDecision,
   plainText,
@@ -38,6 +39,7 @@ export function decideNotification(
   const member = channel !== undefined && message.channelId in state.memberships;
   return notifyDecision({
     selfId: self?.id ?? null,
+    groupIds: self ? groupIdsOf(state, self.id) : [],
     message,
     senderBlocked: state.blocked.includes(message.userId),
     channelType: member ? channel.type : null,
@@ -109,9 +111,17 @@ export function isMessageOnScreen(message: Message, screen: OnScreen): boolean {
   return (inChannel && screen.channelVisible) || (inThread && screen.threadVisible);
 }
 
+/** The user groups someone is in, as this client last heard (J13). */
+export function groupIdsOf(state: Pick<WorkspaceState, "userGroups">, userId: ID): ID[] {
+  return Object.values(state.userGroups)
+    .filter((group) => group.memberIds.includes(userId))
+    .map((group) => group.id);
+}
+
 /** How a notification names the people and channels a message mentions. */
 function mentionLabels(state: WorkspaceState): MentionLabels {
   return {
+    group: (id, label) => groupMentionLabel(state.userGroups[id], label),
     user: (id) => {
       const user = state.users[id];
       return user ? `@${user.displayName}` : "@someone";

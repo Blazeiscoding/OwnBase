@@ -1,6 +1,11 @@
-import type { Channel, User } from "@ownbase/protocol";
+import type { Channel, User, UserGroup } from "@ownbase/protocol";
 import { describe, expect, it } from "vitest";
-import { customStartingWith, rankChannels, rankPeople } from "../src/components/Suggestions.js";
+import {
+  customStartingWith,
+  mentionChoices,
+  rankChannels,
+  rankPeople,
+} from "../src/components/Suggestions.js";
 
 const person = (id: string, handle: string, displayName: string, deactivated = false) =>
   ({ id, handle, displayName, deactivated }) as unknown as User;
@@ -24,6 +29,43 @@ describe("people offered after @", () => {
 
   it("put yourself after others who match as well", () => {
     expect(rankPeople([sam, isa], "", "U_ISA").map((u) => u.handle)).toEqual(["sam", "isa"]);
+  });
+});
+
+describe("user groups offered after @ (J13)", () => {
+  const group = (id: string, handle: string, name: string): UserGroup => ({
+    id,
+    handle,
+    name,
+    description: "",
+    memberIds: [],
+  });
+  const design = group("G1", "design", "Design");
+  const designOps = group("G2", "design-ops", "Design operations");
+  // Handles are one name space, so a person can only be called what a group is.
+  const dee = person("U_DEE", "dee", "Design");
+  const desmond = person("U_DES", "desmond", "Desmond");
+  const names = (choices: ReturnType<typeof mentionChoices>) =>
+    choices.map((c) =>
+      c.kind === "group" ? `group:${c.group.handle}` : c.kind === "user" ? c.user.handle : "",
+    );
+
+  it("come below a person whose name is exactly what was typed, above the rest", () => {
+    expect(names(mentionChoices([desmond, dee], [designOps, design], "design", undefined))).toEqual(
+      ["dee", "group:design", "group:design-ops"],
+    );
+    expect(names(mentionChoices([desmond, dee], [designOps, design], "des", undefined))).toEqual([
+      "group:design",
+      "group:design-ops",
+      "dee",
+      "desmond",
+    ]);
+  });
+
+  it("are found by name as well as by handle", () => {
+    expect(names(mentionChoices([], [design, designOps], "operations", undefined))).toEqual([
+      "group:design-ops",
+    ]);
   });
 });
 

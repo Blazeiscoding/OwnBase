@@ -9,6 +9,7 @@ import {
   type CreateChannelBody,
   type CreateCommandBody,
   type CreateSubscriptionBody,
+  type CreateUserGroupBody,
   type CreateInviteBody,
   type EditScheduledBody,
   type FileKind,
@@ -22,6 +23,7 @@ import {
   type SendMessageBody,
   type UpdateChannelBody,
   type UpdateMeBody,
+  type UpdateUserGroupBody,
 } from "@ownbase/protocol";
 import { ApiError, Transport } from "./transport.js";
 
@@ -330,6 +332,20 @@ export class Api {
 
   removeCustomEmoji(id: ID) {
     return this.http.json(endpoints.removeCustomEmoji, { params: { id } });
+  }
+
+  /** Makes a user group (J13), for admins. Everyone but guests hears `userGroup.saved`. */
+  createUserGroup(body: CreateUserGroupBody) {
+    return this.http.json(endpoints.createUserGroup, { body });
+  }
+
+  /** Renames a user group or replaces who is in it, for admins. */
+  updateUserGroup(id: ID, body: UpdateUserGroupBody) {
+    return this.http.json(endpoints.updateUserGroup, { params: { id }, body });
+  }
+
+  deleteUserGroup(id: ID) {
+    return this.http.json(endpoints.deleteUserGroup, { params: { id } });
   }
 
   setEmojiAdding(adminsOnly: boolean) {

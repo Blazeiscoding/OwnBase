@@ -51,11 +51,18 @@ describe("shared rules", () => {
 
   it("says a message names someone by a mention or a reply that notifies them", () => {
     const reply = (ping: boolean) => ({ userId: "U1", ping }) as never;
-    expect(namesUser({ text: "hi <@U1>" }, "U1")).toBe(true);
-    expect(namesUser({ text: "hi <@U12>" }, "U1")).toBe(false);
-    expect(namesUser({ text: "ok", replyTo: reply(true) }, "U1")).toBe(true);
-    expect(namesUser({ text: "ok", replyTo: reply(false) }, "U1")).toBe(false);
-    expect(namesUser({ text: "ok", replyTo: reply(true) }, "U2")).toBe(false);
+    expect(namesUser({ text: "hi <@U1>" }, "U1", [])).toBe(true);
+    expect(namesUser({ text: "hi <@U12>" }, "U1", [])).toBe(false);
+    expect(namesUser({ text: "ok", replyTo: reply(true) }, "U1", [])).toBe(true);
+    expect(namesUser({ text: "ok", replyTo: reply(false) }, "U1", [])).toBe(false);
+    expect(namesUser({ text: "ok", replyTo: reply(true) }, "U2", [])).toBe(false);
+  });
+
+  it("says a message names someone through a group they are in now (J13)", () => {
+    expect(namesUser({ text: "ask <!subteam^G1|@design>" }, "U1", ["G1"])).toBe(true);
+    expect(namesUser({ text: "ask <!subteam^G1>" }, "U1", ["G2", "G1"])).toBe(true);
+    expect(namesUser({ text: "ask <!subteam^G1|@design>" }, "U1", ["G2"])).toBe(false);
+    expect(namesUser({ text: "ask <!subteam^G1|@design>" }, "U1", [])).toBe(false);
   });
 
   it("tells rooms from direct messages, and a missing conversation from both", () => {

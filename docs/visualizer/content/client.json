@@ -1547,6 +1547,15 @@
       "concepts": ["mention identity", "readable editing", "canonical serialization"]
     },
     {
+      "path": "packages/ui/src/lib/userGroups.ts",
+      "plain": "Reads the workspace's user groups for what draws them.",
+      "summary": "useUserGroups, the groups by id from the client's store (none outside a workspace, and none for a guest), and groupSize, \"12 people\" (J13).",
+      "details": [
+        "Read from the store directly, as custom emoji are, so message text drawn outside a workspace still works."
+      ],
+      "concepts": ["user groups"]
+    },
+    {
       "path": "packages/ui/src/components/MentionTags.tsx",
       "plain": "Makes a person or channel tagged in the message box look tagged, rather than like ordinary words starting with @.",
       "summary": "Draws each mention in a message box as a tag behind its name.",
@@ -2111,6 +2120,24 @@
         "The picture is fetched as profile pictures are, since an <img> cannot send the session; an animated one plays as its file says, also under reduced motion."
       ],
       "concepts": ["custom emoji", "images"]
+    },
+    {
+      "path": "packages/ui/src/components/GroupMention.tsx",
+      "plain": "Draws a user group named in a message, and shows who is in it when pressed.",
+      "summary": "GroupMention: a chip with the group's handle now, marked as addressing the reader when they are in it, opening a popover of its people (J13). A group that is gone reads as the label it was sent with.",
+      "details": [
+        "First-screen code, since messages draw it. The people are read from the store when the popover opens, because a message picks only the people it names."
+      ],
+      "concepts": ["user groups", "mentions"]
+    },
+    {
+      "path": "packages/ui/src/components/UserGroupsSection.tsx",
+      "plain": "The Groups part of People: make a group, choose who is in it, rename it or delete it.",
+      "summary": "UserGroupsSection and its form, for admins (J13): handle, name, description and a searchable list of people; deleting asks first and says how many the group holds.",
+      "details": [
+        "Loaded with the People window, never on the first screen. A handle someone has is said at the field, from the server's handle_taken."
+      ],
+      "concepts": ["user groups", "admin", "dialogs"]
     },
     {
       "path": "packages/ui/src/components/CustomEmojiDialog.tsx",

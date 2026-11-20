@@ -39,18 +39,11 @@ export const READ_IN_CHANNEL = `(r.broadcast = 1 AND EXISTS (
       AND r.seq <= rcm.last_read_seq AND rcm.last_read_seq > COALESCE(f.unread_hold, -1)))`;
 
 /**
- * The condition for "this message mentions me", shared by the Activity list
- * and the badge counts so a count can never disagree with what it opens.
- * A direct mention counts anywhere; a room-wide one only in a room, since
- * `@here` in a DM is just words. A reply that notified the author of what
- * it answers, beside `channel_members cm`, counts for that author.
- */
-export const MENTIONS_ME =
-  "(instr(m.text, ?) > 0 OR (c.type IN ('public', 'private') AND (instr(m.text, '<!channel>') > 0 OR instr(m.text, '<!here>') > 0 OR instr(m.text, '<!everyone>') > 0)) OR (m.reply_ping = 1 AND EXISTS (SELECT 1 FROM messages q WHERE q.id = m.reply_to_id AND q.user_id = cm.user_id)))";
-
-/**
- * `MENTIONS_ME` read from `message_mentions` beside `mm` and `channels c`:
- * the rows naming this account, and the whole room in a room.
+ * The condition for "this message mentions me", read from `message_mentions`
+ * beside `mm` and `channels c`, and shared by Activity and the badge counts
+ * so a count can never disagree with what it opens: the rows naming this
+ * account (by name, through a user group, or as the author a reply notified),
+ * and the whole room in a room, since `@here` in a DM is just words.
  */
 export const NAMES_ME =
   "(mm.user_id = ? OR (mm.user_id = '!' AND c.type IN ('public', 'private')))";

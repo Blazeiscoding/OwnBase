@@ -8,6 +8,7 @@ export {
   decideNotification,
   decideReminderNotification,
   dueReminderCount,
+  groupIdsOf,
   unreadRemovalCount,
   isMessageOnScreen,
   notificationBody,

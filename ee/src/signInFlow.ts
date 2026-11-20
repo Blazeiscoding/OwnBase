@@ -487,7 +487,7 @@ export function signInFlow<Extra extends object>(opts: {
       const refusal = newAccountRefusal(opts.settings(), claims);
       if (refusal) return page(reply, 403, "No account here yet", refusal, back());
       try {
-        const handle = handleFor(claims, (h) => !!given.users.byHandle(h));
+        const handle = handleFor(claims, (h) => given.users.handleTaken(h));
         user = await given.users.create({
           handle,
           displayName: claims.name?.trim().slice(0, 80) || handle,

@@ -172,6 +172,8 @@ describe("the default for what notifies", () => {
     db.exec("DROP INDEX idx_apps_app_token");
     db.exec("ALTER TABLE apps DROP COLUMN app_token_hash");
     db.exec("ALTER TABLE apps DROP COLUMN receive");
+    db.exec("DROP TABLE user_group_members");
+    db.exec("DROP TABLE user_groups");
     db.exec("DROP TABLE custom_emoji");
     db.exec("DROP TABLE push_subscriptions");
     db.exec("DROP TABLE channel_removals");

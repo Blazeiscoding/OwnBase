@@ -2,6 +2,7 @@ import { lookup } from "node:dns/promises";
 import { isIP } from "node:net";
 import {
   endpoints,
+  groupMentionLabel,
   isDirect,
   notificationWords,
   notifyDecision,
@@ -115,6 +116,8 @@ export function registerPush(ctx: ServerContext) {
       return name ? `@${name}` : "@someone";
     },
     channel: (id: string) => `#${store.channels.get(id)?.name || "unknown"}`,
+    group: (id: string, label: string | null) =>
+      groupMentionLabel(store.groups.get(id) ?? undefined, label),
   };
 
   const deliver = (
@@ -156,6 +159,7 @@ export function registerPush(ctx: ServerContext) {
       const prefs = store.channels.prefs(message.channelId, userId);
       const decision = notifyDecision({
         selfId: userId,
+        groupIds: store.groups.idsOf(userId),
         message,
         senderBlocked: store.people.blockedIds(userId).includes(message.userId),
         channelType: prefs ? channel.type : null,

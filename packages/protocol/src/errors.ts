@@ -143,6 +143,10 @@ export const ERROR_CODES = [
   "unknown_emoji",
   "unsupported_emoji_type",
 
+  // User groups
+  "group_not_found",
+  "invalid_group_member",
+
   // Copies of the workspace
   "copies_unavailable",
   "copy_downloading",

@@ -33,6 +33,8 @@ export type NotifyDecision =
 export interface NotifyInputs {
   /** Who would be notified; null when nobody is signed in. */
   selfId: ID | null;
+  /** The user groups this person is in now (J13): mentioning one names them. */
+  groupIds: readonly ID[];
   message: Pick<Message, "userId" | "text" | "threadRootId" | "replyTo">;
   /** Whether this person blocked the sender. */
   senderBlocked: boolean;
@@ -68,7 +70,7 @@ export function notifyDecision(inputs: NotifyInputs): NotifyDecision {
   const level = effectiveNotifyLevel(prefs, inputs.notifyDefault);
   if (level === "nothing") return { notify: false, reason: "level" };
 
-  const named = namesUser(message, selfId);
+  const named = namesUser(message, selfId, inputs.groupIds);
   const broadcasts = broadcastsIn(message.text);
   // A room-wide mention only reaches a room: in a DM it is just words.
   const isDm = isDirect(inputs.channelType);

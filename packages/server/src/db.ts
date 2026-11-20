@@ -470,7 +470,7 @@ const MIGRATIONS: string[] = [
   // per member, and a message naming the whole room recounts every member: at
   // 200,000 messages and 50 members an `<!here>` held the server for 3.7 s
   // (scripts/measure-unread-counts.mts). user_id '!' is the whole room. The
-  // rows are the same rule as MENTIONS_ME: a message names X when its
+  // rows are the same rule the text was read by: a message names X when its
   // text holds `<@X>`, which the walk below finds at every `<@` in turn.
   `
   CREATE TABLE message_mentions (
@@ -834,7 +834,27 @@ const MIGRATIONS: string[] = [
     created_at INTEGER NOT NULL
   );
   `,
-  // v60 — Socket Mode (J14): how an app is sent things, by URL or over the
+  // v60 — user groups (J13): people an admin put under one handle. A message
+  // that mentions one writes a message_mentions row for each of its people in
+  // the conversation as it is sent, so counts and Activity read them as they
+  // read a person's mention, and a later change to the group leaves them be.
+  `
+  CREATE TABLE user_groups (
+    id TEXT PRIMARY KEY,
+    handle TEXT NOT NULL UNIQUE,
+    name TEXT NOT NULL,
+    description TEXT NOT NULL DEFAULT '',
+    created_by TEXT NOT NULL REFERENCES users(id),
+    created_at INTEGER NOT NULL
+  );
+  CREATE TABLE user_group_members (
+    group_id TEXT NOT NULL REFERENCES user_groups(id) ON DELETE CASCADE,
+    user_id TEXT NOT NULL REFERENCES users(id),
+    PRIMARY KEY (group_id, user_id)
+  ) WITHOUT ROWID;
+  CREATE INDEX idx_user_group_members_user ON user_group_members(user_id);
+  `,
+  // v61 — Socket Mode (J14): how an app is sent things, by URL or over the
   // sockets it opens, and the hash of its app-level token. A socket-mode
   // app's subscriptions and commands keep their NOT NULL url as ''.
   `

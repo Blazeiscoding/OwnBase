@@ -1780,6 +1780,34 @@
       "concepts": ["events", "custom emoji"]
     },
     {
+      "path": "packages/server/src/groups/feature.ts",
+      "plain": "Lets admins make user groups such as @design, change who is in them, and delete them.",
+      "summary": "User group routes (J13): create, update (handle, name, description, or the whole list of people) and delete, for admins; the list in the startup snapshot, none for a guest.",
+      "details": [
+        "Each change is written to the audit log in the same write and told to everyone signed in but guests.",
+        "A handle is checked against people's, other groups' and here, channel and everyone through people.handleTaken; apps cannot be in a group."
+      ],
+      "concepts": ["user groups", "feature module", "permissions"]
+    },
+    {
+      "path": "packages/server/src/groups/store.ts",
+      "plain": "Keeps the workspace's user groups and who is in each.",
+      "summary": "GroupStore: the user_groups and user_group_members tables' queries (v60), and namedIn, whom a group mention names in a conversation.",
+      "details": [
+        "namedIn gives the group's people who are in the conversation and active. MessageStore writes a mention row for each as a message is sent or edited, so counts, Activity and pushes read them as a person's mention, and a later change to the group leaves them be."
+      ],
+      "concepts": ["user groups", "queries", "mentions"]
+    },
+    {
+      "path": "packages/server/src/groups/events.ts",
+      "plain": "Says who hears that a user group was made, changed or deleted.",
+      "summary": "userGroup.saved and userGroup.deleted, heard by everyone signed in but guests (the members audience).",
+      "details": [
+        "Not logged: every connection's snapshot carries the whole list. Guests hear none, since a group can hold people a guest cannot see."
+      ],
+      "concepts": ["events", "user groups"]
+    },
+    {
       "path": "packages/server/src/saved/feature.ts",
       "plain": "Lets people pin messages for a whole channel, and save messages for themselves.",
       "summary": "Pin, unpin, list pins, save, unsave and list saved routes, and the saved ids part of the startup snapshot.",

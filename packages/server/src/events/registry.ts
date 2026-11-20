@@ -4,6 +4,7 @@ import { adminEphemeral } from "../admin/events.js";
 import { appsEphemeral } from "../apps/events.js";
 import { channelDurable, channelEphemeral } from "../channels/events.js";
 import { emojiEphemeral } from "../emoji/events.js";
+import { groupEphemeral } from "../groups/events.js";
 import { huddleEphemeral } from "../huddles/events.js";
 import { messageDurable, messageEphemeral } from "../messages/events.js";
 import { peopleDurable, peopleEphemeral } from "../people/events.js";
@@ -58,10 +59,11 @@ export type DurableRegistry = { [T in DurableType]: DurableEntry<T> };
  * - `person`: every device of one account, its own state or something said to it;
  * - `channel`: everyone who can read one conversation;
  * - `everyone`: everyone signed in;
+ * - `members`: everyone signed in but guests, who see only part of the workspace;
  * - `admins`: the owner and admins;
  * - `device`: the one socket it answers, never fanned out.
  */
-export type Audience = "person" | "channel" | "everyone" | "admins" | "device";
+export type Audience = "person" | "channel" | "everyone" | "members" | "admins" | "device";
 
 export type EphemeralRegistry = { [T in EphemeralEvent["type"]]: Audience };
 
@@ -85,6 +87,7 @@ export const EPHEMERAL_AUDIENCE = {
   ...scheduledEphemeral,
   ...threadEphemeral,
   ...emojiEphemeral,
+  ...groupEphemeral,
 } as const satisfies EphemeralRegistry;
 
 type Audiences = typeof EPHEMERAL_AUDIENCE;

@@ -73,7 +73,7 @@ export function registerAppManagement(
         .slice(0, 24) || "bot";
     let handle = `${base}-bot`;
     let n = 2;
-    while (store.people.authByHandle(handle)) handle = `${base}-bot-${n++}`;
+    while (store.people.handleTaken(handle)) handle = `${base}-bot-${n++}`;
     return handle;
   };
 

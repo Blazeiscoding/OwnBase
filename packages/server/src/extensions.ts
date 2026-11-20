@@ -100,6 +100,11 @@ export interface ExtensionContext {
     list(): User[];
     byHandle(handle: string): User | null;
     /**
+     * Whether a new account may not have this handle: a person or a user
+     * group has it, or it means the whole room. Pick another for anyone new.
+     */
+    handleTaken(handle: string): boolean;
+    /**
      * A new member, with no password anyone knows, joined to the public
      * channels as anyone joining is. Refused while nobody owns the workspace,
      * for a handle taken, and for a handle or name joining would refuse.

@@ -1,4 +1,11 @@
-import { broadcastLabel, type Channel, type ID, type User } from "@ownbase/protocol";
+import {
+  broadcastLabel,
+  groupMentionLabel,
+  type Channel,
+  type ID,
+  type User,
+  type UserGroup,
+} from "@ownbase/protocol";
 
 /**
  * What a message box shows in place of the mention syntax it stores.
@@ -19,10 +26,13 @@ import { broadcastLabel, type Channel, type ID, type User } from "@ownbase/proto
 export interface MentionNames {
   users: Record<ID, User>;
   channels: Record<ID, Channel>;
+  /** User groups by id (J13); a group not here reads as its token's label. */
+  groups?: Record<ID, UserGroup>;
 }
 
 /** The mention tokens messages render as mentions (`Mrkdwn`). */
-const TOKEN_RE = /<@([A-Za-z0-9_-]+)>|<#([A-Za-z0-9_-]+)>|<!(channel|here|everyone)>/g;
+const TOKEN_RE =
+  /<@([A-Za-z0-9_-]+)>|<#([A-Za-z0-9_-]+)>|<!(channel|here|everyone)>|<!subteam\^([A-Za-z0-9_-]+)(?:\|([^<>\n]*))?>/g;
 
 /** How a person mentioned by id reads; one no longer known keeps the id. */
 export const userMentionLabel = (user: User | undefined) => `@${user?.displayName ?? "unknown"}`;
@@ -67,7 +77,12 @@ export function projectMentions(stored: string, names: MentionNames): MentionDoc
       ? userMentionLabel(names.users[m[1]])
       : m[2]
         ? channelMentionLabel(names.channels[m[2]])
-        : broadcastLabel(m[3]!);
+        : m[3]
+          ? broadcastLabel(m[3])
+          : groupMentionLabel(
+              names.groups && Object.hasOwn(names.groups, m[4]!) ? names.groups[m[4]!] : undefined,
+              m[5],
+            );
     push(label, m[0], true, m.index);
     last = m.index + m[0].length;
   }

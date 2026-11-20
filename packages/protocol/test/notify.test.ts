@@ -8,6 +8,7 @@ const inputs = (
   message: Partial<NotifyInputs["message"]> = {},
 ): NotifyInputs => ({
   selfId: "me",
+  groupIds: [],
   message: { userId: "them", text: "hello", threadRootId: null, replyTo: null, ...message },
   senderBlocked: false,
   channelType: "public",
@@ -81,6 +82,19 @@ describe("notifyDecision", () => {
     expect(
       reason({ prefs: quiet }, { replyTo: { id: "m", userId: "me", ping: false } as never }),
     ).toBe("level");
+  });
+
+  it("names a person through a group they are in, at the mentions-only level too (J13)", () => {
+    const quiet = { muted: false, notifyLevel: "mentions" as const, notifyChosen: true };
+    const text = "ask <!subteam^G1|@design>";
+    expect(reason({ prefs: quiet, groupIds: ["G1"] }, { text })).toBe("mention");
+    expect(reason({ prefs: quiet, groupIds: ["G2"] }, { text })).toBe("level");
+    expect(reason({ prefs: quiet, groupIds: ["G1"], channelType: null }, { text })).toBe(
+      "not-a-member",
+    );
+    expect(reason({ threadMuted: true, groupIds: ["G1"] }, { text, threadRootId: "root" })).toBe(
+      "mention",
+    );
   });
 
   it("rings @channel for everyone, @here only for whoever is around", () => {

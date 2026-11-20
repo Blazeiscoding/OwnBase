@@ -8,6 +8,7 @@ import { AppStore } from "./apps/store.js";
 import { ChannelStore } from "./channels/store.js";
 import { Settings } from "./core/settings.js";
 import { EmojiStore } from "./emoji/store.js";
+import { GroupStore } from "./groups/store.js";
 import { Outbox } from "./events/outbox.js";
 import { FileStore } from "./files/store.js";
 import { MessageStore } from "./messages/store.js";
@@ -54,6 +55,7 @@ export class Store {
   readonly reports: ReportStore;
   readonly push: PushStore;
   readonly emoji: EmojiStore;
+  readonly groups: GroupStore;
 
   constructor(readonly db: DatabaseSync) {
     this.settings = new Settings(this);
@@ -74,6 +76,7 @@ export class Store {
     this.reports = new ReportStore(db, this);
     this.push = new PushStore(db);
     this.emoji = new EmojiStore(db);
+    this.groups = new GroupStore(db);
   }
 
   /** Only synchronous database work belongs here; publish events after this returns. */

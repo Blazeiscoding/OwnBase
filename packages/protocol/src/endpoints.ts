@@ -18,6 +18,7 @@ import type {
   Reminder,
   ReportedMessage,
   ScheduledMessage,
+  UserGroup,
   ServerInfo,
   SessionInfo,
   SettingsActionResult,
@@ -816,6 +817,42 @@ export const endpoints = {
     access: "guest",
     answer: bytes,
     timeoutMs: 30000,
+  }),
+
+  // ---------- user groups (J13) ----------
+
+  /**
+   * Makes a user group: a handle such as `design` that no person or other
+   * group has, a name, and the people in it. Mentioning it names each of them
+   * who is in the conversation.
+   */
+  createUserGroup: endpoint({
+    method: "POST",
+    path: "/api/admin/groups",
+    access: "admin",
+    body: "createUserGroupBody",
+    answer: json<{ group: UserGroup }>(),
+    status: 201,
+  }),
+
+  /**
+   * Renames a user group, changes its description, or replaces who is in it.
+   * Messages sent before keep whom they notified.
+   */
+  updateUserGroup: endpoint({
+    method: "PATCH",
+    path: "/api/admin/groups/:id",
+    access: "admin",
+    body: "updateUserGroupBody",
+    answer: json<{ group: UserGroup }>(),
+  }),
+
+  /** Deletes a user group. Messages that mention it show the name they were sent with. */
+  deleteUserGroup: endpoint({
+    method: "DELETE",
+    path: "/api/admin/groups/:id",
+    access: "admin",
+    answer: json<{ ok: true }>(),
   }),
 
   // ---------- polls (E6) ----------

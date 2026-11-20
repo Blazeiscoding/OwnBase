@@ -82,6 +82,7 @@ function state(over: Partial<WorkspaceState> = {}): WorkspaceState {
     iconVersion: null,
     customEmoji: {},
     emojiAddingAdminsOnly: false,
+    userGroups: {},
     scheduledChanges: 0,
     self: me,
     users: { [me.id]: me, [them.id]: them },
@@ -210,6 +211,16 @@ describe("decideNotification", () => {
     // Told not to notify, or answering someone else, it is an ordinary message.
     expect(decideNotification(state(), answer(false)).notify).toBe(false);
     expect(decideNotification(state(), answer(true, them.id)).notify).toBe(false);
+  });
+
+  it("counts a mention of a user group this account is in now as a mention (J13)", () => {
+    const group = { id: "G1", handle: "design", name: "Design", description: "" };
+    const mention = message({ text: "ask <!subteam^G1|@design>" });
+    const inIt = state({ userGroups: { G1: { ...group, memberIds: [me.id] } } });
+    const notInIt = state({ userGroups: { G1: { ...group, memberIds: [them.id] } } });
+    expect(decideNotification(inIt, mention)).toEqual({ notify: true, reason: "mention" });
+    expect(decideNotification(notInIt, mention).notify).toBe(false);
+    expect(decideNotification(state(), mention).notify).toBe(false);
   });
 
   it("notifies on every message when the channel is set to all", () => {
@@ -406,6 +417,17 @@ describe("notificationBody", () => {
       "see #general and #unknown",
     );
     expect(readableText(s, "moved to <#C1>")).toBe("moved to #general");
+  });
+
+  it("reads a user group by its handle now, and a gone one by the label it was sent with", () => {
+    const s = state({
+      userGroups: {
+        G1: { id: "G1", handle: "design", name: "Design", description: "", memberIds: [] },
+      },
+    });
+    expect(
+      notificationBody(s, message({ text: "<!subteam^G1|@old> and <!subteam^G2|@gone>" })),
+    ).toBe("@design and @gone");
   });
 
   it("reads a labelled link as its label, and an unlabelled one as its address", () => {

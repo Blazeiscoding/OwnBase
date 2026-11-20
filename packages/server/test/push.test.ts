@@ -353,6 +353,26 @@ describe("a new message", () => {
     expect(pushesTo(device)).toEqual([]);
   });
 
+  it("pushes a user group's mention to its people in the channel at mentions only (J13)", async () => {
+    await startWithPeople();
+    const device = browser("/owner");
+    await subscribe(device);
+    const made = await request("/api/admin/groups", {
+      handle: "design",
+      name: "Design",
+      memberIds: [owner.id],
+    });
+    expect(made.status).toBe(201);
+    const group = made.body.group as { id: string };
+    // #general follows the account's default, mentions only.
+    await post(`Review this, <!subteam^${group.id}|@design-old>`);
+    await server!.flushPushes();
+    expect(pushesTo(device)).toHaveLength(1);
+    expect(open(pushesTo(device)[0]!.body, device)).toMatchObject({
+      body: "Review this, @design",
+    });
+  });
+
   it("pushes for a reminder that comes due while the app is closed", async () => {
     await startWithPeople();
     const device = browser("/owner");

@@ -8,6 +8,7 @@ import {
   DEFAULT_WORKSPACE_NAME,
   type CustomEmojiType,
   MESSAGE_TEXT_MAX,
+  RESERVED_HANDLES,
   type ChannelType,
   type ID,
   type WorkspaceEvent,
@@ -228,7 +229,8 @@ class SlackImport {
   private readonly people = new Map<string, ID>();
   private readonly bots = new Map<string, ID>();
   private readonly channels = new Map<string, Conversation>();
-  private readonly handles = new Set<string>();
+  /** Handles given out so far, people's and groups' alike, and the words for the whole room. */
+  private readonly handles = new Set<string>(RESERVED_HANDLES);
   private readonly skipped = new Map<string, number>();
   private readonly customNames = new Set<string>();
   private readonly counts: SlackImportResult["counts"] = {

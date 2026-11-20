@@ -20,7 +20,7 @@
     <link rel="stylesheet" href="/docs.css?v=30dafeac35" />
     <script src="/docs.js?v=123540c9d0" defer></script>
   </head>
-  <body class="docs-body" data-search="/docs/search.json?v=ddecff1c3b" data-guide="hosting">
+  <body class="docs-body" data-search="/docs/search.json?v=b3ed1d464c" data-guide="hosting">
     <a class="skip" href="#main">Skip to content</a>
 
     <header class="guide-head">
@@ -77,6 +77,7 @@
               <li><a href="/docs/hosting/the-administrative-record">The administrative record</a></li>
               <li><a href="/docs/hosting/invites">Invites</a></li>
               <li><a href="/docs/hosting/who-may-join">Who may join</a></li>
+              <li><a href="/docs/hosting/user-groups">User groups</a></li>
               <li><a href="/docs/hosting/guests">Guests</a></li>
               <li><a href="/docs/hosting/a-plans-members">A plan&#39;s members</a></li>
               <li><a href="/docs/hosting/an-enterprise-license">An Enterprise license</a></li>
@@ -147,6 +148,9 @@ not give keeps its name and is counted.</p>
 <p>Slack&#39;s export has no pictures for a workspace&#39;s custom emoji, only their names.
 Reactions and words that use one keep its <code>:name:</code>, and the import lists the
 names. Add emoji under those names and the messages show them.</p>
+<p>Slack&#39;s export holds no user groups. A message that mentions one keeps its words,
+such as @design, as text, and notifies nobody. Make the group again under
+<strong>People → Groups</strong> for new messages.</p>
 <p>The import reads a zip of up to 64 GB and 2 million files, up to 256 MB in one JSON
 file. About seven minutes per million messages on a recent desktop, more with
 <code>--fetch-files</code>. If anything fails, everything it made is removed and the error

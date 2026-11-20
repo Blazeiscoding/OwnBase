@@ -20,7 +20,7 @@
     <link rel="stylesheet" href="/docs.css?v=30dafeac35" />
     <script src="/docs.js?v=123540c9d0" defer></script>
   </head>
-  <body class="docs-body" data-search="/docs/search.json?v=ddecff1c3b" data-guide="integrations">
+  <body class="docs-body" data-search="/docs/search.json?v=b3ed1d464c" data-guide="integrations">
     <a class="skip" href="#main">Skip to content</a>
 
     <header class="guide-head">
@@ -77,6 +77,7 @@
               <li><a href="/docs/hosting/the-administrative-record">The administrative record</a></li>
               <li><a href="/docs/hosting/invites">Invites</a></li>
               <li><a href="/docs/hosting/who-may-join">Who may join</a></li>
+              <li><a href="/docs/hosting/user-groups">User groups</a></li>
               <li><a href="/docs/hosting/guests">Guests</a></li>
               <li><a href="/docs/hosting/a-plans-members">A plan&#39;s members</a></li>
               <li><a href="/docs/hosting/an-enterprise-license">An Enterprise license</a></li>
@@ -122,7 +123,13 @@ menus are dropped;</li>
 <p>Message text is a subset of Slack&#39;s mrkdwn. Drawn as formatting: <code>*bold*</code>,
 <code>_italic_</code>, <code>~strike~</code>, <code>`code`</code>, <code>```</code> code blocks, bare <code>http(s)</code> links,
 <code>&lt;@user id&gt;</code> and <code>&lt;#channel id&gt;</code> mentions, and <code>&lt;!here&gt;</code>, <code>&lt;!channel&gt;</code> and
-<code>&lt;!everyone&gt;</code>. A backslash before a formatting character shows it literally.
+<code>&lt;!everyone&gt;</code>. A backslash before a formatting character shows it literally.</p>
+<p>A user group is mentioned in Slack&#39;s form, <code>&lt;!subteam^group id|@handle&gt;</code>, with the
+handle the group had when the message was sent; the id stays the same when the
+group is renamed. An app may send it without the label, <code>&lt;!subteam^group id&gt;</code>. A
+group mention in an app&#39;s message notifies the group&#39;s people in the channel, as
+one from a person does. There are no API methods to list or change groups, and SCIM
+does not provision them.
 <strong>Not interpreted:</strong> Slack&#39;s <code>&lt;https://…|label&gt;</code> links (the label is not shown
 as link text), <code>&gt;</code> quotes and list markers, which appear as the characters typed,
 and date formatting such as <code>&lt;!date^…&gt;</code>.</p>

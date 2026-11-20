@@ -508,6 +508,32 @@ export const addCustomEmojiQuery = z.object({ name: z.string().max(64) });
 
 export const emojiAddingBody = z.object({ adminsOnly: z.boolean() });
 
+/**
+ * The handles nobody and no group may have (J13): `@here`, `@channel` and
+ * `@everyone` already mean the whole room.
+ */
+export const RESERVED_HANDLES: readonly string[] = ["here", "channel", "everyone"];
+
+/** The most people one user group holds. */
+export const USER_GROUP_MAX_MEMBERS = 1000;
+
+const groupMemberIds = z.array(idSchema).max(USER_GROUP_MAX_MEMBERS);
+
+export const createUserGroupBody = z.object({
+  handle: handleSchema,
+  name: z.string().trim().min(1).max(80),
+  description: z.string().trim().max(250).default(""),
+  memberIds: groupMemberIds.default([]),
+});
+
+/** What to change; `memberIds` replaces the whole list. */
+export const updateUserGroupBody = z.object({
+  handle: handleSchema.optional(),
+  name: z.string().trim().min(1).max(80).optional(),
+  description: z.string().trim().max(250).optional(),
+  memberIds: groupMemberIds.optional(),
+});
+
 export const auditQuery = z.object({
   before: z.string().max(40).optional(),
   limit: z.coerce.number().int().positive().max(200).default(50),
@@ -566,6 +592,8 @@ export type RegisterBody = z.infer<typeof registerBody>;
 export type UpdateMeBody = z.infer<typeof updateMeBody>;
 export type CreateChannelBody = z.infer<typeof createChannelBody>;
 export type UpdateChannelBody = z.infer<typeof updateChannelBody>;
+export type CreateUserGroupBody = z.input<typeof createUserGroupBody>;
+export type UpdateUserGroupBody = z.infer<typeof updateUserGroupBody>;
 export type SendMessageBody = z.input<typeof sendMessageBody>;
 export type CreateInviteBody = z.infer<typeof createInviteBody>;
 export type ChannelPrefsBody = z.infer<typeof channelPrefsBody>;

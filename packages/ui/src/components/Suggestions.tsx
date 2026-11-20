@@ -1,6 +1,14 @@
 import { useMemo, useState } from "react";
 import type React from "react";
-import { isRoom, type Channel, type CustomEmoji, type ID, type User } from "@ownbase/protocol";
+import {
+  groupMentionToken,
+  isRoom,
+  type Channel,
+  type CustomEmoji,
+  type ID,
+  type User,
+  type UserGroup,
+} from "@ownbase/protocol";
 import { usePlatform, useWorkspace } from "../context.js";
 import { Avatar } from "./Avatar.js";
 import { CustomEmojiImage } from "./CustomEmoji.js";
@@ -11,10 +19,11 @@ import { insideCodeBlock } from "../lib/textInput.js";
 import { matchTier } from "../lib/switcherRank.js";
 import type { MentionDocument } from "../lib/mentionDocument.js";
 import { useListbox } from "../lib/useListbox.js";
+import { groupSize } from "../lib/userGroups.js";
 
 /**
- * What a message box offers while a word is being typed: people after `@`,
- * channels after `#`, emoji after `:`. The composer and the message editor
+ * What a message box offers while a word is being typed: people and user
+ * groups after `@`, channels after `#`, emoji after `:`. The composer and the message editor
  * both use it, so editing a message finishes names as writing one does.
  */
 
@@ -39,6 +48,7 @@ interface Query {
 
 export type Suggestion =
   | { kind: "user"; user: User }
+  | { kind: "group"; group: UserGroup }
   | { kind: "broadcast"; token: "channel" | "here"; description: string }
   | { kind: "channel"; channel: Channel }
   | { kind: "emoji"; emoji: Emoji }
@@ -76,6 +86,40 @@ export function rankPeople(users: readonly User[], query: string, selfId: ID | u
         a.user.displayName.localeCompare(b.user.displayName),
     )
     .map((r) => r.user);
+}
+
+/** User groups for `@query` (J13), by how well the handle or name matches, then by handle. */
+export function rankGroups(groups: readonly UserGroup[], query: string): UserGroup[] {
+  const q = query.toLowerCase().normalize("NFC");
+  return groups
+    .map((group) => ({ group, tier: bestTier(q, group.handle, group.name) }))
+    .filter((r) => r.tier >= 0)
+    .sort((a, b) => a.tier - b.tier || a.group.handle.localeCompare(b.group.handle))
+    .map((r) => r.group);
+}
+
+/**
+ * People and groups for `@query` in one list: people whose name or handle is
+ * exactly what was typed first, then groups, then the other people who match.
+ * A group sits below the person it could be mistaken for, so naming one person
+ * never reaches a whole team by a slip.
+ */
+export function mentionChoices(
+  users: readonly User[],
+  groups: readonly UserGroup[],
+  query: string,
+  selfId: ID | undefined,
+): Suggestion[] {
+  const q = query.toLowerCase().normalize("NFC");
+  const people = rankPeople(users, query, selfId);
+  const exact = (user: User) =>
+    !!q &&
+    (user.handle.toLowerCase() === q || user.displayName.toLowerCase().normalize("NFC") === q);
+  return [
+    ...people.filter(exact).map((user): Suggestion => ({ kind: "user", user })),
+    ...rankGroups(groups, query).map((group): Suggestion => ({ kind: "group", group })),
+    ...people.filter((user) => !exact(user)).map((user): Suggestion => ({ kind: "user", user })),
+  ];
 }
 
 /** Channels for `#query`: named ones still open, best match first, then those you are in. */
@@ -153,6 +197,8 @@ export function useSuggestions({ field, box, apply, room }: Options) {
   const memberships = useWorkspace((s) => s.memberships);
   const selfId = useWorkspace((s) => s.self?.id);
   const custom = useWorkspace((s) => s.customEmoji);
+  // A guest is offered no groups: a group can reach people a guest cannot see.
+  const groups = useWorkspace((s) => (s.self?.role === "guest" ? null : s.userGroups));
   const [query, setQuery] = useState<Query | null>(null);
   // Every emoji arrives on first use; usually the workspace has fetched it already.
   const emoji = useEmoji(query?.kind === "emoji");
@@ -165,10 +211,13 @@ export function useSuggestions({ field, box, apply, room }: Options) {
       const rooms: Suggestion[] = room
         ? BROADCASTS.filter((b) => b.token.startsWith(q)).map((b) => ({ kind: "broadcast", ...b }))
         : [];
-      const people = rankPeople(Object.values(users), query.query, selfId).map(
-        (user): Suggestion => ({ kind: "user", user }),
+      const named = mentionChoices(
+        Object.values(users),
+        groups ? Object.values(groups) : [],
+        query.query,
+        selfId,
       );
-      return [...rooms, ...people].slice(0, SHOWN);
+      return [...rooms, ...named].slice(0, SHOWN);
     }
     if (query.kind === "channel")
       return rankChannels(Object.values(channels), query.query, (id) => id in memberships)
@@ -187,7 +236,7 @@ export function useSuggestions({ field, box, apply, room }: Options) {
           .map((e): Suggestion => ({ kind: "emoji", emoji: e }))
       : [];
     return [...own, ...standard].slice(0, 8);
-  }, [query, users, channels, memberships, selfId, room, emoji, platform, custom]);
+  }, [query, users, groups, channels, memberships, selfId, room, emoji, platform, custom]);
 
   const list = useListbox(options.length);
   const open = query !== null && options.length > 0;
@@ -197,15 +246,17 @@ export function useSuggestions({ field, box, apply, room }: Options) {
     const insert =
       option.kind === "user"
         ? `<@${option.user.id}> `
-        : option.kind === "broadcast"
-          ? `<!${option.token}> `
-          : option.kind === "channel"
-            ? `<#${option.channel.id}> `
-            : option.kind === "custom"
-              ? `:${option.emoji.name}: `
-              : emoji
-                ? `${emoji.writeEmoji(platform, option.emoji)} `
-                : null;
+        : option.kind === "group"
+          ? `${groupMentionToken(option.group)} `
+          : option.kind === "broadcast"
+            ? `<!${option.token}> `
+            : option.kind === "channel"
+              ? `<#${option.channel.id}> `
+              : option.kind === "custom"
+                ? `:${option.emoji.name}: `
+                : emoji
+                  ? `${emoji.writeEmoji(platform, option.emoji)} `
+                  : null;
     if (insert === null) return;
     // Shown as the name at once; kept as the id it stands for.
     const next = field.replaceSelection(insert, query.start, box.current.selectionStart);
@@ -298,13 +349,15 @@ export function SuggestionList({
           key={
             option.kind === "user"
               ? option.user.id
-              : option.kind === "broadcast"
-                ? option.token
-                : option.kind === "channel"
-                  ? option.channel.id
-                  : option.kind === "custom"
-                    ? `custom:${option.emoji.id}`
-                    : option.emoji.id
+              : option.kind === "group"
+                ? `group:${option.group.id}`
+                : option.kind === "broadcast"
+                  ? option.token
+                  : option.kind === "channel"
+                    ? option.channel.id
+                    : option.kind === "custom"
+                      ? `custom:${option.emoji.id}`
+                      : option.emoji.id
           }
           {...s.list.optionProps(i)}
           onClick={() => s.choose(option)}
@@ -318,6 +371,16 @@ export function SuggestionList({
               <span className="font-medium">{option.user.displayName}</span>
               <span className="font-mono text-xs text-ink-faint">@{option.user.handle}</span>
               {option.user.id === selfId && <span className="text-xs text-ink-faint">(you)</span>}
+            </>
+          ) : option.kind === "group" ? (
+            <>
+              <span className="flex size-[22px] items-center justify-center rounded-md bg-ink/[0.08] text-ink-dim">
+                <Icon name="members" size={14} />
+              </span>
+              <span className="font-medium">@{option.group.handle}</span>
+              <span className="min-w-0 flex-1 truncate text-xs text-ink-faint">
+                {option.group.name}, {groupSize(option.group)}
+              </span>
             </>
           ) : option.kind === "broadcast" ? (
             <>
