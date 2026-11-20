@@ -188,11 +188,6 @@ function formatter(timeZone: string): Intl.DateTimeFormat {
   return found;
 }
 
-/** The zones a formatter is kept for, so a test can prove the cache stays bounded. */
-export function cachedTimeZones(): string[] {
-  return [...formatters.keys()];
-}
-
 /** True when `timeZone` is a zone this runtime knows, such as "Europe/Paris". */
 export function isTimeZone(timeZone: string): boolean {
   try {
