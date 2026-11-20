@@ -1,6 +1,9 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import type { Channel, EventEnvelope, Message, ServerToClient } from "@ownbase/protocol";
+import type { Channel, EventEnvelope, Message } from "@ownbase/protocol";
 import { WorkspaceClient, threadReplies, threadRootMessage } from "../src/index.js";
+import { network } from "./network.js";
+
+const net = network({ offline: true });
 
 /**
  * A channel's events touch few of its open threads (REV-03). Threads an event
@@ -83,10 +86,10 @@ function cached() {
     threads,
     threadPages,
   });
+  c.connect();
   let seq = 100;
-  const connection = c as unknown as { handleServerMessage(message: ServerToClient): void };
   const send = (event: EventEnvelope["event"]) =>
-    connection.handleServerMessage({ type: "event", envelope: { seq: ++seq, event } });
+    net.deliver({ type: "event", envelope: { seq: ++seq, event } });
   /** Which threads read back as other replies or another root after `event`. */
   const changedBy = (event: EventEnvelope["event"]) => {
     const before = c.state;

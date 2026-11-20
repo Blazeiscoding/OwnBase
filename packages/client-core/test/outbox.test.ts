@@ -5,6 +5,9 @@ import { join } from "node:path";
 import { createWorkspaceServer, type WorkspaceServer } from "@ownbase/server";
 import { Api, ApiError, WorkspaceClient } from "../src/index.js";
 import type { WorkspaceState } from "../src/index.js";
+import { network } from "./network.js";
+
+const net = network();
 
 /**
  * A send that does not go through stays in the outbox with its words and
@@ -240,8 +243,9 @@ describe("a send that does not go through", () => {
     await until(client, (s) => !!failed(s), "the lost send");
 
     // The socket drops and comes back, as on leaving the tunnel.
-    (client as unknown as { ws: WebSocket }).ws.close();
+    net.drop(token);
     await until(client, (s) => s.status === "reconnecting", "the drop");
+    net.networkBack();
     await until(client, (s) => s.pending.length === 0, "the send going again", 10_000);
     expect(
       server.store.messages

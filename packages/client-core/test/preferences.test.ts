@@ -3,6 +3,9 @@ import { createWorkspaceServer, type WorkspaceServer } from "@ownbase/server";
 import type { ChannelPrefs, Message } from "@ownbase/protocol";
 import { Api, WorkspaceClient, ApiError } from "../src/index.js";
 import { timelineMessages } from "../src/messageCache.js";
+import { network } from "./network.js";
+
+const net = network();
 
 // The client's optimistic writes show at once and resolve with the server's
 // refusal rather than reject, so tests start them with `void` to look at what
@@ -563,8 +566,9 @@ describe("choices that reach the server out of order, or not at all", () => {
     const message = await postedMessage();
     const pin = holdNext("pinMessage");
     const pinning = client.togglePin(message);
-    const connection = client as unknown as { ws: WebSocket };
-    connection.ws.close();
+    net.drop(memberToken);
+    await expect.poll(() => client.state.status).toBe("reconnecting");
+    net.networkBack();
     await expect.poll(() => client.state.status).toBe("online");
     pin.forward();
     expect(await pinning).toBeNull();

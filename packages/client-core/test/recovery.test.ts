@@ -4,6 +4,9 @@ import { createWorkspaceServer, type WorkspaceServer } from "@ownbase/server";
 import { SEND_RETRY_WINDOW_MS } from "@ownbase/protocol";
 import { Api, ApiError, OUTBOX_LIMIT, WorkspaceClient } from "../src/index.js";
 import { timelineMessages } from "../src/messageCache.js";
+import { network } from "./network.js";
+
+const net = network();
 
 let server: WorkspaceServer;
 let client: WorkspaceClient;
@@ -11,6 +14,7 @@ let owner: Api;
 let ownerToken: string;
 let channelId: string;
 let memberId: string;
+let memberToken: string;
 
 beforeEach(async () => {
   server = await createWorkspaceServer({
@@ -28,6 +32,7 @@ beforeEach(async () => {
     password: "password123",
   });
   memberId = b.user.id;
+  memberToken = b.token;
   ownerToken = a.token;
   owner = new Api(base, a.token);
   client = new WorkspaceClient(base, b.token);
@@ -43,12 +48,16 @@ afterEach(async () => {
   vi.restoreAllMocks();
 });
 
+/** The network goes, and stays down while the test changes the real server. */
 async function disconnect() {
-  // Hold automatic reconnect while the test changes the real server.
-  const connection = client as unknown as { ws: WebSocket; reconnectDelay: number };
-  connection.reconnectDelay = 60_000;
-  connection.ws.close();
+  net.keepDown(memberToken);
   await expect.poll(() => client.state.status).toBe("reconnecting");
+}
+
+/** The network is back, and the client tries again at once. */
+function reconnect() {
+  net.restore(memberToken);
+  client.connect();
 }
 
 describe("connection recovery", () => {
@@ -62,16 +71,14 @@ describe("connection recovery", () => {
       throw new Error("a fault in this client");
     });
     const failed = vi.spyOn(console, "error").mockImplementation(() => {});
-    const connection = client as unknown as {
-      reconnectDelay: number;
-      applyReady(snapshot: { replayFrom: number | null }): void;
-    };
-    connection.reconnectDelay = 10;
-    const ready = vi.spyOn(connection, "applyReady");
+    const snapshots = () => net.heard(memberToken).filter((frame) => frame.type === "ready");
+    expect(snapshots()).toHaveLength(1);
 
     await owner.deleteMessage(doomed.id);
-    await expect.poll(() => ready.mock.calls.length).toBe(1);
-    expect(ready.mock.calls[0]![0].replayFrom).toBeNull();
+    await expect.poll(() => client.state.status).toBe("reconnecting");
+    net.networkBack();
+    await expect.poll(() => snapshots().length).toBe(2);
+    expect(snapshots()[1]).toMatchObject({ replayFrom: null });
     await expect.poll(() => client.state.status).toBe("online");
     // What the snapshot brings back no longer has it; the event is not heard twice.
     await expect
@@ -79,7 +86,7 @@ describe("connection recovery", () => {
       .toBe(false);
     await new Promise((resolve) => setTimeout(resolve, 200));
     expect(invalidate).toHaveBeenCalledOnce();
-    expect(ready).toHaveBeenCalledOnce();
+    expect(snapshots()).toHaveLength(2);
     // The server's text goes in as an argument, never into the format string.
     expect(failed).toHaveBeenCalledWith(
       "Could not apply the server's %s message.",
@@ -121,7 +128,7 @@ describe("connection recovery", () => {
     const missed = (await owner.sendMessage(channelId, { text: "offline message" })).message;
     await owner.updateChannel(channelId, { topic: "intermediate" });
     await owner.updateChannel(channelId, { topic: "latest" });
-    client.connect();
+    reconnect();
     await expect
       .poll(() => timelineMessages(client.state, channelId).some((m) => m.id === missed.id))
       .toBe(true);
@@ -149,7 +156,7 @@ describe("connection recovery", () => {
     await owner.sendMessage(channelId, { text: "pruned event" });
     const newest = (await owner.sendMessage(channelId, { text: "after pruning" })).message;
     server.store.pruneEvents(1);
-    client.connect();
+    reconnect();
     await expect
       .poll(() => timelineMessages(client.state, channelId).some((m) => m.id === newest.id))
       .toBe(true);
@@ -171,7 +178,7 @@ describe("connection recovery", () => {
     const listMessages = vi
       .spyOn(client.api, "listMessages")
       .mockRejectedValueOnce(new ApiError(500, "http_error"));
-    client.connect();
+    reconnect();
     await expect
       .poll(() => client.state.timelineStatus[channelId])
       .toEqual({ loading: null, error: "initial" });
@@ -189,7 +196,7 @@ describe("connection recovery", () => {
     expect(
       timelineMessages(client.state, channelId).filter((m) => m.text === "HTTP acknowledgement"),
     ).toHaveLength(1);
-    client.connect();
+    reconnect();
     await expect.poll(() => client.state.status).toBe("online");
     expect(
       timelineMessages(client.state, channelId).filter((m) => m.text === "HTTP acknowledgement"),
@@ -268,9 +275,9 @@ describe("outbox durability", () => {
   async function restart(): Promise<WorkspaceClient> {
     const snapshot = client[LOCAL_WORK].outboxSnapshot();
     const base = client.baseUrl;
-    const token = (client as unknown as { token: string }).token;
     client.destroy();
-    client = new WorkspaceClient(base, token);
+    net.restore(memberToken);
+    client = new WorkspaceClient(base, memberToken);
     client.connect();
     await expect.poll(() => client.state.status).toBe("online");
     client[LOCAL_WORK].restoreOutbox(snapshot);
@@ -295,10 +302,7 @@ describe("outbox durability", () => {
     // so the restart is its only route back to the truth.
     await disconnect();
     vi.spyOn(client.api, "sendMessage").mockImplementationOnce(async (channel, body) => {
-      await new Api(client.baseUrl, (client as unknown as { token: string }).token).sendMessage(
-        channel,
-        body,
-      );
+      await new Api(client.baseUrl, memberToken).sendMessage(channel, body);
       throw new Error("the acknowledgement was lost");
     });
     client.send(channelId, "acknowledged but unheard");
@@ -499,10 +503,8 @@ describe("outbox durability", () => {
     client.send(channelId, "mine");
     const mine = client[LOCAL_WORK].outboxSnapshot().map((e) => ({ ...e, userId: "someone-else" }));
     expect(mine).toHaveLength(1);
-    const fresh = new WorkspaceClient(
-      client.baseUrl,
-      (client as unknown as { token: string }).token,
-    );
+    net.restore(memberToken);
+    const fresh = new WorkspaceClient(client.baseUrl, memberToken);
     fresh.connect();
     await expect.poll(() => fresh.state.status).toBe("online");
     fresh[LOCAL_WORK].restoreOutbox(mine);
@@ -519,7 +521,7 @@ describe("reconnecting more than once", () => {
       const text = `round ${round}`;
       await owner.sendMessage(channelId, { text });
       sent.push(text);
-      client.connect();
+      reconnect();
       await expect.poll(() => client.state.status).toBe("online");
       await expect
         .poll(() => timelineMessages(client.state, channelId).some((m) => m.text === text))
@@ -545,7 +547,7 @@ describe("sequence numbers with gaps in them", () => {
     const visible = (await owner.sendMessage(channelId, { text: "after the gap" })).message;
     await owner.sendMessage(secret.id, { text: "nor this either" });
 
-    client.connect();
+    reconnect();
     await expect
       .poll(() => timelineMessages(client.state, channelId).some((m) => m.id === visible.id))
       .toBe(true);
@@ -558,7 +560,7 @@ describe("sequence numbers with gaps in them", () => {
 
     // And a second reconnection has nothing left to do.
     await disconnect();
-    client.connect();
+    reconnect();
     await expect.poll(() => client.state.status).toBe("online");
     expect(
       timelineMessages(client.state, channelId).filter((m) => m.id === visible.id),
@@ -574,12 +576,12 @@ describe("a server that has gone backwards", () => {
 
     // What a restore from backup looks like from here: the client is holding a
     // cursor past anything the server still has.
-    (client as unknown as { store: { setState: (p: object) => void } }).store.setState({
+    client.store.setState({
       lastSeq: server.store.currentSeq() + 5000,
     });
     const after = (await owner.sendMessage(channelId, { text: "after the rollback" })).message;
 
-    client.connect();
+    reconnect();
     await expect.poll(() => client.state.status).toBe("online");
     await expect
       .poll(() => timelineMessages(client.state, channelId).some((m) => m.id === after.id))
@@ -601,7 +603,7 @@ describe("a refusal that will not stop on its own", () => {
       true,
     );
 
-    client.connect();
+    reconnect();
     await expect.poll(() => client.state.status).toBe("password_change_required");
     // Retrying cannot help, so it must not keep trying: a loop that never ends
     // and never says why is worse than stopping.

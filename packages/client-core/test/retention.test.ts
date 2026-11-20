@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { createWorkspaceServer, type WorkspaceServer } from "@ownbase/server";
 import { Api, WorkspaceClient } from "../src/index.js";
 import { timelineMessages } from "../src/messageCache.js";
@@ -42,14 +42,15 @@ beforeEach(async () => {
 });
 
 afterEach(async () => {
+  vi.useRealTimers();
   client?.destroy();
   await server?.stop();
 });
 
-/** Every message old enough to go, as two days passing would. */
-function age() {
-  const db = (server.store as unknown as { db: { exec(sql: string): void } }).db;
-  db.exec(`UPDATE messages SET created_at = created_at - ${2 * DAY}`);
+/** Two days pass for the server and the client, which share this process's clock. */
+function twoDaysLater() {
+  vi.useFakeTimers({ toFake: ["Date"], shouldAdvanceTime: true });
+  vi.setSystemTime(Date.now() + 2 * DAY);
 }
 
 describe("a connected client when retention removes old conversation", () => {
@@ -72,7 +73,7 @@ describe("a connected client when retention removes old conversation", () => {
     const shown = () => timelineMessages(client.state, channelId).map((m) => m.id);
     await expect.poll(shown).toEqual(expect.arrayContaining([old.id, reply.id]));
 
-    age();
+    twoDaysLater();
     // Something newer stays.
     const { message: recent } = await owner.sendMessage(channelId, { text: "said today" });
     expect(server.applyRetention()).toBe(2);
