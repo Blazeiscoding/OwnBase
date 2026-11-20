@@ -19,6 +19,7 @@ import { FILE_KINDS, currentZoneName, isTimeZone } from "./search.js";
 import { idSchema } from "./socket.js";
 import { appEventType } from "./appEvents.js";
 import { COMMAND_NAME } from "./commands.js";
+import { EMAIL_MAX, isEmailAddress } from "./email.js";
 
 export const handleSchema = z
   .string()
@@ -92,16 +93,12 @@ export const resolveReportBody = z.object({ action: z.enum(REPORT_RESOLUTIONS) }
 /** Proves it is this account's owner before its two-step sign-in changes (E11). */
 export const twoStepPasswordBody = z.object({ password: z.string().min(1).max(256) });
 
-/**
- * An email address as people type one: something@somewhere, without spaces
- * or the brackets a display name puts around it. Whether it receives mail is
- * what the link sent to it finds out.
- */
+/** An email address as people type one; see `isEmailAddress`. */
 export const emailAddress = z
   .string()
   .trim()
-  .max(254)
-  .regex(/^[^\s@<>()",;]+@[^\s@<>()",;]+\.[^\s@<>()",;]+$/, "an email address");
+  .max(EMAIL_MAX)
+  .refine(isEmailAddress, "an email address");
 
 /** An address for this account, with its password (G10): a stolen session cannot add one. */
 export const setEmailBody = z.object({

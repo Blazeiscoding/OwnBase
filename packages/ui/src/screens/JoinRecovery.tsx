@@ -1,4 +1,5 @@
 import { useEffect, useId, useRef, useState } from "react";
+import { isEmailAddress } from "@ownbase/protocol";
 import { Api, ApiError } from "@ownbase/client-core";
 import { buttonClass } from "../components/Button.js";
 import { inputClass } from "../components/TextField.js";
@@ -35,7 +36,7 @@ export function ForgotPasswordForm(props: { url: string; onBack: () => void }) {
   async function submit(event: React.FormEvent) {
     event.preventDefault();
     const typed = email.trim();
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(typed)) {
+    if (!isEmailAddress(typed)) {
       setError("Enter the email address on your account, such as maya@example.com.");
       field.current?.focus();
       return;

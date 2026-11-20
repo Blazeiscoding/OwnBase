@@ -1,4 +1,5 @@
 import { useEffect, useId, useRef, useState } from "react";
+import { isEmailAddress } from "@ownbase/protocol";
 import { ApiError } from "@ownbase/client-core";
 import { useClient } from "../context.js";
 import { failureText } from "../lib/failure.js";
@@ -39,7 +40,7 @@ export function InviteByEmail({ code }: { code: string }) {
     event.preventDefault();
     if (busy) return;
     const typed = email.trim();
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(typed)) {
+    if (!isEmailAddress(typed)) {
       setError("Enter an email address, such as maya@example.com.");
       field.current?.focus();
       return;

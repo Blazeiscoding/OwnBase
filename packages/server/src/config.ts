@@ -8,7 +8,7 @@
  * to send its replies, and nothing fails until an app tries.
  */
 
-import type { AccessPolicy, MemberNotice } from "@ownbase/protocol";
+import { isEmailAddress, type AccessPolicy, type MemberNotice } from "@ownbase/protocol";
 
 /** A setting that cannot be used, with a message meant for the person who set it. */
 export class ConfigError extends Error {}
@@ -106,11 +106,19 @@ export function parseMailSettings(raw: {
   if (url.protocol !== "smtp:" && url.protocol !== "smtps:")
     throw new ConfigError("--smtp-url must start with smtp:// or smtps://");
   if (!url.hostname) throw new ConfigError("--smtp-url needs the mail server's host name");
-  if (!/^(?:[^<>\r\n]*<)?[^\s@<>]+@[^\s@<>]+\.[^\s@<>]+>?$/.test(from))
+  if (!isSender(from))
     throw new ConfigError(
       `--mail-from needs an address such as chat@example.com or "Team chat <chat@example.com>", not "${from}"`,
     );
   return { smtpUrl, from };
+}
+
+/** `chat@example.com`, or `Team chat <chat@example.com>`, on one line. */
+function isSender(from: string): boolean {
+  if (/[\r\n]/.test(from)) return false;
+  const open = from.lastIndexOf("<");
+  if (open === -1) return isEmailAddress(from);
+  return from.endsWith(">") && isEmailAddress(from.slice(open + 1, -1));
 }
 
 /** The longest plan name: it sits inside a sentence. */

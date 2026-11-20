@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useId, useRef, useState } from "react";
+import { isEmailAddress } from "@ownbase/protocol";
 import { ApiError, selfMay } from "@ownbase/client-core";
 import type { EmailAddressInfo } from "@ownbase/protocol";
 import { useClient, useWorkspace } from "../context.js";
@@ -65,7 +66,7 @@ export function EmailSettings() {
     event.preventDefault();
     if (busy) return;
     const typed = email.trim();
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(typed)) {
+    if (!isEmailAddress(typed)) {
       setError("Enter an email address, such as maya@example.com.");
       field.current?.focus();
       return;

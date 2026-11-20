@@ -6464,8 +6464,7 @@
         "properties": {
           "email": {
             "type": "string",
-            "maxLength": 254,
-            "pattern": "^[^\\s@<>()\",;]+@[^\\s@<>()\",;]+\\.[^\\s@<>()\",;]+$"
+            "maxLength": 254
           },
           "password": {
             "type": "string",
@@ -6496,8 +6495,7 @@
         "properties": {
           "email": {
             "type": "string",
-            "maxLength": 254,
-            "pattern": "^[^\\s@<>()\",;]+@[^\\s@<>()\",;]+\\.[^\\s@<>()\",;]+$"
+            "maxLength": 254
           }
         },
         "required": [
@@ -7460,8 +7458,7 @@
         "properties": {
           "email": {
             "type": "string",
-            "maxLength": 254,
-            "pattern": "^[^\\s@<>()\",;]+@[^\\s@<>()\",;]+\\.[^\\s@<>()\",;]+$"
+            "maxLength": 254
           }
         },
         "required": [
