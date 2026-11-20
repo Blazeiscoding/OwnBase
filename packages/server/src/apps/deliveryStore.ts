@@ -1,4 +1,4 @@
-import type { ID } from "@ownbase/protocol";
+import type { AppReceive, ID } from "@ownbase/protocol";
 import type { DatabaseSync } from "node:sqlite";
 import { countOf, shape } from "../core/rows.js";
 import { ulid } from "../ids.js";
@@ -12,6 +12,9 @@ export interface DueDelivery {
   attempts: number;
   url: string;
   signingSecret: string;
+  appId: ID;
+  /** Posted to `url`, or sent over one of the app's sockets. */
+  receive: AppReceive;
 }
 
 const dueRow = shape({
@@ -22,6 +25,8 @@ const dueRow = shape({
   attempts: "number",
   url: "text",
   signing_secret: "text",
+  app_id: "text",
+  receive: "text",
 });
 const attemptsRow = shape({ attempts: "number", failed_at: "number?" });
 const subscriptionIdRow = shape({ subscription_id: "text" });
@@ -94,7 +99,7 @@ export class DeliveryStore {
     const rows = dueRow.all(
       this.db.prepare(
         `SELECT d.id, d.subscription_id, d.event_seq, d.body, d.attempts,
-                s.url, a.signing_secret
+                s.url, a.signing_secret, a.id AS app_id, a.receive
          FROM event_deliveries d
          JOIN event_subscriptions s ON s.id = d.subscription_id
          JOIN apps a ON a.id = s.app_id
@@ -126,6 +131,8 @@ export class DeliveryStore {
       attempts: r.attempts,
       url: r.url,
       signingSecret: r.signing_secret,
+      appId: r.app_id,
+      receive: r.receive === "socket" ? "socket" : "url",
     }));
   }
 

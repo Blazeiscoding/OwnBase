@@ -297,6 +297,7 @@ async function startWorkspaceServer(
     sessionUser: (tokenHash) => store.accounts.getSessionUser(tokenHash),
     mustChangePassword: (userId) => store.accounts.mustChangePassword(userId),
     appForToken: (tokenHash) => store.apps.forToken(tokenHash),
+    appForAppLevelToken: (tokenHash) => store.apps.forAppLevelToken(tokenHash),
   });
 
   const ctx: ServerContext = {
@@ -339,7 +340,15 @@ async function startWorkspaceServer(
     joinPublicChannels,
     iconVersion: () => workspace.icon()?.version ?? null,
   });
-  const admin = registerAdmin(ctx, { instanceId, workspace, messages, files, backups });
+  const admin = registerAdmin(ctx, {
+    instanceId,
+    workspace,
+    messages,
+    files,
+    backups,
+    // Read when the status is asked for, by which time the apps are registered.
+    appSockets: () => apps.appSockets(),
+  });
   const people = registerPeople(ctx);
   const threads = registerThreads(ctx);
   const apps = registerApps(ctx, { messages });

@@ -128,6 +128,14 @@ export function describeAuditEntry(
       const what = [allowed, taken].filter(Boolean).join(" and ");
       return `${actor} changed what ${app} may do${what ? `: ${what}` : ""}`;
     }
+    case "app.app_token_replaced":
+      return `${actor} made a new app-level token for ${app}`;
+    case "app.app_token_revoked":
+      return `${actor} took away ${possessive(app)} app-level token`;
+    case "app.receive_changed":
+      return d.receive === "socket"
+        ? `${actor} switched ${app} to Socket Mode`
+        : `${actor} switched ${app} to receiving at its URLs`;
     case "webhook.created":
       return `${actor} added a webhook for ${app}`;
     case "webhook.url_replaced":

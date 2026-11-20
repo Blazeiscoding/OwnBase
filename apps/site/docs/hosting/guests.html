@@ -20,7 +20,7 @@
     <link rel="stylesheet" href="/docs.css?v=30dafeac35" />
     <script src="/docs.js?v=123540c9d0" defer></script>
   </head>
-  <body class="docs-body" data-search="/docs/search.json?v=ddecff1c3b" data-guide="hosting">
+  <body class="docs-body" data-search="/docs/search.json?v=e8a96feb19" data-guide="hosting">
     <a class="skip" href="#main">Skip to content</a>
 
     <header class="guide-head">
@@ -77,6 +77,7 @@
               <li><a href="/docs/hosting/the-administrative-record">The administrative record</a></li>
               <li><a href="/docs/hosting/invites">Invites</a></li>
               <li><a href="/docs/hosting/who-may-join">Who may join</a></li>
+              <li><a href="/docs/hosting/user-groups">User groups</a></li>
               <li><a href="/docs/hosting/guests" aria-current="page">Guests</a></li>
               <li><a href="/docs/hosting/a-plans-members">A plan&#39;s members</a></li>
               <li><a href="/docs/hosting/an-enterprise-license">An Enterprise license</a></li>
@@ -95,6 +96,7 @@
               <li><a href="/docs/integrations/interactive-buttons">Interactive buttons</a></li>
               <li><a href="/docs/integrations/modals">Modals</a></li>
               <li><a href="/docs/integrations/events">Events</a></li>
+              <li><a href="/docs/integrations/socket-mode">Socket Mode</a></li>
               <li><a href="/docs/integrations/block-kit">Block Kit</a></li>
               <li><a href="/docs/integrations/the-native-client-protocol">The native client protocol</a></li>
             </ul>
@@ -120,6 +122,9 @@ create rooms, upload files, pin, invite, schedule, use apps or commands, or
 change its password; the server refuses every request outside that list, so a
 route added later stays closed to guests until it is opened on purpose. Guests
 are marked as guests wherever they appear.</p>
+<p>A guest sees no user groups and is offered none to mention: a group can hold
+people a guest cannot see. A group mention a guest writes anyway is posted as
+words and notifies nobody.</p>
 <p>A guest session lasts 24 hours from joining and does not extend with use;
 reloading resumes it until then. At most 200 guests can be signed in at once.
 Joining is limited per address like signing in. Requiring an account again signs
@@ -129,7 +134,7 @@ without an invite: it keeps the same identity, messages and channels. An
 administrator can deactivate a guest, but cannot make one a member or reset its
 password.</p>
         </article>
-        <nav class="docs-pager" aria-label="Pages"><a class="docs-prev" href="/docs/hosting/who-may-join"><span>Previous</span>Who may join</a><a class="docs-next" href="/docs/hosting/a-plans-members"><span>Next</span>A plan&#39;s members</a></nav>
+        <nav class="docs-pager" aria-label="Pages"><a class="docs-prev" href="/docs/hosting/user-groups"><span>Previous</span>User groups</a><a class="docs-next" href="/docs/hosting/a-plans-members"><span>Next</span>A plan&#39;s members</a></nav>
         <p class="docs-source">This page is made from <a href="https://github.com/Blazeiscoding/OwnBase/blob/main/docs/DEPLOYMENT.md#guests">docs/DEPLOYMENT.md</a>.</p>
       </main>
     </div>

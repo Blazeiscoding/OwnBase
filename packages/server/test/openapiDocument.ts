@@ -23,7 +23,7 @@ const tableSource = readFileSync(resolve(here, "../../protocol/src/endpoints.ts"
 );
 
 type Method = "get" | "post" | "put" | "patch" | "delete";
-type Access = "anyone" | "bot" | "member" | "admin" | "owner";
+type Access = "anyone" | "bot" | "app" | "member" | "admin" | "owner";
 
 /** One route, as the table declares it. */
 export interface DescribedRoute {
@@ -67,6 +67,7 @@ const ACCESS: Record<EndpointSpec["access"], Access> = {
   admin: "admin",
   owner: "owner",
   bot: "bot",
+  app: "app",
 };
 
 /** Every route under /api/ in the table, in the order it is declared. */
@@ -122,6 +123,7 @@ function summaryOf(description: string): string | undefined {
 const ACCESS_WORDS: Record<Access, string> = {
   anyone: "Anyone may call this, signed in or not.",
   bot: "Called with an app's bot token, as Slack's Web API is. A failure is HTTP 200 with `ok: false`.",
+  app: "Called with an app's app-level token, for Socket Mode. A failure is HTTP 200 with `ok: false`.",
   member: "Needs a signed-in account.",
   admin: "Needs an administrator or the owner.",
   owner: "Needs the workspace owner.",
@@ -299,11 +301,17 @@ export function openApiDocument() {
       security:
         route.access === "anyone"
           ? []
-          : [route.access === "bot" ? { botToken: [] } : { session: [] }],
+          : [
+              route.access === "bot"
+                ? { botToken: [] }
+                : route.access === "app"
+                  ? { appToken: [] }
+                  : { session: [] },
+            ],
       ...(parameters.length > 0 ? { parameters } : {}),
       ...(requestBody ? { requestBody } : {}),
       responses:
-        route.access === "bot"
+        route.access === "bot" || route.access === "app"
           ? {
               "200": {
                 description: "Slack's answer, refusals included.",
@@ -350,6 +358,12 @@ export function openApiDocument() {
           scheme: "bearer",
           description:
             "An app's `xoxb-` bot token. Slack's methods also take it as a `token` field in the body.",
+        },
+        appToken: {
+          type: "http",
+          scheme: "bearer",
+          description:
+            "An app's `xapp-` app-level token, which opens Socket Mode connections and nothing else.",
         },
       },
       schemas,

@@ -5,10 +5,10 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>Events · Integration API contract · OwnBase docs</title>
-    <meta name="description" content="An app subscribes a URL to events in Apps and integrations. The URL must first answer a url_verification request — {&quot;type&quot;: &quot;url_verification&quot;, &quot;token&quot;:…" />
+    <meta name="description" content="An app subscribes a URL to events in Apps and integrations, or subscribes with no URL on Socket Mode. The URL must first answer a url_verification…" />
     <link rel="canonical" href="https://ownbase.site/docs/integrations/events" />
     <meta property="og:title" content="Events · Integration API contract · OwnBase docs" />
-    <meta property="og:description" content="An app subscribes a URL to events in Apps and integrations. The URL must first answer a url_verification request — {&quot;type&quot;: &quot;url_verification&quot;, &quot;token&quot;:…" />
+    <meta property="og:description" content="An app subscribes a URL to events in Apps and integrations, or subscribes with no URL on Socket Mode. The URL must first answer a url_verification…" />
     <meta property="og:type" content="article" />
     <meta property="og:url" content="https://ownbase.site/docs/integrations/events" />
     <meta property="og:site_name" content="OwnBase" />
@@ -20,7 +20,7 @@
     <link rel="stylesheet" href="/docs.css?v=30dafeac35" />
     <script src="/docs.js?v=123540c9d0" defer></script>
   </head>
-  <body class="docs-body" data-search="/docs/search.json?v=ddecff1c3b" data-guide="integrations">
+  <body class="docs-body" data-search="/docs/search.json?v=e8a96feb19" data-guide="integrations">
     <a class="skip" href="#main">Skip to content</a>
 
     <header class="guide-head">
@@ -77,6 +77,7 @@
               <li><a href="/docs/hosting/the-administrative-record">The administrative record</a></li>
               <li><a href="/docs/hosting/invites">Invites</a></li>
               <li><a href="/docs/hosting/who-may-join">Who may join</a></li>
+              <li><a href="/docs/hosting/user-groups">User groups</a></li>
               <li><a href="/docs/hosting/guests">Guests</a></li>
               <li><a href="/docs/hosting/a-plans-members">A plan&#39;s members</a></li>
               <li><a href="/docs/hosting/an-enterprise-license">An Enterprise license</a></li>
@@ -95,6 +96,7 @@
               <li><a href="/docs/integrations/interactive-buttons">Interactive buttons</a></li>
               <li><a href="/docs/integrations/modals">Modals</a></li>
               <li><a href="/docs/integrations/events" aria-current="page">Events</a></li>
+              <li><a href="/docs/integrations/socket-mode">Socket Mode</a></li>
               <li><a href="/docs/integrations/block-kit">Block Kit</a></li>
               <li><a href="/docs/integrations/the-native-client-protocol">The native client protocol</a></li>
             </ul>
@@ -107,7 +109,8 @@
         <article class="doc">
         <h1 id="events">Events</h1>
         
-<p>An app subscribes a URL to events in Apps and integrations. The URL must first
+<p>An app subscribes a URL to events in Apps and integrations, or subscribes with
+no URL on <a href="/docs/integrations/socket-mode#socket-mode">Socket Mode</a>. The URL must first
 answer a <code>url_verification</code> request — <code>{&quot;type&quot;: &quot;url_verification&quot;, &quot;token&quot;: &quot;&quot;, &quot;challenge&quot;: &quot;…&quot;}</code> — by echoing the <code>challenge</code>, either as the whole body or as
 <code>{&quot;challenge&quot;: &quot;…&quot;}</code>.</p>
 <p>Each event then arrives as:</p>
@@ -190,7 +193,7 @@ on its way out at that moment may still arrive as it was.</p>
 </tbody>
 </table></div>
         </article>
-        <nav class="docs-pager" aria-label="Pages"><a class="docs-prev" href="/docs/integrations/modals"><span>Previous</span>Modals</a><a class="docs-next" href="/docs/integrations/block-kit"><span>Next</span>Block Kit</a></nav>
+        <nav class="docs-pager" aria-label="Pages"><a class="docs-prev" href="/docs/integrations/modals"><span>Previous</span>Modals</a><a class="docs-next" href="/docs/integrations/socket-mode"><span>Next</span>Socket Mode</a></nav>
         <p class="docs-source">This page is made from <a href="https://github.com/Blazeiscoding/OwnBase/blob/main/docs/INTEGRATIONS.md#events">docs/INTEGRATIONS.md</a>.</p>
       </main>
     </div>

@@ -32,7 +32,9 @@ declare module "fastify" {
   }
 }
 
-type CallerOf<E extends EndpointSpec> = E["access"] extends "public" | "bot" ? undefined : User;
+type CallerOf<E extends EndpointSpec> = E["access"] extends "public" | "bot" | "app"
+  ? undefined
+  : User;
 
 /**
  * The reply of a route that answers with JSON: its headers and status, but
@@ -57,8 +59,8 @@ export interface RouteContext<E extends EndpointSpec> {
   reply: SendsItself<E> extends true ? FastifyReply : JsonReply;
   /** Who is signed in, by their header or by the download ticket that stands in for it. */
   user: CallerOf<E>;
-  /** The app calling, for a Slack Web API method. */
-  bot: E["access"] extends "bot" ? App : undefined;
+  /** The app calling, for a Slack Web API method, by its bot token or its app-level token. */
+  bot: E["access"] extends "bot" | "app" ? App : undefined;
   params: PathParams<E["path"]>;
   query: QueryOf<E>;
   body: E extends { body: "image" } ? Buffer : E extends { body: "slack" } ? unknown : BodyOf<E>;
@@ -91,6 +93,7 @@ export interface RouterOptions {
   sessionUser(tokenHash: string): User | null;
   mustChangePassword(userId: string): boolean;
   appForToken(tokenHash: string): App | null;
+  appForAppLevelToken(tokenHash: string): App | null;
 }
 
 export interface Router {
@@ -124,10 +127,9 @@ function schemaFor(ref: SchemaRef | undefined): ZodType | undefined {
  * The app a Web API call is made as. Slack takes the token as a bearer header
  * or as a `token` field in the body, and code written against it uses both.
  */
-function botCaller(req: FastifyRequest, opts: RouterOptions): App | null {
+function slackToken(req: FastifyRequest): string | null {
   const body = req.body as { token?: unknown } | undefined;
-  const token = bearerToken(req) ?? (typeof body?.token === "string" ? body.token : null);
-  return token ? opts.appForToken(hashToken(token)) : null;
+  return bearerToken(req) ?? (typeof body?.token === "string" ? body.token : null);
 }
 
 /**
@@ -231,8 +233,21 @@ export function createRouter(opts: RouterOptions): Router {
       handler: async (req: FastifyRequest, reply: FastifyReply) => {
         let user: User | null | undefined;
         let bot: App | undefined;
-        if (endpoint.access === "bot") {
-          const caller = botCaller(req, opts);
+        if (endpoint.access === "app") {
+          const token = slackToken(req);
+          const hash = token ? hashToken(token) : null;
+          const caller = hash ? opts.appForAppLevelToken(hash) : null;
+          if (!caller) {
+            // Slack's own words for a bot token used where an app-level one
+            // belongs, which Bolt prints as it is.
+            return hash && opts.appForToken(hash)
+              ? { ok: false, error: "not_allowed_token_type" }
+              : { ok: false, error: "invalid_auth" };
+          }
+          bot = caller;
+        } else if (endpoint.access === "bot") {
+          const token = slackToken(req);
+          const caller = token ? opts.appForToken(hashToken(token)) : null;
           if (!caller) return { ok: false, error: "invalid_auth" };
           // Which scopes the token holds, on every answer to it, as Slack says.
           reply.header("x-oauth-scopes", caller.scopes.join(","));

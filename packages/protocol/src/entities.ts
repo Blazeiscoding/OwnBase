@@ -477,6 +477,9 @@ export type AuditAction =
   | "app.signing_secret_replaced"
   | "app.interactivity_url_changed"
   | "app.scopes_changed"
+  | "app.app_token_replaced"
+  | "app.app_token_revoked"
+  | "app.receive_changed"
   | "webhook.created"
   | "webhook.url_replaced"
   | "webhook.deleted"
@@ -582,8 +585,11 @@ export interface WorkspaceStatus {
          */
         offsite?: { lastSuccessAt: number | null; failures: number };
       };
-  /** Open sockets, and the people they belong to. */
-  connections: { sockets: number; people: number };
+  /**
+   * Open sockets, and the people they belong to; and apps' Socket Mode
+   * connections, which are neither.
+   */
+  connections: { sockets: number; people: number; appSockets: number };
   /**
    * How late the server's event loop ran over the last full minute, in
    * milliseconds; null until a minute has passed.
@@ -915,7 +921,17 @@ export interface App {
   interactivityUrl: string;
   /** What its bot token may do and what it is sent (E18c). */
   scopes: AppScope[];
+  /**
+   * How it is sent events, commands and button presses (J14): posted to its
+   * URLs, or over a socket the app opened itself with Slack's Socket Mode,
+   * for an app with no public address.
+   */
+  receive: AppReceive;
 }
+
+/** Posted to the app's URLs, or sent over the sockets it opens (Socket Mode). */
+export const APP_RECEIVE = ["url", "socket"] as const;
+export type AppReceive = (typeof APP_RECEIVE)[number];
 
 /**
  * What an app may do (E18c), by Slack's names so the scopes an app documents

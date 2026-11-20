@@ -20,7 +20,7 @@
     <link rel="stylesheet" href="/docs.css?v=30dafeac35" />
     <script src="/docs.js?v=123540c9d0" defer></script>
   </head>
-  <body class="docs-body" data-search="/docs/search.json?v=ddecff1c3b" data-guide="integrations">
+  <body class="docs-body" data-search="/docs/search.json?v=e8a96feb19" data-guide="integrations">
     <a class="skip" href="#main">Skip to content</a>
 
     <header class="guide-head">
@@ -77,6 +77,7 @@
               <li><a href="/docs/hosting/the-administrative-record">The administrative record</a></li>
               <li><a href="/docs/hosting/invites">Invites</a></li>
               <li><a href="/docs/hosting/who-may-join">Who may join</a></li>
+              <li><a href="/docs/hosting/user-groups">User groups</a></li>
               <li><a href="/docs/hosting/guests">Guests</a></li>
               <li><a href="/docs/hosting/a-plans-members">A plan&#39;s members</a></li>
               <li><a href="/docs/hosting/an-enterprise-license">An Enterprise license</a></li>
@@ -95,6 +96,7 @@
               <li><a href="/docs/integrations/interactive-buttons">Interactive buttons</a></li>
               <li><a href="/docs/integrations/modals">Modals</a></li>
               <li><a href="/docs/integrations/events">Events</a></li>
+              <li><a href="/docs/integrations/socket-mode">Socket Mode</a></li>
               <li><a href="/docs/integrations/block-kit">Block Kit</a></li>
               <li><a href="/docs/integrations/the-native-client-protocol">The native client protocol</a></li>
             </ul>
@@ -115,7 +117,9 @@ token</strong> replaces it;</li>
 <li>a <strong>signing secret</strong>, used to sign every request this server makes to the app
 — <strong>Replace</strong> beside it issues a new one;</li>
 <li>any number of <strong>incoming webhooks</strong>, one per channel, each with a secret URL —
-<strong>New URL</strong> replaces one.</li>
+<strong>New URL</strong> replaces one;</li>
+<li>for an app on <a href="/docs/integrations/socket-mode#socket-mode">Socket Mode</a>, an <strong>app-level token</strong> (<code>xapp-…</code>),
+shown once and stored only as a hash.</li>
 </ul>
 <p>There is no OAuth installation flow. Instead, the administrator chooses the
 app&#39;s <strong>scopes</strong> when they create it, and can change them on its card at any

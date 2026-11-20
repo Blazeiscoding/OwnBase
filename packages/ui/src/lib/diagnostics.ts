@@ -235,6 +235,7 @@ function workspaceLines(status: WorkspaceStatus | { error: string }, now: number
         ? ""
         : ` (oldest for ${roughDuration(now - deliveries.oldestWaitingAt)})`
     }, ${deliveries.failed} given up`,
+    `App connections (Socket Mode): ${connections.appSockets} open`,
     `Scheduled messages: ${scheduled.queued} queued, ${scheduled.held} held for a retry, ${scheduled.failed} failed`,
     `History removal: ${
       !retention.enabled

@@ -288,7 +288,8 @@ export function registerViews(ctx: ServerContext, { calls }: { calls: AppCalls }
     // A view of text alone, such as "Loading", has nothing to submit.
     if (!open.view.submitLabel) throw new HttpError(400, "view_has_no_submit");
     const owner = store.apps.get(open.appId);
-    if (!owner?.interactivityUrl) {
+    // An app on Socket Mode is sent submissions over its socket, with no URL.
+    if (!owner || (owner.receive === "url" && !owner.interactivityUrl)) {
       showStack(me.id, closeStack(me.id));
       throw new HttpError(400, "no_interactivity_url");
     }
@@ -332,7 +333,7 @@ export function registerViews(ctx: ServerContext, { calls }: { calls: AppCalls }
     const release = calls.admit(me.id, owner.id);
     submittingViews.add(open.view.id);
     try {
-      const payload = JSON.stringify({
+      const payload = {
         type: "view_submission",
         team: { id: settings.get("workspaceId"), domain: settings.get("workspaceName") },
         user: { id: me.id, username: me.handle, name: me.displayName },
@@ -348,11 +349,14 @@ export function registerViews(ctx: ServerContext, { calls }: { calls: AppCalls }
           title: { type: "plain_text", text: open.view.title },
           state: { values },
         },
-      });
-      const form = new URLSearchParams({ payload }).toString();
+      };
 
       try {
-        const res = await calls.postForm(owner.id, owner.interactivityUrl, form);
+        const res = await calls.callApp(owner, {
+          type: "interactive",
+          url: owner.interactivityUrl,
+          payload,
+        });
         if (res.status < 200 || res.status >= 300) {
           return { ok: false, errors: {}, message: `The app answered ${res.status}.` };
         }

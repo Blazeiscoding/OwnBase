@@ -117,6 +117,7 @@ describe("what it counts", () => {
     const before = (await samples()).values;
     expect(before.get("ownbase_signed_in_sessions")).toBe(0);
     expect(before.get("ownbase_open_sockets")).toBe(0);
+    expect(before.get("ownbase_app_sockets")).toBe(0);
     expect(before.get("ownbase_huddles")).toBe(0);
     expect(before.get("ownbase_files_stored")).toBe(0);
     expect(before.get("ownbase_database_bytes")).toBeGreaterThan(0);

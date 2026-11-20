@@ -1,10 +1,34 @@
-import type { ID } from "@ownbase/protocol";
+import type { AppReceive, ID } from "@ownbase/protocol";
 import type { ServerContext } from "../core/context.js";
 import { HttpError } from "../httpError.js";
 import { secretToken, ulid } from "../ids.js";
 import { APP_CALLS_IN_FLIGHT } from "../limits.js";
 import { OutboundError, postToUrl, type OutboundResponse } from "../outbound.js";
 import { signatureHeaders } from "./signing.js";
+import type { AppSockets } from "./sockets.js";
+
+/**
+ * One thing sent to an app, in the shape it takes on either way there:
+ * an event's callback body, a command's form fields, or a press or form's
+ * payload. Over a socket each is the envelope's payload; by URL, the body
+ * Slack would post.
+ */
+export type AppCall =
+  | { type: "events_api"; url: string; body: string; attempt: number; signingSecret: string }
+  | { type: "slash_commands"; url: string; fields: Record<string, string> }
+  | { type: "interactive"; url: string; payload: Record<string, unknown> };
+
+const isolatedRefusal = () =>
+  new OutboundError(
+    "blocked_host",
+    "this is an isolated copy of the workspace, which does not contact apps",
+  );
+
+/** Which app a call goes to, and how it is reached. */
+export interface CallTarget {
+  id: ID;
+  receive: AppReceive;
+}
 
 /** Who a capability handed to an app acts for, and where. */
 export interface CapabilityTarget {
@@ -18,7 +42,7 @@ export interface CapabilityTarget {
  * how many may be waiting on apps at once, the refusal an isolated copy gives
  * them all, and whether what an app was handed is still good when it answers.
  */
-export function createAppCalls(ctx: ServerContext) {
+export function createAppCalls(ctx: ServerContext, sockets: AppSockets) {
   const { opts, store, gateway, ration, limiter, lifecycle } = ctx;
 
   /** Calls to apps in flight, keyed `account:<id>` and `app:<id>`. */
@@ -64,9 +88,10 @@ export function createAppCalls(ctx: ServerContext) {
 
   /**
    * Posts `body` to an app, signed with `secret` the way Slack signs. Every
-   * request to an app goes through here, so an isolated copy has one place to
-   * refuse them. The refusal is a `blocked_host`, whose message the callers
-   * already show to whoever pressed the button or ran the command.
+   * request to an app's URL goes through here, so an isolated copy refuses
+   * them in one place, and `callApp` refuses a socket's the same way. The
+   * refusal is a `blocked_host`, whose message the callers already show to
+   * whoever pressed the button or ran the command.
    */
   const post = (
     url: string,
@@ -76,12 +101,7 @@ export function createAppCalls(ctx: ServerContext) {
     headers: Record<string, string> = {},
   ): Promise<OutboundResponse> =>
     opts.isolated
-      ? Promise.reject(
-          new OutboundError(
-            "blocked_host",
-            "this is an isolated copy of the workspace, which does not contact apps",
-          ),
-        )
+      ? Promise.reject(isolatedRefusal())
       : postToUrl(url, body, contentType, {
           allowPrivate: opts.allowPrivateHooks,
           signal: lifecycle.signal,
@@ -90,6 +110,60 @@ export function createAppCalls(ctx: ServerContext) {
 
   const postForm = (appId: ID, url: string, form: string): Promise<OutboundResponse> =>
     post(url, form, "application/x-www-form-urlencoded", store.apps.signingSecret(appId) ?? "");
+
+  /**
+   * Sends one event, command or press to an app, posted to its URL or as an
+   * envelope over one of its sockets (J14), and answers as an HTTP call would:
+   * an acknowledgement's payload stands for the body of a 200. Every failure,
+   * a socket's included, is thrown the way a URL's is, so each caller keeps
+   * the one path it already has for an app that did not answer.
+   */
+  const callApp = async (app: CallTarget, call: AppCall): Promise<OutboundResponse> => {
+    if (app.receive === "socket") {
+      if (opts.isolated) throw isolatedRefusal();
+      const payload =
+        call.type === "events_api"
+          ? (JSON.parse(call.body) as unknown)
+          : call.type === "slash_commands"
+            ? call.fields
+            : call.payload;
+      const answer = await sockets.send(
+        app.id,
+        call.type,
+        payload,
+        call.type === "events_api"
+          ? { retryAttempt: call.attempt, retryReason: call.attempt > 0 ? "timeout" : "" }
+          : {},
+      );
+      return {
+        status: 200,
+        body:
+          answer === undefined || answer === null
+            ? ""
+            : typeof answer === "string"
+              ? answer
+              : JSON.stringify(answer),
+        contentType: "application/json",
+      };
+    }
+    if (call.type === "events_api") {
+      return post(
+        call.url,
+        call.body,
+        "application/json",
+        call.signingSecret,
+        call.attempt > 0
+          ? { "x-slack-retry-num": String(call.attempt), "x-slack-retry-reason": "http_error" }
+          : {},
+      );
+    }
+    const form =
+      call.type === "slash_commands"
+        ? new URLSearchParams(call.fields)
+        : // Slack sends the JSON as a form field named payload.
+          new URLSearchParams({ payload: JSON.stringify(call.payload) });
+    return postForm(app.id, call.url, form.toString());
+  };
 
   /**
    * Slack's url_verification handshake, worth keeping for more than
@@ -171,7 +245,7 @@ export function createAppCalls(ctx: ServerContext) {
     });
   };
 
-  return { admit, post, postForm, verifyCallbackUrl, capabilityHolds, whyFailed, sayEphemeral };
+  return { admit, post, callApp, verifyCallbackUrl, capabilityHolds, whyFailed, sayEphemeral };
 }
 
 export type AppCalls = ReturnType<typeof createAppCalls>;

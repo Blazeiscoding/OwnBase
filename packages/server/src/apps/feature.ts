@@ -7,6 +7,7 @@ import { enqueueAppDeliveries } from "./delivery.js";
 import { registerAppManagement } from "./manage.js";
 import { registerAppReplies } from "./replies.js";
 import { registerSlackApi } from "./slackApi.js";
+import { AppSockets } from "./sockets.js";
 import { registerViews } from "./views.js";
 
 /**
@@ -24,7 +25,14 @@ export function registerApps(
   },
 ) {
   const { posting } = deps.messages;
-  const calls = createAppCalls(ctx);
+  const sockets = new AppSockets(ctx.store, (err, where) =>
+    ctx.log.error({ err, where }, "app socket failure"),
+  );
+  ctx.gateway.useUpgrade("/apps/socket", (req, socket, head, url) =>
+    sockets.upgrade(req, socket, head, url),
+  );
+  ctx.lifecycle.onClose(() => sockets.stop());
+  const calls = createAppCalls(ctx, sockets);
   const deliveries = createEventDeliveries(ctx, calls);
   ctx.onRecorded((envelope) =>
     enqueueAppDeliveries(ctx.store, envelope, (subscriptionId) =>
@@ -38,8 +46,8 @@ export function registerApps(
   ctx.lifecycle.onStart(deliveries.start);
   ctx.lifecycle.hourly(deliveries.hourly);
 
-  registerAppManagement(ctx, { calls, deliveries });
-  registerSlackApi(ctx, { posting });
+  registerAppManagement(ctx, { calls, deliveries, sockets });
+  registerSlackApi(ctx, { posting, sockets });
   const { newTrigger } = registerViews(ctx, { calls });
   const replies = registerAppReplies(ctx, {
     calls,
@@ -51,5 +59,7 @@ export function registerApps(
   return {
     /** Delivers what is due to apps' event subscriptions; resolves once this round ends. */
     flushEventDeliveries: deliveries.flush,
+    /** Socket Mode connections open now, every app's. */
+    appSockets: () => sockets.total(),
   };
 }

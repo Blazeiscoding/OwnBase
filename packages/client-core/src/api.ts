@@ -3,6 +3,7 @@ import {
   endpoints,
   extensionRoutes,
   type AccessPolicy,
+  type AppReceive,
   type AppScope,
   type ChannelPrefsBody,
   type CreateChannelBody,
@@ -723,6 +724,20 @@ export class Api {
 
   replaceSigningSecret(appId: ID) {
     return this.http.json(endpoints.replaceSigningSecret, { params: { id: appId } });
+  }
+
+  /** A new `xapp-` token for Socket Mode, shown once; its connections close. */
+  replaceAppLevelToken(appId: ID) {
+    return this.http.json(endpoints.replaceAppLevelToken, { params: { id: appId } });
+  }
+
+  revokeAppLevelToken(appId: ID) {
+    return this.http.json(endpoints.revokeAppLevelToken, { params: { id: appId } });
+  }
+
+  /** Posted to its URLs, or sent over the connections it opens (Socket Mode). */
+  setAppReceive(appId: ID, receive: AppReceive) {
+    return this.http.json(endpoints.setAppReceive, { params: { id: appId }, body: { receive } });
   }
 
   /** A new URL for the same webhook and channel; the old URL stops working. */

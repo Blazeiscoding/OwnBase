@@ -66,6 +66,10 @@ export interface AppDetail extends App {
   subscriptions: EventSubscription[];
   /** Readable by admins: apps need it to verify our signatures. */
   signingSecret: string;
+  /** Whether it has an app-level token for Socket Mode; the token itself is shown once. */
+  hasAppToken: boolean;
+  /** Socket Mode connections it has open now. */
+  sockets: number;
 }
 
 /** A way for calls to connect, as `RTCIceServer` takes it. */
@@ -996,6 +1000,40 @@ export const endpoints = {
   }),
 
   /**
+   * A new app-level token (`xapp-`) for Socket Mode, replacing the one the
+   * app had and closing the sockets opened with it. Shown this once and
+   * stored hashed. It opens sockets and nothing else.
+   */
+  replaceAppLevelToken: endpoint({
+    method: "POST",
+    path: "/api/apps/:id/app-token",
+    access: "admin",
+    answer: json<{ token: string }>(),
+  }),
+
+  /** Takes the app-level token away, and closes the sockets opened with it. */
+  revokeAppLevelToken: endpoint({
+    method: "DELETE",
+    path: "/api/apps/:id/app-token",
+    access: "admin",
+    answer: json<{ ok: true }>(),
+  }),
+
+  /**
+   * How the app is sent events, commands and button presses: posted to its
+   * URLs, or over sockets it opens (Socket Mode). Going back to URLs is
+   * refused while a subscription or command has no URL, and the refusal
+   * names them.
+   */
+  setAppReceive: endpoint({
+    method: "PUT",
+    path: "/api/apps/:id/receive",
+    access: "admin",
+    body: "appReceiveBody",
+    answer: json<{ app: App }>(),
+  }),
+
+  /**
    * A new signing secret. Every request signed from here on uses it, including
    * event deliveries already waiting in the queue, which are signed when they
    * are sent rather than when they were queued. The app refuses them until it
@@ -1086,6 +1124,19 @@ export const endpoints = {
     method: "POST",
     path: "/api/chat.postMessage",
     access: "bot",
+    body: "slack",
+    answer: json<SlackAnswer>(),
+  }),
+
+  /**
+   * Slack's apps.connections.open, called with an app-level token: the
+   * address of one Socket Mode connection, good once and for a short while.
+   * A bot token is refused with `not_allowed_token_type`, as Slack does.
+   */
+  appsConnectionsOpen: endpoint({
+    method: "POST",
+    path: "/api/apps.connections.open",
+    access: "app",
     body: "slack",
     answer: json<SlackAnswer>(),
   }),
