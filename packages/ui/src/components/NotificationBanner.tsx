@@ -18,11 +18,9 @@ function current(): NotificationPermission | "unsupported" {
  */
 export function NotificationBanner({
   storage,
-  now = Date.now,
   onShowing,
 }: {
   storage: Platform["storage"];
-  now?: () => number;
   /** Told whether it is on show, so what comes after it in the banner place waits. */
   onShowing?: (showing: boolean) => void;
 }) {
@@ -30,7 +28,6 @@ export function NotificationBanner({
   const { snoozed, snooze } = useSnoozed(
     storage,
     permission === "default" ? "notificationPromptSnoozedAt" : null,
-    now,
   );
   const [busy, setBusy] = useState(false);
   const showing = permission === "default" && snoozed === false;

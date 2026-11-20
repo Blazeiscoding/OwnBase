@@ -79,10 +79,10 @@ describe("the notification banner", () => {
     const user = userEvent.setup();
     const { storage, values, get } = deviceStorage();
     const reads = () => get.mock.calls.length;
-    let clock = 1_000_000;
-    const now = () => clock;
+    const clock = vi.spyOn(Date, "now").mockReturnValue(1_000_000);
+    onTestFinished(() => clock.mockRestore());
 
-    const first = await banner({ storage, now }, reads);
+    const first = await banner({ storage }, reads);
     await user.click(screen.getByRole("button", { name: "Not now" }));
     expect(screen.queryByRole("region", { name: "Notifications" })).not.toBeInTheDocument();
     expect(values.get("notificationPromptSnoozedAt")).toBe(1_000_000);
@@ -90,14 +90,14 @@ describe("the notification banner", () => {
     first.unmount();
 
     // A reload the next day asks nothing,
-    clock += 24 * 60 * 60 * 1000;
-    const second = await banner({ storage, now }, reads);
+    clock.mockReturnValue(1_000_000 + 24 * 60 * 60 * 1000);
+    const second = await banner({ storage }, reads);
     expect(screen.queryByRole("region", { name: "Notifications" })).not.toBeInTheDocument();
     second.unmount();
 
     // and once the two weeks are up, it offers again.
-    clock = 1_000_000 + NOTICE_SNOOZE_MS;
-    await banner({ storage, now }, reads);
+    clock.mockReturnValue(1_000_000 + NOTICE_SNOOZE_MS);
+    await banner({ storage }, reads);
     expect(screen.getByRole("region", { name: "Notifications" })).toBeVisible();
   });
 
