@@ -253,6 +253,13 @@ describe("the email address in Account settings", () => {
     expect(await screen.findByRole("status")).toHaveTextContent(
       "A link is on its way to maya@example.test. Open it to confirm the address.",
     );
+    await waitFor(() => expect(read).toHaveBeenCalledTimes(2));
+    // Said once: the notice, rather than the notice and the waiting line too.
+    expect(screen.queryByText(/Waiting for you to open the link/)).toBeNull();
+
+    // Opened again later, the address is still waiting on its link.
+    cleanup();
+    settings(client);
     expect(
       await screen.findByText(
         "Waiting for you to open the link sent to maya@example.test. It works for 24 hours.",

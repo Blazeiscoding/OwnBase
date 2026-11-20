@@ -119,7 +119,7 @@ export function EmailSettings() {
           ? `${status.email}. If you forget your password, a link to set a new one goes here. Only you see it.`
           : "Add one so that, if you forget your password, a link to set a new one can go to it. Only you see it."}
       </p>
-      {status.pending && !editing && (
+      {status.pending && !editing && !notice && (
         <p className="mt-3 text-sm text-ink-dim">
           Waiting for you to open the link sent to {status.pending}. It works for 24 hours.
         </p>
