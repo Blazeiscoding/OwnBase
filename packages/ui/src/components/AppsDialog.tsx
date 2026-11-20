@@ -1513,7 +1513,12 @@ function SubscriptionList({ app, onChanged }: { app: AppDetail; onChanged: () =>
               className="min-w-0 flex-1"
             />
           )}
-          <button type="submit" aria-disabled={busy || undefined} className={rowButton}>
+          <button
+            type="submit"
+            aria-disabled={busy || undefined}
+            // With no labelled field beside it, nothing to line up with.
+            className={app.receive === "url" ? rowButton : rowButton.replace("mt-5 ", "")}
+          >
             {busy ? (app.receive === "url" ? "Verifying…" : "Subscribing…") : "Subscribe"}
           </button>
         </div>
