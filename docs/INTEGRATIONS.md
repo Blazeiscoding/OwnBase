@@ -22,7 +22,9 @@ An administrator creates an app under **Apps and integrations**. Each app gets:
 - a **signing secret**, used to sign every request this server makes to the app
   — **Replace** beside it issues a new one;
 - any number of **incoming webhooks**, one per channel, each with a secret URL —
-  **New URL** replaces one.
+  **New URL** replaces one;
+- for an app on [Socket Mode](#socket-mode), an **app-level token** (`xapp-…`),
+  shown once and stored only as a hash.
 
 There is no OAuth installation flow. Instead, the administrator chooses the
 app's **scopes** when they create it, and can change them on its card at any
@@ -245,8 +247,9 @@ text.
 
 ## Slash commands
 
-An administrator registers a command against a URL. When someone runs it, the
-app receives a form-encoded `POST` with `command`, `text`, `team_id`,
+An administrator registers a command against a URL, or with none for an app on
+[Socket Mode](#socket-mode). When someone runs it, the app receives a
+form-encoded `POST` with `command`, `text`, `team_id`,
 `team_domain`, `channel_id`, `channel_name`, `user_id`, `user_name`,
 `api_app_id`, `response_url` and `trigger_id`. There is no legacy verification
 `token`; check the signature instead.
@@ -275,7 +278,8 @@ archived, or the person it answers is deactivated — and then answers **404**
 An app's buttons call its **interactivity URL**, which an administrator sets in
 Apps and integrations. Unlike on Slack, the URL must echo a `url_verification`
 challenge (see [Events](#events)) before it is accepted, so this server cannot
-be aimed at an unrelated host.
+be aimed at an unrelated host. An app on [Socket Mode](#socket-mode) needs none:
+its presses arrive over its connection.
 
 A press posts a form with a `payload` field holding Slack's `block_actions`
 payload: `team`, `user`, `api_app_id`, `channel`, `message` (with `ts`, `text`
@@ -385,7 +389,8 @@ app goes away in that time.
 
 ## Events
 
-An app subscribes a URL to events in Apps and integrations. The URL must first
+An app subscribes a URL to events in Apps and integrations, or subscribes with
+no URL on [Socket Mode](#socket-mode). The URL must first
 answer a `url_verification` request — `{"type": "url_verification", "token": "",
 "challenge": "…"}` — by echoing the `challenge`, either as the whole body or as
 `{"challenge": "…"}`.
@@ -473,6 +478,89 @@ The events — _checked_:
 | `member.left`      | `member_left_channel`   | —                                                                  | `channels:read`, `groups:read`                                     |
 | `user.joined`      | `team_join`             | `user` carries `id`, `name`, `real_name`, `is_bot`, `deleted` only | `users:read`                                                       |
 | `user.updated`     | `user_change`           | As above                                                           | `users:read`                                                       |
+
+## Socket Mode
+
+An app with no public address, such as a bot on a laptop or behind a home
+router, can open the connection itself, as with Slack's Socket Mode. On the
+app's card in Apps and integrations, choose **Socket Mode** under how it
+receives, and make an **app-level token** (`xapp-…`). The token is shown once,
+stored only as a hash, and can be replaced or taken away. It opens connections
+and nothing else: every other method refuses it.
+
+- The app calls `apps.connections.open` with the app-level token. A bot token
+  answers `not_allowed_token_type`, and an app still on URLs
+  `socket_mode_disabled`. The answer's `url` is a WebSocket address on this
+  server, at `/apps/socket`, good for one connection within thirty seconds.
+- Once connected, the app is sent `{"type": "hello", "num_connections": 1, …}`.
+- Events, slash commands, button presses and form submissions arrive as Slack's
+  envelopes: `envelope_id`, `type` (`events_api`, `slash_commands` or
+  `interactive`), `payload` and `accepts_response_payload`. The payload is what
+  the HTTP request would have carried: the `event_callback`, the command's
+  fields as an object, or the `block_actions` or `view_submission` payload. An
+  event's envelope also has `retry_attempt` and `retry_reason`.
+- The app acknowledges with `{"envelope_id": "…"}`. A `payload` beside it is
+  what its HTTP answer would have been: a command's reply, a press's, or a
+  form's `response_action`.
+- With no connection open, or no acknowledgement within four seconds, an event
+  counts as a failed attempt and is retried exactly as for a URL. A command or
+  a press fails as it does for a URL that does not answer, and the person who
+  ran it is told.
+- An app may hold **10** connections, and each envelope goes to one of them. A
+  message from the app over 64 KB closes its connection with **1009**. The
+  server pings every connection every ten seconds and closes one that stops
+  answering, or that has fallen too far behind reading what it is sent.
+- The server sends `{"type": "disconnect", "reason": "link_disabled"}` and
+  closes the connection when the token is replaced or taken away, the app goes
+  back to URLs, or the app is deleted or its bot deactivated. It sends
+  `refresh_requested` when it stops.
+- Commands and event subscriptions of an app on Socket Mode have no URL and no
+  `url_verification` check, and its buttons need no interactivity URL. An app
+  goes back to URLs only once none of its commands or subscriptions is without
+  a URL; the refusal names them.
+- A reverse proxy in front of the server must pass WebSocket upgrades on
+  `/apps/socket` as well as on `/ws`.
+
+Bolt for JavaScript runs unchanged once both of its clients are pointed at this
+server. Checked against a local server with `@slack/bolt` 5.1: the message
+event, the command's reply in the channel and the button's rewrite all arrived.
+
+```js
+import bolt from "@slack/bolt";
+
+const slackApiUrl = "https://chat.example.com/api/";
+const app = new bolt.App({
+  token: process.env.SLACK_BOT_TOKEN, // xoxb-…
+  appToken: process.env.SLACK_APP_TOKEN, // xapp-…
+  socketMode: true,
+  clientOptions: { slackApiUrl },
+  // Bolt's Socket Mode client takes its address from here.
+  installerOptions: { clientOptions: { slackApiUrl } },
+});
+
+app.message("ping", async ({ say }) => {
+  await say({
+    text: "pong",
+    blocks: [
+      {
+        type: "actions",
+        elements: [
+          { type: "button", action_id: "again", text: { type: "plain_text", text: "Again" } },
+        ],
+      },
+    ],
+  });
+});
+app.command("/hello", async ({ command, ack }) => {
+  await ack({ response_type: "in_channel", text: `Hello, ${command.text}` });
+});
+app.action("again", async ({ ack, respond }) => {
+  await ack();
+  await respond({ replace_original: true, text: "Pressed again" });
+});
+
+await app.start();
+```
 
 ## Block Kit
 
