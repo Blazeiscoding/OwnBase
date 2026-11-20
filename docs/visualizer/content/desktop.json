@@ -90,6 +90,18 @@
       "concepts": ["registry", "persistence", "hosting"]
     },
     {
+      "path": "apps/desktop/src/main/publicLink.ts",
+      "plain": "Gets the hosted workspace a public link and closes it again, deciding who may join while it is open.",
+      "summary": "The running workspace's public link: its tunnel, the address links use, and who may join meanwhile.",
+      "details": [
+        "open checks the run first (running, not a restored copy being looked inside, no stop or earlier close unfinished), refuses a configured stable address that cannot be used rather than falling back to a temporary one, and asks the owner to create their account before anyone can join through the link.",
+        "Who may join becomes the rule asked for, invited accounts only by default. Closing the link puts back the rule from before, unless an owner or admin chose one inside the workspace meanwhile (workspaceChoseRule); guests let in while it was open leave with it.",
+        "A connector that does not finish closing is kept (closeUnfinished), and nothing may reopen the link or change who can join until it closes (N12). A link opened elsewhere (carrier elsewhere) leaves joining invite-only when it closes.",
+        "The controller runs every step in its one queue and tells the link about the run through run(); stopping cancels an open still waiting and closes the link in the stop's own turn (endTunnel)."
+      ],
+      "concepts": ["tunnel", "access policy", "N12", "hosting"]
+    },
+    {
       "path": "apps/desktop/src/main/settings.ts",
       "plain": "Saves the desktop app's settings one change at a time, so two changes made together never overwrite each other.",
       "summary": "Provides one acknowledged queue for native settings reads, updates and writes.",

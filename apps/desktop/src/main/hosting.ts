@@ -6,7 +6,6 @@ import {
   isAccessPolicy,
   WORKSPACE_NAME_MAX,
   workspaceNameSchema,
-  type AccessPolicy,
 } from "@ownbase/protocol";
 import {
   isPort,
@@ -29,15 +28,14 @@ import type {
   renameStoppedWorkspace,
 } from "@ownbase/server/stoppedWorkspace";
 import type { WorkspaceIcon } from "@ownbase/server/workspaceIcon";
-import { DesktopError } from "../shared/desktopError.js";
 import {
   stableAddress,
-  TunnelCleanupError,
   type PublicAddressConfig,
   type StableAddress,
   type Tunnel,
 } from "./tunnel.js";
 import { createHostedList, legacyPointer, mostRecent } from "./hostedList.js";
+import { createPublicLink } from "./publicLink.js";
 import {
   RegistryFormatError,
   legacyFolder,
@@ -65,14 +63,6 @@ export const START_ON_LAUNCH_KEY = "startOnLaunch";
  * address or another workspace is never published by it.
  */
 export const REOPEN_PUBLIC_KEY = "reopenPublicOnLaunch";
-
-/**
- * Calls through a tunnel still go directly between people, so each side has
- * to find its public address. Cloudflare already carries the tunnel, so its
- * STUN server adds nobody new.
- */
-export const OPEN_TO_ALL_ICE_SERVERS = [{ urls: "stun:stun.cloudflare.com:3478" }];
-
 /** A scheduled backup whose last try did not finish, for the tray to say so (OPS-02). */
 export interface BackupAttention {
   folder: string;
@@ -327,29 +317,6 @@ export function createHostingController(options: HostingOptions) {
   /** Stops asked for and not yet over, so the status says "stopping" from the moment one is asked. */
   let stopsAsked = 0;
   let shutdownPromise: Promise<void> | null = null;
-  let tunnel: Tunnel | null = null;
-  /** A connector returned before cancellation/setup failed, not safe to publish or forget. */
-  let cleanupTunnel: Tunnel | null = null;
-  /** The current address is carried by a process outside this app's control. */
-  let externalCarrier = false;
-  /**
-   * Who could join before the public link opened. Guests let in while it is
-   * open leave with it; any other rule chosen then stays, as it always has.
-   * An owner or admin choosing in Workspace settings meanwhile forgets it:
-   * what they chose is the workspace's, and closing the link keeps it.
-   */
-  let policyBeforeOpen: AccessPolicy | undefined;
-  /**
-   * Counts who-may-join changes made inside the workspace by an owner or
-   * admin. A step that read the rule before waiting puts back what it read
-   * only if this has not moved meanwhile, so it never undoes their choice.
-   */
-  let workspacePolicyChanges = 0;
-  /** Set while a tunnel is opening, so stopping or quitting need not wait for it. */
-  let opening: AbortController | null = null;
-  let openError: string | undefined;
-  /** Invalidates public-open requests that were queued before a close or stop. */
-  let publicRequest = 0;
   /** Counts starts, so a step that waited can tell the run it began with from a later one. */
   let runs = 0;
   /**
@@ -363,6 +330,24 @@ export function createHostingController(options: HostingOptions) {
   let stopWatchingConnections: (() => void) | null = null;
   /** Stops following the running workspace's name and who may join. */
   let stopFollowingWorkspace: (() => void) | null = null;
+  const link = createPublicLink({
+    openTunnel: options.openTunnel,
+    publicAddress: options.publicAddress,
+    savePublicAddress: options.savePublicAddress,
+    run: () => ({
+      server,
+      phase,
+      isolated: isolatedRun,
+      stopFailed,
+      runs,
+      quitting: closing,
+    }),
+    serialized,
+    changed,
+    refuseWhileQuitting,
+    finishCleanup,
+    publicReopened,
+  });
 
   function refuseWhileQuitting(): void {
     if (closing) throw new Error(QUITTING);
@@ -377,11 +362,6 @@ export function createHostingController(options: HostingOptions) {
     }
   }
 
-  /** The stable address a public link would be opened at now, if one is configured and valid. */
-  function stableUrl(): string | undefined {
-    return stableAddress(options.publicAddress().config)?.publicUrl;
-  }
-
   function status(): HostingSnapshot {
     const { saved, config } = options.publicAddress();
     const usable = stableAddress(config);
@@ -393,12 +373,7 @@ export function createHostingController(options: HostingOptions) {
       ...(workspace ?? {}),
       ...(server ? { port: server.port, lanUrls: options.lanUrls(server.port) } : {}),
       ...(server ? { instanceId: server.instanceId, accessPolicy: server.accessPolicy() } : {}),
-      ...(opening
-        ? { openToAll: { phase: "opening" as const } }
-        : tunnel
-          ? { openToAll: { phase: "open" as const, url: tunnel.url } }
-          : {}),
-      ...(openError ? { openToAllError: openError } : {}),
+      ...link.status(),
       tunnelAvailable: options.tunnelAvailable(),
       ...(usable ? { publicAddress: usable.publicUrl } : {}),
       ...(setting ? { publicAddressSetting: setting } : {}),
@@ -443,57 +418,6 @@ export function createHostingController(options: HostingOptions) {
     return launchFolder;
   }
 
-  /** Back to reachable only on this network: no public address, no STUN. */
-  function closeReach(target: HostedServer): void {
-    for (const clear of [
-      () => target.setTrustLoopbackProxy(false),
-      () => target.setPublicUrl(null),
-      () => target.setIceServers([]),
-    ]) {
-      try {
-        clear();
-      } catch {
-        // Keep clearing the other public state even if an implementation fails.
-      }
-    }
-  }
-
-  async function endTunnel(): Promise<void> {
-    const current = tunnel ?? cleanupTunnel;
-    if (!current) return;
-    const openPolicy =
-      tunnel === current && !externalCarrier && server ? server.accessPolicy() : undefined;
-    const previousPolicy =
-      openPolicy === "guest_allowed" && policyBeforeOpen && policyBeforeOpen !== "guest_allowed"
-        ? policyBeforeOpen
-        : openPolicy;
-    policyBeforeOpen = undefined;
-    const policyChanges = workspacePolicyChanges;
-    // A close may reject or time out while its connector is still exiting.
-    // Keep every public-access mutation gated until that same handle closes.
-    cleanupTunnel = current;
-    // Remove the public address from new links before asking the connector to
-    // drain. Keep its handle/status until exit is confirmed so closing can be
-    // retried if the child process refuses to stop.
-    if (server) {
-      closeReach(server);
-      // Stopping our use of an external route cannot stop that route. Keep it
-      // from becoming an open-registration endpoint if it is still running.
-      if (externalCarrier || cleanupTunnel) server.setAccessPolicy("invite_only");
-    }
-    await finishCleanup(current.close(), "The public link did not finish closing in time.");
-    if (tunnel === current) {
-      tunnel = null;
-      externalCarrier = false;
-    }
-    if (cleanupTunnel === current) {
-      cleanupTunnel = null;
-    }
-    // Chosen inside the workspace while the link closed, the rule stays theirs.
-    if (previousPolicy !== undefined && server && policyChanges === workspacePolicyChanges)
-      server.setAccessPolicy(previousPolicy);
-  }
-
   async function finishCleanup(work: Promise<void>, message: string): Promise<void> {
     let timer: ReturnType<typeof setTimeout> | undefined;
     try {
@@ -507,11 +431,6 @@ export function createHostingController(options: HostingOptions) {
     } finally {
       clearTimeout(timer);
     }
-  }
-
-  function cancelPublicOpen(): void {
-    publicRequest += 1;
-    opening?.abort();
   }
 
   function serialized<T>(operation: () => Promise<T>): Promise<T> {
@@ -578,7 +497,7 @@ export function createHostingController(options: HostingOptions) {
     }
     return serialized(async () => {
       if (server) {
-        if (stopFailed || cleanupTunnel)
+        if (stopFailed || link.closeUnfinished())
           throw new Error("Finish stopping the workspace before starting it again.");
         const same =
           "folder" in requested
@@ -772,7 +691,7 @@ export function createHostingController(options: HostingOptions) {
       // while it can still be corrected, rather than letting Get a public link
       // fail later with only "did not answer as this workspace".
       if (movedFrom !== undefined) {
-        const configured = stableUrl();
+        const configured = link.stableUrl();
         portWarning = configured
           ? `Port ${movedFrom} was already in use, so this workspace is on ${server.port}. Point ${configured} at http://127.0.0.1:${server.port}, or it will reach whatever is using ${movedFrom}.`
           : `Port ${movedFrom} was already in use, so this workspace is on ${server.port}. Links that name ${movedFrom} will not reach it.`;
@@ -1609,7 +1528,7 @@ export function createHostingController(options: HostingOptions) {
     const launched = () => server !== null && workspace?.folder === folder && runs === run;
     const wanted = await readReopenPublic();
     if (!launched() || !wanted || wanted.folder !== folder || isolatedRun) return;
-    const current = stableUrl();
+    const current = link.stableUrl();
     if (current !== wanted.address) {
       launchError = {
         part: "public-address",
@@ -1652,12 +1571,12 @@ export function createHostingController(options: HostingOptions) {
           throw new Error(
             "A restored copy you are looking inside has no public address to reopen.",
           );
-        if (!stableUrl())
+        if (!link.stableUrl())
           throw new Error(
             "OwnBase can reopen the public link only if it keeps the same address. Without your own address, the link changes every time. Enter your own address first.",
           );
       }
-      const next = value ? { folder: workspace!.folder, address: stableUrl()! } : null;
+      const next = value ? { folder: workspace!.folder, address: link.stableUrl()! } : null;
       try {
         await options.settings.set(REOPEN_PUBLIC_KEY, next);
       } catch {
@@ -1781,10 +1700,7 @@ export function createHostingController(options: HostingOptions) {
    */
   function followWorkspace(folder: string, change: WorkspaceChange): void {
     if (!workspace || workspace.folder !== folder) return;
-    if (change.by !== null && change.accessPolicy !== undefined) {
-      workspacePolicyChanges += 1;
-      policyBeforeOpen = undefined;
-    }
+    if (change.by !== null && change.accessPolicy !== undefined) link.workspaceChoseRule();
     // The host's own rename keeps the list itself, in its turn.
     if (change.by !== null && change.workspaceName !== undefined) {
       workspace.workspaceName = change.workspaceName;
@@ -1823,14 +1739,14 @@ export function createHostingController(options: HostingOptions) {
     changed();
     // A link to a server that is gone would only show Cloudflare's error page.
     try {
-      await endTunnel();
+      await link.endTunnel();
     } catch (error) {
       phase = "running";
       warning = "The public link could not finish closing. Try stopping the workspace again.";
       changed();
       throw error;
     }
-    openError = undefined;
+    link.clearError();
     try {
       await finishCleanup(server.stop(), "The workspace did not finish stopping in time.");
     } catch (error) {
@@ -1902,185 +1818,14 @@ export function createHostingController(options: HostingOptions) {
   }
 
   function stop(): Promise<void> {
-    cancelPublicOpen();
+    link.cancel();
     return stopInTurn();
   }
 
-  /**
-   * Opens the running workspace to all: a tunnel gives it an https address
-   * anyone can reach, links are built on that address, and calls look for a
-   * route across networks. Who may join becomes `accessPolicy`, invited
-   * accounts only unless it says otherwise.
-   */
+  /** Gets the running workspace a public link; see `PublicLink.open`. */
   function openToAll(value: unknown = {}): Promise<void> {
     if (closing) return Promise.reject(new Error(QUITTING));
-    const { accessPolicy } =
-      value && typeof value === "object" && !Array.isArray(value)
-        ? (value as { accessPolicy?: unknown })
-        : {};
-    if (accessPolicy !== undefined && !isAccessPolicy(accessPolicy))
-      return Promise.reject(new Error(`Say who may join with one of ${ACCESS_POLICIES}.`));
-    const request = publicRequest;
-    // Asked for one run, it never opens another that started while it waited.
-    const run = runs;
-    return serialized(async () => {
-      if (closing || request !== publicRequest || run !== runs)
-        throw new Error("Getting a public link was cancelled.");
-      const target = server;
-      if (!target || phase !== "running")
-        throw new Error("Start hosting the workspace before getting a public link.");
-      if (isolatedRun)
-        throw new Error(
-          "A restored copy you are looking inside cannot have a public link. Put it back in use first.",
-        );
-      if (stopFailed)
-        throw new Error("Finish stopping the workspace before changing its public link.");
-      if (cleanupTunnel)
-        throw new Error(
-          "Stop hosting to finish closing the previous public link, then get a new one.",
-        );
-      // A configured stable address that cannot be used has to be corrected.
-      // Falling back would publish a temporary link nobody was given. An
-      // already open link keeps working, so its policy can still be changed.
-      const { config } = options.publicAddress();
-      if (!tunnel && config && "error" in config) throw new Error(config.error);
-      const configured = stableAddress(config);
-      const carriedElsewhere = configured?.carrier === "elsewhere";
-      const setPolicy = target.setAccessPolicy;
-      // Through a tunnel nothing counts as this computer's own, so the owner
-      // would need the claim code to create their account. Theirs comes first.
-      if (target.accountCount() === 0)
-        throw new DesktopError(
-          "owner-account-missing",
-          "Create your own account in the workspace first, then get a public link.",
-        );
-      const previousPolicy = target.accessPolicy();
-      const closedPolicy: AccessPolicy = carriedElsewhere ? "invite_only" : previousPolicy;
-      if (!tunnel) policyBeforeOpen = previousPolicy;
-      const policyChanges = workspacePolicyChanges;
-      /**
-       * Back to the rule from before, when the link did not open. One an owner
-       * or admin chose meanwhile stays, unless something else may be carrying
-       * the address, when joining closes whatever was chosen.
-       */
-      const putBackPolicy = () => {
-        if (carriedElsewhere || policyChanges === workspacePolicyChanges) setPolicy(closedPolicy);
-      };
-      openError = undefined;
-      setPolicy(accessPolicy ?? "invite_only");
-      if (tunnel) {
-        publicReopened();
-        changed();
-        return;
-      }
-      const attempt = new AbortController();
-      opening = attempt;
-      openError = undefined;
-      changed();
-      let opened: Tunnel;
-      try {
-        opened = await options.openTunnel(
-          target.port,
-          attempt.signal,
-          target.instanceId,
-          configured,
-        );
-      } catch (error) {
-        if (error instanceof TunnelCleanupError) {
-          cleanupTunnel = error.tunnel;
-          setPolicy("invite_only");
-          closeReach(target);
-          openError =
-            "The public link could not finish closing. Stop hosting to try closing it again, then get a new one.";
-          if (opening === attempt) opening = null;
-          changed();
-          throw error;
-        }
-        try {
-          putBackPolicy();
-        } catch {
-          // The original opening error remains the useful one to report.
-        }
-        // Called off by stopping, quitting or turning it off: nothing failed.
-        if (!attempt.signal.aborted)
-          openError = error instanceof Error ? error.message : String(error);
-        if (opening === attempt) opening = null;
-        changed();
-        throw error;
-      }
-      cleanupTunnel = opened;
-      if (opening === attempt) opening = null;
-      if (attempt.signal.aborted || request !== publicRequest || closing) {
-        setPolicy("invite_only");
-        try {
-          await endTunnel();
-        } catch (error) {
-          openError =
-            "The cancelled public link could not finish closing. Stop hosting to try closing it again, then get a new one.";
-          changed();
-          throw error;
-        }
-        putBackPolicy();
-        changed();
-        throw new Error("Getting a public link was cancelled.");
-      }
-      try {
-        // Only a connector OwnBase starts is known to replace Cloudflare's
-        // client-address header. A generic local proxy may pass a forged one.
-        if (!carriedElsewhere) target.setTrustLoopbackProxy(true);
-        target.setPublicUrl(opened.url);
-        target.setIceServers(OPEN_TO_ALL_ICE_SERVERS);
-      } catch (error) {
-        closeReach(target);
-        setPolicy("invite_only");
-        try {
-          await endTunnel();
-        } catch (cleanupError) {
-          openError =
-            "Setting up the public link failed, and the link could not finish closing. Stop hosting to try closing it again, then get a new one.";
-          changed();
-          throw cleanupError;
-        }
-        putBackPolicy();
-        openError =
-          "The workspace could not use its public link. Press Get a public link to try again.";
-        changed();
-        throw error;
-      }
-      tunnel = opened;
-      cleanupTunnel = null;
-      externalCarrier = carriedElsewhere;
-      publicReopened();
-      opened.onUnexpectedExit((reason) => {
-        if (tunnel !== opened) return;
-        tunnel = null;
-        const wasExternal = externalCarrier;
-        externalCarrier = false;
-        closeReach(target);
-        if (wasExternal) setPolicy("invite_only");
-        openError = configured
-          ? `The public link stopped working (${reason}). Fix its connection, then press Get a public link to open it at the same address.`
-          : `The public link stopped working (${reason}). Press Get a public link for a new one.`;
-        changed();
-      });
-      changed();
-    });
-  }
-
-  /** Back to this network only. Links go back to its addresses. */
-  function endOpenToAll(): Promise<void> {
-    cancelPublicOpen();
-    return serialized(async () => {
-      openError = undefined;
-      try {
-        await endTunnel();
-      } catch (error) {
-        openError = "The public link could not finish closing. Try closing it again.";
-        changed();
-        throw error;
-      }
-      changed();
-    });
+    return link.open(value);
   }
 
   /**
@@ -2093,26 +1838,9 @@ export function createHostingController(options: HostingOptions) {
     return serialized(async () => {
       if (!server?.setAccessPolicy || phase !== "running")
         throw new Error("Start hosting the workspace before changing who can join.");
-      if (stopFailed || cleanupTunnel)
+      if (stopFailed || link.closeUnfinished())
         throw new Error("Finish stopping the workspace before changing who can join.");
       server.setAccessPolicy(value);
-      changed();
-    });
-  }
-
-  /**
-   * Changes the saved external address in the same queue as opening it. An
-   * external carrier may already be live, so registration is secured before
-   * persistence and remains secured if saving fails.
-   */
-  function setPublicAddress(value: string | null): Promise<void> {
-    return serialized(async () => {
-      refuseWhileQuitting();
-      if (tunnel || opening || cleanupTunnel)
-        throw new Error("Stop using the current public address before changing it.");
-      if (server && phase === "running") server.setAccessPolicy("invite_only");
-      await options.savePublicAddress(value);
-      openError = undefined;
       changed();
     });
   }
@@ -2130,7 +1858,7 @@ export function createHostingController(options: HostingOptions) {
     if (shutdownPromise) return shutdownPromise;
     // Set before joining the queue: later IPC starts cannot outrun a pending quit.
     closing = true;
-    cancelPublicOpen();
+    link.cancel();
     shutdownPromise = stopInTurn().catch((error: unknown) => {
       // The caller can cancel quitting and retry with the same owned server.
       closing = false;
@@ -2167,8 +1895,8 @@ export function createHostingController(options: HostingOptions) {
     quitting: () => closing,
     shutdown,
     openToAll,
-    endOpenToAll,
+    endOpenToAll: link.end,
     setAccessPolicy,
-    setPublicAddress,
+    setPublicAddress: link.setPublicAddress,
   };
 }
