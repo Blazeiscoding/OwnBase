@@ -4,6 +4,7 @@ import type { Channel, CustomEmoji, UserGroup } from "@ownbase/protocol";
 import { OpenMessageContext } from "../context.js";
 import { CustomEmojiImage, customEmojiFor, useCustomEmoji } from "./CustomEmoji.js";
 import { GroupMention } from "./GroupMention.js";
+import { codeLanguage } from "../lib/codeColours.js";
 import { parseDeepLink } from "../lib/deeplink.js";
 import { channelMentionLabel, userMentionLabel } from "../lib/mentionDocument.js";
 import { useOwnAddress } from "./ShareableServer.js";
@@ -65,13 +66,7 @@ export function Mrkdwn({
     <span className="whitespace-pre-wrap break-words leading-[1.45]">
       {blocks.map((block, i) =>
         i % 2 === 1 ? (
-          <code
-            key={i}
-            dir="ltr"
-            className="my-1 block overflow-x-auto rounded-lg border border-edge bg-ground px-3 py-2 font-mono text-[13px]"
-          >
-            {highlight(trimAtFences(block, true, true))}
-          </code>
+          <CodeBlock key={i} block={block} highlight={highlight} />
         ) : (
           <Fragment key={i}>
             {lineRuns(trimAtFences(block, i > 0, i < blocks.length - 1)).map((run, j) => {
@@ -131,6 +126,30 @@ export function Mrkdwn({
         ),
       )}
     </span>
+  );
+}
+
+/**
+ * A fenced block. A language word alone on the fence line, as Markdown writes
+ * one, names its language and is not drawn.
+ */
+function CodeBlock({
+  block,
+  highlight,
+}: {
+  block: string;
+  highlight: (value: string) => ReactNode;
+}) {
+  const parsed = codeLanguage(block);
+  const code = parsed ? trimAtFences(parsed.code, false, true) : trimAtFences(block, true, true);
+  return (
+    <code
+      dir="ltr"
+      data-language={parsed?.language}
+      className="my-1 block overflow-x-auto rounded-lg border border-edge bg-ground px-3 py-2 font-mono text-[13px]"
+    >
+      {highlight(code)}
+    </code>
   );
 }
 
