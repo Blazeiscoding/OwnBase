@@ -79,8 +79,9 @@ export type {
 } from "./huddle.js";
 export { shownPoll } from "./polls.js";
 export type { PollDraft } from "./polls.js";
-export { OUTBOX_LIMIT, WorkspaceClient } from "./workspace.js";
-export type { SendAnswer } from "./workspace.js";
+export { WorkspaceClient } from "./workspace.js";
+export { OUTBOX_LIMIT } from "./sender.js";
+export type { SendAnswer } from "./sender.js";
 export {
   blockedPartner,
   deactivatedPartner,
