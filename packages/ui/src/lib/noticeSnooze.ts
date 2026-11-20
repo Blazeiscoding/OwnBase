@@ -7,16 +7,16 @@ export const NOTICE_SNOOZE_MS = 14 * 24 * 60 * 60 * 1000;
 type Storage = Platform["storage"];
 
 /** Whether "Not now" was pressed under `key` less than two weeks ago. A failed read is a no. */
-export function snoozedUnder(storage: Storage, key: string, now: () => number): Promise<boolean> {
+export function snoozedUnder(storage: Storage, key: string): Promise<boolean> {
   return storage
     .get<number>(key)
-    .then((at) => typeof at === "number" && now() - at < NOTICE_SNOOZE_MS)
+    .then((at) => typeof at === "number" && Date.now() - at < NOTICE_SNOOZE_MS)
     .catch(() => false);
 }
 
 /** Remembers "Not now" under `key`. A courtesy: if it cannot be saved, the notice is still gone. */
-export function keepSnoozed(storage: Storage, key: string, now: () => number): void {
-  storage.set(key, now()).catch(() => {});
+export function keepSnoozed(storage: Storage, key: string): void {
+  storage.set(key, Date.now()).catch(() => {});
 }
 
 /**
@@ -27,25 +27,24 @@ export function keepSnoozed(storage: Storage, key: string, now: () => number): v
 export function useSnoozed(
   storage: Storage,
   key: string | null,
-  now: () => number,
 ): { snoozed: boolean | null; snooze: () => void } {
   const [answer, setAnswer] = useState<{ key: string; snoozed: boolean } | null>(null);
   useEffect(() => {
     if (!key) return;
     let alive = true;
-    void snoozedUnder(storage, key, now).then((snoozed) => {
+    void snoozedUnder(storage, key).then((snoozed) => {
       if (alive) setAnswer({ key, snoozed });
     });
     return () => {
       alive = false;
     };
-  }, [storage, key, now]);
+  }, [storage, key]);
   return {
     snoozed: key && answer?.key === key ? answer.snoozed : null,
     snooze: () => {
       if (!key) return;
       setAnswer({ key, snoozed: true });
-      keepSnoozed(storage, key, now);
+      keepSnoozed(storage, key);
     },
   };
 }

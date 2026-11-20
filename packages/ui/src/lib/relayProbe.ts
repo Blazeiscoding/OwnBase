@@ -7,19 +7,12 @@ export type RelayProbe = "works" | "refused" | "unreachable";
  * means the relay answered and took its username and password. The relay
  * answers a wrong password with 401, which is told apart from no answer.
  */
-export async function probeRelay(
-  iceServers: RTCIceServer[],
-  options: {
-    timeoutMs?: number;
-    connect?: (config: RTCConfiguration) => RTCPeerConnection;
-  } = {},
-): Promise<RelayProbe> {
-  const connect = options.connect ?? ((config) => new RTCPeerConnection(config));
-  const pc = connect({ iceServers, iceTransportPolicy: "relay" });
+export async function probeRelay(iceServers: RTCIceServer[]): Promise<RelayProbe> {
+  const pc = new RTCPeerConnection({ iceServers, iceTransportPolicy: "relay" });
   let refused = false;
   try {
     const found = new Promise<boolean>((resolve) => {
-      const timer = setTimeout(() => resolve(false), options.timeoutMs ?? 10_000);
+      const timer = setTimeout(() => resolve(false), 10_000);
       const done = (works: boolean) => {
         clearTimeout(timer);
         resolve(works);

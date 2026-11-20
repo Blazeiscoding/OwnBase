@@ -104,6 +104,18 @@ describe("a mention in the composer", () => {
     expect(sent(send)).toBe("Lunch <!here> now");
   });
 
+  it("takes the next key straight after a mention finished among other words", async () => {
+    // A fast typist's next key lands between the rewrite and anything that
+    // waits a frame to put the caret back, so it must be back at once.
+    const { box, send, user } = await renderComposer();
+    await user.type(box, "hi  there");
+    await user.type(box, "@ka", { initialSelectionStart: 3, initialSelectionEnd: 3 });
+    await user.keyboard("{Tab}x");
+    expect(box).toHaveValue("hi @Kai x there");
+    await user.keyboard("{Enter}");
+    expect(sent(send)).toBe(`hi <@${kai.id}> x there`);
+  });
+
   it("sends the person chosen, not another with the same name", async () => {
     const { box, send, user } = await renderComposer();
     await user.type(box, "@sadia");

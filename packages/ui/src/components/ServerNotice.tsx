@@ -14,10 +14,8 @@ const NONE: ServerNotice[] = [];
  * license that has ended, only until the app is opened again.
  */
 export function ServerNoticeBanner({
-  now = Date.now,
   onShowing,
 }: {
-  now?: () => number;
   /** Told whether it is on show, so what comes after it in the banner place waits. */
   onShowing?: (showing: boolean) => void;
 }) {
@@ -35,7 +33,7 @@ export function ServerNoticeBanner({
     void Promise.all(
       notices.map(async (notice) => {
         if (notice.tone === "alert") return null;
-        return (await snoozedUnder(platform.storage, prefix + notice.id, now)) ? notice.id : null;
+        return (await snoozedUnder(platform.storage, prefix + notice.id)) ? notice.id : null;
       }),
     ).then((ids) => {
       if (alive) setSnoozed(new Set(ids.filter((id): id is string => id !== null)));
@@ -43,7 +41,7 @@ export function ServerNoticeBanner({
     return () => {
       alive = false;
     };
-  }, [platform, prefix, notices, now]);
+  }, [platform, prefix, notices]);
 
   const notice =
     snoozed === null
@@ -62,7 +60,7 @@ export function ServerNoticeBanner({
       return;
     }
     setSnoozed((ids) => new Set([...(ids ?? []), current.id]));
-    keepSnoozed(platform.storage, prefix + current.id, now);
+    keepSnoozed(platform.storage, prefix + current.id);
   }
 
   return (

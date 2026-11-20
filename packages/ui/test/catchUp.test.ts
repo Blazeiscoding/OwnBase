@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { Message } from "@ownbase/protocol";
-import { CatchUpSummary, namesList } from "../src/lib/catchUp.js";
+import { CATCH_UP_INTERVAL_MS, CatchUpSummary, namesList } from "../src/lib/catchUp.js";
 import { catchUpContent } from "../src/lib/notificationPreview.js";
 
 const message = (n: number): Message => ({
@@ -31,8 +31,6 @@ describe("a catch-up summary", () => {
     const catchUp = new CatchUpSummary({
       stillNews,
       show: (messages) => shown.push(messages.map((m) => m.id)),
-      intervalMs: 60_000,
-      quietMs: 1_000,
     });
     return { catchUp, shown };
   }
@@ -58,8 +56,8 @@ describe("a catch-up summary", () => {
     catchUp.hold(message(2));
     vi.advanceTimersByTime(10_000);
     catchUp.hold(message(3));
-    // A minute from the first summary, not from the last reconnect.
-    vi.advanceTimersByTime(49_999);
+    // Two minutes from the first summary, not from the last reconnect.
+    vi.advanceTimersByTime(109_999);
     expect(shown).toHaveLength(1);
     vi.advanceTimersByTime(1);
     expect(shown).toEqual([["M1"], ["M2", "M3"]]);
@@ -87,7 +85,7 @@ describe("a catch-up summary", () => {
     const { catchUp, shown } = summary();
     catchUp.hold(message(1));
     catchUp.dispose();
-    vi.advanceTimersByTime(60_000);
+    vi.advanceTimersByTime(CATCH_UP_INTERVAL_MS);
     expect(shown).toEqual([]);
   });
 });

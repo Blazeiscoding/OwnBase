@@ -37,10 +37,8 @@ export function UpgradeLink({ href, className }: { href: string; className: stri
  * for as long as it is true.
  */
 export function MemberNoticeBanner({
-  now = Date.now,
   onShowing,
 }: {
-  now?: () => number;
   /** Told whether it is on show, so what comes after it in the banner place waits. */
   onShowing?: (showing: boolean) => void;
 }) {
@@ -51,7 +49,6 @@ export function MemberNoticeBanner({
   const { snoozed, snooze } = useSnoozed(
     platform.storage,
     over ? `memberNoticeSnoozedAt:${workspaceId ?? "workspace"}` : null,
-    now,
   );
   const showing = over && snoozed === false;
 

@@ -40,9 +40,17 @@ function fakeLocks(): LockManager {
   } as unknown as LockManager;
 }
 
+/** Gives the browser these Web Locks, or none, as a page over plain http has. */
+function browserLocks(locks: LockManager | undefined) {
+  Object.defineProperty(navigator, "locks", { value: locks, configurable: true });
+}
+
 const settle = () => new Promise((resolve) => setTimeout(resolve, 0));
 
-afterEach(() => localStorage.removeItem(FOCUSED_VIEW_KEY));
+afterEach(() => {
+  localStorage.removeItem(FOCUSED_VIEW_KEY);
+  delete (navigator as { locks?: LockManager }).locks;
+});
 
 describe("the focused window's record", () => {
   it("is read by other windows of the same account only, while fresh", () => {
@@ -74,11 +82,11 @@ describe("the focused window's record", () => {
 
 describe("doing something in one window", () => {
   it("does it in one of several windows in the background, and stops it", async () => {
-    const locks = fakeLocks();
+    browserLocks(fakeLocks());
     const stop = vi.fn();
     const start = vi.fn(() => stop);
-    const first = inOneWindow(account, "ring", start, locks);
-    const second = inOneWindow(account, "ring", start, locks);
+    const first = inOneWindow(account, "ring", start);
+    const second = inOneWindow(account, "ring", start);
     await settle();
     expect(start).toHaveBeenCalledTimes(1);
     second();
@@ -89,22 +97,25 @@ describe("doing something in one window", () => {
 
   it("leaves it to another window of the account that has focus", async () => {
     writeFocusedView(view, "W_OTHER");
+    browserLocks(fakeLocks());
     const start = vi.fn(() => () => {});
-    inOneWindow(account, "ring", start, fakeLocks())();
+    inOneWindow(account, "ring", start)();
     await settle();
     expect(start).not.toHaveBeenCalled();
   });
 
   it("does it in every window where the browser has no locks (plain http)", () => {
+    browserLocks(undefined);
     const start = vi.fn(() => () => {});
-    inOneWindow(account, "ring", start, undefined);
-    inOneWindow(account, "ring", start, undefined);
+    inOneWindow(account, "ring", start);
+    inOneWindow(account, "ring", start);
     expect(start).toHaveBeenCalledTimes(2);
   });
 
   it("never starts what was stopped before its turn came", async () => {
+    browserLocks(fakeLocks());
     const start = vi.fn(() => () => {});
-    inOneWindow(account, "ring", start, fakeLocks())();
+    inOneWindow(account, "ring", start)();
     await settle();
     expect(start).not.toHaveBeenCalled();
   });
