@@ -2,7 +2,6 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import WebSocket from "ws";
 import { PROTOCOL_VERSION, type ServerToClient } from "@ownbase/protocol";
 import { createWorkspaceServer, type WorkspaceServer } from "../src/server.js";
-import { HUDDLE_GRACE_MS } from "../src/huddles/rooms.js";
 import { moveableClock, passGrace } from "./huddleClock.js";
 
 /**
@@ -147,8 +146,8 @@ describe("a place in a huddle when its device's connection drops", () => {
     moveableClock();
     b.ws.terminate();
     await expect.poll(() => server.gateway.isOnline(bob.user.id)).toBe(false);
-    // Kept to the end of the grace...
-    await vi.advanceTimersByTimeAsync(HUDDLE_GRACE_MS - 1_000);
+    // Kept for half a minute...
+    await vi.advanceTimersByTimeAsync(29_000);
     await a.settle();
     expect(server.huddles.participants(general())).toHaveLength(2);
     // ...and given up after it.

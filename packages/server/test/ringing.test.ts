@@ -7,7 +7,6 @@ import {
   type ServerToClient,
 } from "@ownbase/protocol";
 import { createWorkspaceServer, type WorkspaceServer } from "../src/server.js";
-import { HUDDLE_RING_MS } from "../src/huddles/rooms.js";
 import { moveableClock, passGrace, passRing } from "./huddleClock.js";
 
 /**
@@ -226,8 +225,9 @@ describe("a direct message's huddle", () => {
     caller.send({ type: "huddle.join", channelId, requestId: "a" });
     await expect.poll(() => callee.rings().length).toBe(1);
 
-    // Still ringing just short of the end...
-    await vi.advanceTimersByTimeAsync(HUDDLE_RING_MS - 1_000);
+    // Still ringing for half a minute...
+    await vi.advanceTimersByTimeAsync(29_000);
+    await callee.settle();
     expect(callee.rings()).toHaveLength(1);
     // ...and missed after it.
     await passRing();
