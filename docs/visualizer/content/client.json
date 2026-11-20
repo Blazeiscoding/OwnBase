@@ -2337,11 +2337,13 @@
       "concepts": ["user groups", "mentions"]
     },
     {
-      "path": "packages/ui/src/components/UserGroupsSection.tsx",
-      "plain": "The Groups part of People: make a group, choose who is in it, rename it or delete it.",
-      "summary": "UserGroupsSection and its form, for admins (J13): handle, name, description and a searchable list of people; deleting asks first and says how many the group holds.",
+      "path": "packages/ui/src/components/GroupsDialog.tsx",
+      "plain": "The Groups window: the workspace's user groups, and a view for making or changing one.",
+      "summary": "GroupsDialog, for admins (J13): a list with each group's people, one menu per row, and a form with the name first, a handle made from it until typed, and people added by search; deleting asks first and says how many the group holds.",
       "details": [
-        "Loaded with the People window, never on the first screen. A handle someone has is said at the field, from the server's handle_taken."
+        "Its own lazy window, opened from the workspace menu and from People, never on the first screen.",
+        "A taken handle is said as it is typed, from the people and groups the client knows (an admin's snapshot holds everyone); the server checks again and its handle_taken lands on the same field.",
+        "Going back or closing with unsaved changes asks first."
       ],
       "concepts": ["user groups", "admin", "dialogs"]
     },

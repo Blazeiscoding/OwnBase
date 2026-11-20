@@ -26,6 +26,7 @@ export const ROUTE_DIALOGS = [
   "account",
   "workspace",
   "people",
+  "groups",
   "reports",
   "apps",
   "invite",
