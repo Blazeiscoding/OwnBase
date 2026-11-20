@@ -422,7 +422,8 @@ describe("timeline snapshot reconciliation", () => {
     hold.release();
     await loading;
     expect(timelineMessages(client.state, channelId)).toHaveLength(60);
-    const holds = (client as unknown as { timelineHolds: Map<string, unknown> }).timelineHolds;
+    const holds = (client as unknown as { history: { timelineHolds: Map<string, unknown> } })
+      .history.timelineHolds;
     expect(holds.size).toBe(0);
   });
 
@@ -465,7 +466,8 @@ describe("timeline snapshot reconciliation", () => {
     await loading;
     expect(client.state.timelineStatus[channelId]).toEqual({ loading: null, error: "latest" });
     expect(timelineMessages(client.state, channelId)[0]?.text).toBe("edit 2001");
-    const holds = (client as unknown as { timelineHolds: Map<string, unknown> }).timelineHolds;
+    const holds = (client as unknown as { history: { timelineHolds: Map<string, unknown> } })
+      .history.timelineHolds;
     expect(holds.size).toBe(0);
     await client.loadTimeline(channelId, { latest: true });
     expect(client.state.timelines[channelId]).toMatchObject({ loaded: true, hasMoreNewer: false });
