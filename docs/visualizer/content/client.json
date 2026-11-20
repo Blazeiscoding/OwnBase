@@ -459,6 +459,18 @@
       ]
     },
     {
+      "path": "packages/ui/src/screens/JoinBrowse.tsx",
+      "plain": "The first card of the join screen: saved workspaces, workspaces found on your network, typing an address, and hosting your own.",
+      "summary": "The join screen's browse card: saved sign-ins, LAN results, direct connect, resume hosting and the host card.",
+      "details": [
+        "BrowseCard lists saved sign-ins (with Forget, which asks first), workspaces announced on the local network (FoundServerRow), and the workspace serving the page, then the address field. JoinScreen owns the probing and hands it the outcome as props.",
+        "Looking on the network goes on, but after SCAN_PATIENCE_MS it says what else to do instead of pulsing over an empty list.",
+        "ResumeHosted offers the workspace this computer hosted last while hosting is stopped: one click starts it again on its remembered port and reopens the saved sign-in (resumeTarget).",
+        "HostCard offers hosting as one of the two ways in, not a footnote; it is shown only where the platform can host."
+      ],
+      "concepts": ["LAN discovery", "saved credentials", "hosting"]
+    },
+    {
       "path": "packages/ui/src/screens/JoinSignIn.tsx",
       "plain": "The card where you sign in to a workspace, create an account or join as a guest.",
       "summary": "The join screen's sign-in card: password, registration, guest, single sign-on and two-step sign-in.",
