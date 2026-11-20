@@ -202,6 +202,14 @@ describe("an Enterprise license in a running server", () => {
       summary:
         "Enterprise license for Acme Ltd, 2 members, until 23 August 2027; the workspace has 3",
     });
+    await server!.stop();
+
+    // Exactly as many as it covers is fine.
+    await start(at(NOW, license({ members: 3 })));
+    const covered = await people();
+    expect((await ready(covered.owner.token)).notices).toBeUndefined();
+    const fine = await call("/api/admin/status", covered.owner.token, undefined, "GET");
+    expect(fine.data.extensions[0]).toMatchObject({ health: "ok" });
   });
 
   it("is the free edition without a license", async () => {

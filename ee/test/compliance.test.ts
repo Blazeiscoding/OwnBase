@@ -293,6 +293,12 @@ describe("the export", () => {
     const { owner, maya, sam, general, legal } = await people();
     const dm = (await call("/api/channels", sam.token, { type: "dm", memberIds: [maya.user.id] }))
       .data.channel.id as string;
+    const group = (
+      await call("/api/channels", sam.token, {
+        type: "group_dm",
+        memberIds: [maya.user.id, owner.user.id],
+      })
+    ).data.channel.id as string;
     const form = new FormData();
     form.append("file", new Blob(["the contract, signed"]), "contract.txt");
     const uploaded = await fetch(`${base}/api/channels/${general}/files`, {
@@ -308,6 +314,7 @@ describe("the export", () => {
     const takenBack = await post(sam, legal, "taken back");
     await remove(sam, takenBack.id);
     const direct = await post(sam, dm, "sam to maya, in private");
+    const inGroup = await post(sam, group, "sam to maya and the owner");
     await post(sam, general, "neither maya's nor in legal");
 
     const choose = (values: Record<string, string>) =>
@@ -342,7 +349,13 @@ describe("the export", () => {
       zipName(fileId, "contract.txt"),
     ]);
     const messages = await jsonl("messages.jsonl");
-    expect(messages.map((m) => m.id)).toEqual([withFile.id, edited.id, takenBack.id, direct.id]);
+    expect(messages.map((m) => m.id)).toEqual([
+      withFile.id,
+      edited.id,
+      takenBack.id,
+      direct.id,
+      inGroup.id,
+    ]);
     expect(messages[0]).toMatchObject({
       authorId: maya.user.id,
       conversationId: general,
@@ -363,26 +376,32 @@ describe("the export", () => {
       files: [],
       deletedAt: expect.any(String),
     });
-    // Maya's direct conversation, whoever wrote in it.
+    // Maya's direct conversations, with one person or several, whoever wrote in them.
     expect(messages[3]).toMatchObject({ conversationId: dm, text: "sam to maya, in private" });
+    expect(messages[4]).toMatchObject({ conversationId: group, text: "sam to maya and the owner" });
     expect(await read(zipName(fileId, "contract.txt"))).toBe("the contract, signed");
     const manifest = JSON.parse(await read("manifest.json"));
     expect(manifest).toMatchObject({
       format: 1,
       madeBy: { handle: "owner" },
       people: [maya.user.id],
-      counts: { messages: 4, deleted: 1, edited: 1, files: 1 },
+      counts: { messages: 5, deleted: 1, edited: 1, files: 1 },
     });
     expect(manifest.deletions).toContain("Its words and files were erased");
     expect((await jsonl("conversations.jsonl")).map((c) => c.name)).toEqual([
       "general",
       "legal",
       expect.stringMatching(/^(maya, sam|sam, maya)$/),
+      expect.stringMatching(/^(?=.*maya)(?=.*sam)(?=.*owner)/i),
     ]);
-    expect((await jsonl("people.jsonl")).map((p) => p.handle).sort()).toEqual(["maya", "sam"]);
+    expect((await jsonl("people.jsonl")).map((p) => p.handle).sort()).toEqual([
+      "maya",
+      "owner",
+      "sam",
+    ]);
     expect((await audit(owner))[0]).toMatchObject({
       actorId: owner.user.id,
-      details: { did: "downloaded a compliance export", messages: 4, people: 1, channels: 1 },
+      details: { did: "downloaded a compliance export", messages: 5, people: 1, channels: 1 },
     });
 
     // The link opens once, and only for the owner's session.
@@ -475,10 +494,22 @@ describe("sending the administrative record", () => {
     const udpLines: string[] = [];
     udp.on("message", (msg) => udpLines.push(msg.toString("utf8")));
     await new Promise<void>((resolve) => udp.bind(0, "127.0.0.1", resolve));
-    let tcpBytes = "";
+    let tcpBytes = Buffer.alloc(0);
     const tcp: TcpServer = createTcpServer((socket) =>
-      socket.on("data", (chunk) => (tcpBytes += chunk.toString("utf8"))),
+      socket.on("data", (chunk: Buffer) => (tcpBytes = Buffer.concat([tcpBytes, chunk]))),
     );
+    /** Octet counted: the length in bytes, a space, then the message. */
+    const tcpFrames = () => {
+      const frames: string[] = [];
+      let rest = tcpBytes;
+      while (rest.length > 0) {
+        const space = rest.indexOf(32);
+        const length = Number(rest.subarray(0, space).toString());
+        frames.push(rest.subarray(space + 1, space + 1 + length).toString("utf8"));
+        rest = rest.subarray(space + 1 + length);
+      }
+      return frames;
+    };
     await new Promise<void>((resolve) => tcp.listen(0, "127.0.0.1", resolve));
     try {
       await start();
@@ -494,22 +525,19 @@ describe("sending the administrative record", () => {
           /^<110>1 \d{4}-\d\d-\d\dT[\d:.]+Z \S+ ownbase - extension\.action - \{.*"did":"set the administrative record to be sent to syslog"/,
         );
 
+      // A name with letters longer than a byte, so characters and bytes differ.
+      await save(owner, "/api/admin/workspace/name", { name: "Café Zoë" });
       const tcpPort = (tcp.address() as { port: number }).port;
       await save(owner, "/api/compliance/stream", { syslog: `tcp://127.0.0.1:${tcpPort}` });
-      // Octet counted: the length, a space, then the message.
-      await expect.poll(() => tcpBytes).toMatch(/^\d+ <110>1 /);
-      const frames: string[] = [];
-      let rest = Buffer.from(tcpBytes);
-      while (rest.length > 0) {
-        const space = rest.indexOf(32);
-        const length = Number(rest.subarray(0, space).toString());
-        frames.push(rest.subarray(space + 1, space + 1 + length).toString("utf8"));
-        rest = rest.subarray(space + 1 + length);
-      }
-      // A new destination gets the whole record.
-      expect(frames.map((frame) => JSON.parse(frame.slice(frame.indexOf("{"))).id)).toEqual(
-        await auditIds(owner),
-      );
+      const all = await auditIds(owner);
+      // A new destination gets the whole record, each message whole.
+      await expect
+        .poll(() =>
+          tcpFrames().map((frame) => JSON.parse(frame.slice(frame.indexOf("{"))).id as string),
+        )
+        .toEqual(all);
+      expect(tcpFrames().every((frame) => frame.startsWith("<110>1 "))).toBe(true);
+      expect(tcpFrames().join("\n")).toContain('"to":"Café Zoë"');
     } finally {
       udp.close();
       await new Promise<void>((resolve) => tcp.close(() => resolve()));
