@@ -90,6 +90,18 @@
       "concepts": ["registry", "persistence", "hosting"]
     },
     {
+      "path": "apps/desktop/src/main/hostedBackups.ts",
+      "plain": "Backs up the workspaces this computer hosts, when asked and on their schedules, and keeps only the newest copies.",
+      "summary": "Backups of hosted workspaces: by hand, scheduled, pruned and listed.",
+      "details": [
+        "backup copies a workspace, running or not, into a new folder named after it and the time, after checking the destination can be reached and has room, and that the folder still holds the workspace the list names; a copy of something else is removed rather than reported as this workspace's backup.",
+        "runDueBackups backs up every workspace whose schedule has come due, one at a time in the controller's queue, reserving the attempt before the copy so a killed app does not retry at once; retries wait an hour, doubling up to a day. One pass runs at a time, and a check asked for meanwhile runs once more after it. Quitting stops new passes.",
+        "pruneBackups keeps the newest recoverable copies: the one just made and others that pass verifyBackup. Only a folder named as backup names it, holding a copy of this very workspace, is ever removed.",
+        "ownBackups and listBackups find a workspace's own backups in its schedule's folder, newest first; backupAttention names the scheduled backups whose last try did not finish, for the tray (OPS-02)."
+      ],
+      "concepts": ["backup", "schedule", "retention", "OPS-02"]
+    },
+    {
       "path": "apps/desktop/src/main/publicLink.ts",
       "plain": "Gets the hosted workspace a public link and closes it again, deciding who may join while it is open.",
       "summary": "The running workspace's public link: its tunnel, the address links use, and who may join meanwhile.",
