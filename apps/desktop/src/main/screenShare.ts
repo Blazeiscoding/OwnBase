@@ -189,6 +189,8 @@ export interface ShareStreams {
   audio?: "loopback";
 }
 
+const CHOICE_FRESH_FOR_MS = 15_000;
+
 /**
  * Holds the picker's choice for the getDisplayMedia request it is made for,
  * which comes moments later. It is used once, and only while fresh: a request
@@ -197,14 +199,9 @@ export interface ShareStreams {
 export class ScreenChoice {
   private held: { source: ChosenSource; sound: boolean; at: number } | null = null;
 
-  constructor(
-    private readonly freshForMs = 15_000,
-    private readonly now: () => number = Date.now,
-  ) {}
-
   /** `sound`: the picker allowed the screen's sound, where this system can share it. */
   hold(source: ChosenSource, sound = false): void {
-    this.held = { source, sound, at: this.now() };
+    this.held = { source, sound, at: Date.now() };
   }
 
   /**
@@ -214,7 +211,7 @@ export class ScreenChoice {
   take(audioRequested = false): ShareStreams | null {
     const held = this.held;
     this.held = null;
-    if (!held || this.now() - held.at > this.freshForMs) return null;
+    if (!held || Date.now() - held.at > CHOICE_FRESH_FOR_MS) return null;
     return held.sound && audioRequested
       ? { video: held.source, audio: "loopback" }
       : { video: held.source };

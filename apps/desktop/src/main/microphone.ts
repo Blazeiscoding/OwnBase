@@ -259,10 +259,6 @@ export class SystemMicrophones {
     for (const session of [...this.sessions.keys()]) this.drop(session);
   }
 
-  get openCount(): number {
-    return this.sessions.size;
-  }
-
   /** The device went, or the helper stopped by itself: the page is told, once. */
   private end(session: number, reason: string): void {
     const entry = this.sessions.get(session);

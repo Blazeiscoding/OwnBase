@@ -1,7 +1,6 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   PlaceCheckpoint,
-  RENDERER_RECOVERY,
   RendererRecovery,
   isRendererLoadFailure,
 } from "../src/main/rendererRecovery.js";
@@ -9,28 +8,28 @@ import { rendererUrlTrust } from "../src/main/ipcBoundary.js";
 
 /** When the window's page dies or fails to load (REV-09). */
 describe("recovering the window's page", () => {
-  it("reloads a few times, then asks instead of reloading forever", () => {
-    let now = 0;
-    const recovery = new RendererRecovery(RENDERER_RECOVERY, () => now);
+  beforeEach(() => vi.useFakeTimers());
+  afterEach(() => vi.useRealTimers());
+
+  it("reloads three times in a minute, then asks instead of reloading forever", () => {
+    const recovery = new RendererRecovery();
     const steps = Array.from({ length: 5 }, () => {
-      now += 1_000;
+      vi.advanceTimersByTime(1_000);
       return recovery.failed();
     });
     expect(steps).toEqual(["reload", "reload", "reload", "ask", "ask"]);
   });
 
-  it("counts only recent failures, so a page that fails now and then always comes back", () => {
-    let now = 0;
-    const recovery = new RendererRecovery(RENDERER_RECOVERY, () => now);
+  it("counts only the last minute's failures, so a page that fails now and then always comes back", () => {
+    const recovery = new RendererRecovery();
     for (let i = 0; i < 20; i++) {
-      now += RENDERER_RECOVERY.windowMs / 2;
+      vi.advanceTimersByTime(30_000);
       expect(recovery.failed()).toBe("reload");
     }
   });
 
   it("starts counting again when someone chooses to try again", () => {
-    let now = 0;
-    const recovery = new RendererRecovery(RENDERER_RECOVERY, () => now);
+    const recovery = new RendererRecovery();
     for (let i = 0; i < 4; i++) recovery.failed();
     expect(recovery.failed()).toBe("ask");
     recovery.reset();
@@ -81,14 +80,16 @@ describe("the page's place across a recovery", () => {
   });
 
   it("takes only the app's own page, and only a small plain value", () => {
-    const place = new PlaceCheckpoint(trusted, 1_024);
+    const place = new PlaceCheckpoint(trusted);
     expect(place.remember("about:blank", saved)).toBe(false);
     expect(place.remember("https://example.com/", saved)).toBe(false);
     expect(place.remember(42, saved)).toBe(false);
-    expect(place.remember(PAGE, { big: "x".repeat(2_000) })).toBe(false);
+    expect(place.remember(PAGE, { big: "x".repeat(33 * 1024) })).toBe(false);
     const cycle: Record<string, unknown> = {};
     cycle.self = cycle;
     expect(place.remember(PAGE, cycle)).toBe(false);
     expect(place.recover()).toBe(null);
+    // Up to 32 KiB is small enough.
+    expect(place.remember(PAGE, { big: "x".repeat(32 * 1024 - 20) })).toBe(true);
   });
 });
