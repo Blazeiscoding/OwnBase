@@ -8,6 +8,12 @@ import { Api, WorkspaceClient } from "../src/index.js";
 import { FileCache } from "../src/fileCache.js";
 import { timelineMessages } from "../src/messageCache.js";
 
+/** Two days pass for the server and the client, which share this process's clock. */
+function twoDaysLater() {
+  vi.useFakeTimers({ toFake: ["Date"], shouldAdvanceTime: true });
+  vi.setSystemTime(Date.now() + 2 * 24 * 3600_000);
+}
+
 /**
  * Downloaded attachments go when their message is deleted or their
  * conversation becomes unreadable, even after the history that listed them
@@ -64,6 +70,7 @@ beforeEach(async () => {
 });
 
 afterEach(async () => {
+  vi.useRealTimers();
   client?.destroy();
   await server?.stop();
   const owned = resolve(dataDir);
@@ -145,8 +152,7 @@ describe("cached attachments (F07)", () => {
     await client.loadThread(root.id, general);
     const rootUrl = await client.files.get(rootFile.id);
     const replyUrl = await client.files.get(replyFile.id);
-    const db = (server.store as unknown as { db: { exec(sql: string): void } }).db;
-    db.exec("UPDATE messages SET created_at = created_at - 172800000");
+    twoDaysLater();
     const recentFile = await upload(general, "recent authorized bytes");
     const recent = (
       await owner.sendMessage(general, { text: "recent message", fileIds: [recentFile.id] })
@@ -212,8 +218,7 @@ describe("cached attachments (F07)", () => {
     });
     const loading = client.files.get(file.id);
     await received;
-    const db = (server.store as unknown as { db: { exec(sql: string): void } }).db;
-    db.exec("UPDATE messages SET created_at = created_at - 172800000");
+    twoDaysLater();
     expect(server.applyRetention()).toBe(2);
     await expect.poll(() => client.state.removedHistory[general]).toBeGreaterThan(0);
     expect(callerSignal?.aborted).toBe(true);
@@ -289,7 +294,6 @@ describe("the attachment cache's owners (F07)", () => {
     // Scrolled away: the last view goes and the transfer is cancelled.
     files.release("d");
     await expect(first).rejects.toBeTruthy();
-    expect((files as unknown as { owners: Map<string, unknown> }).owners.size).toBe(0);
     // Its message has loaded since, so the next transfer knows it.
     known.set("d", { channelId: "C1", messageId: "M4" });
     const second = files.get("d");

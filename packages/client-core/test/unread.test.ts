@@ -2,6 +2,9 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { createWorkspaceServer, type WorkspaceServer } from "@ownbase/server";
 import { Api, WorkspaceClient, isMessageRead, unreadThreadCount } from "../src/index.js";
 import { timelineMessages } from "../src/messageCache.js";
+import { network } from "./network.js";
+
+const net = network();
 
 // The client's optimistic writes show at once and resolve with the server's
 // refusal rather than reject, so tests start them with `void` to look at what
@@ -107,7 +110,19 @@ describe("mark unread", () => {
     client.markUnread(channelId, message.seq);
     await expect.poll(lastRead).toBe(message.seq - 1);
 
-    (client as unknown as { resetHistory: () => void }).resetHistory();
+    // Away long enough that what it missed is no longer kept: it starts over from a snapshot.
+    net.keepDown(member.token);
+    await expect.poll(() => client.state.status).toBe("reconnecting");
+    await owner.sendMessage(channelId, { text: "said while away" });
+    await owner.sendMessage(channelId, { text: "and again" });
+    server.store.pruneEvents(1);
+    const snapshots = () => net.heard(member.token).filter((frame) => frame.type === "ready");
+    const before = snapshots().length;
+    net.restore(member.token);
+    net.networkBack();
+    await expect.poll(() => snapshots().length).toBe(before + 1);
+    expect(snapshots().at(-1)).toMatchObject({ replayFrom: null });
+    await expect.poll(() => client.state.status).toBe("online");
     client.markRead(channelId, message.seq);
     expect(lastRead()).toBe(message.seq - 1);
   });

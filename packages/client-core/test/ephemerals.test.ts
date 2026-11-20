@@ -1,5 +1,4 @@
 import { afterEach, describe, expect, it } from "vitest";
-import type { ServerToClient } from "@ownbase/protocol";
 import { WorkspaceClient } from "../src/index.js";
 import {
   EPHEMERAL_CUT_NOTE,
@@ -7,6 +6,9 @@ import {
   keepEphemeral,
   type EphemeralMessage,
 } from "../src/commands.js";
+import { network } from "./network.js";
+
+const net = network({ offline: true });
 
 /**
  * Private command answers are kept within limits (REV-04). The deep review
@@ -28,18 +30,15 @@ afterEach(() => {
   for (const client of clients.splice(0)) client.destroy();
 });
 
-/** A client that is never connected, fed frames as its socket would be. */
+/** A client whose server is the test. */
 function client(): { client: WorkspaceClient; receive: (message: EphemeralMessage) => void } {
   const c = new WorkspaceClient("http://127.0.0.1:9", "token");
   clients.push(c);
-  const connection = c as unknown as { handleServerMessage(message: ServerToClient): void };
+  c.connect();
   return {
     client: c,
     receive: (message) =>
-      connection.handleServerMessage({
-        type: "ephemeral",
-        event: { type: "ephemeral.message", ...message },
-      }),
+      net.deliver({ type: "ephemeral", event: { type: "ephemeral.message", ...message } }),
   };
 }
 
@@ -146,8 +145,10 @@ describe("clearing private answers", () => {
     const { client: c, receive } = client();
     for (let i = 1; i <= perConversation + 2; i++) receive(answer("C1", `E${i}`));
     receive(answer("C2", "other"));
-    // What a channel.access event without a channel does, once the client is synced.
-    (c as unknown as { removeChannel(channelId: string): void }).removeChannel("C1");
+    net.deliver({
+      type: "ephemeral",
+      event: { type: "channel.access", channelId: "C1", channel: null, membership: null },
+    });
     expect(c.state.ephemerals).toEqual({ C2: [expect.objectContaining({ id: "other" })] });
     expect(c.state.ephemeralsDropped).toEqual({});
   });

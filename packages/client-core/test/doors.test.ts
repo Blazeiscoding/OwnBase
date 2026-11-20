@@ -1,6 +1,9 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { Channel, Message, Reminder, User } from "@ownbase/protocol";
 import { ApiError, WorkspaceClient } from "../src/index.js";
+import { network } from "./network.js";
+
+const net = network({ offline: true });
 
 /**
  * What the UI asks of the client: news it listens for, and changes whose
@@ -20,13 +23,30 @@ function signedIn() {
 afterEach(() => vi.restoreAllMocks());
 
 describe("listening to a client", () => {
-  const emit = (client: WorkspaceClient, id: string) =>
-    (
-      client as unknown as { events: { emit: (event: "messageDeleted", id: string) => void } }
-    ).events.emit("messageDeleted", id);
+  const connected: WorkspaceClient[] = [];
+  afterEach(() => {
+    for (const client of connected.splice(0)) client.destroy();
+  });
+  /** A client whose server is the test. */
+  function listening() {
+    const { client } = signedIn();
+    client.connect();
+    connected.push(client);
+    return { client };
+  }
+  let seq = 0;
+  /** The server says a message was deleted. */
+  const emit = (_client: WorkspaceClient, messageId: string) =>
+    net.deliver({
+      type: "event",
+      envelope: {
+        seq: ++seq,
+        event: { type: "message.deleted", channelId: "C1", messageId, threadRootId: null },
+      },
+    });
 
   it("tells every listener, and stops telling only the one that left", () => {
-    const { client } = signedIn();
+    const { client } = listening();
     const heard: string[] = [];
     const stopFirst = client.on("messageDeleted", (id) => heard.push(`first ${id}`));
     client.on("messageDeleted", (id) => heard.push(`second ${id}`));
@@ -36,8 +56,8 @@ describe("listening to a client", () => {
     expect(heard).toEqual(["first M1", "second M1", "second M2"]);
   });
 
-  it("keeps telling the others when one listener throws", () => {
-    const { client } = signedIn();
+  it("keeps telling the others, and applies the event, when one listener throws", () => {
+    const { client } = listening();
     const failed = vi.spyOn(console, "error").mockImplementation(() => {});
     const heard: string[] = [];
     client.on("messageDeleted", () => {
@@ -47,18 +67,23 @@ describe("listening to a client", () => {
     emit(client, "M1");
     expect(heard).toEqual(["M1"]);
     expect(failed).toHaveBeenCalledTimes(1);
+    expect(client.state.lastSeq).toBe(seq);
+    expect(client.state.changedContent.C1).toBe(seq);
   });
 
   it("takes the same function twice as two listeners", () => {
-    const { client } = signedIn();
+    const { client } = listening();
     const due = vi.fn();
     const stop = client.on("reminderDue", due);
     client.on("reminderDue", due);
-    (
-      client as unknown as {
-        events: { emit: (e: "reminderDue", r: Reminder, m: Message) => void };
-      }
-    ).events.emit("reminderDue", {} as Reminder, {} as Message);
+    net.deliver({
+      type: "ephemeral",
+      event: {
+        type: "reminder",
+        reminder: { messageId: "M1", dueAt: 1 } as Reminder,
+        message: { id: "M1" } as Message,
+      },
+    });
     stop();
     expect(due).toHaveBeenCalledTimes(2);
   });

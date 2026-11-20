@@ -2,6 +2,10 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { createWorkspaceServer, type WorkspaceServer } from "@ownbase/server";
 import type { Message, Reminder } from "@ownbase/protocol";
 import { Api, WorkspaceClient, ApiError } from "../src/index.js";
+import { network } from "./network.js";
+
+const net = network();
+let memberToken: string;
 
 /** Reminders (E4) as a client keeps them, against a real server. */
 const DAY = 24 * 60 * 60_000;
@@ -30,6 +34,7 @@ beforeEach(async () => {
   });
   owner = new Api(base, a.token);
   // One account on two devices.
+  memberToken = b.token;
   client = new WorkspaceClient(base, b.token);
   other = new WorkspaceClient(base, b.token);
   client.connect();
@@ -40,6 +45,7 @@ beforeEach(async () => {
 });
 
 afterEach(async () => {
+  vi.useRealTimers();
   client?.destroy();
   other?.destroy();
   await server?.stop();
@@ -107,27 +113,24 @@ describe("reminders", () => {
     await expect.poll(() => elsewhere.length).toBe(1);
 
     // Told again, as by a later echo, it is not news.
-    const echo = { ...due[0]![0] };
-    (client as unknown as { applyEphemeral(e: unknown): void }).applyEphemeral({
-      type: "reminder",
-      reminder: echo,
-      message,
-    });
+    net.deliver(
+      { type: "ephemeral", event: { type: "reminder", reminder: { ...due[0]![0] }, message } },
+      memberToken,
+    );
     expect(due).toHaveLength(1);
+    expect(elsewhere).toHaveLength(1);
   });
 
   it("lets go of the reminders retention took with their threads", async () => {
     const old = await say("An old question");
     const reply = await say("An old answer", old.id);
+    vi.useFakeTimers({ toFake: ["Date"], shouldAdvanceTime: true });
+    vi.setSystemTime(Date.now() + 2 * DAY);
     const kept = await say("Said today");
     await client.setReminder(old.id, Date.now() + 3_600_000);
     await client.setReminder(reply.id, Date.now() + 3_600_000);
     await client.setReminder(kept.id, Date.now() + 3_600_000);
 
-    const db = (server.store as unknown as { db: { exec(sql: string): void } }).db;
-    db.exec(
-      `UPDATE messages SET created_at = created_at - ${2 * DAY} WHERE id IN ('${old.id}', '${reply.id}')`,
-    );
     expect(server.applyRetention()).toBe(2);
 
     await expect.poll(() => Object.keys(client.state.reminders ?? {})).toEqual([kept.id]);

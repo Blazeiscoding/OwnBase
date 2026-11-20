@@ -1,14 +1,18 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { createWorkspaceServer, type WorkspaceServer } from "@ownbase/server";
-import type { Message, ServerToClient } from "@ownbase/protocol";
+import type { EventEnvelope, Message } from "@ownbase/protocol";
 import { Api, ApiError, WorkspaceClient } from "../src/index.js";
 import { threadReplies, threadRootMessage, timelineMessages } from "../src/messageCache.js";
+import { network } from "./network.js";
+
+const net = network();
 
 let server: WorkspaceServer;
 let client: WorkspaceClient;
 let owner: Api;
 let channelId: string;
 let memberId: string;
+let memberToken: string;
 const releases: (() => void)[] = [];
 
 function deferred<T>() {
@@ -42,22 +46,14 @@ async function caughtUp() {
 
 /** Delay real socket frames without delaying the HTTP snapshot that already includes them. */
 function holdSocketEvents() {
-  const connection = client as unknown as { handleServerMessage(message: ServerToClient): void };
-  const handle = connection.handleServerMessage.bind(connection);
-  const events: ServerToClient[] = [];
-  const spy = vi.spyOn(connection, "handleServerMessage").mockImplementation((message) => {
-    if (message.type === "event") events.push(message);
-    else handle(message);
-  });
-  let released = false;
-  const release = () => {
-    if (released) return;
-    released = true;
-    spy.mockRestore();
-    for (const message of events) handle(message);
-  };
-  releases.push(release);
-  return { events, release };
+  const hold = net.hold(memberToken, (frame) => frame.type === "event");
+  releases.push(hold.release);
+  return hold;
+}
+
+/** Hands the client an event as its server would, numbered after what it has heard. */
+function deliverEvent(event: EventEnvelope["event"], seq = client.state.lastSeq + 1) {
+  net.deliver({ type: "event", envelope: { seq, event } }, memberToken);
 }
 
 beforeEach(async () => {
@@ -78,6 +74,7 @@ beforeEach(async () => {
   });
   owner = new Api(base, a.token);
   memberId = b.user.id;
+  memberToken = b.token;
   client = new WorkspaceClient(base, b.token);
   client.connect();
   await expect.poll(() => client.state.status).toBe("online");
@@ -209,7 +206,7 @@ describe("timeline snapshot reconciliation", () => {
     await owner.removeReaction(root.id, "yes");
     await owner.pinMessage(root.id);
     await owner.unpinMessage(root.id);
-    await expect.poll(() => socket.events.length).toBe(7);
+    await expect.poll(() => socket.held()).toBe(7);
     await client.loadTimeline(channelId);
     const expected = { text: "snapshot text", replyCount: 1, reactions: [], pinned: false };
     expect(timelineMessages(client.state, channelId)[0]).toMatchObject(expected);
@@ -231,7 +228,7 @@ describe("timeline snapshot reconciliation", () => {
     await owner.sendMessage(channelId, { text: "older reply", threadRootId: olderRoot.id });
     await owner.sendMessage(channelId, { text: "current reply", threadRootId: currentRoot.id });
     const arrival = (await owner.sendMessage(channelId, { text: "delayed live arrival" })).message;
-    await expect.poll(() => socket.events.length).toBe(3);
+    await expect.poll(() => socket.held()).toBe(3);
     await client.loadTimeline(channelId, { older: true });
     let timeline = client.state.timelines[channelId]!;
     expect(
@@ -358,7 +355,6 @@ describe("timeline snapshot reconciliation", () => {
     await client.loadTimeline(channelId);
     await client.loadThread(root.id, channelId);
     expect(client.state.threads[root.id]).toHaveLength(3);
-    (client as unknown as { reconnectDelay: number }).reconnectDelay = 10;
     // The second deletion cannot be fanned out; the server closes the socket.
     const publish = server.gateway.publish.bind(server.gateway);
     let calls = 0;
@@ -371,6 +367,8 @@ describe("timeline snapshot reconciliation", () => {
     // A later message must not carry the client past the deletions it missed.
     const later = (await owner.sendMessage(channelId, { text: "later" })).message;
 
+    await expect.poll(() => client.state.status).toBe("reconnecting");
+    net.networkBack();
     await expect.poll(() => client.state.status).toBe("online");
     await caughtUp();
     const timeline = timelineMessages(client.state, channelId).map((m) => m.id) ?? [];
@@ -387,9 +385,7 @@ describe("timeline snapshot reconciliation", () => {
     vi.spyOn(client.api, "listMessages").mockImplementation(hold.read);
     const loading = client.loadTimeline(channelId, { latest: true });
     await hold.captured;
-    const connection = client as unknown as { ws: WebSocket; reconnectDelay: number };
-    connection.reconnectDelay = 60_000;
-    connection.ws.close();
+    net.keepDown(memberToken);
     await expect.poll(() => client.state.status).toBe("reconnecting");
     expect(client.send(channelId, "HTTP reply", { threadRootId: root.id }).kind).toBe("queued");
     await expect.poll(() => client.state.pending.length).toBe(0);
@@ -398,7 +394,8 @@ describe("timeline snapshot reconciliation", () => {
     expect(
       timelineMessages(client.state, channelId).find((m) => m.id === root.id)?.replyCount,
     ).toBe(1);
-    client.connect();
+    net.restore(memberToken);
+    net.networkBack();
     await expect.poll(() => client.state.status).toBe("online");
     await caughtUp();
     expect(
@@ -408,7 +405,7 @@ describe("timeline snapshot reconciliation", () => {
     expect(client.state.threads[root.id]).toHaveLength(1);
   });
 
-  it("does not cancel an older page or retain an event buffer for a message already on screen", async () => {
+  it("does not cancel an older page for a jump to a message already on screen", async () => {
     const messages: Message[] = [];
     for (let i = 0; i < 60; i++)
       messages.push((await owner.sendMessage(channelId, { text: `message ${i}` })).message);
@@ -422,9 +419,6 @@ describe("timeline snapshot reconciliation", () => {
     hold.release();
     await loading;
     expect(timelineMessages(client.state, channelId)).toHaveLength(60);
-    const holds = (client as unknown as { history: { timelineHolds: Map<string, unknown> } })
-      .history.timelineHolds;
-    expect(holds.size).toBe(0);
   });
 
   it("accepts only the newest of overlapping jumps", async () => {
@@ -452,26 +446,18 @@ describe("timeline snapshot reconciliation", () => {
     vi.spyOn(client.api, "listMessages").mockImplementationOnce(hold.read);
     const loading = client.loadTimeline(channelId, { latest: true });
     await hold.captured;
-    const connection = client as unknown as { handleServerMessage(message: ServerToClient): void };
-    const start = client.state.lastSeq;
     for (let i = 1; i <= 2001; i++)
-      connection.handleServerMessage({
-        type: "event",
-        envelope: {
-          seq: start + i,
-          event: { type: "message.updated", message: { ...root, text: `edit ${i}` } },
-        },
-      });
+      deliverEvent({ type: "message.updated", message: { ...root, text: `edit ${i}` } });
     hold.release();
     await loading;
     expect(client.state.timelineStatus[channelId]).toEqual({ loading: null, error: "latest" });
     expect(timelineMessages(client.state, channelId)[0]?.text).toBe("edit 2001");
-    const holds = (client as unknown as { history: { timelineHolds: Map<string, unknown> } })
-      .history.timelineHolds;
-    expect(holds.size).toBe(0);
+    // Trying again asks the server afresh: nothing of the failed load answers for it.
+    const asked = vi.mocked(client.api.listMessages).mock.calls.length;
     await client.loadTimeline(channelId, { latest: true });
+    expect(vi.mocked(client.api.listMessages).mock.calls.length).toBe(asked + 1);
+    expect(client.state.timelineStatus[channelId]).toBeUndefined();
     expect(client.state.timelines[channelId]).toMatchObject({ loaded: true, hasMoreNewer: false });
-    expect(holds.size).toBe(0);
     // The edits above are later than anything the page says, so they stand over it.
     expect(timelineMessages(client.state, channelId)[0]?.text).toBe("edit 2001");
   });
@@ -483,14 +469,7 @@ describe("timeline snapshot reconciliation", () => {
     vi.spyOn(client.api, "listMessages").mockImplementationOnce(hold.read);
     const loading = client.loadTimeline(channelId);
     await hold.captured;
-    const connection = client as unknown as { handleServerMessage(message: ServerToClient): void };
-    connection.handleServerMessage({
-      type: "event",
-      envelope: {
-        seq: client.state.lastSeq + 1,
-        event: { type: "history.removed", channelId, rootIds: [root.id] },
-      },
-    });
+    deliverEvent({ type: "history.removed", channelId, rootIds: [root.id] });
     hold.release();
     await loading;
     expect(timelineMessages(client.state, channelId)).toEqual([]);

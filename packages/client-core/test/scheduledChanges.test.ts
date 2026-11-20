@@ -1,6 +1,9 @@
 import { afterEach, describe, expect, it } from "vitest";
 import type { ReadySnapshot, ServerToClient, User } from "@ownbase/protocol";
 import { WorkspaceClient } from "../src/index.js";
+import { network } from "./network.js";
+
+const net = network({ offline: true });
 
 /**
  * A list of scheduled messages keeps itself current (UX-08): the client counts
@@ -60,15 +63,12 @@ afterEach(() => {
   for (const client of clients.splice(0)) client.destroy();
 });
 
-/** A client that is never connected, fed frames as its socket would be. */
+/** A client whose server is the test. */
 function client() {
   const c = new WorkspaceClient("http://127.0.0.1:9", "token");
   clients.push(c);
-  const connection = c as unknown as { handleServerMessage(message: ServerToClient): void };
-  return {
-    client: c,
-    receive: (message: ServerToClient) => connection.handleServerMessage(message),
-  };
+  c.connect();
+  return { client: c, receive: (message: ServerToClient) => net.deliver(message) };
 }
 
 describe("changes to the scheduled queue", () => {

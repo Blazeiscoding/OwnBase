@@ -1,8 +1,10 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { createWorkspaceServer, type WorkspaceServer } from "@ownbase/server";
-import type { ClientToServer } from "@ownbase/protocol";
 import { Api, WorkspaceClient, type SignedIn } from "../src/index.js";
 import { HuddleSession } from "../src/huddle.js";
+import { network } from "./network.js";
+
+const net = network();
 
 /**
  * A call goes on through a dropped connection to the server: the device
@@ -20,10 +22,6 @@ afterEach(async () => {
   vi.restoreAllMocks();
   vi.unstubAllGlobals();
 });
-
-interface Internals {
-  sendSocket(message: ClientToServer): void;
-}
 
 async function start(options: { huddleGraceMs?: number; burst?: number } = {}) {
   tracks.length = 0;
@@ -61,19 +59,12 @@ async function start(options: { huddleGraceMs?: number; burst?: number } = {}) {
 async function open(base: string, token: string) {
   const client = new WorkspaceClient(base, token);
   clients.push(client);
-  const sent: ClientToServer[] = [];
-  const internals = client as unknown as Internals;
-  const send = internals.sendSocket.bind(client);
-  vi.spyOn(internals, "sendSocket").mockImplementation((message) => {
-    sent.push(message);
-    send(message);
-  });
   vi.spyOn(client.api, "rtcConfig").mockResolvedValue({ iceServers: [] });
   client.connect();
   await expect.poll(() => client.state.status).toBe("online");
   const general = Object.values(client.state.channels).find((c) => c.name === "general")!.id;
-  const joins = () => sent.filter((message) => message.type === "huddle.join");
-  const leaves = () => sent.filter((message) => message.type === "huddle.leave");
+  const joins = () => net.sent(token).filter((message) => message.type === "huddle.join");
+  const leaves = () => net.sent(token).filter((message) => message.type === "huddle.leave");
   return { client, general, joins, leaves };
 }
 
