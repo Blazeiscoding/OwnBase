@@ -1,4 +1,4 @@
-import type { BackupAttention } from "./hosting.js";
+import type { BackupAttention } from "./hostedBackups.js";
 
 /**
  * What the tray says of scheduled backups that did not finish (OPS-02). At

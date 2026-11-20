@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import type { BackupAttention } from "../src/main/hosting.js";
+import type { BackupAttention } from "../src/main/hostedBackups.js";
 import { backupTrayItems } from "../src/main/trayBackups.js";
 
 /**

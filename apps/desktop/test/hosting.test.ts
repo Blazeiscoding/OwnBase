@@ -14,9 +14,9 @@ import * as fsPromises from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import { crc32, deflateSync } from "node:zlib";
+import { parseLastHosted } from "../src/main/hostedList.js";
 import {
   createHostingController,
-  parseLastHosted,
   type HostedServer,
   type HostingSnapshot,
 } from "../src/main/hosting.js";
