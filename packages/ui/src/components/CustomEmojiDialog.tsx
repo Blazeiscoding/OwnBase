@@ -59,7 +59,12 @@ export function CustomEmojiDialog({ onClose }: { onClose: () => void }) {
     const name = `:${emoji.name}:`;
     const sure = await confirm({
       title: `Remove ${name}?`,
-      body: `Messages and reactions that use it will show ${name} as text. This can't be undone.`,
+      body: (
+        <>
+          Messages and reactions that use it will show{" "}
+          <span className="whitespace-nowrap">{name}</span> as text. This can&apos;t be undone.
+        </>
+      ),
       confirmLabel: "Remove emoji",
       destructive: true,
     });
