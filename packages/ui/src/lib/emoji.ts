@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { CUSTOM_EMOJI_TOKEN } from "@ownbase/protocol";
 import { preloadable } from "./preloadable.js";
 
 /**
@@ -44,7 +45,7 @@ const EMOJI_ALONE =
  * in `custom`, count as one each (J12).
  */
 export function onlyEmoji(text: string, custom: Readonly<Record<string, unknown>> = {}): boolean {
-  const plain = text.replace(/:([a-z0-9_-]{1,32}):/g, (token, name: string) =>
+  const plain = text.replace(CUSTOM_EMOJI_TOKEN, (token, name: string) =>
     Object.hasOwn(custom, name) ? "\u{1F642}" : token,
   );
   return plain.length <= 64 && EMOJI_ALONE.test(plain) && /[^\s️]/u.test(plain);

@@ -1,6 +1,7 @@
 import {
   broadcastLabel,
   groupMentionLabel,
+  MENTION_TOKEN,
   type Channel,
   type ID,
   type User,
@@ -29,10 +30,6 @@ export interface MentionNames {
   /** User groups by id (J13); a group not here reads as its token's label. */
   groups?: Record<ID, UserGroup>;
 }
-
-/** The mention tokens messages render as mentions (`Mrkdwn`). */
-const TOKEN_RE =
-  /<@([A-Za-z0-9_-]+)>|<#([A-Za-z0-9_-]+)>|<!(channel|here|everyone)>|<!subteam\^([A-Za-z0-9_-]+)(?:\|([^<>\n]*))?>/g;
 
 /** How a person mentioned by id reads; one no longer known keeps the id. */
 export const userMentionLabel = (user: User | undefined) => `@${user?.displayName ?? "unknown"}`;
@@ -70,7 +67,7 @@ export function projectMentions(stored: string, names: MentionNames): MentionDoc
     segments.push({ shown: text, stored: token, mention, shownStart: shown.length, storedStart });
     shown += text;
   };
-  for (const m of stored.matchAll(TOKEN_RE)) {
+  for (const m of stored.matchAll(MENTION_TOKEN)) {
     const plain = stored.slice(last, m.index);
     push(plain, plain, false, last);
     const label = m[1]

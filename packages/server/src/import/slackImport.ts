@@ -5,6 +5,7 @@ import type { DatabaseSync } from "node:sqlite";
 import {
   CUSTOM_EMOJI_MAX_BYTES,
   CUSTOM_EMOJI_NAME,
+  CUSTOM_EMOJI_TOKEN,
   DEFAULT_WORKSPACE_NAME,
   type CustomEmojiType,
   MESSAGE_TEXT_MAX,
@@ -84,9 +85,6 @@ export interface SlackImportResult {
    */
   customEmoji: string[];
 }
-
-/** A `:name:` in words, read as the app draws one: not against a letter, digit or colon. */
-const CUSTOM_EMOJI_TOKEN = /(?<![A-Za-z0-9:]):([a-z0-9_-]{1,32}):(?![A-Za-z0-9])/g;
 
 /** Messages written in one transaction, between which other work gets a turn. */
 const BATCH = 2000;

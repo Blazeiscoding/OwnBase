@@ -7,7 +7,16 @@ import {
   useState,
   type ReactNode,
 } from "react";
-import { broadcastLabel, type ID, type User } from "@ownbase/protocol";
+import {
+  BROADCAST_MENTION,
+  broadcastLabel,
+  CHANNEL_MENTION,
+  CUSTOM_EMOJI_TOKEN,
+  GROUP_MENTION,
+  USER_MENTION,
+  type ID,
+  type User,
+} from "@ownbase/protocol";
 import type { Channel, CustomEmoji, UserGroup } from "@ownbase/protocol";
 import { OpenMessageContext } from "../context.js";
 import { CustomEmojiImage, customEmojiFor, useCustomEmoji } from "./CustomEmoji.js";
@@ -285,8 +294,21 @@ function disguisedHost(url: string, label: string): string | null {
 // apps send; only web addresses are made links. A custom emoji's `:name:` is
 // not read against a letter, digit or colon, so 10:30:45 stays a time. A user
 // group is Slack's `<!subteam^ID|@handle>`, its label optional (J13).
-const INLINE_RE =
-  /(\\[*_~`\\])|(`[^`\n]+`)|(\*[^*\n]+\*)|(_[^_\n]+_)|(~[^~\n]+~)|(<@[A-Za-z0-9_-]+>)|(<#[A-Za-z0-9_-]+>)|(<!(?:channel|here|everyone)>)|(https?:\/\/[^\s<>]+)|<(https?:\/\/[^\s|<>]+)(?:\|([^<>\n]+))?>|(?<![A-Za-z0-9:])(:[a-z0-9_-]{1,32}:)(?![A-Za-z0-9])|(<!subteam\^([A-Za-z0-9_-]+)(?:\|([^<>\n]*))?>)/g;
+// The tokens are protocol's; each keeps its own groups, so a match is read
+// by the named group around it. A group mention comes last, so its id and
+// label are the match's last two groups.
+const INLINE_RE = new RegExp(
+  [
+    /(\\[*_~`\\])|(`[^`\n]+`)|(\*[^*\n]+\*)|(_[^_\n]+_)|(~[^~\n]+~)/.source,
+    `(?<user>${USER_MENTION.source})`,
+    `(?<channel>${CHANNEL_MENTION.source})`,
+    `(?<broadcast>${BROADCAST_MENTION.source})`,
+    /(?<url>https?:\/\/[^\s<>]+)|<(?<link>https?:\/\/[^\s|<>]+)(?:\|(?<label>[^<>\n]+))?>/.source,
+    `(?<emoji>${CUSTOM_EMOJI_TOKEN.source})`,
+    `(?<group>${GROUP_MENTION.source})`,
+  ].join("|"),
+  "g",
+);
 
 function renderInline(
   text: string,
@@ -305,6 +327,7 @@ function renderInline(
   for (const m of text.matchAll(INLINE_RE)) {
     if (m.index > last) out.push(ctx.highlight(text.slice(last, m.index)));
     const tok = m[0];
+    const named = m.groups!;
     if (m[1]) {
       out.push(ctx.highlight(tok.slice(1)));
     } else if (m[2]) {
@@ -322,7 +345,7 @@ function renderInline(
       out.push(<em key={key++}>{renderInline(tok.slice(1, -1), ctx)}</em>);
     } else if (m[5]) {
       out.push(<s key={key++}>{renderInline(tok.slice(1, -1), ctx)}</s>);
-    } else if (m[6]) {
+    } else if (named.user) {
       const id = tok.slice(2, -1);
       const user = ctx.users[id];
       const isMe = id === ctx.selfId;
@@ -336,7 +359,7 @@ function renderInline(
           {userMentionLabel(user)}
         </span>,
       );
-    } else if (m[7]) {
+    } else if (named.channel) {
       const id = tok.slice(2, -1);
       const ch = ctx.channels[id];
       out.push(
@@ -349,7 +372,7 @@ function renderInline(
           {channelMentionLabel(ch)}
         </button>,
       );
-    } else if (m[8]) {
+    } else if (named.broadcast) {
       // A room-wide mention. Always styled as addressing you, because it is.
       out.push(
         <span
@@ -364,20 +387,20 @@ function renderInline(
           {broadcastLabel(tok.slice(2, -1))}
         </span>,
       );
-    } else if (m[9] || m[10]) {
-      const url = m[9] ?? m[10]!;
-      const label = m[11]?.trim();
+    } else if (named.url || named.link) {
+      const url = named.url ?? named.link!;
+      const label = named.label?.trim();
       out.push(renderLink(url, label && label !== url ? label : null, key++, ctx));
-    } else if (m[12]) {
+    } else if (named.emoji) {
       const emoji = customEmojiFor(ctx.customEmoji, tok);
       out.push(emoji ? <CustomEmojiImage key={key++} emoji={emoji} /> : ctx.highlight(tok));
-    } else if (m[13]) {
-      const id = m[14]!;
+    } else if (named.group) {
+      const id = m.at(-2)!;
       out.push(
         <GroupMention
           key={key++}
           group={Object.hasOwn(ctx.groups, id) ? ctx.groups[id] : undefined}
-          label={m[15] ?? null}
+          label={m.at(-1) ?? null}
           selfId={ctx.selfId}
         />,
       );
