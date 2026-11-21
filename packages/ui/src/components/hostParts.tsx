@@ -1,4 +1,4 @@
-import { useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { WORKSPACE_NAME_MAX } from "@ownbase/protocol";
 import { type Platform } from "../platform.js";
 import { formatDay, formatTime } from "../lib/format.js";
@@ -24,6 +24,68 @@ export type HostingBusy =
 
 /** What the last backup, rename or removal did, said in the dialog until another starts. */
 export type HostNote = { ok: boolean; text: string };
+
+/**
+ * Manage hosting does one thing at a time. `run` starts `work` unless
+ * something is under way, and says what is while it runs; it resolves to
+ * what `work` gave, or undefined when it did not start. `running` is read
+ * where a render's `busy` may be a step behind, as a second press is.
+ */
+export function useHostingOperation() {
+  const pending = useRef(false);
+  const [busy, setBusy] = useState<HostingBusy>(null);
+  const run = useCallback(
+    async <T,>(kind: NonNullable<HostingBusy>, work: () => Promise<T>): Promise<T | undefined> => {
+      if (pending.current) return undefined;
+      pending.current = true;
+      setBusy(kind);
+      try {
+        return await work();
+      } finally {
+        pending.current = false;
+        setBusy(null);
+      }
+    },
+    [],
+  );
+  const running = useCallback(() => pending.current, []);
+  return { busy, run, running };
+}
+
+export type RunOperation = ReturnType<typeof useHostingOperation>["run"];
+
+/**
+ * Renames a hosted workspace: resolves to why the name was refused, or null.
+ * `onSaved` runs once it is saved, to close the form.
+ */
+export type SaveName = (
+  folder: string,
+  previous: string,
+  next: string,
+  onSaved: () => void,
+) => Promise<string | null>;
+
+/**
+ * Which listed workspace has a form open in place of its line, by folder.
+ * `close` gives focus back to the button that opened it, whose id is
+ * `<prefix>-<folder>`; `set` changes it without that.
+ */
+export function useRowForm(prefix: string) {
+  const [folder, set] = useState<string | null>(null);
+  const back = useRef<string | null>(null);
+  useEffect(() => {
+    if (folder !== null || !back.current) return;
+    document.getElementById(`${prefix}-${back.current}`)?.focus();
+    back.current = null;
+  }, [folder, prefix]);
+  const close = () => {
+    back.current = folder;
+    set(null);
+  };
+  return { folder, set, close };
+}
+
+export type RowForm = ReturnType<typeof useRowForm>;
 
 /**
  * What did not happen when OwnBase opened, shown whether or not anything

@@ -43,7 +43,7 @@ export function SectionNameDialog({
   }
 
   return (
-    <Dialog title={title} onClose={onClose} width={400}>
+    <Dialog startsInField title={title} onClose={onClose} width={400}>
       <form noValidate onSubmit={(e) => void submit(e)} className="space-y-4">
         <div>
           <label htmlFor={fieldId} className="mb-1.5 block text-[13px] font-medium text-ink-dim">
@@ -51,8 +51,6 @@ export function SectionNameDialog({
           </label>
           <input
             id={fieldId}
-            // eslint-disable-next-line jsx-a11y/no-autofocus -- the dialog's first field: focus moves there as it opens
-            autoFocus
             value={name}
             maxLength={SIDEBAR_SECTION_NAME_MAX}
             placeholder="Projects, Clients, Reading…"

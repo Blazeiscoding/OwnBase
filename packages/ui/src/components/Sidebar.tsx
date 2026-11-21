@@ -10,7 +10,7 @@ import {
   type SidebarSection,
   type UnreadSummary,
 } from "@ownbase/protocol";
-import { ApiError, blockedPartner, isSnoozed, isUnread } from "@ownbase/client-core";
+import { ApiError, isSnoozed, isUnread, waitsForAttention } from "@ownbase/client-core";
 import { useNavigation, useNavigationState } from "../lib/navigation.js";
 import { useWorkspaceShell } from "../lib/workspaceShell.js";
 import {
@@ -51,7 +51,6 @@ import { huddleNames } from "../lib/huddleView.js";
 import { namesList } from "../lib/catchUp.js";
 import {
   closeItem,
-  isClosed,
   moveConversation,
   moveItems,
   muteItem,
@@ -178,7 +177,6 @@ export function Sidebar(props: {
   const users = useWorkspace((s) => s.users);
   const presence = useWorkspace((s) => s.presence);
   const self = useWorkspace((s) => s.self);
-  const selfId = self?.id;
   const guest = self?.role === "guest";
   const connectionLabel = useConnectionLabel();
 
@@ -263,9 +261,9 @@ export function Sidebar(props: {
   const huddleWith = (id: ID) => huddleNames(huddles[id] ?? [], users, self?.id);
   const mentions = (id: ID) => mentionCounts[id] ?? 0;
   const totalMentions = Object.values(mentionCounts).reduce((sum, n) => sum + n, 0);
-  const unreadConversations = Object.keys(memberships).filter(
-    (id) => unread(id) && !blockedPartner(channels[id], selfId, blocked),
-  ).length;
+  const unreadConversations = useWorkspace(
+    (s) => Object.keys(s.memberships).filter((id) => waitsForAttention(s, id, null)).length,
+  );
 
   const collapsed = useCollapsed();
   // How often each category has been opened again: its rows come in afresh each time.

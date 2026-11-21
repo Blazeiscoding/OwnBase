@@ -3,7 +3,7 @@ import { useStore } from "zustand";
 import { createStore, type StoreApi } from "zustand/vanilla";
 import { PlatformContext } from "../context.js";
 import type { Platform } from "../platform.js";
-import { perDevice } from "./perDevice.js";
+import { perDeviceOrPage } from "./perDevice.js";
 
 const KEY = "unread-on-icon";
 
@@ -38,13 +38,7 @@ function create(platform: Platform | null): StoreApi<UnreadOnIcon> {
   return store;
 }
 
-const ofDevice = perDevice(create);
-let unsaved: StoreApi<UnreadOnIcon> | null = null;
-
-export function unreadOnIcon(platform: Platform | null): StoreApi<UnreadOnIcon> {
-  if (!platform) return (unsaved ??= create(null));
-  return ofDevice(platform);
-}
+export const unreadOnIcon = perDeviceOrPage(create);
 
 export function useUnreadOnIcon(): UnreadOnIcon {
   return useStore(unreadOnIcon(useContext(PlatformContext)));

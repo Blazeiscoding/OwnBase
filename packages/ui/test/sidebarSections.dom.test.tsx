@@ -217,6 +217,7 @@ describe("moving a conversation", () => {
     const menu = await rowMenu(user, "design");
     await user.click(within(menu).getByRole("menuitem", { name: "New section…" }));
     const dialog = await screen.findByRole("dialog", { name: "New section" });
+    expect(within(dialog).getByRole("textbox", { name: "Name" })).toHaveFocus();
     await user.click(within(dialog).getByRole("button", { name: "Create section" }));
     expect(within(dialog).getByRole("alert")).toHaveTextContent("Give the section a name.");
     await user.type(within(dialog).getByRole("textbox", { name: "Name" }), "Clients");

@@ -16,6 +16,8 @@ interface Props {
    * buttons that finish it, and puts what scrolls in a `DialogScroll`.
    */
   ownScroll?: boolean;
+  /** Focus starts in its first text field as it opens, for a dialog opened to type into. */
+  startsInField?: boolean;
 }
 
 /** Its name and its close button stay in sight; what is under them scrolls. */
@@ -27,6 +29,7 @@ export function Dialog({
   dismissible = true,
   describedBy,
   ownScroll,
+  startsInField,
 }: Props) {
   // Its close button asks what the dialog holds, as Escape does.
   const guards = useGuardRegistry();
@@ -37,6 +40,7 @@ export function Dialog({
       guards={guards}
       dismissible={dismissible}
       describedBy={describedBy}
+      startsInField={startsInField}
       backdropClassName="flex items-start justify-center dialog-backdrop dialog-place px-3 animate-fade-in"
       className="dialog-panel animate-pop-in rounded-2xl dialog-surface border border-[var(--card-edge)] outline-none"
       style={{ width }}

@@ -96,7 +96,7 @@ export function NewChannelDialog(props: { onClose: () => void; onCreated: (ch: C
   );
 
   return (
-    <Dialog title="New channel" onClose={props.onClose}>
+    <Dialog startsInField title="New channel" onClose={props.onClose}>
       <form onSubmit={(e) => void create(e)} noValidate className="space-y-4">
         <div>
           <label
@@ -112,8 +112,6 @@ export function NewChannelDialog(props: { onClose: () => void; onCreated: (ch: C
             <input
               id="new-channel-name"
               ref={nameInput}
-              // eslint-disable-next-line jsx-a11y/no-autofocus -- the dialog's first field: focus moves there as it opens
-              autoFocus
               value={name}
               maxLength={CHANNEL_NAME_MAX}
               onChange={(e) => {
@@ -252,7 +250,7 @@ export function GuestAccountDialog(props: {
   }
 
   return (
-    <Dialog title="Create an account" onClose={props.onClose} dismissible={!busy}>
+    <Dialog startsInField title="Create an account" onClose={props.onClose} dismissible={!busy}>
       <p className="mb-3 text-sm text-ink-dim">
         You are here as a guest, for a day. An account keeps your name, messages and channels, and
         lets you sign in again from anywhere.
@@ -263,8 +261,6 @@ export function GuestAccountDialog(props: {
           label="Username"
           hint="Lowercase letters and numbers, such as maya or sam.r"
           error={problems.handle}
-          // eslint-disable-next-line jsx-a11y/no-autofocus -- the dialog's first field: focus moves there as it opens
-          autoFocus
           value={handle}
           onChange={(e) => {
             setHandle(e.target.value);
@@ -370,7 +366,7 @@ export function BrowseChannelsDialog(props: { onClose: () => void; onOpen: (id: 
   }
 
   return (
-    <Dialog title="All channels" onClose={props.onClose} width={480} ownScroll>
+    <Dialog startsInField title="All channels" onClose={props.onClose} width={480} ownScroll>
       <div
         {...tabs.listProps}
         className="mx-6 mb-3 flex shrink-0 gap-1 rounded-xl border border-edge bg-deep/40 p-1"
@@ -391,8 +387,6 @@ export function BrowseChannelsDialog(props: { onClose: () => void; onOpen: (id: 
       <div {...tabs.panelProps} className="flex min-h-0 flex-col">
         <div className="shrink-0 px-6 pb-2">
           <input
-            // eslint-disable-next-line jsx-a11y/no-autofocus -- the dialog's first field: focus moves there as it opens
-            autoFocus
             aria-label="Filter channels"
             value={q}
             onChange={(e) => setQ(e.target.value)}
@@ -539,7 +533,7 @@ export function NewDmDialog(props: {
   };
 
   return (
-    <Dialog title="New message" onClose={props.onClose} ownScroll>
+    <Dialog startsInField title="New message" onClose={props.onClose} ownScroll>
       <form
         noValidate
         className="flex min-h-0 flex-col"
@@ -592,8 +586,6 @@ export function NewDmDialog(props: {
             <input
               id="new-dm-search"
               ref={search}
-              // eslint-disable-next-line jsx-a11y/no-autofocus -- the dialog's first field: focus moves there as it opens
-              autoFocus
               value={q}
               onChange={(e) => setQ(e.target.value)}
               onKeyDown={(e) => {

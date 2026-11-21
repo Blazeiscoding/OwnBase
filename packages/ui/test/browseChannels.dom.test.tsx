@@ -85,6 +85,8 @@ describe("browse channels", () => {
 
   it("lists active channels, and archived ones on a tab of their own", async () => {
     const { dialog, names, user } = browse();
+    // It opens in the filter.
+    expect(dialog.getByRole("textbox", { name: "Filter channels" })).toHaveFocus();
     expect(dialog.getByRole("tab", { name: "Active" })).toHaveAttribute("aria-selected", "true");
     expect(names()).toEqual(["design", "general", "launch"]);
     expect(dialog.getByText("Private")).toBeInTheDocument();

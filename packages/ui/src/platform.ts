@@ -182,7 +182,7 @@ export interface Platform {
    * workflow built: `install` on Windows, `notify` on the Mac, which says a
    * version is out and where to get it.
    */
-  updates?: DesktopUpdates & {
+  updates?: Telling<DesktopUpdates, "later" | "reportCall" | "openDownloadPage"> & {
     mode: "install" | "notify";
     subscribe: (cb: (status: UpdateStatus) => void) => () => void;
     /** The tray's "Restart to update", which the window asks about or explains. */
@@ -197,10 +197,18 @@ export interface Platform {
     onWithdraw: (cb: (id: number) => void) => () => void;
     onNotice: (cb: (message: string) => void) => () => void;
     /** The question is on screen; from now the main process waits for the person. */
-    shown: (id: number) => Promise<void>;
-    answer: (id: number, index: number) => Promise<void>;
+    shown: (id: number) => void;
+    answer: (id: number, index: number) => void;
   };
 }
+
+/**
+ * Calls that only tell the desktop app something: nothing waits for them, and
+ * the platform lets a failure go, since it changes nothing on screen.
+ */
+type Telling<T, K extends keyof T> = Omit<T, K> & {
+  [P in K]: T[P] extends (...args: infer A) => Promise<void> ? (...args: A) => void : never;
+};
 
 /** Browser fallback platform — used by the web client and in dev. */
 export function webPlatform(): Platform {

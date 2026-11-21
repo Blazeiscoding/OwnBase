@@ -3,7 +3,7 @@ import type { AuditEntry, ID, User } from "@ownbase/protocol";
 import { ApiError } from "@ownbase/client-core";
 import { useClient, useWorkspace } from "../context.js";
 import { formatDay, formatTime, possessive } from "../lib/format.js";
-import { ListStatus } from "./ListStatus.js";
+import { ListStatus, useKeepsFocus } from "./ListStatus.js";
 
 /**
  * One entry as a sentence an administrator would say. Names are looked up at
@@ -313,14 +313,7 @@ function PaginationButton({
   onClick: () => void;
   label: string;
 }) {
-  const button = useRef<HTMLButtonElement>(null);
-  useLayoutEffect(() => {
-    const element = button.current;
-    return () => {
-      // eslint-disable-next-line react-hooks/exhaustive-deps -- focus goes to the home node there is at unmount, not the one at mount
-      if (document.activeElement === element) home.current?.focus({ preventScroll: true });
-    };
-  }, [home]);
+  const button = useKeepsFocus<HTMLButtonElement>(home);
   return (
     <button
       ref={button}

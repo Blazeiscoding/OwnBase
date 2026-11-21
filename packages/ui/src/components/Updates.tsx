@@ -103,7 +103,7 @@ export function UpdateBanner({ onShowing }: { onShowing?: (showing: boolean) => 
   if (!updates || !showing) return null;
   const later = () => {
     setRefused(null);
-    void updates.later().catch(() => {});
+    updates.later();
   };
   if (updates.mode === "notify")
     return (
@@ -111,9 +111,7 @@ export function UpdateBanner({ onShowing }: { onShowing?: (showing: boolean) => 
         tone="status"
         actions={
           <>
-            <BannerAction onClick={() => void updates.openDownloadPage().catch(() => {})}>
-              Get it
-            </BannerAction>
+            <BannerAction onClick={() => updates.openDownloadPage()}>Get it</BannerAction>
             <BannerAction onClick={later}>Later</BannerAction>
           </>
         }
@@ -209,7 +207,7 @@ export function UpdateSettings() {
             <button
               type="button"
               className={buttonClass("primary")}
-              onClick={() => void updates.openDownloadPage().catch(() => {})}
+              onClick={() => updates.openDownloadPage()}
             >
               Get it from the website
             </button>

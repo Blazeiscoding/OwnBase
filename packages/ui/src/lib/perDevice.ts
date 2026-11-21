@@ -15,3 +15,15 @@ export function perDevice<T extends object>(
     return store;
   };
 }
+
+/**
+ * `perDevice` for a store also read where there is no platform, as in a test
+ * of one component: there one store lasts as long as the page, saving nothing.
+ */
+export function perDeviceOrPage<T extends object>(
+  create: (platform: Platform | null) => T,
+): (platform: Platform | null) => T {
+  const ofDevice = perDevice<T>(create);
+  let ofPage: T | null = null;
+  return (platform) => (platform ? ofDevice(platform) : (ofPage ??= create(null)));
+}

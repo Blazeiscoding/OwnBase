@@ -15,13 +15,13 @@ function RenameChannel({ onClose }: { onClose?: () => void }) {
       {open && (
         <Dialog
           title="Rename channel"
+          startsInField
           onClose={() => {
             onClose?.();
             setOpen(false);
           }}
         >
-          {/* eslint-disable-next-line jsx-a11y/no-autofocus -- a dialog with a field focused on open, as the app's dialogs are */}
-          <input aria-label="Channel name" autoFocus />
+          <input aria-label="Channel name" />
           <button>Save</button>
         </Dialog>
       )}
@@ -49,6 +49,32 @@ describe("a dialog", () => {
     await user.keyboard("{Escape}");
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
     expect(opener).toHaveFocus();
+  });
+
+  it("opened to type into, starts in its first text field, past boxes to tick and buttons", () => {
+    render(
+      <Dialog title="Invite people" startsInField onClose={() => {}}>
+        <label>
+          <input type="checkbox" /> Send an email too
+        </label>
+        <button>Copy link</button>
+        <input aria-label="Hidden" hidden />
+        <input type="email" aria-label="Email address" />
+        <textarea aria-label="Note" />
+      </Dialog>,
+    );
+    expect(screen.getByRole("textbox", { name: "Email address" })).toHaveFocus();
+  });
+
+  it("leaves focus where something in it put it, even opened to type into", () => {
+    render(
+      <Dialog title="Rename channel" startsInField onClose={() => {}}>
+        <input aria-label="Channel name" />
+        {/* eslint-disable-next-line jsx-a11y/no-autofocus -- what this test is about: a field that takes focus itself */}
+        <input aria-label="Topic" autoFocus />
+      </Dialog>,
+    );
+    expect(screen.getByRole("textbox", { name: "Topic" })).toHaveFocus();
   });
 
   it("focuses itself when nothing inside asks for focus", () => {

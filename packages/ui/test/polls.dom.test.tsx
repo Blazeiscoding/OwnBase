@@ -290,6 +290,7 @@ describe("making a poll", () => {
     expect(within(menu).getByRole("menuitem", { name: "Upload a file" })).toBeInTheDocument();
     await user.click(within(menu).getByRole("menuitem", { name: "Create a poll" }));
     const dialog = await screen.findByRole("dialog", { name: "Create a poll" });
+    expect(within(dialog).getByRole("textbox", { name: "Question" })).toHaveFocus();
     const create = within(dialog).getByRole("button", { name: "Create poll" });
 
     await user.click(create);

@@ -14,6 +14,8 @@ import {
   type Hosting,
   type HostingBusy,
   type HostNote,
+  type RowForm,
+  type SaveName,
 } from "./hostParts.js";
 
 /**
@@ -32,11 +34,9 @@ export function HostOverview(props: {
   livePolicy: AccessPolicy | undefined;
   busy: HostingBusy;
   unavailable: boolean;
-  /** The folder of the workspace being renamed, while its form is open. */
-  renaming: string | null;
-  setRenaming: (folder: string | null) => void;
-  saveName: (folder: string, previous: string, next: string) => Promise<string | null>;
-  closeRename: () => void;
+  /** The running workspace's name, while its form is open. */
+  renaming: RowForm;
+  saveName: SaveName;
   openToAll: () => Promise<void>;
   setBackupNote: (note: HostNote | null) => void;
   copy: ReturnType<typeof useCopy>["copy"];
@@ -55,9 +55,7 @@ export function HostOverview(props: {
     busy,
     unavailable,
     renaming,
-    setRenaming,
     saveName,
-    closeRename,
     openToAll,
     setBackupNote,
     copy,
@@ -69,14 +67,16 @@ export function HostOverview(props: {
   const qrTarget = publicUrl ?? (status.lanUrls?.[0] ? `http://${status.lanUrls[0]}` : null);
   return (
     <>
-      {status.folder && renaming === status.folder && phase === "running" ? (
+      {status.folder && renaming.folder === status.folder && phase === "running" ? (
         <RenameForm
           folder={status.folder}
           name={status.workspaceName ?? ""}
           blocked={unavailable}
           saving={busy === "renaming"}
-          onSave={(next) => saveName(status.folder!, status.workspaceName ?? "", next)}
-          onCancel={closeRename}
+          onSave={(next) =>
+            saveName(status.folder!, status.workspaceName ?? "", next, renaming.close)
+          }
+          onCancel={renaming.close}
         />
       ) : (
         <div className="flex items-start justify-between gap-3">
@@ -109,7 +109,7 @@ export function HostOverview(props: {
               type="button"
               disabled={unavailable}
               aria-label={`Rename ${status.workspaceName}`}
-              onClick={() => setRenaming(status.folder!)}
+              onClick={() => renaming.set(status.folder!)}
               className={`${linkBtnCls} shrink-0`}
             >
               Rename
