@@ -35,21 +35,18 @@ export function conversationHash(channelId: string): string {
   return `#/c/${e(channelId)}`;
 }
 
+/** The word each link but a message's has in its address. */
+const WORDS = {
+  join: "join",
+  claim: "claim",
+  sso: "sso",
+  reset: "reset",
+  verifyEmail: "verify-email",
+} as const;
+
 export function pageHash(link: PageLink): string {
-  switch (link.kind) {
-    case "join":
-      return `#/join/${e(link.code)}`;
-    case "claim":
-      return `#/claim/${e(link.code)}`;
-    case "sso":
-      return `#/sso/${e(link.code)}`;
-    case "reset":
-      return `#/reset/${e(link.token)}`;
-    case "verifyEmail":
-      return `#/verify-email/${e(link.token)}`;
-    case "message":
-      return `${conversationHash(link.channelId)}/m/${e(link.messageId)}`;
-  }
+  if (link.kind === "message") return `${conversationHash(link.channelId)}/m/${e(link.messageId)}`;
+  return `#/${WORDS[link.kind]}/${e("code" in link ? link.code : link.token)}`;
 }
 
 /** The link that opens `link` at the web client the workspace at `serverUrl` serves. */
@@ -72,11 +69,9 @@ export function readConversationHash(hash: string): { channelId: string; rest: s
 export function readPageHash(hash: string): PageLink | null {
   const parts = hashParts(hash);
   const [first, id] = parts;
-  if (parts.length === 2 && isPageId(id)) {
-    if (first === "join" || first === "claim" || first === "sso") return { kind: first, code: id };
-    if (first === "reset") return { kind: "reset", token: id };
-    if (first === "verify-email") return { kind: "verifyEmail", token: id };
-  }
+  const kind = (Object.keys(WORDS) as (keyof typeof WORDS)[]).find((k) => WORDS[k] === first);
+  if (kind && parts.length === 2 && isPageId(id))
+    return kind === "reset" || kind === "verifyEmail" ? { kind, token: id } : { kind, code: id };
   const conversation = readConversationHash(hash);
   const [m, messageId] = conversation?.rest ?? [];
   return conversation && conversation.rest.length === 2 && m === "m" && isPageId(messageId)
