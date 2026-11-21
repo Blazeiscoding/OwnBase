@@ -21,6 +21,7 @@ import { appEventType } from "./appEvents.js";
 import { COMMAND_NAME } from "./commands.js";
 import { EMAIL_MAX, isEmailAddress } from "./email.js";
 import { PAGE_ID_CHARS } from "./pageLinks.js";
+import { NOTIFICATION_PREVIEWS } from "./notify.js";
 
 export const handleSchema = z
   .string()
@@ -164,10 +165,6 @@ export const channelPrefsBody = z.object({
   hiddenSeq: z.number().int().min(0).nullable().optional(),
 });
 
-/** How much a notification may say: the message, only who sent it and where, or nothing. */
-export const PUSH_PREVIEWS = ["full", "sender", "none"] as const;
-export type PushPreview = (typeof PUSH_PREVIEWS)[number];
-
 /**
  * `PUT /api/push/subscription`: a browser's push subscription, as
  * `PushSubscription.toJSON()` gives it, with how much its pushes may say.
@@ -175,7 +172,7 @@ export type PushPreview = (typeof PUSH_PREVIEWS)[number];
 export const pushSubscriptionBody = z.object({
   endpoint: z.string().max(2000),
   keys: z.object({ p256dh: z.string().max(200), auth: z.string().max(100) }),
-  preview: z.enum(PUSH_PREVIEWS),
+  preview: z.enum(NOTIFICATION_PREVIEWS),
 });
 
 /** `PUT /api/me/notify-default`: what conversations notify about unless set on their own (v53). */

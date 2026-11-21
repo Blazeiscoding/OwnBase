@@ -1,7 +1,6 @@
-import type { PushSubscriptionBody } from "@ownbase/protocol";
+import type { NotificationPreview, PushSubscriptionBody } from "@ownbase/protocol";
 import type { Platform } from "../platform.js";
 import { NOTIFICATION_WORKER } from "./workerNotifications.js";
-import type { NotificationPreview } from "./notificationPreview.js";
 
 /**
  * Notifications while OwnBase is closed, in a browser (G09). The server

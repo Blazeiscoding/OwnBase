@@ -1,17 +1,11 @@
+import { isNotificationPreview, type NotificationPreview } from "@ownbase/protocol";
 import { useStore } from "zustand";
 import { createStore } from "zustand/vanilla";
 import { usePlatform } from "../context.js";
 import type { Platform } from "../platform.js";
 import { perDevice } from "./perDevice.js";
 
-/**
- * How much a message notification shows (IMP-03): the message, only who sent
- * it and where, or nothing but that something arrived, for a screen others
- * can see.
- */
-export type NotificationPreview = "full" | "sender" | "none";
-
-export const NOTIFICATION_PREVIEWS: readonly {
+export const PREVIEW_OPTIONS: readonly {
   id: NotificationPreview;
   label: string;
   example: string;
@@ -24,28 +18,6 @@ export const NOTIFICATION_PREVIEWS: readonly {
   { id: "sender", label: "Only who sent it", example: "Priya Shah in #design: New message" },
   { id: "none", label: "Nothing about it", example: "New message" },
 ];
-
-export function notificationContent(
-  preview: NotificationPreview,
-  message: { from: string; channelName?: string; body: string },
-): { title: string; body: string } {
-  if (preview === "none") return { title: "New message", body: "Open OwnBase to read it." };
-  const title = `${message.from}${message.channelName ? ` in #${message.channelName}` : ""}`;
-  return { title, body: preview === "full" ? message.body : "New message" };
-}
-
-/**
- * What a reminder come due says under each choice (E4): that it is one, and
- * then as much of its message as a message's notification would show.
- */
-export function reminderContent(
-  preview: NotificationPreview,
-  message: { from: string; channelName?: string; body: string },
-): { title: string; body: string } {
-  if (preview === "none") return { title: "Reminder", body: "Open OwnBase to see it." };
-  const title = `Reminder: ${message.from}${message.channelName ? ` in #${message.channelName}` : ""}`;
-  return { title, body: preview === "full" ? message.body : "About a message" };
-}
 
 /**
  * What a direct message's huddle ringing says while the window is behind
@@ -110,8 +82,6 @@ const KEY = "notification-previews";
 const UNKNOWN = "*";
 const UNREADABLE =
   "Could not read your choice. Until you choose again, notifications show nothing about messages.";
-const isPreview = (value: unknown): value is NotificationPreview =>
-  value === "full" || value === "sender" || value === "none";
 
 /**
  * The choices a saved value holds, or null when it is not a map of them. A
@@ -127,7 +97,7 @@ function readSaved(saved: unknown): {
   const byAccount: Record<string, NotificationPreview> = {};
   let damaged = false;
   for (const [account, value] of Object.entries(saved)) {
-    if (isPreview(value)) byAccount[account] = value;
+    if (isNotificationPreview(value)) byAccount[account] = value;
     else {
       byAccount[account] = "none";
       damaged = true;

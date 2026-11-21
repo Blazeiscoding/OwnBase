@@ -6,7 +6,7 @@ import { useClient, usePlatform, useWorkspace } from "../context.js";
 import { accountError, deviceLabel } from "../lib/account.js";
 import { useComposerPreferences } from "../lib/composerPreferences.js";
 import {
-  NOTIFICATION_PREVIEWS,
+  PREVIEW_OPTIONS,
   previewAccount,
   previewFor,
   useNotificationPreviews,
@@ -817,7 +817,7 @@ function PreviewSettings() {
         For this workspace on this device. Choose less where others can see your screen.
       </p>
       <div className="mt-3 space-y-2">
-        {NOTIFICATION_PREVIEWS.map((option) => (
+        {PREVIEW_OPTIONS.map((option) => (
           <label key={option.id} className="flex items-start gap-2 text-sm">
             <input
               type="radio"

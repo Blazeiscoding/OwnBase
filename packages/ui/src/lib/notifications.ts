@@ -1,4 +1,9 @@
-import type { Message } from "@ownbase/protocol";
+import {
+  notificationContent,
+  reminderContent,
+  type Message,
+  type NotificationPreview,
+} from "@ownbase/protocol";
 import {
   decideNotification,
   decideReminderNotification,
@@ -11,12 +16,7 @@ import type { Heard } from "../components/MessageAnnouncer.js";
 import { CatchUpSummary, namesList } from "./catchUp.js";
 import { onScreenElsewhere } from "./focusedView.js";
 import type { Navigation } from "./navigation.js";
-import {
-  catchUpContent,
-  notificationContent,
-  reminderContent,
-  type NotificationPreview,
-} from "./notificationPreview.js";
+import { catchUpContent } from "./notificationPreview.js";
 
 export interface NotificationOptions {
   client: WorkspaceClient;

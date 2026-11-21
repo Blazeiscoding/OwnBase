@@ -1,6 +1,6 @@
 import { useEffect, useId, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import type { HuddleRing, ID } from "@ownbase/protocol";
+import type { HuddleRing, ID, NotificationPreview } from "@ownbase/protocol";
 import { isSnoozed } from "@ownbase/client-core";
 import { useClient, usePlatform, useWorkspace } from "../context.js";
 import { Avatar } from "./Avatar.js";
@@ -10,7 +10,7 @@ import { useToast } from "./Toast.js";
 import { useStartHuddle } from "../lib/startHuddle.js";
 import { failureMessage } from "../platform.js";
 import { channelTitle } from "../lib/format.js";
-import { ringContent, type NotificationPreview } from "../lib/notificationPreview.js";
+import { ringContent } from "../lib/notificationPreview.js";
 import { startRingTone } from "../lib/ringTone.js";
 import { focusedElsewhere, inOneWindow } from "../lib/focusedView.js";
 

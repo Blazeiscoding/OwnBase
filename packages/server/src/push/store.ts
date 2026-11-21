@@ -1,4 +1,4 @@
-import type { ID, PushPreview } from "@ownbase/protocol";
+import type { ID, NotificationPreview } from "@ownbase/protocol";
 import type { DatabaseSync } from "node:sqlite";
 import { countOf, oneOf, shape } from "../core/rows.js";
 
@@ -7,7 +7,7 @@ const subscriptionRow = shape({
   user_id: "text",
   p256dh: "text",
   auth: "text",
-  preview: oneOf<PushPreview>({ full: true, sender: true, none: true }),
+  preview: oneOf<NotificationPreview>({ full: true, sender: true, none: true }),
 });
 const userRow = shape({ user_id: "text" });
 
@@ -17,7 +17,7 @@ export interface PushSubscription {
   userId: ID;
   p256dh: string;
   auth: string;
-  preview: PushPreview;
+  preview: NotificationPreview;
 }
 
 /** Browsers one account may have subscribed at once; the oldest goes past it. */
