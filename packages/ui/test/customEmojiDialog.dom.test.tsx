@@ -110,7 +110,9 @@ describe("removing a custom emoji (E1)", () => {
     question = await screen.findByRole("dialog", { name: "Remove :shipit:?" });
     await user.click(within(question).getByRole("button", { name: "Remove emoji" }));
     expect(remove).toHaveBeenCalledWith("E_SHIP");
-    expect(await within(dialog).findByRole("status")).toHaveTextContent(":shipit: was removed.");
+    await waitFor(() =>
+      expect(within(dialog).getByRole("status")).toHaveTextContent(":shipit: was removed."),
+    );
     expect(within(dialog).queryByText(":shipit:")).toBeNull();
   });
 
@@ -181,7 +183,7 @@ describe("adding a custom emoji", () => {
     );
     expect(
       within(dialog).getByRole("button", { name: "Choose another picture" }),
-    ).not.toHaveAccessibleDescription();
+    ).toHaveAccessibleDescription(/^PNG, GIF, WebP or JPEG\./);
   });
 
   it("says a name is taken before sending it (E6)", async () => {
@@ -209,8 +211,10 @@ describe("adding a custom emoji", () => {
     const name = within(dialog).getByRole("textbox", { name: "Name" });
     await waitFor(() => expect(name).toHaveValue("party-parrot"));
     await user.click(within(dialog).getByRole("button", { name: "Add emoji" }));
-    expect(await within(dialog).findByRole("status")).toHaveTextContent(
-      ":party-parrot: was added. Use it in any message or reaction.",
+    await waitFor(() =>
+      expect(within(dialog).getByRole("status")).toHaveTextContent(
+        ":party-parrot: was added. Use it in any message or reaction.",
+      ),
     );
     expect(within(dialog).getByRole("button", { name: "Choose a picture" })).toHaveFocus();
     const row = within(dialog).getByText(":party-parrot:").closest("li")!;
