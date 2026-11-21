@@ -2413,9 +2413,10 @@ How it behaves:
 - **Mail is rationed**: three to one address, then one each five minutes,
   whoever asks; ten requests from one account or network address, then two a
   minute. A refusal is the same for an address nobody uses.
-- **An invite by email** sends the invite's link from the dialog, for an invite
-  that still works. The invite is the same one: revoking it stops the mailed
-  link too. Whoever sends it is told if the mail server did not take it.
+- **An invite by email** is a new invite for that address alone: it works once,
+  for 7 days, whatever the link on screen allows. It shows in the dialog's list
+  of codes, where revoking it stops the mailed link. Whoever sends it is told if
+  the mail server did not take it, and then no invite is kept.
 - **The mail** is plain text with a small HTML copy: the workspace's name, what
   to do, the link and who to ask if it was not you. No pictures, nothing loaded
   from elsewhere, no tracking. Tokens sit after `#` in the link, so they reach
