@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { createHmac, generateKeyPairSync, sign } from "node:crypto";
 import { createSocket, type Socket as UdpSocket } from "node:dgram";
 import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
@@ -6,8 +6,7 @@ import { createServer, type Server } from "node:http";
 import { createServer as createTcpServer, type Server as TcpServer } from "node:net";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { DatabaseSync } from "node:sqlite";
-import type { SettingsPanel, User } from "@ownbase/protocol";
+import type { Channel, SettingsPanel, User } from "@ownbase/protocol";
 import { createWorkspaceServer, type WorkspaceServer } from "@ownbase/server";
 import { readZipEntries, readZipEntry } from "@ownbase/server/zip";
 import { parseSyslog, syslogMessage } from "../src/auditStream.js";
@@ -51,6 +50,7 @@ beforeEach(() => {
 });
 
 afterEach(async () => {
+  vi.useRealTimers();
   await server?.stop();
   server = undefined;
   clock = NOW;
@@ -65,7 +65,7 @@ async function start(text: string | null = license(), over: { allowPrivateHooks?
     mdns: false,
     rateLimits: false,
     logger: false,
-    retentionDays: 30,
+    retentionDays: 1,
     extensions: [enterprise({ license: text, trusted: [licenseKeys.publicKey], now: () => clock })],
     ...over,
   });
@@ -96,7 +96,9 @@ async function people() {
   const owner = await register("owner");
   const maya = await register("maya");
   const sam = await register("sam");
-  const general = server!.store.channels.byName("general")!.id;
+  const channels = (await call("/api/channels", owner.token, undefined, "GET")).data
+    .channels as Channel[];
+  const general = channels.find((c) => c.name === "general")!.id;
   const legal = (await call("/api/channels", owner.token, { type: "public", name: "legal" })).data
     .channel.id as string;
   return { owner, maya, sam, general, legal };
@@ -127,26 +129,33 @@ const audit = async (who: Account) =>
     details: Record<string, unknown>;
   }[];
 
-/** Ages every message, through a second connection, as the server's retention tests do. */
-function backdate(days: number) {
-  const db = new DatabaseSync(join(directory, "workspace.db"));
-  try {
-    db.exec(`UPDATE messages SET created_at = created_at - ${days * DAY}`);
-  } finally {
-    db.close();
-  }
+/** The administrative record, oldest first, as the owner reads it. */
+const auditIds = async (who: Account) =>
+  (
+    (await call("/api/admin/audit?limit=200", who.token, undefined, "GET")).data.entries as {
+      id: string;
+    }[]
+  )
+    .map((e) => e.id)
+    .reverse();
+
+/** Two days pass for the server, which shares this process's clock; retention keeps one. */
+function twoDaysLater() {
+  vi.useFakeTimers({ toFake: ["Date"], shouldAdvanceTime: true });
+  vi.setSystemTime(Date.now() + 2 * DAY);
 }
 
-const exists = (id: string) =>
-  server!.store.messages
-    .recorded({
-      from: 0,
-      to: Date.now() + DAY,
-      userIds: [],
-      channelIds: server!.store.channels.all().map((c) => c.id),
-      limit: 1000,
-    })
-    .some((m) => m.id === id);
+/** Whether `who` can still open the message, as a link to it would. */
+const exists = async (who: Account, channelId: string, id: string) => {
+  const { status } = await call(
+    `/api/channels/${channelId}/messages/${id}`,
+    who.token,
+    undefined,
+    "GET",
+  );
+  expect([200, 404]).toContain(status);
+  return status === 200;
+};
 
 describe("compliance in Workspace settings", () => {
   it("shows nothing without a license that has it", async () => {
@@ -213,10 +222,16 @@ describe("legal hold", () => {
     ] as const)
       expect(await remove(who, id)).toMatchObject({ status: 403, data: { error: "message_kept" } });
 
-    backdate(60);
+    twoDaysLater();
     expect(server!.applyRetention()).toBe(1);
-    expect(exists(loose.id)).toBe(false);
-    for (const id of [mayas.id, inLegal.id, thread.id, reply.id]) expect(exists(id)).toBe(true);
+    expect(await exists(owner, general, loose.id)).toBe(false);
+    for (const [channelId, id] of [
+      [general, mayas.id],
+      [legal, inLegal.id],
+      [general, thread.id],
+      [general, reply.id],
+    ] as const)
+      expect(await exists(owner, channelId, id)).toBe(true);
   });
 
   it("stays when the license ends: nothing can be added, and it can still be lifted", async () => {
@@ -278,6 +293,12 @@ describe("the export", () => {
     const { owner, maya, sam, general, legal } = await people();
     const dm = (await call("/api/channels", sam.token, { type: "dm", memberIds: [maya.user.id] }))
       .data.channel.id as string;
+    const group = (
+      await call("/api/channels", sam.token, {
+        type: "group_dm",
+        memberIds: [maya.user.id, owner.user.id],
+      })
+    ).data.channel.id as string;
     const form = new FormData();
     form.append("file", new Blob(["the contract, signed"]), "contract.txt");
     const uploaded = await fetch(`${base}/api/channels/${general}/files`, {
@@ -293,6 +314,7 @@ describe("the export", () => {
     const takenBack = await post(sam, legal, "taken back");
     await remove(sam, takenBack.id);
     const direct = await post(sam, dm, "sam to maya, in private");
+    const inGroup = await post(sam, group, "sam to maya and the owner");
     await post(sam, general, "neither maya's nor in legal");
 
     const choose = (values: Record<string, string>) =>
@@ -327,7 +349,13 @@ describe("the export", () => {
       zipName(fileId, "contract.txt"),
     ]);
     const messages = await jsonl("messages.jsonl");
-    expect(messages.map((m) => m.id)).toEqual([withFile.id, edited.id, takenBack.id, direct.id]);
+    expect(messages.map((m) => m.id)).toEqual([
+      withFile.id,
+      edited.id,
+      takenBack.id,
+      direct.id,
+      inGroup.id,
+    ]);
     expect(messages[0]).toMatchObject({
       authorId: maya.user.id,
       conversationId: general,
@@ -348,26 +376,32 @@ describe("the export", () => {
       files: [],
       deletedAt: expect.any(String),
     });
-    // Maya's direct conversation, whoever wrote in it.
+    // Maya's direct conversations, with one person or several, whoever wrote in them.
     expect(messages[3]).toMatchObject({ conversationId: dm, text: "sam to maya, in private" });
+    expect(messages[4]).toMatchObject({ conversationId: group, text: "sam to maya and the owner" });
     expect(await read(zipName(fileId, "contract.txt"))).toBe("the contract, signed");
     const manifest = JSON.parse(await read("manifest.json"));
     expect(manifest).toMatchObject({
       format: 1,
       madeBy: { handle: "owner" },
       people: [maya.user.id],
-      counts: { messages: 4, deleted: 1, edited: 1, files: 1 },
+      counts: { messages: 5, deleted: 1, edited: 1, files: 1 },
     });
     expect(manifest.deletions).toContain("Its words and files were erased");
     expect((await jsonl("conversations.jsonl")).map((c) => c.name)).toEqual([
       "general",
       "legal",
       expect.stringMatching(/^(maya, sam|sam, maya)$/),
+      expect.stringMatching(/^(?=.*maya)(?=.*sam)(?=.*owner)/i),
     ]);
-    expect((await jsonl("people.jsonl")).map((p) => p.handle).sort()).toEqual(["maya", "sam"]);
+    expect((await jsonl("people.jsonl")).map((p) => p.handle).sort()).toEqual([
+      "maya",
+      "owner",
+      "sam",
+    ]);
     expect((await audit(owner))[0]).toMatchObject({
       actorId: owner.user.id,
-      details: { did: "downloaded a compliance export", messages: 4, people: 1, channels: 1 },
+      details: { did: "downloaded a compliance export", messages: 5, people: 1, channels: 1 },
     });
 
     // The link opens once, and only for the owner's session.
@@ -442,9 +476,8 @@ describe("sending the administrative record", () => {
     answer = 200;
     await call(`/api/admin/users/${sam.user.id}`, owner.token, { deactivated: false }, "PATCH");
     await expect.poll(() => received.at(-1)?.entries.at(-1)?.action).toBe("user.reactivated");
-    const all = server!.store.audit.after(null, 1000).map((e) => e.id);
     // Every entry, once each and in order: none was skipped by the failure.
-    expect(sentIds()).toEqual(all);
+    expect(sentIds()).toEqual(await auditIds(owner));
     expect((await panel(owner, "audit-stream"))?.status).toMatch(/^Sent up to /);
   });
 
@@ -461,10 +494,22 @@ describe("sending the administrative record", () => {
     const udpLines: string[] = [];
     udp.on("message", (msg) => udpLines.push(msg.toString("utf8")));
     await new Promise<void>((resolve) => udp.bind(0, "127.0.0.1", resolve));
-    let tcpBytes = "";
+    let tcpBytes = Buffer.alloc(0);
     const tcp: TcpServer = createTcpServer((socket) =>
-      socket.on("data", (chunk) => (tcpBytes += chunk.toString("utf8"))),
+      socket.on("data", (chunk: Buffer) => (tcpBytes = Buffer.concat([tcpBytes, chunk]))),
     );
+    /** Octet counted: the length in bytes, a space, then the message. */
+    const tcpFrames = () => {
+      const frames: string[] = [];
+      let rest = tcpBytes;
+      while (rest.length > 0) {
+        const space = rest.indexOf(32);
+        const length = Number(rest.subarray(0, space).toString());
+        frames.push(rest.subarray(space + 1, space + 1 + length).toString("utf8"));
+        rest = rest.subarray(space + 1 + length);
+      }
+      return frames;
+    };
     await new Promise<void>((resolve) => tcp.listen(0, "127.0.0.1", resolve));
     try {
       await start();
@@ -480,20 +525,19 @@ describe("sending the administrative record", () => {
           /^<110>1 \d{4}-\d\d-\d\dT[\d:.]+Z \S+ ownbase - extension\.action - \{.*"did":"set the administrative record to be sent to syslog"/,
         );
 
+      // A name with letters longer than a byte, so characters and bytes differ.
+      await save(owner, "/api/admin/workspace/name", { name: "Café Zoë" });
       const tcpPort = (tcp.address() as { port: number }).port;
       await save(owner, "/api/compliance/stream", { syslog: `tcp://127.0.0.1:${tcpPort}` });
-      // Octet counted: the length, a space, then the message.
-      await expect.poll(() => tcpBytes).toMatch(/^\d+ <110>1 /);
-      const frames: string[] = [];
-      let rest = Buffer.from(tcpBytes);
-      while (rest.length > 0) {
-        const space = rest.indexOf(32);
-        const length = Number(rest.subarray(0, space).toString());
-        frames.push(rest.subarray(space + 1, space + 1 + length).toString("utf8"));
-        rest = rest.subarray(space + 1 + length);
-      }
-      // A new destination gets the whole record.
-      expect(frames.length).toBe(server!.store.audit.after(null, 1000).length);
+      const all = await auditIds(owner);
+      // A new destination gets the whole record, each message whole.
+      await expect
+        .poll(() =>
+          tcpFrames().map((frame) => JSON.parse(frame.slice(frame.indexOf("{"))).id as string),
+        )
+        .toEqual(all);
+      expect(tcpFrames().every((frame) => frame.startsWith("<110>1 "))).toBe(true);
+      expect(tcpFrames().join("\n")).toContain('"to":"Café Zoë"');
     } finally {
       udp.close();
       await new Promise<void>((resolve) => tcp.close(() => resolve()));
