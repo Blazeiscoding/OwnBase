@@ -67,6 +67,7 @@ describe("a new channel", () => {
     );
     const dialog = screen.getByRole("dialog", { name: "New channel" });
     const name = within(dialog).getByLabelText("Name");
+    expect(name).toHaveFocus();
     await user.click(within(dialog).getByRole("button", { name: "Create channel" }));
     expect(within(dialog).getByRole("alert")).toHaveTextContent("Give the channel a name.");
     expect(name).toHaveFocus();
@@ -121,6 +122,7 @@ describe("a new message", () => {
     );
     const dialog = screen.getByRole("dialog", { name: "New message" });
     const to = within(dialog).getByLabelText("To");
+    expect(to).toHaveFocus();
     // Who it is to, and the button, stay in sight; the people between them scroll.
     const people = dialog.querySelector(".dialog-scroll")!;
     expect(people).toContainElement(within(dialog).getByRole("checkbox", { name: /Alex Chen/ }));

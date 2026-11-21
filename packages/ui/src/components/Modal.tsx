@@ -103,6 +103,14 @@ function available(element: HTMLElement): boolean {
   );
 }
 
+/** A field someone types into: not a box to tick, a choice or a button. */
+const NOT_TYPED_IN = ["checkbox", "radio", "button", "submit", "reset", "hidden", "file", "range"];
+const TEXT_FIELD = `textarea, input${NOT_TYPED_IN.map((type) => `:not([type=${type}])`).join("")}`;
+
+function firstTextField(panel: HTMLElement): HTMLElement | null {
+  return [...panel.querySelectorAll<HTMLElement>(TEXT_FIELD)].find(available) ?? null;
+}
+
 function usableIn(layer: Layer, element: HTMLElement | null): element is HTMLElement {
   return !!element && layer.panel.contains(element) && available(element);
 }
@@ -442,6 +450,12 @@ interface Props {
    * given. Given by a dialog whose own buttons close it, or move away within it.
    */
   guards?: GuardRegistry;
+  /**
+   * Focus starts in its first text field as it opens, for a dialog opened to
+   * type into, unless something in it already took focus. Otherwise it
+   * starts on the dialog itself, which a screen reader then reads out whole.
+   */
+  startsInField?: boolean;
 }
 
 /** One keyboard/focus owner for every dialog and image viewer. */
@@ -455,8 +469,10 @@ export function Modal({
   className,
   style,
   guards,
+  startsInField = false,
 }: Props) {
   const own = useGuardRegistry();
+  const startsIn = useRef(startsInField);
   const registry = guards ?? own;
   const root = useRef<HTMLDivElement>(null);
   const panel = useRef<HTMLDivElement>(null);
@@ -488,6 +504,10 @@ export function Modal({
     layer.current = current;
     if (layers.size === 0) install();
     layers.add(current);
+    if (startsIn.current && !usableIn(current, focusedElement())) {
+      const field = firstTextField(current.panel);
+      if (field) focus(field);
+    }
     reconcile();
     announceLayers();
     return () => {

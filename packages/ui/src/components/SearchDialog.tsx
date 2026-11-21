@@ -532,15 +532,13 @@ export function SearchDialog(props: {
   }
 
   return (
-    <Dialog title="Search messages" onClose={props.onClose} width={640} ownScroll>
+    <Dialog startsInField title="Search messages" onClose={props.onClose} width={640} ownScroll>
       {/* The field and the filters stay in sight over what they found, to be
           changed from any way down the results. */}
       <form onSubmit={run} className="shrink-0 space-y-2 px-6 pb-3">
         <div className="flex gap-2">
           <input
             ref={field}
-            // eslint-disable-next-line jsx-a11y/no-autofocus -- the dialog's first field: focus moves there as it opens
-            autoFocus
             aria-label="Search messages"
             enterKeyHint="search"
             maxLength={200}

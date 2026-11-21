@@ -125,7 +125,7 @@ export function PollDialog({
     );
 
   return (
-    <Dialog title="Create a poll" onClose={onClose} width={480} ownScroll>
+    <Dialog startsInField title="Create a poll" onClose={onClose} width={480} ownScroll>
       <form noValidate onSubmit={submit} className="flex min-h-0 flex-col">
         <DialogScroll>
           <div className="space-y-4">
@@ -139,8 +139,6 @@ export function PollDialog({
               <input
                 ref={questionField}
                 id={`${problemId}-question`}
-                // eslint-disable-next-line jsx-a11y/no-autofocus -- the dialog's first field: focus moves there as it opens
-                autoFocus
                 value={question}
                 maxLength={POLL_QUESTION_MAX}
                 placeholder="What should we ask?"

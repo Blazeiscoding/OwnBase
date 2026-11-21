@@ -112,7 +112,9 @@ async function openForward(user: ReturnType<typeof userEvent.setup>) {
       { name: "Forward…" },
     ),
   );
-  return screen.findByRole("dialog", { name: "Forward message" });
+  const dialog = await screen.findByRole("dialog", { name: "Forward message" });
+  expect(within(dialog).getByRole("combobox", { name: "Forward to" })).toHaveFocus();
+  return dialog;
 }
 
 describe("forwarding a message", () => {

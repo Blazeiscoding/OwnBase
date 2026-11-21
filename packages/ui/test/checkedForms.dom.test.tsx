@@ -54,6 +54,7 @@ describe("a guest creating an account", () => {
       </ClientContext.Provider>,
     );
     const dialog = screen.getByRole("dialog", { name: "Create an account" });
+    expect(within(dialog).getByLabelText("Username")).toHaveFocus();
     return {
       dialog,
       create,

@@ -439,6 +439,7 @@ describe("the search dialog", () => {
     );
     const dialog = screen.getByRole("dialog", { name: "Search messages" });
     const box = within(dialog).getByRole<HTMLInputElement>("textbox", { name: "Search messages" });
+    expect(box).toHaveFocus();
     const scroller = dialog.querySelector<HTMLElement>(".dialog-scroll")!;
     return { client, spy, dialog, box, scroller, onJump };
   }

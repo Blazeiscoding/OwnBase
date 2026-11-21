@@ -91,13 +91,11 @@ export function ShortcutsDialog({ onClose }: { onClose: () => void }) {
   // Laid out as Linear's shortcut gallery is: what it does first, read down the
   // left, and its keys as keycaps lined up on the right.
   return (
-    <Dialog title="Keyboard shortcuts" onClose={onClose} width={500} ownScroll>
+    <Dialog startsInField title="Keyboard shortcuts" onClose={onClose} width={500} ownScroll>
       <label className="block shrink-0 px-6 pb-3 text-sm">
         <span className="sr-only">Find a shortcut</span>
         <input
           type="search"
-          // eslint-disable-next-line jsx-a11y/no-autofocus -- the dialog's first field: focus moves there as it opens
-          autoFocus
           value={query}
           onChange={(event) => setQuery(event.target.value)}
           placeholder="Find a shortcut"

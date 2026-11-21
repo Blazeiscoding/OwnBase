@@ -618,7 +618,7 @@ export function HostDialog(props: {
                   </span>
                   <input
                     ref={nameInput}
-                    // eslint-disable-next-line jsx-a11y/no-autofocus -- the dialog's first field: focus moves there as it opens
+                    // eslint-disable-next-line jsx-a11y/no-autofocus -- this screen comes once the status is read, and again after Stop hosting, so its first field takes focus each time it appears
                     autoFocus
                     maxLength={WORKSPACE_NAME_MAX}
                     value={name}
