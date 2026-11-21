@@ -604,7 +604,9 @@ describe("single sign-on through a SAML identity provider", () => {
       ),
       by("turned on single sign-on with SAML"),
     ]);
-    const recorded = JSON.stringify(server!.store.audit.after(null, 100));
+    const recorded = JSON.stringify(
+      (await call("/api/admin/audit?limit=200", owner.token, undefined, "GET")).data.entries,
+    );
     for (const pem of [idp.certificate, idp.strangerCertificate])
       expect(recorded).not.toContain(pem.split("\n")[1]);
   });

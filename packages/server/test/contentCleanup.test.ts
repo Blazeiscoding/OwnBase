@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { DatabaseSync } from "node:sqlite";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -41,6 +41,12 @@ async function api(method: string, path: string, body?: unknown, auth = token) {
 
 const database = () => (server.store as unknown as { db: DatabaseSync }).db;
 
+/** Moves the clock the server reads past the one-day retention window. */
+function pastRetention() {
+  vi.useFakeTimers({ toFake: ["Date"], shouldAdvanceTime: true });
+  vi.setSystemTime(Date.now() + 2 * 86400_000);
+}
+
 beforeEach(async () => {
   server = await createWorkspaceServer({
     dataDir: ":memory:",
@@ -62,6 +68,7 @@ beforeEach(async () => {
 });
 
 afterEach(async () => {
+  vi.useRealTimers();
   for (const socket of sockets.splice(0)) socket.terminate();
   await server?.stop();
 });
@@ -125,6 +132,7 @@ describe("complete message content cleanup (N06/N07)", () => {
           )
         ).body.message as Message;
       const removed = await post("The earlier meeting.");
+      if (operation === "retention") pastRetention();
       const live = await post("The next meeting.");
       if (operation === "delete") {
         expect((await api("DELETE", `/api/messages/${removed.id}`)).status).toBe(200);
@@ -133,9 +141,6 @@ describe("complete message content cleanup (N06/N07)", () => {
           .get(removed.id);
         expect(row).toEqual({ text: "", actions: "[]" });
       } else {
-        database()
-          .prepare("UPDATE messages SET created_at = ? WHERE id = ?")
-          .run(Date.now() - 2 * 86400_000, removed.id);
         expect(server.applyRetention()).toBe(1);
       }
       const replayed = await replay(after);
@@ -221,9 +226,7 @@ describe("complete message content cleanup (N06/N07)", () => {
       ).status,
     ).toBe(200);
     expect((await api("DELETE", `/api/messages/${completed.messageId}`)).status).toBe(200);
-    database()
-      .prepare("UPDATE messages SET created_at = ? WHERE id = ?")
-      .run(Date.now() - 2 * 86400_000, completed.messageId);
+    pastRetention();
     expect(server.applyRetention()).toBe(1);
     server.store.scheduled.prune(Date.now() - 7 * 86400_000);
     expect(server.store.scheduled.get(id)).toMatchObject({

@@ -94,6 +94,31 @@ export function AppsDialog({ onClose }: { onClose: () => void }) {
     return () => clearInterval(timer);
   }, [hasPendingDeliveries, load]);
 
+  /*
+   * The server tells nobody when an app's socket opens or closes, so while a
+   * Socket Mode app is on show its count is fetched again every few seconds.
+   * A hidden window waits, and asks once as soon as it is seen again.
+   */
+  const showsSocketApp = apps?.some((app) => app.receive === "socket") ?? false;
+  useEffect(() => {
+    if (!showsSocketApp) return;
+    let timer: ReturnType<typeof setInterval> | undefined;
+    const follow = (seenAgain: boolean) => {
+      clearInterval(timer);
+      timer = undefined;
+      if (document.visibilityState !== "visible") return;
+      if (seenAgain) load(true);
+      timer = setInterval(() => load(true), 5_000);
+    };
+    const onVisibility = () => follow(true);
+    follow(false);
+    document.addEventListener("visibilitychange", onVisibility);
+    return () => {
+      clearInterval(timer);
+      document.removeEventListener("visibilitychange", onVisibility);
+    };
+  }, [showsSocketApp, load]);
+
   const rooms = Object.values(channels).filter((c) => isRoom(c.type) && !c.archived);
 
   /**
@@ -389,7 +414,13 @@ export function AppsDialog({ onClose }: { onClose: () => void }) {
                 onToken={(token) => setSecrets((s) => ({ ...s, [`app:${a.id}`]: token }))}
               />
               {a.receive === "socket" && secrets[`app:${a.id}`] && (
-                <SecretRow label="App-level token" value={secrets[`app:${a.id}`]!} once />
+                <>
+                  <SecretRow label="App-level token" value={secrets[`app:${a.id}`]!} once />
+                  <p className="mt-1 text-[11px] text-ink-dim">
+                    Give this to your app as <code className="font-mono">SLACK_APP_TOKEN</code>,
+                    next to its bot token (<code className="font-mono">SLACK_BOT_TOKEN</code>).
+                  </p>
+                </>
               )}
             </FormSection>
 
@@ -470,16 +501,16 @@ function FormSection({ label, children }: { label: string; children: React.React
 }
 
 /**
- * A bot token or webhook address is shown once: closing asks first while one
- * is up that has not been copied. Asked at the moment of closing, since a
- * copy button deep in the dialog does not render this again.
+ * A token or webhook address is shown once: closing asks first while one is
+ * up that has not been copied. Asked at the moment of closing, since a copy
+ * button deep in the dialog does not render this again.
  */
 function OnceGuard({ shown }: { shown: string[] }) {
   useDismissGuard(() =>
     shown.some((value) => !wasCopied(value))
       ? {
           title: "Close before copying?",
-          body: "You can see the bot tokens and webhook addresses made here only once. Copy them first if you have not already.",
+          body: "Bot tokens, app-level tokens and webhook addresses show only once. Copy them first if you have not already.",
           confirmLabel: "Close anyway",
         }
       : null,

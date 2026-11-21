@@ -28,7 +28,6 @@ const SCHEDULED_RETENTION_MS = 7 * 24 * 3600_000;
 /** Messages scheduled to post later: the queue's routes, and the loop that posts what is due. */
 export function registerScheduled(ctx: ServerContext, { posting }: { posting: Posting }) {
   const { opts, app, store, route, background, lifecycle } = ctx;
-  const scheduledLimits = { ...SCHEDULED_LIMITS, ...opts.scheduledLimits };
 
   route(endpoints.scheduleMessage, async ({ reply, user: me, body, params }) => {
     const result = posting.schedule(
@@ -43,7 +42,7 @@ export function registerScheduled(ctx: ServerContext, { posting }: { posting: Po
         broadcast: !!body.threadRootId && body.alsoSendToChannel === true,
         nonce: body.nonce ?? null,
       },
-      scheduledLimits,
+      SCHEDULED_LIMITS,
     );
     if (result.replayed) reply.status(200);
     return { scheduled: result.scheduled };
@@ -101,8 +100,8 @@ export function registerScheduled(ctx: ServerContext, { posting }: { posting: Po
    */
   const flushScheduled = () => {
     if (opts.isolated) return;
-    const due = store.scheduled.due(Date.now(), scheduledLimits.batch);
-    const retryAt = Date.now() + scheduledLimits.heldRetryMs;
+    const due = store.scheduled.due(Date.now(), SCHEDULED_LIMITS.batch);
+    const retryAt = Date.now() + SCHEDULED_LIMITS.heldRetryMs;
     for (const item of due) {
       try {
         sendScheduled(item, retryAt);
@@ -113,7 +112,7 @@ export function registerScheduled(ctx: ServerContext, { posting }: { posting: Po
       }
     }
     // A full batch may mean more are due.
-    if (due.length === scheduledLimits.batch) nextBatch();
+    if (due.length === SCHEDULED_LIMITS.batch) nextBatch();
   };
   const nextBatch = lifecycle.laterTurn(() => background.run("scheduled messages", flushScheduled));
   /**

@@ -17,13 +17,14 @@ const clients: WorkspaceClient[] = [];
 const tracks: { enabled: boolean; stop: ReturnType<typeof vi.fn> }[] = [];
 
 afterEach(async () => {
+  vi.useRealTimers();
   for (const client of clients.splice(0)) client.destroy();
   await server?.stop();
   vi.restoreAllMocks();
   vi.unstubAllGlobals();
 });
 
-async function start(options: { huddleGraceMs?: number; burst?: number } = {}) {
+async function start(options: { burst?: number } = {}) {
   tracks.length = 0;
   vi.stubGlobal("AudioContext", undefined);
   vi.stubGlobal("navigator", {
@@ -45,7 +46,6 @@ async function start(options: { huddleGraceMs?: number; burst?: number } = {}) {
     mdns: false,
     logger: false,
     rateLimits: options.burst ? { ephemeral: { burst: options.burst, perMinute: 1 } } : false,
-    ...(options.huddleGraceMs === undefined ? {} : { huddleGraceMs: options.huddleGraceMs }),
   });
   const base = `http://127.0.0.1:${server.port}`;
   const account = await new Api(base).register({
@@ -71,6 +71,26 @@ async function open(base: string, token: string) {
 /** Closes this person's sockets from the server's side, as a restarted socket or a blip does. */
 function dropConnection(userId: string) {
   server.gateway.resynchronizeUser(userId);
+}
+
+/** How long the server keeps a dropped device's place in a call (its `HUDDLE_GRACE_MS`). */
+const SERVER_GRACE_MS = 30_000;
+
+/**
+ * Keeps the device with `token` off the network until the server has given
+ * up its place in the call, on a clock the test moves, then lets it back.
+ */
+async function awayPastGrace(token: string, channelId: string) {
+  vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"], shouldAdvanceTime: true });
+  net.keepDown(token);
+  await expect
+    .poll(async () => {
+      await vi.advanceTimersByTimeAsync(SERVER_GRACE_MS);
+      return server.huddles.participants(channelId);
+    })
+    .toEqual([]);
+  net.restore(token);
+  net.networkBack();
 }
 
 describe("a call through a dropped connection to the server", () => {
@@ -103,14 +123,12 @@ describe("a call through a dropped connection to the server", () => {
   });
 
   it("dials afresh when the server let its place go meanwhile", async () => {
-    const { base, account } = await start({ huddleGraceMs: 20 });
+    const { base, account } = await start();
     const { client, general, joins } = await open(base, account.token);
     await client.joinHuddle(general);
     const self = client.state.self!.id;
 
-    dropConnection(self);
-    await expect.poll(() => client.state.status).toBe("reconnecting");
-    await expect.poll(() => server.huddles.participants(general)).toEqual([]);
+    await awayPastGrace(account.token, general);
     await expect.poll(() => client.state.status, { timeout: 5000 }).toBe("online");
     await expect.poll(() => joins()).toHaveLength(2);
     expect(HuddleSession.prototype.closePeers).toHaveBeenCalledOnce();
@@ -125,12 +143,11 @@ describe("a call through a dropped connection to the server", () => {
   it("ends, and says why, when the server will not let it back in", async () => {
     // One join a minute: the first spends it, so coming back after the place
     // went is refused.
-    const { base, account } = await start({ huddleGraceMs: 20, burst: 1 });
+    const { base, account } = await start({ burst: 1 });
     const { client, general } = await open(base, account.token);
     await client.joinHuddle(general);
 
-    dropConnection(client.state.self!.id);
-    await expect.poll(() => client.state.status).toBe("reconnecting");
+    await awayPastGrace(account.token, general);
     await expect.poll(() => client.state.status, { timeout: 5000 }).toBe("online");
     await expect.poll(() => client.state.huddle).toBeNull();
     expect(client.state.huddleEnded).toMatchObject({

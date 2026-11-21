@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import WebSocket from "ws";
 import { PROTOCOL_VERSION, type ServerToClient, APP_SCOPES } from "@ownbase/protocol";
 import {
@@ -6,7 +6,6 @@ import {
   GUEST_SESSION_TTL_MS,
   type WorkspaceServer,
 } from "../src/server.js";
-import { hashToken } from "../src/auth.js";
 
 /** The searcher's zone, which the server reads `before:` and `after:` in. */
 const TZ = encodeURIComponent(Intl.DateTimeFormat().resolvedOptions().timeZone);
@@ -22,6 +21,7 @@ let base = "";
 const sockets: WebSocket[] = [];
 
 afterEach(async () => {
+  vi.useRealTimers();
   for (const ws of sockets.splice(0)) ws.terminate();
   await server?.stop();
   server = undefined;
@@ -290,12 +290,11 @@ describe("a guest", () => {
     expect((await call("GET", "/api/me", guest.token)).status).toBe(200);
     expect(expiry()).toMatchObject({ expiresAt: before.expiresAt });
     expect(expiry().lastSeenAt).toBeGreaterThan(before.lastSeenAt);
-    // Past the day it is over.
-    const { db } = server!.store as unknown as { db: import("node:sqlite").DatabaseSync };
-    db.prepare("UPDATE sessions SET expires_at = ? WHERE token_hash = ?").run(
-      Date.now() - 1,
-      hashToken(guest.token),
-    );
+    // Still in, used, just short of the day; and past it, over.
+    vi.useFakeTimers({ toFake: ["Date"], shouldAdvanceTime: true });
+    vi.setSystemTime(before.expiresAt - 1_000);
+    expect((await call("GET", "/api/me", guest.token)).status).toBe(200);
+    vi.setSystemTime(before.expiresAt + 1_000);
     expect((await call("GET", "/api/me", guest.token)).status).toBe(401);
   });
 

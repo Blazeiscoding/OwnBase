@@ -1,9 +1,8 @@
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { mkdtempSync, rmSync } from "node:fs";
 import { createServer, type Server } from "node:http";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { DatabaseSync } from "node:sqlite";
 import { text as readText } from "node:stream/consumers";
 import { bytes, endpoint, json, type User } from "@ownbase/protocol";
 import type { EarlierWords, ExtensionContext, Keep, ServerExtension } from "../src/extensions.js";
@@ -27,6 +26,7 @@ beforeEach(() => {
 });
 
 afterEach(async () => {
+  vi.useRealTimers();
   await server?.stop();
   server = undefined;
   rmSync(directory, { recursive: true, force: true });
@@ -128,14 +128,10 @@ async function post(who: Account, channelId: string, text: string, extra: object
 const remove = (who: Account, channelId: string, id: string) =>
   call(`/api/messages/${id}`, who.token, undefined, "DELETE");
 
-/** Ages every message, through a second connection, as retention.test.ts does. */
-function backdate(days: number) {
-  const db = new DatabaseSync(join(directory, "workspace.db"));
-  try {
-    db.exec(`UPDATE messages SET created_at = created_at - ${days * DAY}`);
-  } finally {
-    db.close();
-  }
+/** Moves the clock the server reads `days` on, so what was said before is that old. */
+function later(days: number) {
+  vi.useFakeTimers({ toFake: ["Date"], shouldAdvanceTime: true });
+  vi.setSystemTime(Date.now() + days * DAY);
 }
 
 const stillThere = (id: string) =>
@@ -162,7 +158,7 @@ describe("messages an extension says to keep (P12)", () => {
     await post(member, general, "a held reply", { threadRootId: root.id });
     const inRoom = await post(owner, room, "held because of where it is");
     held.keep = { userIds: [member.user.id], channelIds: [room] };
-    backdate(60);
+    later(60);
 
     expect(server!.applyRetention()).toBe(1);
     expect(stillThere(loose.id)).toBe(false);

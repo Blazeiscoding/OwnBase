@@ -123,6 +123,12 @@ const panels = async (owner: Account) =>
   (await call("/api/admin/extension-settings", owner.token, undefined, "GET")).data
     .panels as SettingsPanel[];
 
+/** Someone as the owner sees them in Workspace settings' People, deactivated included. */
+const person = async (owner: Account, id: string) =>
+  ((await call("/api/admin/users", owner.token, undefined, "GET")).data.users as User[]).find(
+    (u) => u.id === id,
+  );
+
 describe("provisioning as Okta does it", () => {
   // Okta's create, as its guide gives it: a password it sends even with
   // password sync off, and groups it never fills here.
@@ -194,9 +200,9 @@ describe("provisioning as Okta does it", () => {
       meta: { resourceType: "User", location: `${PUBLIC}/scim/v2/Users/${id}` },
     });
     expect(made.data).not.toHaveProperty("password");
-    const person = server!.store.people.get(id)!;
-    expect(person).toMatchObject({ handle: "test.user", displayName: "Test User", role: "member" });
-    expect(person.deactivated).toBe(false);
+    const shown = (await person(owner, id))!;
+    expect(shown).toMatchObject({ handle: "test.user", displayName: "Test User", role: "member" });
+    expect(shown.deactivated).toBe(false);
 
     // 3. Read it back, and find it by its name.
     expect((await scim(token, "GET", `/Users/${id}`)).data).toEqual(made.data);
@@ -216,7 +222,7 @@ describe("provisioning as Okta does it", () => {
       displayName: "Another User",
       name: { givenName: "Another" },
     });
-    expect(server!.store.people.get(id)!.displayName).toBe("Another User");
+    expect((await person(owner, id))!.displayName).toBe("Another User");
 
     // 5. Deactivate, as Okta does: replace, with no path.
     const off = await scim(token, "PATCH", `/Users/${id}`, {
@@ -225,7 +231,7 @@ describe("provisioning as Okta does it", () => {
     });
     expect(off.status).toBe(200);
     expect(off.data.active).toBe(false);
-    expect(server!.store.people.get(id)!.deactivated).toBe(true);
+    expect((await person(owner, id))!.deactivated).toBe(true);
 
     // 6. And back.
     const on = await scim(token, "PATCH", `/Users/${id}`, {
@@ -233,7 +239,7 @@ describe("provisioning as Okta does it", () => {
       Operations: [{ op: "replace", value: { active: true } }],
     });
     expect(on.data.active).toBe(true);
-    expect(server!.store.people.get(id)).toMatchObject({ deactivated: false, role: "member" });
+    expect(await person(owner, id)).toMatchObject({ deactivated: false, role: "member" });
 
     // 7. Import: everyone, a hundred at a time, numbers as numbers.
     const page = await scim(token, "GET", "/Users?startIndex=1&count=100");
@@ -349,7 +355,7 @@ describe("provisioning as Microsoft Entra ID does it", () => {
       name: created.name,
       meta: { resourceType: "User", created: expect.any(String), lastModified: expect.any(String) },
     });
-    expect(server!.store.people.get(id)!.displayName).toBe("givenName familyName");
+    expect((await person(owner, id))!.displayName).toBe("givenName familyName");
 
     // Create Duplicate User: 201 the first time, 409 the second.
     const again = await scim(token, "POST", "/Users", created);
@@ -438,7 +444,7 @@ describe("provisioning as Microsoft Entra ID does it", () => {
       phoneNumbers: [{ type: "work", value: "55555555555" }],
     });
     expect(added.schemas).toContain("urn:ietf:params:scim:schemas:extension:enterprise:2.0:User");
-    expect(server!.store.people.get(id)!.displayName).toBe("Maya Lin");
+    expect((await person(owner, id))!.displayName).toBe("Maya Lin");
 
     // Disable User; the user is still returned, as inactive.
     const off = await scim(
@@ -458,7 +464,7 @@ describe("provisioning as Microsoft Entra ID does it", () => {
       `/Users/${id}`,
       patch({ op: "Replace", path: "active", value: "True" }),
     );
-    expect(server!.store.people.get(id)!.deactivated).toBe(false);
+    expect((await person(owner, id))!.deactivated).toBe(false);
 
     // Delete User: deactivated here, with their messages, and gone to the provider.
     const gone = await scim(token, "DELETE", `/Users/${id}`);
@@ -466,13 +472,13 @@ describe("provisioning as Microsoft Entra ID does it", () => {
     expect(gone.data).toBeUndefined();
     expect((await scim(token, "GET", `/Users/${id}`)).status).toBe(404);
     expect((await scim(token, "GET", q(`userName eq "${renamed}"`))).data.totalResults).toBe(0);
-    expect(server!.store.people.get(id)).toMatchObject({ deactivated: true });
+    expect(await person(owner, id)).toMatchObject({ deactivated: true });
 
     // Assigned again later: the same account comes back.
     const back = await scim(token, "POST", "/Users", { ...created, userName: renamed });
     expect(back.status).toBe(201);
     expect(back.data.id).toBe(id);
-    expect(server!.store.people.get(id)!.deactivated).toBe(false);
+    expect((await person(owner, id))!.deactivated).toBe(false);
   });
 });
 
@@ -543,7 +549,7 @@ describe("the SCIM address", () => {
     });
     expect(ownerOff.status).toBe(403);
     expect(ownerOff.data.detail).toContain("owner");
-    expect(server!.store.people.get(owner.user.id)!.deactivated).toBe(false);
+    expect((await person(owner, owner.user.id))!.deactivated).toBe(false);
     expect((await scim(token, "DELETE", `/Users/${owner.user.id}`)).status).toBe(403);
     // Taking another person's userName.
     const one = await scim(token, "POST", "/Users", { userName: "one@acme.com" });
@@ -560,7 +566,16 @@ describe("the SCIM address", () => {
   it("leaves apps and guests out", async () => {
     await start();
     const { owner } = await people();
-    server!.setAccessPolicy("guest_allowed");
+    expect(
+      (
+        await call(
+          "/api/admin/workspace/access-policy",
+          owner.token,
+          { accessPolicy: "guest_allowed" },
+          "PUT",
+        )
+      ).status,
+    ).toBe(200);
     const guest = (await call("/api/auth/guest", undefined, { displayName: "Visitor" })).data;
     const token = await makeToken(owner);
     const everyone = (await scim(token, "GET", "/Users")).data;
@@ -616,7 +631,7 @@ describe("provisioning and the license", () => {
     const refused = await scim(token, "POST", "/Users", { userName: "sam@acme.com" });
     expect(refused.status).toBe(403);
     expect(refused.data.detail).toContain("license");
-    expect(server!.store.people.get(maya.data.id)!.deactivated).toBe(false);
+    expect((await person(owner, maya.data.id))!.deactivated).toBe(false);
     const off = await scim(token, "PATCH", `/Users/${maya.data.id}`, {
       Operations: [{ op: "replace", value: { active: false } }],
     });
@@ -647,7 +662,9 @@ describe("provisioning and the license", () => {
       ["extension.action", owner.user.id, "turned on provisioning with SCIM and made its token"],
     ]);
     // What the compliance stream sends is the same record.
-    const recorded = JSON.stringify(server!.store.audit.after(null, 100));
+    const recorded = JSON.stringify(
+      (await call("/api/admin/audit?limit=200", owner.token, undefined, "GET")).data.entries,
+    );
     for (const token of [first, second]) {
       expect(recorded).not.toContain(token);
       expect(recorded).not.toContain(token.slice("ownbase-scim-".length));

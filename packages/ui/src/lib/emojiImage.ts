@@ -22,9 +22,11 @@ const SENT_AS_IS: readonly string[] = CUSTOM_EMOJI_TYPES;
  */
 export async function prepareEmojiPicture(file: File): Promise<Blob> {
   if (file.type === "image/svg+xml")
-    throw new EmojiPictureProblem("An SVG can't be an emoji. Choose a PNG, GIF or WebP picture.");
+    throw new EmojiPictureProblem(
+      "An SVG can't be an emoji. Choose a PNG, GIF, WebP or JPEG picture.",
+    );
   if (!file.type.startsWith("image/"))
-    throw new EmojiPictureProblem("Choose a PNG, GIF or WebP picture.");
+    throw new EmojiPictureProblem("Choose a PNG, GIF, WebP or JPEG picture.");
   if (file.size > LARGEST_PICTURE)
     throw new EmojiPictureProblem("That picture is over 25 MB. Choose a smaller one.");
   let picture: ImageBitmap;

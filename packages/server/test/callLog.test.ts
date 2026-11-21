@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import WebSocket from "ws";
 import {
   PROTOCOL_VERSION,
@@ -7,6 +7,7 @@ import {
   type ServerToClient,
 } from "@ownbase/protocol";
 import { createWorkspaceServer, type WorkspaceServer } from "../src/server.js";
+import { moveableClock, passGrace } from "./huddleClock.js";
 import { CALL_LOG_LIMIT, CallLog } from "../src/huddles/callLog.js";
 
 /**
@@ -80,9 +81,6 @@ beforeEach(async () => {
     mdns: false,
     rateLimits: false,
     logger: false,
-    // A dropped device's place in a call goes at once here; huddleRejoin.test.ts
-    // covers the grace it gets for coming back.
-    huddleGraceMs: 0,
   });
   base = `http://127.0.0.1:${server.port}`;
   const register = async (handle: string) =>
@@ -99,6 +97,7 @@ beforeEach(async () => {
 });
 
 afterEach(async () => {
+  vi.useRealTimers();
   for (const ws of sockets.splice(0)) ws.terminate();
   await server.stop();
 });
@@ -157,8 +156,14 @@ describe("the call log", () => {
       signal: { kind: "offer", sdp: "v=0" },
     });
     await expect.poll(async () => (await calls(owner.token)).length).toBe(2);
+    moveableClock();
     sockets[0]!.terminate();
-    await expect.poll(async () => (await calls(owner.token)).length).toBe(3);
+    await expect
+      .poll(async () => {
+        await passGrace();
+        return (await calls(owner.token)).length;
+      })
+      .toBe(3);
     expect(kinds(await calls(owner.token))).toEqual([
       ["joined", owner.user.id, null, null],
       ["dropped", owner.user.id, member.user.id, "offer: the other person is not in the huddle"],

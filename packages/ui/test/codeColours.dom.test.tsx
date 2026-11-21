@@ -1,5 +1,5 @@
 import { act, render } from "@testing-library/react";
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { Mrkdwn } from "../src/components/Mrkdwn.js";
 import { loadHighlighter } from "../src/lib/codeColours.js";
 import {
@@ -31,7 +31,7 @@ describe("colours in code blocks (J15)", () => {
     expect(kinds).toEqual(
       expect.arrayContaining([
         ["const", "text-syntax-keyword"],
-        ["// the answer", "text-syntax-comment"],
+        ["// the answer", "text-syntax-comment italic"],
         ["'a'", "text-syntax-string"],
         ["1", "text-syntax-number"],
         ["f", "text-syntax-name"],
@@ -99,5 +99,33 @@ describe("the size limit (J15)", () => {
     const run = (length: number) => `const key = '${"a".repeat(length - 3)}';\n`;
     expect(highlight(run(500), "typescript")).not.toBeNull();
     expect(highlight(run(501), "typescript")).toBeNull();
+  });
+});
+
+describe("a code block that scrolls sideways", () => {
+  afterEach(() => vi.restoreAllMocks());
+
+  it("can be reached with the keyboard, so its hidden part can be scrolled to, and only then", () => {
+    // jsdom lays nothing out: a block is as wide as its longest line, in a 300 px column.
+    vi.spyOn(HTMLElement.prototype, "clientWidth", "get").mockReturnValue(300);
+    vi.spyOn(HTMLElement.prototype, "scrollWidth", "get").mockImplementation(function (
+      this: HTMLElement,
+    ) {
+      const lines = (this.textContent ?? "").split("\n");
+      return Math.max(...lines.map((line) => line.length)) * 8;
+    });
+    const view = render(
+      <Mrkdwn
+        text={
+          "```\npnpm exec turbo build --filter=@ownbase/web --filter=./apps/server-cli\n```\n" +
+          "```\nls\n```"
+        }
+        users={{}}
+        channels={{}}
+      />,
+    );
+    const [wide, narrow] = view.container.querySelectorAll("code");
+    expect(wide).toHaveAttribute("tabindex", "0");
+    expect(narrow).not.toHaveAttribute("tabindex");
   });
 });
