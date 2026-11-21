@@ -4,12 +4,13 @@ import { ApiError, type AppDetail } from "@ownbase/client-core";
 import { useClient } from "../context.js";
 import { failureText } from "../lib/failure.js";
 import { useConfirm } from "./Confirm.js";
+import { buttonClass } from "./Button.js";
 
 const CHOICES: { value: Receive; label: string; hint: string }[] = [
   {
     value: "url",
-    label: "At its URLs",
-    hint: "The workspace sends commands, events and button presses to addresses the app serves.",
+    label: "Request URLs",
+    hint: "The workspace posts commands, events and button presses to web addresses your app serves.",
   },
   {
     value: "socket",
@@ -37,16 +38,23 @@ export function AppReceive({
   const client = useClient();
   const confirm = useConfirm();
   const [error, setError] = useState<string | null>(null);
-  const [busy, setBusy] = useState(false);
+  /** The choice clicked, shown at once and kept until the reloaded app agrees. */
+  const [choosing, setChoosing] = useState<Receive | null>(null);
+  const [saving, setSaving] = useState(false);
+  const shown = choosing ?? app.receive;
+  if (choosing !== null && !saving && choosing === app.receive) setChoosing(null);
 
   async function choose(receive: Receive) {
-    if (busy || receive === app.receive) return;
-    setBusy(true);
+    if (saving || receive === shown) return;
+    setChoosing(receive);
+    setSaving(true);
     setError(null);
     const failed = await client.apps.setReceive(app.id, receive);
-    setBusy(false);
-    if (failed) setError(failureText("Could not change how it receives.", failed, "Try again."));
-    else onChanged();
+    setSaving(false);
+    if (failed) {
+      setChoosing(null);
+      setError(failureText("Could not change how it receives.", failed, "Try again."));
+    } else onChanged();
   }
 
   async function makeToken() {
@@ -95,8 +103,8 @@ export function AppReceive({
               type="radio"
               name={`receive-${app.id}`}
               className="mt-0.5"
-              checked={app.receive === choice.value}
-              aria-disabled={busy || undefined}
+              checked={shown === choice.value}
+              aria-disabled={saving || undefined}
               onChange={() => void choose(choice.value)}
             />
             <span>
@@ -106,28 +114,48 @@ export function AppReceive({
           </label>
         ))}
       </div>
+      <p role="status" className="text-[11px] text-ink-faint">
+        {saving ? "Saving…" : ""}
+      </p>
       {app.receive === "socket" && (
-        <div className="mt-2 flex flex-wrap items-center gap-2 text-[12px]">
-          <span className="text-ink-dim">
-            {app.sockets === 0
-              ? "Not connected"
-              : `${app.sockets} ${app.sockets === 1 ? "connection" : "connections"} open`}
-          </span>
-          <button
-            type="button"
-            onClick={() => void makeToken()}
-            className="ml-auto rounded px-2 py-1 text-[11px] text-ink-faint transition-colors hover:text-ink"
-          >
-            {app.hasAppToken ? "New app-level token" : "Make app-level token"}
-          </button>
-          {app.hasAppToken && (
-            <button
-              type="button"
-              onClick={() => void takeTokenAway()}
-              className="rounded px-2 py-1 text-[11px] text-ink-faint transition-colors hover:text-alert"
-            >
-              Take token away
-            </button>
+        <div className="mt-2 space-y-2 text-[12px]">
+          <p role="status" className="flex items-center gap-1.5 text-ink-dim">
+            <span
+              aria-hidden="true"
+              className={`size-2 shrink-0 rounded-full ${
+                app.sockets > 0 ? "bg-online" : "border border-ink-faint"
+              }`}
+            />
+            {app.sockets > 0 ? `Connected (${app.sockets})` : "Not connected"}
+          </p>
+          {app.hasAppToken ? (
+            <div className="-ml-2 flex flex-wrap items-center gap-2">
+              <button
+                type="button"
+                onClick={() => void makeToken()}
+                className="rounded px-2 py-1 text-[11px] text-ink-faint transition-colors hover:text-ink"
+              >
+                New app-level token
+              </button>
+              <button
+                type="button"
+                onClick={() => void takeTokenAway()}
+                className="rounded px-2 py-1 text-[11px] text-ink-faint transition-colors hover:text-alert"
+              >
+                Take token away
+              </button>
+            </div>
+          ) : (
+            <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
+              <p className="text-ink">The app needs an app-level token to connect.</p>
+              <button
+                type="button"
+                onClick={() => void makeToken()}
+                className={buttonClass("secondary")}
+              >
+                Make app-level token
+              </button>
+            </div>
           )}
         </div>
       )}
