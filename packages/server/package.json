@@ -6,6 +6,7 @@
   "exports": {
     ".": "./src/index.ts",
     "./backup": "./src/backups/backup.ts",
+    "./backupSchedule": "./src/backups/backupSchedule.ts",
     "./extensions": "./src/extensions.ts",
     "./httpError": "./src/httpError.ts",
     "./cli": "./src/cli/run.ts",

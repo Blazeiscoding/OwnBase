@@ -3,7 +3,8 @@ import { mkdir } from "node:fs/promises";
 import { isAbsolute } from "node:path";
 import { WORKSPACE_NAME_MAX } from "@ownbase/protocol";
 import type { RestoredOver, RestoredWorkspace, RestoreInventory } from "@ownbase/protocol/desktop";
-import { BACKUP_NAME, megabytes, type HostedBackups } from "./hostedBackups.js";
+import { backupFolderTime } from "@ownbase/server/backupSchedule";
+import { megabytes, type HostedBackups } from "./hostedBackups.js";
 import type { HostedList } from "./hostedList.js";
 import type { HostingOptions } from "./hosting.js";
 import { START_ON_LAUNCH_KEY, type HostingLaunch } from "./hostingLaunch.js";
@@ -184,7 +185,8 @@ export function createHostedRestores(
       return Promise.reject(new Error("Choose a workspace to restore."));
     if (
       (backup === undefined) === (backupDir === undefined) ||
-      (backup !== undefined && (typeof backup !== "string" || !BACKUP_NAME.test(backup))) ||
+      (backup !== undefined &&
+        (typeof backup !== "string" || backupFolderTime(backup, null) === null)) ||
       (backupDir !== undefined && (typeof backupDir !== "string" || !isAbsolute(backupDir)))
     )
       return Promise.reject(new Error("Choose one backup to restore."));
