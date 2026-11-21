@@ -1,6 +1,7 @@
 import {
   endpoints,
   isAdministrator,
+  mayManageInvite,
   PROTOCOL_VERSION,
   type ID,
   type Role,
@@ -575,9 +576,8 @@ export function registerAccounts(
   });
 
   route(endpoints.revokeInvite, async ({ req, user: me, params }) => {
-    const admin = isAdministrator(me.role);
     const invite = store.accounts.getInvite(params.code);
-    if (!invite || (!admin && invite.createdBy !== me.id)) {
+    if (!invite || !mayManageInvite(me, invite)) {
       throw new HttpError(404, "invite_not_found");
     }
     const revoked = store.transaction(() => {

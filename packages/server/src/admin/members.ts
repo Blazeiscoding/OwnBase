@@ -1,20 +1,22 @@
-import { endpoints, type ID, type ReportedMessage, type User } from "@ownbase/protocol";
+import {
+  changePersonRefusal,
+  endpoints,
+  type ID,
+  type ReportedMessage,
+  type User,
+} from "@ownbase/protocol";
 import { hashPassword } from "../auth.js";
 import type { ServerContext } from "../core/context.js";
 import { HttpError } from "../httpError.js";
 import { secretToken } from "../ids.js";
 import type { registerMessages } from "../messages/feature.js";
 
-/**
- * Whose role or account an admin may change: not their own, never the
- * owner's, another admin's only as the owner.
- */
 function mayChange(me: User, target: User): void {
-  if (target.id === me.id) throw new HttpError(400, "cannot_change_self");
-  if (target.role === "owner") throw new HttpError(403, "owner_is_protected");
-  if (target.role === "admin" && me.role !== "owner") {
+  const refusal = changePersonRefusal(me, target);
+  if (refusal === "self") throw new HttpError(400, "cannot_change_self");
+  if (refusal === "owner") throw new HttpError(403, "owner_is_protected");
+  if (refusal === "admin")
     throw new HttpError(403, "admins_are_equals", "Only the owner can change another admin.");
-  }
 }
 
 /**
@@ -122,17 +124,17 @@ export function registerMemberAdmin(
 
   /**
    * Whose password or two-step sign-in an admin may reset (E11 shares them):
-   * not their own, an app's or a guest's; never the owner's; another admin's
-   * only as the owner.
+   * someone whose account they may change, but not an app's or a guest's.
    */
   const resettable = (me: User, targetId: ID): { me: User; target: User } => {
     const target = store.people.get(targetId);
     if (!target) throw new HttpError(404, "user_not_found");
-    if (target.id === me.id) throw new HttpError(400, "cannot_reset_self");
+    const refusal = changePersonRefusal(me, target);
+    if (refusal === "self") throw new HttpError(400, "cannot_reset_self");
     if (target.isBot) throw new HttpError(400, "bots_have_no_password");
     if (target.role === "guest") throw new HttpError(400, "guest_account");
-    if (target.role === "owner") throw new HttpError(403, "owner_is_protected");
-    if (target.role === "admin" && me.role !== "owner") {
+    if (refusal === "owner") throw new HttpError(403, "owner_is_protected");
+    if (refusal === "admin") {
       throw new HttpError(
         403,
         "admins_are_equals",

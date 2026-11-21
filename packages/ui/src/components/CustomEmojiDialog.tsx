@@ -1,6 +1,6 @@
 import { useEffect, useId, useMemo, useRef, useState, type FormEvent } from "react";
 import { ApiError } from "@ownbase/client-core";
-import { CUSTOM_EMOJI_NAME, isAdministrator, type CustomEmoji } from "@ownbase/protocol";
+import { CUSTOM_EMOJI_NAME, mayRemoveEmoji, type CustomEmoji } from "@ownbase/protocol";
 import { useClient, useWorkspace } from "../context.js";
 import { failureText } from "../lib/failure.js";
 import { EmojiPictureProblem, prepareEmojiPicture } from "../lib/emojiImage.js";
@@ -121,8 +121,7 @@ export function CustomEmojiDialog({ onClose }: { onClose: () => void }) {
         ) : (
           <ul className="divide-y divide-edge/60">
             {list.map((emoji) => {
-              const mayRemove =
-                !!self && (emoji.createdBy === self.id || isAdministrator(self.role));
+              const mayRemove = mayRemoveEmoji(self, emoji);
               const by = emoji.createdBy === self?.id ? "you" : users[emoji.createdBy]?.displayName;
               return (
                 <li

@@ -1,4 +1,4 @@
-import { CUSTOM_EMOJI_LIMIT, endpoints, isAdministrator } from "@ownbase/protocol";
+import { CUSTOM_EMOJI_LIMIT, endpoints, mayAddEmoji, mayRemoveEmoji } from "@ownbase/protocol";
 import { declaredPictureType, type ServerContext } from "../core/context.js";
 import { HttpError } from "../httpError.js";
 import { checkedEmojiName, checkedEmojiPicture } from "./picture.js";
@@ -14,7 +14,7 @@ export function registerEmoji(ctx: ServerContext) {
   route(endpoints.customEmoji, async () => ({ emoji: store.emoji.list() }));
 
   route(endpoints.addCustomEmoji, async ({ req, user: me, query, body }) => {
-    if (settings.get("emojiAddingAdminsOnly") && !isAdministrator(me.role))
+    if (!mayAddEmoji(me.role, settings.get("emojiAddingAdminsOnly")))
       throw new HttpError(403, "emoji_adding_restricted", "Only admins can add emoji here.");
     ration("upload", me.id);
     const name = checkedEmojiName(query.name);
@@ -45,7 +45,7 @@ export function registerEmoji(ctx: ServerContext) {
   route(endpoints.removeCustomEmoji, async ({ user: me, params }) => {
     const emoji = store.emoji.get(params.id);
     if (!emoji) throw new HttpError(404, "emoji_not_found", "That emoji is already gone.");
-    if (emoji.createdBy !== me.id && !isAdministrator(me.role))
+    if (!mayRemoveEmoji(me, emoji))
       throw new HttpError(
         403,
         "not_your_emoji",

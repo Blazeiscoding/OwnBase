@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { isAdministrator, type ID, type User } from "@ownbase/protocol";
+import { changePersonRefusal, isAdministrator, type ID, type User } from "@ownbase/protocol";
 import { ApiError } from "@ownbase/client-core";
 import { useClient, useWorkspace } from "../context.js";
 import { Dialog } from "./Dialog.js";
@@ -408,10 +408,7 @@ export function PeopleDialog({ onClose }: { onClose: () => void }) {
             {visible.map((person) => {
               // The rules the server enforces, said out loud so the buttons that
               // would be refused are simply not offered.
-              const protectedTarget =
-                person.id === self?.id ||
-                person.role === "owner" ||
-                (person.role === "admin" && !isOwner);
+              const protectedTarget = !self || changePersonRefusal(self, person) !== null;
               return (
                 <li
                   key={person.id}

@@ -1,6 +1,12 @@
 import { useCallback, useEffect, useEffectEvent, useMemo, useRef, useState } from "react";
 import { ApiError } from "@ownbase/client-core";
-import { desktopLink, pageLink, type Invite, type InviteStatus } from "@ownbase/protocol";
+import {
+  desktopLink,
+  mayManageInvite,
+  pageLink,
+  type Invite,
+  type InviteStatus,
+} from "@ownbase/protocol";
 import { useCopy } from "../lib/useCopy.js";
 import { failureText } from "../lib/failure.js";
 import { serverAddress } from "../lib/deeplink.js";
@@ -61,7 +67,7 @@ export function InviteDialog(props: {
   const toast = useToast();
   const users = useWorkspace((s) => s.users);
   const selfId = useWorkspace((s) => s.self?.id);
-  const selfRole = useWorkspace((s) => s.self?.role);
+  const self = useWorkspace((s) => s.self);
   const canInvite = useWorkspace((s) => s.self?.canInvite === true);
   const [invite, setInvite] = useState<Invite | null>(null);
   /** Undefined until the first answer; null when the list could not be read. */
@@ -383,8 +389,7 @@ export function InviteDialog(props: {
           <ul className="max-h-60 space-y-1.5 overflow-y-auto" aria-label="Invite codes">
             {invites.map((inv) => {
               // A role change takes effect before a refreshed list returns.
-              if (selfRole !== "owner" && selfRole !== "admin" && inv.createdBy !== selfId)
-                return null;
+              if (!mayManageInvite(self, inv)) return null;
               const author = users[inv.createdBy];
               const status =
                 inv.status !== "revoked" && author?.deactivated
