@@ -119,15 +119,6 @@ export function moveItems(
 }
 
 /**
- * Whether this account closed a direct conversation (`ChannelPrefs.hiddenSeq`)
- * and nothing has been said in it since.
- */
-export function isClosed(prefs: ChannelPrefs | undefined, lastSeq: number | undefined): boolean {
-  const at = prefs?.hiddenSeq;
-  return at !== null && at !== undefined && (lastSeq ?? 0) <= at;
-}
-
-/**
  * Close a direct conversation: out of the sidebar until someone writes in it,
  * or it is opened again, as Slack's does.
  */

@@ -50,29 +50,6 @@ export function deactivatedPartner(
   return other && users[other]?.deactivated ? other : null;
 }
 
-/**
- * Whether an unread conversation asks for attention from elsewhere: not the
- * one on screen, not muted, not archived, and not a DM with someone blocked.
- * Rows in the sidebar still show muted unread conversations, quietly; this is
- * what badges and the phone's buttons count.
- */
-export function waitsForAttention(
-  state: Pick<
-    WorkspaceState,
-    "memberships" | "channelLastSeq" | "prefs" | "channels" | "self" | "blocked"
-  >,
-  channelId: ID,
-  activeChannelId: ID | null,
-): boolean {
-  return (
-    channelId !== activeChannelId &&
-    !state.prefs[channelId]?.muted &&
-    !state.channels[channelId]?.archived &&
-    !blockedPartner(state.channels[channelId], state.self?.id, state.blocked) &&
-    isUnread(state, channelId)
-  );
-}
-
 /** Unread mentions everywhere but the conversation on screen. */
 export function mentionsElsewhere(
   state: Pick<WorkspaceState, "mentionCounts">,

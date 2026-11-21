@@ -1,8 +1,44 @@
-import type { ID, Message, ThreadFollow } from "@ownbase/protocol";
+import type { ChannelPrefs, ID, Message, ThreadFollow } from "@ownbase/protocol";
 import type { ApiError } from "./transport.js";
 import { failureOf } from "./answers.js";
-import { isThreadUnread, isUnread } from "./selectors.js";
+import { blockedPartner, isThreadUnread, isUnread } from "./selectors.js";
 import { isMessageRead } from "./selectors.js";
+
+/**
+ * Whether this account closed a direct conversation (`ChannelPrefs.hiddenSeq`)
+ * and nothing has been said in it since.
+ */
+export function isClosed(prefs: ChannelPrefs | undefined, lastSeq: number | undefined): boolean {
+  const at = prefs?.hiddenSeq;
+  return at !== null && at !== undefined && (lastSeq ?? 0) <= at;
+}
+
+/**
+ * Whether an unread conversation asks for attention from elsewhere: not the
+ * one on screen, not muted, not archived, not a direct conversation closed
+ * with nothing said since, and not a DM with someone blocked. Badges, the
+ * window's title and the phone's buttons count these; rows in the sidebar
+ * still show muted unread conversations, quietly. The server's
+ * `unreadSummary` holds the same rule in SQL for this account's other
+ * devices, and test/waiting.test.ts runs both on the same cases.
+ */
+export function waitsForAttention(
+  state: Pick<
+    WorkspaceState,
+    "memberships" | "channelLastSeq" | "prefs" | "channels" | "self" | "blocked"
+  >,
+  channelId: ID,
+  activeChannelId: ID | null,
+): boolean {
+  return (
+    channelId !== activeChannelId &&
+    !state.prefs[channelId]?.muted &&
+    !state.channels[channelId]?.archived &&
+    !isClosed(state.prefs[channelId], state.channelLastSeq[channelId]) &&
+    !blockedPartner(state.channels[channelId], state.self?.id, state.blocked) &&
+    isUnread(state, channelId)
+  );
+}
 import type { WorkspaceClient } from "./workspace.js";
 import type { WorkspaceState } from "./workspaceState.js";
 

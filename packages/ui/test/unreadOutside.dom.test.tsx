@@ -81,6 +81,20 @@ describe("the tab's title", () => {
     expect(document.title).toBe("OwnBase");
   });
 
+  it("is the plain name when what is unread is archived, or in a DM closed with nothing new", () => {
+    const { client } = open({ unread: true });
+    expect(document.title).toBe("• OwnBase");
+    act(() => client.store.setState({ channels: { C_RANDOM: { ...random, archived: true } } }));
+    expect(document.title).toBe("OwnBase");
+    act(() =>
+      client.store.setState({
+        channels: { C_RANDOM: { ...random, type: "dm" } },
+        prefs: { C_RANDOM: { hiddenSeq: 9 } } as never,
+      }),
+    );
+    expect(document.title).toBe("OwnBase");
+  });
+
   it("follows the count as it changes, and goes back to the name when the workspace closes", () => {
     const { client, unmount } = open({ mentions: 2 });
     expect(document.title).toBe("(2) OwnBase");

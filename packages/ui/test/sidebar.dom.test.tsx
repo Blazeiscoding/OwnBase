@@ -499,3 +499,34 @@ describe("a direct message's row", () => {
     expect(dot("C_LEE").childElementCount).toBe(0);
   });
 });
+
+describe("Activity's count of unread conversations", () => {
+  it("counts what waits as the window's title does: muted, archived and closed conversations aside", () => {
+    const { client } = sidebar({ admin: false });
+    const room = (id: string, extra: Partial<Channel> = {}): Channel => ({
+      id,
+      type: "public",
+      name: id.toLowerCase(),
+      topic: "",
+      description: "",
+      creatorId: "U_SAM",
+      archived: false,
+      createdAt: 0,
+      ...extra,
+    });
+    act(() =>
+      client.store.setState({
+        channels: {
+          C_PLAN: room("C_PLAN"),
+          C_QUIET: room("C_QUIET"),
+          C_OLD: room("C_OLD", { archived: true }),
+          C_SHUT: room("C_SHUT", { type: "dm", name: "", memberIds: ["U_SAM", "U_LEE"] }),
+        },
+        memberships: { C_PLAN: 1, C_QUIET: 1, C_OLD: 1, C_SHUT: 1 },
+        channelLastSeq: { C_PLAN: 2, C_QUIET: 2, C_OLD: 2, C_SHUT: 2 },
+        prefs: { C_QUIET: { muted: true }, C_SHUT: { hiddenSeq: 2 } } as never,
+      }),
+    );
+    expect(drawnText(screen.getByRole("img", { name: "Unread conversations" }))).toBe("1");
+  });
+});

@@ -95,9 +95,14 @@ export {
   selfIsAdministrator,
   selfMay,
   unreadThreadCount,
-  waitsForAttention,
 } from "./selectors.js";
-export { anythingUnread, markEverythingRead, unreadEverywhere } from "./readAll.js";
+export {
+  anythingUnread,
+  isClosed,
+  markEverythingRead,
+  unreadEverywhere,
+  waitsForAttention,
+} from "./readAll.js";
 export type { Unread } from "./readAll.js";
 export { threadReplies, threadRootMessage, timelineMessages } from "./messageCache.js";
 export type { ChannelTimeline, ThreadPage } from "./messageCache.js";

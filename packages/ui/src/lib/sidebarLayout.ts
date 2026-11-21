@@ -1,8 +1,7 @@
 import { createStore, useStore } from "zustand";
 import { isDirect, type Channel, type ID } from "@ownbase/protocol";
-import { blockedPartner, isUnread, type WorkspaceState } from "@ownbase/client-core";
+import { blockedPartner, isClosed, isUnread, type WorkspaceState } from "@ownbase/client-core";
 import { channelTitle } from "./format.js";
-import { isClosed } from "./conversationChoices.js";
 
 /** Where the collapsed sections are kept, outside the device store's "ownbase:" names. */
 export const COLLAPSED_SECTIONS_KEY = "ownbase-collapsed-sections";

@@ -1,5 +1,5 @@
 import { useEffect } from "react";
-import { blockedPartner, isUnread } from "@ownbase/client-core";
+import { waitsForAttention } from "@ownbase/client-core";
 import type { UnreadSummary } from "@ownbase/protocol";
 import { usePlatform, useWorkspace } from "../context.js";
 import { NO_BADGE, titleFor, unreadBadge, type UnreadBadge } from "../lib/unreadBadge.js";
@@ -35,15 +35,8 @@ export function UnreadOutside({ others }: { others: OtherWorkspace[] }) {
   const mentions = useWorkspace((s) =>
     Object.values(s.mentionCounts).reduce((sum, n) => sum + n, 0),
   );
-  // As the server's summary counts it for the rail: a conversation not muted
-  // with something unread, a DM with someone blocked aside.
   const unread = useWorkspace((s) =>
-    Object.keys(s.memberships).some(
-      (id) =>
-        isUnread(s, id) &&
-        !(s.prefs[id]?.muted ?? false) &&
-        !blockedPartner(s.channels[id], s.self?.id, s.blocked),
-    ),
+    Object.keys(s.memberships).some((id) => waitsForAttention(s, id, null)),
   );
   const answered: Record<string, UnreadSummary> = {};
   for (const w of others) if (w.waiting) answered[w.url] = w.waiting;
