@@ -344,6 +344,19 @@ export const endpoints = {
     timeoutMs: 20000,
   }),
 
+  /**
+   * Mails a new link to the address this account is waiting to confirm
+   * (G10). The password was asked when the address was chosen, so it is not
+   * asked again. Refused with `email_not_pending` when nothing is waiting.
+   */
+  resendEmailLink: endpoint({
+    method: "POST",
+    path: "/api/me/email/resend",
+    access: "member",
+    answer: json<{ ok: true }>(),
+    timeoutMs: 20000,
+  }),
+
   /** Removes this account's email address, and any link waiting to confirm one (G10). */
   removeEmailAddress: endpoint({
     method: "DELETE",
@@ -386,6 +399,19 @@ export const endpoints = {
     body: "resetPasswordBody",
     answer: json<{ handle: string }>(),
     timeoutMs: 20000,
+  }),
+
+  /**
+   * Whether a mailed link to set a new password still works (G10), asked when
+   * its page opens, without using it up. Refused with `email_link_gone` when
+   * it was used, is too old, or its account can no longer use it.
+   */
+  checkResetLink: endpoint({
+    method: "POST",
+    path: "/api/auth/password/reset/check",
+    access: "public",
+    body: "emailLinkBody",
+    answer: json<{ ok: true }>(),
   }),
 
   /** Everywhere this account is signed in, so its owner can see and end them. */
@@ -1880,15 +1906,18 @@ export const endpoints = {
   }),
 
   /**
-   * Emails an invite's link to someone (G10), where the server sends email.
-   * Whoever may revoke the invite may send it.
+   * Emails someone an invite of their own (G10): a new code that works once,
+   * for 7 days, so a mailed link lets in only the person it went to. Whoever
+   * may make an invite may send one. Nothing is kept when the mail server
+   * does not take it.
    */
   emailInvite: endpoint({
     method: "POST",
-    path: "/api/invites/:code/email",
+    path: "/api/invites/email",
     access: "member",
     body: "emailInviteBody",
-    answer: json<{ ok: true }>(),
+    answer: json<{ invite: Invite }>(),
+    status: 201,
     timeoutMs: 30000,
   }),
 

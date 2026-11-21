@@ -1,16 +1,18 @@
-import { endpoints, isAdministrator, type User } from "@ownbase/protocol";
+import { endpoints, type User } from "@ownbase/protocol";
 import { inviteFingerprint } from "../accounts/feature.js";
 import { hashPassword, hashToken, verifyPassword } from "../auth.js";
 import type { ServerContext } from "../core/context.js";
 import { HttpError } from "../httpError.js";
 import { secretToken } from "../ids.js";
-import { addressTakenMail, confirmMail, inviteMail, resetMail } from "./mails.js";
+import { accountName, addressTakenMail, confirmMail, inviteMail, resetMail } from "./mails.js";
 import { Mailer, type Mail } from "./mailer.js";
 
 /** How long a link to set a new password works. */
 export const RESET_LINK_MS = 30 * 60_000;
 /** How long a link to confirm an address works. */
 export const CONFIRM_LINK_MS = 24 * 3600_000;
+/** How long an invite sent by email works. It works once. */
+export const EMAILED_INVITE_MS = 7 * 24 * 3600_000;
 
 /**
  * Email (G10), when the host gave the server an SMTP account: an address on
@@ -78,20 +80,17 @@ export function registerEmail(ctx: ServerContext) {
     return store.email.addressOf(me.id);
   });
 
-  route(endpoints.setEmailAddress, async ({ user: me, body }) => {
-    requireMail();
-    await confirmPassword(me, body.password);
-    const email = body.email;
+  /**
+   * Keeps a new link to confirm `email` for `me`, in place of any earlier
+   * one, and mails it. The link is kept even when another account has the
+   * address, so this account's settings show it as waiting either way. Only
+   * the mailbox is told.
+   */
+  const mailConfirmLink = (me: User, email: string) => {
     ration("mailByClient", `user:${me.id}`);
     ration("mailByAddress", addressKey(email));
     const workspace = settings.get("workspaceName");
     const owner = store.email.ownerOf(email);
-    if (owner?.id === me.id) {
-      store.email.dropLinks(me.id, "verify");
-      return { ok: true };
-    }
-    // A link is kept either way, so this account's settings show the address
-    // as waiting whether or not someone else has it. Only the mailbox is told.
     const token = secretToken();
     store.email.addLink(
       { tokenHash: hashToken(token), userId: me.id, purpose: "verify", email },
@@ -103,11 +102,36 @@ export function registerEmail(ctx: ServerContext) {
         : confirmMail({
             to: email,
             workspace,
-            handle: me.handle,
+            who: accountName(me.displayName, me.handle),
             link: `${base()}/#/verify-email/${token}`,
           }),
       "confirm",
     );
+  };
+
+  route(endpoints.setEmailAddress, async ({ user: me, body }) => {
+    requireMail();
+    await confirmPassword(me, body.password);
+    if (store.email.ownerOf(body.email)?.id === me.id) {
+      ration("mailByClient", `user:${me.id}`);
+      ration("mailByAddress", addressKey(body.email));
+      store.email.dropLinks(me.id, "verify");
+      return { ok: true };
+    }
+    mailConfirmLink(me, body.email);
+    return { ok: true };
+  });
+
+  route(endpoints.resendEmailLink, async ({ user: me }) => {
+    requireMail();
+    const pending = store.email.addressOf(me.id).pending;
+    if (!pending)
+      throw new HttpError(
+        409,
+        "email_not_pending",
+        "No address is waiting to be confirmed. Add one in Account settings, under Security.",
+      );
+    mailConfirmLink(me, pending);
     return { ok: true };
   });
 
@@ -164,12 +188,41 @@ export function registerEmail(ctx: ServerContext) {
         resetMail({
           to: email,
           workspace: settings.get("workspaceName"),
-          handle: owner.handle,
+          who: accountName(owner.displayName, owner.handle),
           link: `${base()}/#/reset/${token}`,
         }),
         "reset",
       );
     }
+    return { ok: true };
+  });
+
+  /** The account a link to set a new password is for, while it may still use it. */
+  const resetAccount = (link: { userId: string; email: string } | null): User => {
+    if (!link) throw linkGone();
+    const account = store.people.get(link.userId);
+    const address = account ? store.email.addressOf(account.id).email : null;
+    if (
+      !account ||
+      account.deactivated ||
+      account.role === "guest" ||
+      account.isBot ||
+      address?.toLowerCase() !== link.email.toLowerCase()
+    )
+      throw linkGone();
+    if (account.role !== "owner" && singleSignOnRequired())
+      throw new HttpError(
+        403,
+        "sso_required",
+        "This workspace signs people in through its single sign-on.",
+      );
+    return account;
+  };
+
+  route(endpoints.checkResetLink, async ({ req, body }) => {
+    requireMail();
+    ration("authByAddress", network.callerAddress(req));
+    resetAccount(store.email.peekLink(hashToken(body.token), "reset"));
     return { ok: true };
   });
 
@@ -181,24 +234,7 @@ export function registerEmail(ctx: ServerContext) {
     const credentials = await hashPassword(body.password);
     // Hashing yields: the link is taken in the write that uses it, once.
     const { handle, revoked } = store.transaction(() => {
-      const link = store.email.takeLink(tokenHash, "reset");
-      if (!link) throw linkGone();
-      const account = store.people.get(link.userId);
-      const address = account ? store.email.addressOf(account.id).email : null;
-      if (
-        !account ||
-        account.deactivated ||
-        account.role === "guest" ||
-        account.isBot ||
-        address?.toLowerCase() !== link.email.toLowerCase()
-      )
-        throw linkGone();
-      if (account.role !== "owner" && singleSignOnRequired())
-        throw new HttpError(
-          403,
-          "sso_required",
-          "This workspace signs people in through its single sign-on.",
-        );
+      const account = resetAccount(store.email.takeLink(tokenHash, "reset"));
       store.accounts.setPassword(account.id, credentials.hash, credentials.salt);
       const revoked = store.accounts.revokeSessions(account.id);
       store.audit.record({
@@ -215,7 +251,7 @@ export function registerEmail(ctx: ServerContext) {
     return { handle };
   });
 
-  route(endpoints.emailInvite, async ({ user: me, params, body }) => {
+  route(endpoints.emailInvite, async ({ user: me, body }) => {
     requireMail();
     if (!me.canInvite)
       throw new HttpError(
@@ -223,17 +259,15 @@ export function registerEmail(ctx: ServerContext) {
         "invite_permission_required",
         "Only people an administrator has allowed can send invites.",
       );
-    const invite = store.accounts.getInvite(params.code);
-    if (!invite || (!isAdministrator(me.role) && invite.createdBy !== me.id))
-      throw new HttpError(404, "invite_not_found");
-    if (invite.status !== "active")
-      throw new HttpError(
-        409,
-        "invite_inactive",
-        "That invite no longer works. Make a new link and send that.",
-      );
     ration("mailByClient", `user:${me.id}`);
     ration("mailByAddress", addressKey(body.email));
+    // One of its own, used once: the link on screen may be for any number of
+    // people, or forever, and a mail can be forwarded.
+    const invite = store.accounts.createInvite({
+      createdBy: me.id,
+      expiresAt: Date.now() + EMAILED_INVITE_MS,
+      maxUses: 1,
+    });
     try {
       // Waited for: whoever sends it wants to know it went.
       await mailer!.send(
@@ -242,10 +276,11 @@ export function registerEmail(ctx: ServerContext) {
           workspace: settings.get("workspaceName"),
           inviter: me.displayName,
           link: `${base()}/#/join/${encodeURIComponent(invite.code)}`,
-          expiresAt: invite.expiresAt,
+          expiresAt: invite.expiresAt!,
         }),
       );
     } catch (err) {
+      store.accounts.dropUnusedInvite(invite.code);
       log.warn({ err, via: mailer!.where }, "could not send an invite by email");
       throw new HttpError(
         502,
@@ -258,9 +293,9 @@ export function registerEmail(ctx: ServerContext) {
       action: "invite.emailed",
       targetType: "invite",
       targetId: inviteFingerprint(invite.code),
-      details: {},
+      details: { expiresAt: invite.expiresAt, maxUses: invite.maxUses },
     });
-    return { ok: true };
+    return { invite };
   });
 
   return {

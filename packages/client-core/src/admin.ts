@@ -69,12 +69,12 @@ export class AdminActions {
     return answerOf(async () => (await this.api.createInvite(body)).invite);
   }
 
-  /** Already-revoked is not an error. */
-  /** Emails an invite's link to someone (G10), where the server sends email. */
-  emailInvite(code: string, email: string) {
-    return doneOf(() => this.api.emailInvite(code, email));
+  /** Emails someone an invite of their own, one use for 7 days (G10). */
+  emailInvite(email: string) {
+    return doneOf(() => this.api.emailInvite(email));
   }
 
+  /** Already-revoked is not an error. */
   revokeInvite(code: string) {
     return doneOf(() => this.api.revokeInvite(code));
   }

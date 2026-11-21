@@ -13,13 +13,28 @@ const escape = (text: string) =>
     (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]!,
   );
 
-/** Paragraphs, with `{link}` where the link goes on a line of its own. */
-function compose(to: string, subject: string, paragraphs: string[], link: string | null): Mail {
-  const text = paragraphs.map((p) => (p === "{link}" ? link! : p)).join("\n\n") + "\n";
+/** A link in the mail: the address, and the words the HTML part shows for it. */
+interface MailLink {
+  url: string;
+  text: string;
+}
+
+/**
+ * Paragraphs, with `{link}` where the link goes on a line of its own. The
+ * text part shows the address itself, to copy where a link cannot be opened;
+ * the HTML part says what the link does.
+ */
+function compose(
+  to: string,
+  subject: string,
+  paragraphs: string[],
+  link: MailLink | null,
+): Mail {
+  const text = paragraphs.map((p) => (p === "{link}" ? link!.url : p)).join("\n\n") + "\n";
   const body = paragraphs
     .map((p) =>
       p === "{link}"
-        ? `<p><a href="${escape(link!)}">${escape(link!)}</a></p>`
+        ? `<p><a href="${escape(link!.url)}">${escape(link!.text)}</a></p>`
         : `<p>${escape(p)}</p>`,
     )
     .join("\n");
@@ -31,42 +46,48 @@ ${body}
   return { to, subject, text, html };
 }
 
+/** "Maya Chen (@maya)": the name people know the account by, and its username. */
+export const accountName = (displayName: string, handle: string) =>
+  `${displayName} (@${handle})`;
+
 export function resetMail(input: {
   to: string;
   workspace: string;
-  handle: string;
+  /** The account, as `accountName` writes it. */
+  who: string;
   link: string;
 }): Mail {
   return compose(
     input.to,
     `Set a new password for ${input.workspace}`,
     [
-      `Someone asked to set a new password for your account @${input.handle} in ${input.workspace}.`,
+      `Someone asked to set a new password for your account ${input.who} in ${input.workspace}.`,
       "To choose one, open this link within 30 minutes. It works once:",
       "{link}",
       "Setting a new password signs your account out everywhere. If you use two-step sign-in, it still asks for your code.",
       `If this was not you, ignore this email and your password stays as it is. If it keeps happening, tell an admin of ${input.workspace}.`,
     ],
-    input.link,
+    { url: input.link, text: "Set a new password" },
   );
 }
 
 export function confirmMail(input: {
   to: string;
   workspace: string;
-  handle: string;
+  /** The account, as `accountName` writes it. */
+  who: string;
   link: string;
 }): Mail {
   return compose(
     input.to,
     `Confirm your email address for ${input.workspace}`,
     [
-      `@${input.handle} asked to use this address for their account in ${input.workspace}. Once you confirm it, this is where a link to set a new password is sent.`,
+      `${input.who} asked to use this address for their account in ${input.workspace}. Once you confirm it, this is where a link to set a new password is sent.`,
       "To confirm it, open this link within 24 hours. It works once:",
       "{link}",
       `If this was not you, ignore this email and the address is not added. If it keeps happening, tell an admin of ${input.workspace}.`,
     ],
-    input.link,
+    { url: input.link, text: "Confirm my email address" },
   );
 }
 
@@ -89,22 +110,19 @@ export function inviteMail(input: {
   workspace: string;
   inviter: string;
   link: string;
-  /** When the invite stops working, as the sender's server tells it; null for never. */
-  expiresAt: number | null;
+  /** When the invite stops working, as the sender's server tells it. */
+  expiresAt: number;
 }): Mail {
-  const until =
-    input.expiresAt === null
-      ? ""
-      : ` The invite works until ${new Date(input.expiresAt).toUTCString().replace(/:\d\d GMT$/, " UTC")}.`;
+  const until = new Date(input.expiresAt).toUTCString().replace(/:\d\d GMT$/, " UTC");
   return compose(
     input.to,
     `${input.inviter} invited you to ${input.workspace}`,
     [
       `${input.inviter} invited you to join ${input.workspace}, a workspace for chat and calls on OwnBase.`,
-      `To join, open this link in your browser and create an account.${until}`,
+      `To join, open this link in your browser and create an account. It works once, until ${until}.`,
       "{link}",
       `If you were not expecting this, ignore this email, or ask ${input.inviter} about it.`,
     ],
-    input.link,
+    { url: input.link, text: `Join ${input.workspace}` },
   );
 }

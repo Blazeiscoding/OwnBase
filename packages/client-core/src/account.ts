@@ -100,6 +100,11 @@ export class AccountActions {
     return doneOf(() => this.api.removeEmailAddress());
   }
 
+  /** Mails a new link to the address waiting to be confirmed (G10). */
+  resendEmailLink() {
+    return doneOf(() => this.api.resendEmailLink());
+  }
+
   /** The ways of signing in this account can link (P9), and whether each is linked. */
   linkedSignIns() {
     return answerOf(async () => {

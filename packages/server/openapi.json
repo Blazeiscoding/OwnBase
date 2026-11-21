@@ -678,6 +678,30 @@
         }
       }
     },
+    "/api/me/email/resend": {
+      "post": {
+        "operationId": "postMeEmailResend",
+        "tags": [
+          "me"
+        ],
+        "summary": "Mails a new link to the address this account is waiting to confirm (G10).",
+        "description": "Mails a new link to the address this account is waiting to confirm (G10). The password was asked when the address was chosen, so it is not asked again. Refused with `email_not_pending` when nothing is waiting.\n\nNeeds a signed-in account.",
+        "x-access": "member",
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Done."
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    },
     "/api/auth/email/confirm": {
       "post": {
         "operationId": "postAuthEmailConfirm",
@@ -754,6 +778,36 @@
             "application/json": {
               "schema": {
                 "$ref": "#/components/schemas/ResetPasswordBody"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Done."
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    },
+    "/api/auth/password/reset/check": {
+      "post": {
+        "operationId": "postAuthPasswordResetCheck",
+        "tags": [
+          "auth"
+        ],
+        "summary": "Whether a mailed link to set a new password still works (G10), asked when its page opens, without using it up.",
+        "description": "Whether a mailed link to set a new password still works (G10), asked when its page opens, without using it up. Refused with `email_link_gone` when it was used, is too old, or its account can no longer use it.\n\nAnyone may call this, signed in or not.",
+        "x-access": "anyone",
+        "security": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/EmailLinkBody"
               }
             }
           }
@@ -5917,28 +5971,18 @@
         }
       }
     },
-    "/api/invites/{code}/email": {
+    "/api/invites/email": {
       "post": {
-        "operationId": "postInvitesByCodeEmail",
+        "operationId": "postInvitesEmail",
         "tags": [
           "invites"
         ],
-        "summary": "Emails an invite's link to someone (G10), where the server sends email.",
-        "description": "Emails an invite's link to someone (G10), where the server sends email. Whoever may revoke the invite may send it.\n\nNeeds a signed-in account.",
+        "summary": "Emails someone an invite of their own (G10): a new code that works once, for 7 days, so a mailed link lets in only the person it went to.",
+        "description": "Emails someone an invite of their own (G10): a new code that works once, for 7 days, so a mailed link lets in only the person it went to. Whoever may make an invite may send one. Nothing is kept when the mail server does not take it.\n\nNeeds a signed-in account.",
         "x-access": "member",
         "security": [
           {
             "session": []
-          }
-        ],
-        "parameters": [
-          {
-            "name": "code",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
           }
         ],
         "requestBody": {
@@ -5952,7 +5996,7 @@
           }
         },
         "responses": {
-          "200": {
+          "201": {
             "description": "Done."
           },
           "default": {
