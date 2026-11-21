@@ -127,6 +127,9 @@ export const samlEndpoints = {
 const scimRoute = <const M extends HttpMethod, const P extends string>(method: M, path: P) =>
   endpoint({ method, path, access: "public", answer: text });
 
+/** Any SCIM route, as the one handler they share takes it. */
+export type ScimEndpoint = ReturnType<typeof scimRoute<HttpMethod, string>>;
+
 export const scimEndpoints = {
   scimServiceProviderConfig: scimRoute("GET", "/scim/v2/ServiceProviderConfig"),
   scimResourceTypes: scimRoute("GET", "/scim/v2/ResourceTypes"),
