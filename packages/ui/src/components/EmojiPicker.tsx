@@ -16,7 +16,7 @@ import {
 import type { CustomEmoji } from "@ownbase/protocol";
 import { isImeKey } from "../lib/textInput.js";
 import { useListbox } from "../lib/useListbox.js";
-import { CustomEmojiImage, customEmojiFor, useCustomEmoji, useMayAddEmoji } from "./CustomEmoji.js";
+import { CustomEmojiImage, customEmojiFor, useCustomEmoji, useEmojiAccess } from "./CustomEmoji.js";
 import { openCustomEmoji } from "./CustomEmojiHost.js";
 import { Icon } from "./Icon.js";
 
@@ -30,6 +30,9 @@ const TITLE_HEIGHT = 28;
  * used and Smileys & People use the app's own clock and smile.
  */
 const MARKS: Record<string, string> = {
+  // Sparkles, not a star: a star means Starred everywhere else.
+  custom:
+    "M9.937 15.5A2 2 0 0 0 8.5 14.063l-6.135-1.582a.5.5 0 0 1 0-.962L8.5 9.936A2 2 0 0 0 9.937 8.5l1.582-6.135a.5.5 0 0 1 .963 0L14.063 8.5A2 2 0 0 0 15.5 9.937l6.135 1.581a.5.5 0 0 1 0 .964L15.5 14.063a2 2 0 0 0-1.437 1.437l-1.582 6.135a.5.5 0 0 1-.963 0zM20 3v4M22 5h-4M4 17v2M5 18H3",
   nature:
     "M13 4a2 2 0 1 1-4 0 2 2 0 0 1 4 0M20 8a2 2 0 1 1-4 0 2 2 0 0 1 4 0M22 16a2 2 0 1 1-4 0 2 2 0 0 1 4 0M9 10a5 5 0 0 1 5 5v3.5a3.5 3.5 0 0 1-6.84 1.045Q6.52 17.48 4.46 16.84A3.5 3.5 0 0 1 5.5 10Z",
   foods:
@@ -48,7 +51,6 @@ const MARKS: Record<string, string> = {
 function Mark({ section }: { section: string }): ReactNode {
   if (section === "frequent") return <Icon name="clock" size={18} />;
   if (section === "people") return <Icon name="smile" size={18} />;
-  if (section === "custom") return <Icon name="star" size={18} />;
   return (
     <svg
       width={18}
@@ -103,7 +105,8 @@ function searchCustom(query: string, custom: Choice[]): Choice[] {
  * each category under its name, with a mark above to jump to it. Typing
  * searches them all by name, shortcode and keyword; the arrow keys move in
  * the grid and Enter picks. The footer names the emoji under the pointer or
- * the arrows, with its shortcode, and holds the skin tone.
+ * the arrows, with its shortcode, and holds the skin tone and the way into
+ * the workspace's own emoji.
  *
  * Focus stays in the search box, as the reaction picker's always has, and a
  * screen reader follows the choice through aria-activedescendant.
@@ -115,7 +118,7 @@ export function EmojiPicker(props: {
 }) {
   const { tone, used, setTone, countUse } = useEmojiPreferences();
   const customByName = useCustomEmoji();
-  const mayAdd = useMayAddEmoji();
+  const emojiAccess = useEmojiAccess();
   const custom = useMemo(
     () =>
       Object.values(customByName)
@@ -292,18 +295,6 @@ export function EmojiPicker(props: {
             <Mark section={section.id} />
           </button>
         ))}
-        {mayAdd && (
-          <button
-            type="button"
-            aria-label="Add emoji"
-            title="Add emoji"
-            onMouseDown={(e) => e.preventDefault()}
-            onClick={openCustomEmoji}
-            className="emoji-mark flex size-8 items-center justify-center rounded-lg text-ink-faint transition-colors hover:bg-ink/[0.07] hover:text-ink"
-          >
-            <Icon name="plus" size={18} />
-          </button>
-        )}
       </div>
       <div className="px-3 pt-2.5">
         <input
@@ -428,17 +419,29 @@ export function EmojiPicker(props: {
                 </span>
               </div>
             )}
-            {hand && (
-              <button
-                type="button"
-                aria-label={`Skin tone: ${SKIN_TONES[tone]}`}
-                aria-expanded={false}
-                onClick={() => setToning(true)}
-                className="emoji-tone font-emoji ml-auto flex size-9 shrink-0 items-center justify-center rounded-lg transition-colors hover:bg-ink/[0.07]"
-              >
-                {inTone(hand, tone)}
-              </button>
-            )}
+            <div className="ml-auto flex shrink-0 items-center gap-1">
+              {emojiAccess && (
+                <button
+                  type="button"
+                  onMouseDown={(e) => e.preventDefault()}
+                  onClick={openCustomEmoji}
+                  className="h-8 rounded-lg px-2 text-[13px] font-medium text-ink-dim transition-colors hover:bg-ink/[0.07] hover:text-ink"
+                >
+                  {emojiAccess === "add" ? "Add emoji" : "Custom emoji"}
+                </button>
+              )}
+              {hand && (
+                <button
+                  type="button"
+                  aria-label={`Skin tone: ${SKIN_TONES[tone]}`}
+                  aria-expanded={false}
+                  onClick={() => setToning(true)}
+                  className="emoji-tone font-emoji flex size-9 shrink-0 items-center justify-center rounded-lg transition-colors hover:bg-ink/[0.07]"
+                >
+                  {inTone(hand, tone)}
+                </button>
+              )}
+            </div>
           </>
         )}
       </div>

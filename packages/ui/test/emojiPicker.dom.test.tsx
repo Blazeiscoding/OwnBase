@@ -2,10 +2,15 @@ import { describe, expect, it, vi } from "vitest";
 import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { EmojiPicker } from "../src/components/EmojiPicker.js";
+import { Icon } from "../src/components/Icon.js";
 import { createStore } from "zustand/vanilla";
 import type { WorkspaceClient } from "@ownbase/client-core";
 import { ClientContext, PlatformContext } from "../src/context.js";
 import type { Platform } from "../src/platform.js";
+
+// The window the picker asks for is held above it, by the workspace.
+const { openCustomEmoji } = vi.hoisted(() => ({ openCustomEmoji: vi.fn() }));
+vi.mock("../src/components/CustomEmojiHost.js", () => ({ openCustomEmoji }));
 
 /** A picker on a device of its own, so what one test picks is not the next one's first row. */
 function picker(saved: unknown = null) {
@@ -180,7 +185,7 @@ describe("the emoji picker in a workspace with its own emoji (J12)", () => {
       .getAllByRole("button")
       .map((mark) => mark.getAttribute("aria-label"));
     expect(labels.slice(0, 3)).toEqual(["Frequently used", "Custom", "Smileys & People"]);
-    expect(labels.at(-1)).toBe("Add emoji");
+    expect(labels.at(-1)).toBe("Flags");
     const custom = screen.getByRole("group", { name: "Custom" });
     expect(
       within(custom)
@@ -203,10 +208,31 @@ describe("the emoji picker in a workspace with its own emoji (J12)", () => {
   it("offers Add emoji only to those who may add", () => {
     inWorkspace("guest");
     expect(screen.queryByRole("button", { name: "Add emoji" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Custom emoji" })).toBeNull();
   });
 
-  it("keeps Add emoji from members when admins keep adding to themselves", () => {
-    inWorkspace("member", true);
+  it("says Add emoji in words, in the footer, not among the category marks", async () => {
+    openCustomEmoji.mockClear();
+    const { user } = inWorkspace("member");
+    const add = screen.getByRole("button", { name: "Add emoji" });
+    expect(add).toHaveTextContent("Add emoji");
+    expect(screen.getByRole("group", { name: "Emoji categories" })).not.toContainElement(add);
+    await user.click(add);
+    expect(openCustomEmoji).toHaveBeenCalledOnce();
+  });
+
+  it("keeps Add emoji from members when admins keep adding to themselves, but not the list", async () => {
+    openCustomEmoji.mockClear();
+    const { user } = inWorkspace("member", true);
     expect(screen.queryByRole("button", { name: "Add emoji" })).toBeNull();
+    await user.click(screen.getByRole("button", { name: "Custom emoji" }));
+    expect(openCustomEmoji).toHaveBeenCalledOnce();
+  });
+
+  it("marks Custom with a drawing of its own, not Starred's star", () => {
+    inWorkspace("member");
+    const mark = screen.getByRole("button", { name: "Custom" }).querySelector("path")!;
+    const star = render(<Icon name="star" />).container.querySelector("path")!;
+    expect(mark.getAttribute("d")).not.toBe(star.getAttribute("d"));
   });
 });

@@ -300,6 +300,15 @@ describe("removing a custom emoji", () => {
     });
   });
 
+  it("stays with whoever added it once adding is kept to admins", async () => {
+    const theirs = (await add("theirs", png(), "image/png", peer.token)).body.emoji as CustomEmoji;
+    await request("/api/admin/workspace/emoji-adding", { adminsOnly: true }, "PUT");
+    expect((await add("another", png(), "image/png", peer.token)).status).toBe(403);
+    expect((await request(`/api/emoji/${theirs.id}`, undefined, "DELETE", peer.token)).status).toBe(
+      200,
+    );
+  });
+
   it("gives a name added again a new picture address", async () => {
     const first = (await add("again")).body.emoji as CustomEmoji;
     await request(`/api/emoji/${first.id}`, undefined, "DELETE");
