@@ -30,6 +30,13 @@ export interface CallTarget {
   receive: AppReceive;
 }
 
+/**
+ * Whether an app can be sent a button press or a form's submission: over its
+ * sockets (J14), or to the interactivity URL an app sent things by URL needs.
+ */
+export const takesPresses = (app: CallTarget & { interactivityUrl: string }): boolean =>
+  app.receive === "socket" || app.interactivityUrl !== "";
+
 /** Who a capability handed to an app acts for, and where. */
 export interface CapabilityTarget {
   channelId: ID;

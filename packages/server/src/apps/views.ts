@@ -5,7 +5,7 @@ import { HttpError } from "../httpError.js";
 import { ulid } from "../ids.js";
 import { CAPABILITIES_ALIVE } from "../limits.js";
 import { parseView, readAnswer, type AnswerContext } from "./blockKit.js";
-import type { AppCalls } from "./calls.js";
+import { takesPresses, type AppCalls } from "./calls.js";
 import { slackError, structured } from "./slackApi.js";
 
 /**
@@ -288,8 +288,7 @@ export function registerViews(ctx: ServerContext, { calls }: { calls: AppCalls }
     // A view of text alone, such as "Loading", has nothing to submit.
     if (!open.view.submitLabel) throw new HttpError(400, "view_has_no_submit");
     const owner = store.apps.get(open.appId);
-    // An app on Socket Mode is sent submissions over its socket, with no URL.
-    if (!owner || (owner.receive === "url" && !owner.interactivityUrl)) {
+    if (!owner || !takesPresses(owner)) {
       showStack(me.id, closeStack(me.id));
       throw new HttpError(400, "no_interactivity_url");
     }
