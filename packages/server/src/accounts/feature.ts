@@ -45,6 +45,80 @@ const MAX_GUEST_SESSIONS = 200;
 /** Identifies an invite in the audit log without writing down the code itself. */
 export const inviteFingerprint = (code: string) => hashToken(code).slice(0, 12);
 
+/**
+ * The password rules accounts and email share: who may still use a password
+ * under single sign-on, and a signed-in person giving theirs again.
+ */
+export function passwordRules(ctx: ServerContext) {
+  const { opts, store, ration, limiter } = ctx;
+  const extensions = opts.extensions ?? [];
+
+  /** Whether passwords are kept for the owner alone, an extension signing in everyone else (P9). */
+  const singleSignOnRequired = () =>
+    extensions.some((extension) => extension.requiresSingleSignOn?.() === true);
+  /** The owner always may: the way back in when single sign-on fails (P9). */
+  const mayUsePassword = (role: Role) => role === "owner" || !singleSignOnRequired();
+  const ssoRequired = (what: string) =>
+    new HttpError(403, "sso_required", `This workspace ${what} through its single sign-on.`);
+
+  /**
+   * Clears what a handle has spent on authentication. Called when a password
+   * turns out to be right: only wrong guesses are worth counting, so someone
+   * who knows their own password never meets this limit at all, however often
+   * they sign in or change it.
+   */
+  const authSucceeded = (handle: string): void => {
+    limiter?.forget("authByHandle", handle.toLowerCase());
+  };
+
+  /**
+   * Stores a password its owner just proved again at today's cost, when its
+   * hash was made at another (H03). The hash and salt stored afterwards, or
+   * `current` if it was not stored: the old hash still works, and the next
+   * sign-in tries again. Never fails a sign-in.
+   */
+  const upgradeHash = async (
+    userId: ID,
+    current: { passwordHash: string; salt: string },
+    password: string,
+  ): Promise<{ passwordHash: string; salt: string }> => {
+    if (!needsRehash(current.passwordHash)) return current;
+    try {
+      const next = await hashPassword(password);
+      if (store.accounts.rehashPassword(userId, current, next))
+        return { passwordHash: next.hash, salt: next.salt };
+    } catch {
+      // Busy with other sign-ins, or the write failed.
+    }
+    return current;
+  };
+
+  /**
+   * Whether this is the password of the account signed in here, asked before
+   * its two-step sign-in or its email address changes, so a stolen session
+   * cannot change them. Guessable by whoever has the session, so rationed as
+   * signing in is.
+   */
+  const confirmPassword = async (me: User, password: string): Promise<void> => {
+    ration("authByHandle", me.handle.toLowerCase());
+    const auth = store.people.authByHandle(me.handle);
+    if (!auth) throw new HttpError(404, "user_not_found");
+    const valid = await verifyPassword(password, auth.salt, auth.passwordHash);
+    if (!valid) throw new HttpError(403, "invalid_credentials", "That is not your password.");
+    authSucceeded(me.handle);
+    await upgradeHash(auth.id, auth, password);
+  };
+
+  return {
+    singleSignOnRequired,
+    mayUsePassword,
+    ssoRequired,
+    authSucceeded,
+    upgradeHash,
+    confirmPassword,
+  };
+}
+
 /** Accounts: joining, signing in and out, two-step sign-in, passwords, sessions, guests and invites. */
 export function registerAccounts(
   ctx: ServerContext,
@@ -59,28 +133,19 @@ export function registerAccounts(
     emailOn: () => boolean;
   },
 ) {
-  const { opts, store, settings, gateway, route, requireUser, ration, mutate, network, limiter } =
-    ctx;
+  const { opts, store, settings, gateway, route, requireUser, ration, mutate, network } = ctx;
   const extensions = opts.extensions ?? [];
+  const {
+    singleSignOnRequired,
+    mayUsePassword,
+    ssoRequired,
+    authSucceeded,
+    upgradeHash,
+    confirmPassword,
+  } = passwordRules(ctx);
   ctx.lifecycle.hourly(() =>
     ctx.background.maintain("sessions", () => store.accounts.pruneSessions()),
   );
-
-  /**
-   * Clears what a handle has spent on authentication. Called when a password
-   * turns out to be right: only wrong guesses are worth counting, so someone
-   * who knows their own password never meets this limit at all, however often
-   * they sign in or change it.
-   */
-  const authSucceeded = (handle: string): void => {
-    limiter?.forget("authByHandle", handle.toLowerCase());
-  };
-
-  /** Whether passwords are kept for the owner alone, an extension signing in everyone else (P9). */
-  const singleSignOnRequired = () =>
-    extensions.some((extension) => extension.requiresSingleSignOn?.() === true);
-  const ssoRequired = (what: string) =>
-    new HttpError(403, "sso_required", `This workspace ${what} through its single sign-on.`);
 
   /** Ways to sign in the extensions offer, and who may still use a password (P9). */
   const signInInfo = (): ServerInfo["signIn"] => {
@@ -236,28 +301,6 @@ export function registerAccounts(
     return { token, user };
   });
 
-  /**
-   * Stores a password its owner just proved again at today's cost, when its
-   * hash was made at another (H03). The hash and salt stored afterwards, or
-   * `current` if it was not stored: the old hash still works, and the next
-   * sign-in tries again. Never fails a sign-in.
-   */
-  const upgradeHash = async (
-    userId: ID,
-    current: { passwordHash: string; salt: string },
-    password: string,
-  ): Promise<{ passwordHash: string; salt: string }> => {
-    if (!needsRehash(current.passwordHash)) return current;
-    try {
-      const next = await hashPassword(password);
-      if (store.accounts.rehashPassword(userId, current, next))
-        return { passwordHash: next.hash, salt: next.salt };
-    } catch {
-      // Busy with other sign-ins, or the write failed.
-    }
-    return current;
-  };
-
   route(endpoints.login, async ({ req, body }) => {
     // Keyed on the handle as well as the address: an account is worth
     // protecting from many machines, and an address from many accounts.
@@ -293,7 +336,7 @@ export function registerAccounts(
       );
     // Asked only once the password is right, so it says nothing of who has an
     // account. The owner always may: the way back in (P9).
-    if (latest.role !== "owner" && singleSignOnRequired()) throw ssoRequired("signs people in");
+    if (!mayUsePassword(latest.role)) throw ssoRequired("signs people in");
     // An account with two-step sign-in has a second step to pass first (E11).
     // What its handle has spent stays spent until then, so a right password
     // does not buy more guesses at the code.
@@ -387,7 +430,7 @@ export function registerAccounts(
     }
     twoStepChallenges.delete(key);
     // Required since the first step (P9).
-    if (auth.role !== "owner" && singleSignOnRequired()) throw ssoRequired("signs people in");
+    if (!mayUsePassword(auth.role)) throw ssoRequired("signs people in");
     authSucceeded(auth.handle);
     const token = startSession(req, auth.id);
     const { passwordHash: _p, salt: _s, ...user } = auth;
@@ -439,21 +482,6 @@ export function registerAccounts(
     }
     return { ok: true };
   });
-
-  /**
-   * Whether this is the password of the account signed in here, asked before
-   * its two-step sign-in changes (E11), and guessable by whoever has the
-   * session, so rationed as signing in is.
-   */
-  const confirmPassword = async (me: User, password: string): Promise<void> => {
-    ration("authByHandle", me.handle.toLowerCase());
-    const auth = store.people.authByHandle(me.handle);
-    if (!auth) throw new HttpError(404, "user_not_found");
-    const valid = await verifyPassword(password, auth.salt, auth.passwordHash);
-    if (!valid) throw new HttpError(403, "invalid_credentials", "That is not your password.");
-    authSucceeded(me.handle);
-    await upgradeHash(auth.id, auth, password);
-  };
 
   /** Keys being set up, waiting for their first code (E11), by account. In memory. */
   const twoStepSetups = new Map<ID, { secret: string; expiresAt: number }>();
