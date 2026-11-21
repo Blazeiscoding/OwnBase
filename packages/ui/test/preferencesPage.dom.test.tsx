@@ -43,6 +43,8 @@ function page(
     section?: AccountSection;
     kind?: Platform["kind"];
     save?: () => Promise<void>;
+    /** Holds the account's email address back until it settles. */
+    emailAnswer?: Promise<void>;
   } = {},
 ) {
   const client = new WorkspaceClient("http://127.0.0.1:9", "test-token-not-a-credential");
@@ -63,10 +65,9 @@ function page(
     requiresClaim: false,
     email: true,
   });
-  vi.spyOn(client.api, "emailAddress").mockResolvedValue({
-    email: null,
-    verifiedAt: null,
-    pending: null,
+  vi.spyOn(client.api, "emailAddress").mockImplementation(async () => {
+    await options.emailAnswer;
+    return { email: null, verifiedAt: null, pending: null };
   });
   vi.spyOn(client.api, "storageUsage").mockResolvedValue({
     usedBytes: 0,
@@ -236,6 +237,40 @@ describe("searching settings", () => {
       expect(marked).toHaveAttribute("data-setting", setting.id);
       await waitFor(() => expect(marked).toContainElement(document.activeElement as HTMLElement));
     }
+  });
+
+  it("goes to a setting that shows once its section has asked the workspace", async () => {
+    // The email address shows only once the workspace answers, as over a real network.
+    let answer = () => {};
+    const late = new Promise<void>((resolve) => {
+      answer = resolve;
+    });
+    const { settings, search, user } = page({ emailAnswer: late });
+    await user.type(search, "email");
+    await user.click(within(settings).getByRole("button", { name: /^Email address/ }));
+    // Until then, the section it is in.
+    expect(within(settings).getByRole("tab", { name: "Security" })).toHaveFocus();
+    await act(async () => answer());
+    const marked = await waitFor(() => {
+      const found = settings.querySelector(".setting-found");
+      expect(found).toHaveAttribute("data-setting", "email");
+      return found!;
+    });
+    expect(marked).toContainElement(document.activeElement as HTMLElement);
+  });
+
+  it("leaves focus where it went once its section has loaded, if it moved", async () => {
+    let answer = () => {};
+    const late = new Promise<void>((resolve) => {
+      answer = resolve;
+    });
+    const { settings, search, user } = page({ emailAnswer: late });
+    await user.type(search, "email");
+    await user.click(within(settings).getByRole("button", { name: /^Email address/ }));
+    await user.click(search);
+    await act(async () => answer());
+    await within(settings).findByRole("heading", { name: "Email address" });
+    expect(search).toHaveFocus();
   });
 
   it("goes to a setting whose heading no longer reads as its search entry", async () => {
