@@ -107,6 +107,16 @@ describe("Mrkdwn", () => {
       expect(render("```\nconst x = 1;\n```")).toMatch(/<code[^>]*>const x = 1;<\/code>/);
     });
 
+    it("hides a language it does not colour and draws the block plain", () => {
+      expect(codeLanguage("kotlin\nval x = 1\n")).toEqual({ language: null, code: "val x = 1\n" });
+      expect(codeLanguage("Swift\nlet x = 1")).toEqual({ language: null, code: "let x = 1" });
+      expect(render("```kotlin\nval x = 1\n```")).toMatch(/<code[^>]*>val x = 1<\/code>/);
+    });
+
+    it("scrolls a long line sideways rather than wrapping it, keeping its indentation", () => {
+      expect(render("```\n  --filter=@ownbase/web\n```")).toMatch(/<code[^>]*whitespace-pre[ "]/);
+    });
+
     it("draws an unknown word as code, as before", () => {
       expect(codeLanguage("deploy\npnpm build\n")).toBeNull();
       expect(render("```deploy\npnpm build\n```")).toMatch(/<code[^>]*>deploy\npnpm build<\/code>/);
