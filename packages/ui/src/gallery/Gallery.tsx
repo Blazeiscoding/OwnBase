@@ -310,7 +310,12 @@ function TextFields() {
       </div>
       <Specimen name="small, in a row with its button" wide>
         <div className="flex w-full flex-wrap items-start gap-2">
-          <TextField size="small" label="Command" placeholder="/deploy" className="w-28 shrink-0" />
+          <TextField
+            size="small"
+            label="Command"
+            placeholder="e.g. /deploy"
+            className="w-28 shrink-0"
+          />
           <TextField
             size="small"
             label="Request URL"

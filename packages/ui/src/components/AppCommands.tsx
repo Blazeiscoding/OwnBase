@@ -96,7 +96,7 @@ export function CommandList({ app, onChanged }: { app: AppDetail; onChanged: () 
             setCommand(e.target.value);
             setProblems((found) => ({ ...found, command: undefined }));
           }}
-          placeholder="/deploy"
+          placeholder="e.g. /deploy"
           spellCheck={false}
           autoCapitalize="none"
           className="w-28 shrink-0"
