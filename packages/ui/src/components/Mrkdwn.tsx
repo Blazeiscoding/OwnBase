@@ -1,4 +1,12 @@
-import { Fragment, useContext, useMemo, type ReactNode } from "react";
+import {
+  Fragment,
+  useContext,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+  type ReactNode,
+} from "react";
 import { broadcastLabel, type ID, type User } from "@ownbase/protocol";
 import type { Channel, CustomEmoji, UserGroup } from "@ownbase/protocol";
 import { OpenMessageContext } from "../context.js";
@@ -144,7 +152,9 @@ export function Mrkdwn({
  * A fenced block. A language word alone on the fence line, as Markdown writes
  * one, names its language and is not drawn. Where colours are asked for, the
  * block draws plain at once and takes them when the highlighter arrives; only
- * the colours change, so the timeline does not move.
+ * the colours change, so the timeline does not move. Lines are kept whole and
+ * a wide block scrolls sideways; one that does takes keyboard focus, or its
+ * hidden part could not be reached without a mouse.
  */
 function CodeBlock({
   block,
@@ -163,8 +173,23 @@ function CodeBlock({
     () => language && highlighter?.(code, language),
     [highlighter, code, language],
   );
+  const box = useRef<HTMLElement>(null);
+  const [scrolls, setScrolls] = useState(false);
+  useLayoutEffect(() => {
+    const element = box.current;
+    if (!element) return;
+    const measure = () => setScrolls(element.scrollWidth > element.clientWidth);
+    measure();
+    if (typeof ResizeObserver === "undefined") return;
+    const observer = new ResizeObserver(measure);
+    observer.observe(element);
+    return () => observer.disconnect();
+  }, [code, runs]);
   return (
     <code
+      ref={box}
+      // eslint-disable-next-line jsx-a11y/no-noninteractive-tabindex -- a block that scrolls sideways must be reachable from the keyboard to scroll it (WCAG 2.1.1)
+      tabIndex={scrolls ? 0 : undefined}
       dir="ltr"
       className="my-1 block overflow-x-auto whitespace-pre rounded-lg border border-edge bg-ground px-3 py-2 font-mono text-[13px]"
     >
