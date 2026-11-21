@@ -106,7 +106,7 @@ export function createHostedList(options: {
       // Only the first start of this version converts what earlier ones kept.
       const legacy =
         stored === undefined
-          ? parseLastHosted(await options.settings.get("lastHosted").catch(() => null))
+          ? parseLastHosted(await options.settings.get("lastHosted"))
           : null;
       const { adopted, unreadable } = await adoptFolders({
         dataRoot: options.dataRoot,
