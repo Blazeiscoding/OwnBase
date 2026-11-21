@@ -129,7 +129,7 @@ export function AppReceive({
             {app.sockets > 0 ? `Connected (${app.sockets})` : "Not connected"}
           </p>
           {app.hasAppToken ? (
-            <div className="flex flex-wrap items-center gap-2">
+            <div className="-ml-2 flex flex-wrap items-center gap-2">
               <button
                 type="button"
                 onClick={() => void makeToken()}
