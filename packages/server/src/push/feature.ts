@@ -21,7 +21,14 @@ import { HttpError } from "../httpError.js";
 import { isPrivateAddress, postBytes } from "../outbound.js";
 import { PUSH_LIMITS, PushSender } from "./sender.js";
 import type { PushSubscription } from "./store.js";
-import { MAX_PUSH_PLAINTEXT, validSubscriptionKeys, type VapidKeys } from "./webPush.js";
+import type { Setting } from "../core/settings.js";
+import {
+  makeVapidKeys,
+  MAX_PUSH_PLAINTEXT,
+  validSubscriptionKeys,
+  validVapidKeys,
+  type VapidKeys,
+} from "./webPush.js";
 
 /** Who runs the server, as push services are told, unless `--push-contact` says. */
 export const DEFAULT_PUSH_CONTACT = "https://ownbase.site";
@@ -46,6 +53,27 @@ export function cutWords(text: string, max = PUSH_BODY_LENGTH): string {
 }
 
 /**
+ * The key pair this server signs pushes with (RFC 8292), made on first use.
+ * Browsers subscribe to its public half, so a new pair would leave every
+ * subscription unable to receive; a damaged one is replaced all the same.
+ */
+const PUSH_KEYS: Setting<VapidKeys> = {
+  read: (row) => {
+    const publicKey = row("push_public_key");
+    const privateKey = row("push_private_key");
+    if (!publicKey || !privateKey) return null;
+    const keys = { publicKey, privateKey };
+    return validVapidKeys(keys) ? keys : null;
+  },
+  write: (keys) => [
+    ["push_public_key", keys.publicKey],
+    ["push_private_key", keys.privateKey],
+  ],
+  fallback: () => makeVapidKeys(),
+  kept: true,
+};
+
+/**
  * Pushes to browsers that are closed (G09): the server's key, each session's
  * subscription, and a push for each message or reminder the notify rule says
  * should reach someone with no open connection. The page notifies while it
@@ -55,7 +83,7 @@ export function registerPush(ctx: ServerContext) {
   const { store, route, opts, gateway, lifecycle, log } = ctx;
   const limits = { ...PUSH_LIMITS, ...opts.pushLimits };
   let keys: VapidKeys | null = null;
-  const serverKeys = () => (keys ??= store.settings.get("pushKeys"));
+  const serverKeys = () => (keys ??= store.settings.value(PUSH_KEYS));
 
   const sender = new PushSender({
     post: (url, body, headers) =>
