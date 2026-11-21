@@ -2,6 +2,7 @@ import { readFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it, vi } from "vitest";
+import { PAGE_ID, pageLink } from "@ownbase/protocol";
 import {
   NOTIFICATION_CLICK,
   NOTIFICATION_WORKER,
@@ -142,6 +143,25 @@ describe("a push from the server", () => {
       body: "",
       tag: undefined,
       data: { link: "https://chat.example/" },
+    });
+  });
+
+  // The worker is plain script with no imports, so it keeps its own copy of
+  // protocol's link rules. These hold the copy to them.
+  it("reads ids and writes message links as protocol does", async () => {
+    expect(source).toContain(`var TOKEN = ${PAGE_ID.toString()};`);
+    const { push, self } = worker([]);
+    await push(sent);
+    expect(self.registration.showNotification).toHaveBeenCalledWith(sent.title, {
+      body: sent.body,
+      tag: sent.tag,
+      data: {
+        link: pageLink("https://chat.example", {
+          kind: "message",
+          channelId: sent.channelId,
+          messageId: sent.messageId,
+        }),
+      },
     });
   });
 

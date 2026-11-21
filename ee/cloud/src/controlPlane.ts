@@ -6,7 +6,7 @@ import { join } from "node:path";
 import { promisify } from "node:util";
 import Fastify, { type FastifyInstance, type FastifyRequest } from "fastify";
 import { z } from "zod";
-import { endpoints, workspaceNameSchema, type ServerInfo } from "@ownbase/protocol";
+import { endpoints, pageLink, workspaceNameSchema, type ServerInfo } from "@ownbase/protocol";
 import { LICENSE_ENV } from "@ownbase/ee/licenseEnv";
 import { CLOUD_ENV, envName, FLAGS, serverArgs } from "@ownbase/server/cliFlags";
 import { caddyConfig, loadCaddyConfig, type CaddyOptions } from "./caddy.js";
@@ -234,7 +234,9 @@ export class ControlPlane {
       state: workspace.state,
       url: this.url(workspace.slug),
       claimLink:
-        claimed === false ? `${this.url(workspace.slug)}/#/claim/${workspace.claimCode}` : null,
+        claimed === false
+          ? pageLink(this.url(workspace.slug), { kind: "claim", code: workspace.claimCode })
+          : null,
       process: this.supervisor.status(workspace.slug),
       createdAt: workspace.createdAt,
     };

@@ -1,6 +1,7 @@
 import {
-  DEEP_LINK_PROTOCOL,
+  desktopLink,
   handleSchema,
+  pageLink,
   type Endpoint,
   type EndpointSpec,
   type extensionRoutes,
@@ -514,8 +515,7 @@ export function signInFlow<Extra extends object>(opts: {
       expiresAt: now() + CODE_MS,
     });
     if (flow.client === "desktop") {
-      const host = encodeURIComponent(base()!).replaceAll("%3A", ":").replaceAll("%2F", "/");
-      const target = `${DEEP_LINK_PROTOCOL}://sso?host=${host}&code=${code}`;
+      const target = desktopLink(base()!, { kind: "sso", code });
       return page(
         reply,
         200,
@@ -525,7 +525,7 @@ export function signInFlow<Extra extends object>(opts: {
         target,
       );
     }
-    return redirect(reply, `${base()}/#/sso/${code}`);
+    return redirect(reply, pageLink(base()!, { kind: "sso", code }));
   }
 
   return {

@@ -12,11 +12,11 @@ import {
   type ReactNode,
 } from "react";
 import { writeClipboard } from "../lib/useCopy.js";
-import { browserLink } from "../lib/deeplink.js";
 import {
   canDeleteMessage,
   editRefusal,
   namesUser,
+  pageLink,
   type FileMeta,
   type ID,
   type Message,
@@ -263,7 +263,7 @@ const MessageRow = memo(function MessageRow({
 
   /** A link that opens anywhere: in a browser at the web client, and in place inside the app. */
   const link = () =>
-    browserLink(shareable.serverUrl, {
+    pageLink(shareable.serverUrl, {
       kind: "message",
       channelId: message.channelId,
       messageId: message.id,

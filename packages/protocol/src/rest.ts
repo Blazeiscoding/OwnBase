@@ -20,6 +20,7 @@ import { idSchema } from "./socket.js";
 import { appEventType } from "./appEvents.js";
 import { COMMAND_NAME } from "./commands.js";
 import { EMAIL_MAX, isEmailAddress } from "./email.js";
+import { PAGE_ID_CHARS } from "./pageLinks.js";
 
 export const handleSchema = z
   .string()
@@ -224,7 +225,7 @@ export const sharedFilesQuery = z.object({
   limit: z.coerce.number().int().min(1).max(100).default(30),
   cursor: z
     .string()
-    .regex(/^[A-Za-z0-9_-]{1,64}:[A-Za-z0-9_-]{1,64}$/)
+    .regex(new RegExp(`^${PAGE_ID_CHARS}:${PAGE_ID_CHARS}$`))
     .optional(),
   kind: z.enum(FILE_KINDS).optional(),
   userId: idSchema.optional(),

@@ -1,5 +1,5 @@
 import { useCallback, useMemo, useState } from "react";
-import type { ID } from "@ownbase/protocol";
+import { isPageId, type ID } from "@ownbase/protocol";
 import { usePlatform } from "../context.js";
 import { updateWorkspaceStorage } from "@ownbase/client-core";
 import { useAccountKey, useAccountRead } from "./accountStorage.js";
@@ -7,17 +7,10 @@ import { useAccountKey, useAccountRead } from "./accountStorage.js";
 /** How many conversations Ctrl+K remembers having been open. */
 export const RECENT_LIMIT = 12;
 
-/** Channel ids never contain anything else. */
-const TOKEN = /^[A-Za-z0-9_-]{1,64}$/;
-
 const NONE: ID[] = [];
 
 function valid(value: unknown): ID[] {
-  return Array.isArray(value)
-    ? value
-        .filter((id): id is ID => typeof id === "string" && TOKEN.test(id))
-        .slice(0, RECENT_LIMIT)
-    : [];
+  return Array.isArray(value) ? value.filter(isPageId).slice(0, RECENT_LIMIT) : [];
 }
 
 /** `list` with `id` moved to its front. */

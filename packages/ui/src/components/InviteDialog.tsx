@@ -1,9 +1,9 @@
 import { useCallback, useEffect, useEffectEvent, useMemo, useRef, useState } from "react";
 import { ApiError } from "@ownbase/client-core";
-import type { Invite, InviteStatus } from "@ownbase/protocol";
+import { desktopLink, pageLink, type Invite, type InviteStatus } from "@ownbase/protocol";
 import { useCopy } from "../lib/useCopy.js";
 import { failureText } from "../lib/failure.js";
-import { browserLink, desktopLink, serverAddress } from "../lib/deeplink.js";
+import { serverAddress } from "../lib/deeplink.js";
 import {
   DEFAULT_INVITE,
   INVITE_EXPIRY_CHOICES,
@@ -90,8 +90,8 @@ export function InviteDialog(props: {
   const host = serverAddress(serverUrl);
   const links = invite
     ? {
-        browser: browserLink(serverUrl, { kind: "join", code: invite.code }),
-        desktop: desktopLink(serverUrl, { kind: "join", code: invite.code }),
+        browser: pageLink(serverUrl, { kind: "join", code: invite.code }),
+        desktop: desktopLink(host, { kind: "join", code: invite.code }),
       }
     : null;
   // The list is fresher about uses than the answer that made the link.

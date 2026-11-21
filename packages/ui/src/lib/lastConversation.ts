@@ -1,14 +1,10 @@
 import { useCallback, useRef } from "react";
-import type { ID } from "@ownbase/protocol";
+import { isPageId, type ID } from "@ownbase/protocol";
 import { usePlatform } from "../context.js";
 import { writeWorkspaceStorage } from "@ownbase/client-core";
 import { useAccountKey, useAccountRead } from "./accountStorage.js";
 
-/** Channel ids never contain anything else. */
-const TOKEN = /^[A-Za-z0-9_-]{1,64}$/;
-
-const channelIdOf = (value: unknown): ID | null =>
-  typeof value === "string" && TOKEN.test(value) ? value : null;
+const channelIdOf = (value: unknown): ID | null => (isPageId(value) ? value : null);
 
 /**
  * The conversation this account last had open in this workspace, on this

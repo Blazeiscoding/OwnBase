@@ -1,3 +1,4 @@
+import { readConversationHash } from "@ownbase/protocol";
 import { getFromUrl, type OutboundOptions } from "./outbound.js";
 import { imageSize, imageTypeOf, type ImageType } from "./imageSize.js";
 
@@ -54,8 +55,7 @@ const LINK_RE = /<(https?:\/\/[^\s|<>]+)(?:\|[^<>\n]+)?>|(https?:\/\/[^\s<>]+)/g
  * The addresses in a message's words that get a preview, at most
  * `MAX_PREVIEWS`, each once. Code blocks and inline code are left out, as
  * are addresses with a user name or password in them and links to a
- * conversation or message in a workspace (`#/c/...`), which the app opens
- * itself.
+ * conversation or message in a workspace, which the app opens itself.
  */
 export function previewLinks(text: string): string[] {
   const prose = text
@@ -95,7 +95,7 @@ function previewable(url: string): boolean {
   }
   if (parsed.protocol !== "http:" && parsed.protocol !== "https:") return false;
   if (parsed.username || parsed.password) return false;
-  if (parsed.hash.startsWith("#/c/")) return false;
+  if (readConversationHash(parsed.hash)) return false;
   return parsed.hostname.length > 0;
 }
 

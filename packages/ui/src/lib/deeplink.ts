@@ -1,5 +1,5 @@
 import type { HostingStatus } from "../platform.js";
-import { DEEP_LINK_PROTOCOL } from "@ownbase/protocol";
+import { DEEP_LINK_PROTOCOL, isPageId, readPageHash } from "@ownbase/protocol";
 import { normalizeServerUrlSafe } from "./deeplinkHelpers.js";
 
 export type DeepLink =
@@ -14,22 +14,9 @@ export type DeepLink =
   | { kind: "verifyEmail"; serverUrl: string; token: string }
   | { kind: "message"; serverUrl: string; channelId: string; messageId: string };
 
-/** Where a link leads, before the server it belongs to is attached. */
-export type LinkTarget =
-  { kind: "join"; code: string } | { kind: "message"; channelId: string; messageId: string };
-
-/** Channel and message ids, and invite codes, never contain anything else. */
-const TOKEN = /^[A-Za-z0-9_-]{1,64}$/;
-
 /**
- * Parses the links the app hands out, in either form:
- * ownbase://join?host=…&code=… and ownbase://message?host=…&channel=…&id=…
- * for the desktop app, and
- * <server>/#/join/<code> and <server>/#/c/<channel>/m/<message> for a browser,
- * where <server>/#/claim/<code> also claims a workspace nobody owns yet, and
- * <server>/#/sso/<code> or ownbase://sso?host=…&code=… comes back from its
- * single sign-on. Mail brings <server>/#/reset/<token>, to set a new
- * password, and <server>/#/verify-email/<token>, to confirm an address.
+ * Parses the links the app hands out, in either form: protocol's
+ * `desktopLink` for the desktop app, and its `pageLink` for a browser.
  * Returns null for anything malformed rather than throwing.
  */
 export function parseDeepLink(raw: string): DeepLink | null {
@@ -54,7 +41,7 @@ export function parseDeepLink(raw: string): DeepLink | null {
   }
   if (action === "sso") {
     const code = url.searchParams.get("code");
-    return code && TOKEN.test(code) ? { kind: "sso", serverUrl, code } : null;
+    return isPageId(code) ? { kind: "sso", serverUrl, code } : null;
   }
   if (action === "message") {
     const channelId = url.searchParams.get("channel");
@@ -65,41 +52,12 @@ export function parseDeepLink(raw: string): DeepLink | null {
   return null;
 }
 
-/**
- * The browser form keeps where to go in the fragment, which a browser never
- * sends to the server: an invite code stays out of its logs and out of any
- * Referer. The page itself is the workspace's own root.
- */
+/** The browser form is the workspace's own root, with where to go in the fragment. */
 function parseBrowserLink(url: URL): DeepLink | null {
   if (url.pathname !== "/" || url.search) return null;
   const serverUrl = normalizeServerUrlSafe(url.origin);
-  if (!serverUrl) return null;
-  const parts = url.hash.replace(/^#\/?/, "").split("/");
-  if (parts.length === 2 && parts[0] === "join" && TOKEN.test(parts[1]!)) {
-    return { kind: "join", serverUrl, code: parts[1]! };
-  }
-  if (parts.length === 2 && parts[0] === "claim" && TOKEN.test(parts[1]!)) {
-    return { kind: "claim", serverUrl, code: parts[1]! };
-  }
-  if (parts.length === 2 && parts[0] === "sso" && TOKEN.test(parts[1]!)) {
-    return { kind: "sso", serverUrl, code: parts[1]! };
-  }
-  if (parts.length === 2 && parts[0] === "reset" && TOKEN.test(parts[1]!)) {
-    return { kind: "reset", serverUrl, token: parts[1]! };
-  }
-  if (parts.length === 2 && parts[0] === "verify-email" && TOKEN.test(parts[1]!)) {
-    return { kind: "verifyEmail", serverUrl, token: parts[1]! };
-  }
-  if (
-    parts.length === 4 &&
-    parts[0] === "c" &&
-    parts[2] === "m" &&
-    TOKEN.test(parts[1]!) &&
-    TOKEN.test(parts[3]!)
-  ) {
-    return { kind: "message", serverUrl, channelId: parts[1]!, messageId: parts[3]! };
-  }
-  return null;
+  const link = readPageHash(url.hash);
+  return serverUrl && link ? { ...link, serverUrl } : null;
 }
 
 /**
@@ -111,24 +69,6 @@ function parseBrowserLink(url: URL): DeepLink | null {
 export function serverAddress(serverUrl: string): string {
   const short = serverUrl.replace(/^http:\/\//, "");
   return normalizeServerUrlSafe(short) === serverUrl ? short : serverUrl;
-}
-
-/** A link that opens in any browser, at the web client the workspace serves. */
-export function browserLink(serverUrl: string, target: LinkTarget): string {
-  const e = encodeURIComponent;
-  return target.kind === "join"
-    ? `${serverUrl}/#/join/${e(target.code)}`
-    : `${serverUrl}/#/c/${e(target.channelId)}/m/${e(target.messageId)}`;
-}
-
-/** A link that opens the desktop app. */
-export function desktopLink(serverUrl: string, target: LinkTarget): string {
-  const e = encodeURIComponent;
-  // ":" and "/" are allowed in a query, and leaving them makes the link readable.
-  const host = e(serverAddress(serverUrl)).replaceAll("%3A", ":").replaceAll("%2F", "/");
-  return target.kind === "join"
-    ? `${DEEP_LINK_PROTOCOL}://join?host=${host}&code=${e(target.code)}`
-    : `${DEEP_LINK_PROTOCOL}://message?host=${host}&channel=${e(target.channelId)}&id=${e(target.messageId)}`;
 }
 
 export interface ShareableServer {
