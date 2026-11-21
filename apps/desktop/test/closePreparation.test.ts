@@ -70,19 +70,24 @@ describe("preparing an ordinary close", () => {
     );
   });
 
-  it("bounds missing replies and slow writes without letting late work finish a newer attempt", async () => {
+  it("bounds missing replies and slow writes at ten seconds without letting late work finish a newer attempt", async () => {
     vi.useFakeTimers();
-    const close = new ClosePreparation(100);
+    const close = new ClosePreparation();
     const send = vi.fn();
     const first = close.prepare(17, send, async () => {});
-    const missing = expect(first).rejects.toThrow("did not finish in time");
-    await vi.advanceTimersByTimeAsync(100);
+    let failed = false;
+    const missing = expect(first)
+      .rejects.toThrow("did not finish in time")
+      .then(() => (failed = true));
+    await vi.advanceTimersByTimeAsync(9_999);
+    expect(failed).toBe(false);
+    await vi.advanceTimersByTimeAsync(1);
     await missing;
     const oldDrain = held();
     const second = close.prepare(17, send, () => oldDrain.promise);
     close.acknowledge(17, send.mock.calls[1]![0], true);
     const slow = expect(second).rejects.toThrow("did not finish in time");
-    await vi.advanceTimersByTimeAsync(100);
+    await vi.advanceTimersByTimeAsync(10_000);
     await slow;
     const currentDrain = held();
     const third = close.prepare(17, send, () => currentDrain.promise);
