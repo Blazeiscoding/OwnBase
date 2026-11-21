@@ -94,6 +94,7 @@ describe("the workspace menu", () => {
     expect(items).toEqual([
       "Invite people",
       "People",
+      "Groups",
       "Reported messages",
       "Apps and integrations",
       "Workspace settings",
@@ -127,6 +128,7 @@ describe("the workspace menu", () => {
     expect(items).toEqual([
       "Invite people",
       "People",
+      "Groups",
       "Reported messages",
       "Apps and integrations",
       "Workspace settings",
@@ -140,14 +142,20 @@ describe("the workspace menu", () => {
 
   it("does what each item names", async () => {
     const { user, calls } = sidebar({ admin: true });
-    for (const item of ["Invite people", "People", "Apps and integrations", "Workspace settings"]) {
+    for (const item of [
+      "Invite people",
+      "People",
+      "Groups",
+      "Apps and integrations",
+      "Workspace settings",
+    ]) {
       await workspaceMenu(user);
       await user.click(screen.getByRole("menuitem", { name: item }));
       expect(screen.queryByRole("menu")).not.toBeInTheDocument();
     }
     await accountMenu(user);
     await user.click(screen.getByRole("menuitem", { name: "Account settings" }));
-    expect(calls).toEqual(["invite", "people", "apps", "workspace", "account"]);
+    expect(calls).toEqual(["invite", "people", "groups", "apps", "workspace", "account"]);
   });
 });
 
