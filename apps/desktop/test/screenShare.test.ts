@@ -200,12 +200,19 @@ describe("holding the choice for the request it is made for", () => {
     expect(new ScreenChoice().take()).toBeNull();
   });
 
-  it("lets a choice go stale, so a later request does not share it", () => {
-    let now = 1_000;
-    const choice = new ScreenChoice(15_000, () => now);
-    choice.hold(notes);
-    now += 15_001;
-    expect(choice.take()).toBeNull();
+  it("lets a choice go stale after fifteen seconds, so a later request does not share it", () => {
+    vi.useFakeTimers();
+    try {
+      const choice = new ScreenChoice();
+      choice.hold(notes);
+      vi.advanceTimersByTime(15_000);
+      expect(choice.take()).toEqual({ video: notes });
+      choice.hold(notes);
+      vi.advanceTimersByTime(15_001);
+      expect(choice.take()).toBeNull();
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it("keeps only the newest choice", () => {
@@ -233,14 +240,18 @@ describe("holding the choice for the request it is made for", () => {
   });
 
   it("shares no sound, or anything, for a request the picker did not just answer", () => {
-    let now = 1_000;
-    const choice = new ScreenChoice(15_000, () => now);
-    choice.hold(notes, true);
-    expect(choice.take(true)).not.toBeNull();
-    expect(choice.take(true)).toBeNull();
-    choice.hold(notes, true);
-    now += 15_001;
-    expect(choice.take(true)).toBeNull();
+    vi.useFakeTimers();
+    try {
+      const choice = new ScreenChoice();
+      choice.hold(notes, true);
+      expect(choice.take(true)).not.toBeNull();
+      expect(choice.take(true)).toBeNull();
+      choice.hold(notes, true);
+      vi.advanceTimersByTime(15_001);
+      expect(choice.take(true)).toBeNull();
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });
 

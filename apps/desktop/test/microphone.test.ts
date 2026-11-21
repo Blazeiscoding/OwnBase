@@ -61,6 +61,26 @@ function setup(helperPath: string | null = "C:\\OwnBase\\ownbase-microphone.exe"
 /** Lets stream events land. */
 const settle = () => new Promise((resolve) => setTimeout(resolve, 0));
 
+/**
+ * How many more microphones window `owner` may open before it is told there
+ * are too many. A microphone that has ended or failed no longer counts.
+ */
+async function room({ microphones, helpers }: ReturnType<typeof setup>, owner = 1) {
+  let opened = 0;
+  for (;;) {
+    const before = helpers.length;
+    const opening = microphones.open(owner, "{kast}", new FakePort());
+    if (helpers.length > before) helpers.at(-1)!.say(STARTED);
+    try {
+      await opening;
+    } catch (error) {
+      expect(String(error)).toMatch("Too many");
+      return opened;
+    }
+    opened++;
+  }
+}
+
 const STARTED = {
   event: "started",
   sampleRate: 48000,
@@ -171,28 +191,31 @@ describe("opening a microphone", () => {
   });
 
   it("rejects, saying why, and lets the port go when it will not start", async () => {
-    const { microphones, helpers } = setup();
+    const s = setup();
+    const { microphones, helpers } = s;
     const port = new FakePort();
     const opening = microphones.open(1, "{kast}", port);
     helpers[0]!.say({ event: "error", message: "not found" });
     await expect(opening).rejects.toThrow("The microphone did not start: not found.");
     expect(port.close).toHaveBeenCalled();
     expect(helpers[0]!.stdinEnded).toBe(true);
-    expect(microphones.openCount).toBe(0);
 
     const exiting = microphones.open(1, "{kast}", new FakePort());
     helpers[1]!.emit("exit", 2);
     await expect(exiting).rejects.toThrow("The microphone did not start (2).");
+    // Neither holds one of the window's places.
+    expect(await room(s)).toBe(4);
   });
 
   it("gives up on a helper that does not start in time", async () => {
     vi.useFakeTimers();
-    const { microphones } = setup();
-    const opening = microphones.open(1, "{kast}", new FakePort());
+    const s = setup();
+    const opening = s.microphones.open(1, "{kast}", new FakePort());
     const failed = expect(opening).rejects.toThrow("did not start in time");
     await vi.advanceTimersByTimeAsync(5000);
     await failed;
-    expect(microphones.openCount).toBe(0);
+    vi.useRealTimers();
+    expect(await room(s)).toBe(4);
   });
 
   it("refuses what is not a microphone, and where the app does not open them", async () => {
@@ -224,7 +247,8 @@ describe("opening a microphone", () => {
 describe("a microphone that ends", () => {
   it("tells the page why when the device goes, then closes its port", async () => {
     vi.useFakeTimers();
-    const { microphones, helpers } = setup();
+    const s = setup();
+    const { microphones, helpers } = s;
     const port = new FakePort();
     const opening = microphones.open(1, "{kast}", port);
     helpers[0]!.say(STARTED);
@@ -233,11 +257,13 @@ describe("a microphone that ends", () => {
     helpers[0]!.say({ event: "ended", reason: "device-removed" });
     await vi.advanceTimersByTimeAsync(0);
     expect(port.messages).toContainEqual({ ended: "device-removed" });
-    expect(microphones.openCount).toBe(0);
     // A moment to hear why first.
     expect(port.close).not.toHaveBeenCalled();
     await vi.advanceTimersByTimeAsync(250);
     expect(port.close).toHaveBeenCalled();
+    vi.useRealTimers();
+    // The place it held is free again.
+    expect(await room(s)).toBe(4);
   });
 
   it("tells the page when the helper stops by itself", async () => {
@@ -251,20 +277,23 @@ describe("a microphone that ends", () => {
   });
 
   it("stops the helper when the window lets it go, without telling the page it ended", async () => {
-    const { microphones, helpers } = setup();
+    const s = setup();
+    const { microphones, helpers } = s;
     const port = new FakePort();
     const opening = microphones.open(1, "{kast}", port);
     helpers[0]!.say(STARTED);
     const { session } = await opening;
 
+    // Another window cannot let it go.
     microphones.close(2, session);
-    expect(microphones.openCount).toBe(1);
+    expect(helpers[0]!.stdinEnded).toBe(false);
+    expect(port.close).not.toHaveBeenCalled();
     microphones.close(1, session);
-    expect(microphones.openCount).toBe(0);
     expect(helpers[0]!.stdinEnded).toBe(true);
     expect(port.close).toHaveBeenCalled();
     helpers[0]!.emit("exit", 0);
     expect(port.messages).not.toContainEqual(expect.objectContaining({ ended: expect.anything() }));
+    expect(await room(s)).toBe(4);
   });
 
   it("stops when the page's end of the port closes, or its window goes", async () => {

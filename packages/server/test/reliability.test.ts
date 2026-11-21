@@ -57,6 +57,7 @@ beforeEach(async () => {
   channelId = server.store.channels.byName("general")!.id;
 });
 afterEach(async () => {
+  vi.useRealTimers();
   vi.restoreAllMocks();
   for (const ws of sockets.splice(0)) ws.terminate();
   await server.stop();
@@ -256,15 +257,11 @@ describe("scheduled delivery", () => {
   const listed = async () =>
     (await request("/api/scheduled", undefined, "GET")).body.scheduled as any[];
   const posted = () => server.store.messages.list({ channelId, limit: 50 });
-  /** Brings a held row's next attempt forward, as waiting out its pause would. */
-  const retryHeldNow = (id: string) =>
-    (
-      server.store as unknown as {
-        db: { prepare: (sql: string) => { run: (...a: unknown[]) => void } };
-      }
-    ).db
-      .prepare("UPDATE scheduled_messages SET next_attempt_at = 0 WHERE id = ?")
-      .run(id);
+  /** Moves the clock the server reads past a held message's pause before its next try. */
+  const pastHeldPause = () => {
+    vi.useFakeTimers({ toFake: ["Date"], shouldAdvanceTime: true });
+    vi.setSystemTime(Date.now() + 61_000);
+  };
 
   it("refuses to queue a reply that could never be delivered", async () => {
     const root = await request(`/api/channels/${channelId}/messages`, { text: "Root" });
@@ -339,9 +336,9 @@ describe("scheduled delivery", () => {
     // A held row waits for its next attempt rather than the next tick.
     server.flushScheduled();
     expect(server.store.scheduled.get(id)!.attempts).toBe(1);
-    retryHeldNow(id);
+    pastHeldPause();
     server.flushScheduled();
-    retryHeldNow(id);
+    pastHeldPause();
     server.flushScheduled();
     const exhausted = server.store.scheduled.get(id)!;
     expect(exhausted.status).toBe("failed");

@@ -1,10 +1,46 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import WebSocket from "ws";
 import { createWorkspaceServer, type WorkspaceServer } from "../src/server.js";
-import { APP_SCOPES } from "@ownbase/protocol";
+import { APP_SCOPES, PROTOCOL_VERSION, type ServerToClient } from "@ownbase/protocol";
 
 let server: WorkspaceServer;
 let base: string;
 let token: string;
+const sockets: WebSocket[] = [];
+
+/**
+ * A signed-in device. `heard` gives what it was told since the last call,
+ * once the server has answered a ping, so everything a request sent before
+ * its answer has arrived.
+ */
+async function device(auth = token) {
+  const ws = new WebSocket(base.replace("http", "ws") + "/ws");
+  sockets.push(ws);
+  const frames: ServerToClient[] = [];
+  ws.on("message", (raw) => frames.push(JSON.parse(String(raw)) as ServerToClient));
+  ws.on("open", () =>
+    ws.send(
+      JSON.stringify({
+        type: "hello",
+        token: auth,
+        lastSeq: null,
+        protocolVersion: PROTOCOL_VERSION,
+      }),
+    ),
+  );
+  await expect.poll(() => frames.some((f) => f.type === "ready")).toBe(true);
+  let seen = frames.length;
+  const heard = async () => {
+    const from = frames.length;
+    ws.send(JSON.stringify({ type: "ping" }));
+    await expect.poll(() => frames.slice(from).some((f) => f.type === "pong")).toBe(true);
+    const told = frames.slice(seen).filter((f) => f.type !== "pong");
+    seen = frames.length;
+    return told;
+  };
+  await heard();
+  return { ws, heard };
+}
 
 async function request(path: string, body?: unknown, method = "POST", auth = token) {
   const response = await fetch(base + path, {
@@ -49,13 +85,13 @@ beforeEach(async () => {
 });
 afterEach(async () => {
   vi.restoreAllMocks();
+  for (const ws of sockets.splice(0)) ws.terminate();
   await server.stop();
 });
 
 describe("atomic registration", () => {
   it("restores the claim, owner, default channel and events when session creation fails", async () => {
     const claim = server.store.getMeta("claim_code");
-    const publish = vi.spyOn(server.gateway, "publish");
     vi.spyOn(server.store.accounts, "createSession").mockImplementationOnce(() => {
       throw new Error("session write failed");
     });
@@ -64,7 +100,6 @@ describe("atomic registration", () => {
     expect(server.store.channels.byName("general")).toBeNull();
     expect(server.store.getMeta("claim_code")).toBe(claim);
     expect(server.store.currentSeq()).toBe(0);
-    expect(publish).not.toHaveBeenCalled();
     expect((await register("owner")).body.user.role).toBe("owner");
   });
 
@@ -73,7 +108,7 @@ describe("atomic registration", () => {
     server.setAccessPolicy("invite_only");
     const code = (await request("/api/invites", { maxUses: 1 })).body.invite.code;
     const seq = server.store.currentSeq();
-    const publish = vi.spyOn(server.gateway, "publish");
+    const watching = await device();
     vi.spyOn(server.store.accounts, "createSession").mockImplementationOnce(() => {
       throw new Error("session write failed");
     });
@@ -81,7 +116,7 @@ describe("atomic registration", () => {
     expect(server.store.accounts.getInvite(code)!.uses).toBe(0);
     expect(server.store.people.authByHandle("guest")).toBeNull();
     expect(server.store.currentSeq()).toBe(seq);
-    expect(publish).not.toHaveBeenCalled();
+    expect(await watching.heard()).toEqual([]);
     expect((await register("guest", code)).status).toBe(201);
     expect(server.store.accounts.getInvite(code)!.uses).toBe(1);
   });
@@ -120,14 +155,14 @@ describe("atomic channel and account changes", () => {
     async (number) => {
       await owner();
       const seq = server.store.currentSeq();
-      const publish = vi.spyOn(server.gateway, "publish");
+      const watching = await device();
       const failure = failEvent(number);
       expect(
         (await request("/api/channels", { type: "private", name: "private-room" })).status,
       ).toBe(500);
       expect(server.store.channels.byName("private-room")).toBeNull();
       expect(server.store.currentSeq()).toBe(seq);
-      expect(publish).not.toHaveBeenCalled();
+      expect(await watching.heard()).toEqual([]);
       failure.mockRestore();
       expect(
         (await request("/api/channels", { type: "private", name: "private-room" })).status,
@@ -147,53 +182,56 @@ describe("atomic channel and account changes", () => {
 
   it("does not grant private access or announce an invitation that rolled back", async () => {
     await owner();
-    const guest = (await register("guest")).body.user;
+    const guest = (await register("guest")).body;
     const channel = (await request("/api/channels", { type: "private", name: "private-room" })).body
       .channel;
-    const notify = vi.spyOn(server.gateway, "updateChannelAccess");
+    const guests = await device(guest.token);
     failEvent();
     expect(
-      (await request(`/api/channels/${channel.id}/invite-member`, { userId: guest.id })).status,
+      (await request(`/api/channels/${channel.id}/invite-member`, { userId: guest.user.id }))
+        .status,
     ).toBe(500);
-    expect(server.store.channels.isMember(channel.id, guest.id)).toBe(false);
-    expect(notify).not.toHaveBeenCalled();
+    expect(server.store.channels.isMember(channel.id, guest.user.id)).toBe(false);
+    expect(await guests.heard()).toEqual([]);
   });
 
   it("retains membership and live access when a departure cannot be recorded", async () => {
     const me = await owner();
     const channel = (await request("/api/channels", { type: "private", name: "private-room" })).body
       .channel;
-    const notify = vi.spyOn(server.gateway, "updateChannelAccess");
+    const mine = await device();
     failEvent();
     expect((await request(`/api/channels/${channel.id}/leave`)).status).toBe(500);
     expect(server.store.channels.isMember(channel.id, me.id)).toBe(true);
-    expect(notify).not.toHaveBeenCalled();
+    expect(await mine.heard()).toEqual([]);
   });
 
   it("keeps both ownership roles and the event log unchanged on a second-event failure", async () => {
     const me = await owner();
     const guest = (await register("guest")).body.user;
     const seq = server.store.currentSeq();
-    const publish = vi.spyOn(server.gateway, "publish");
+    const watching = await device();
     failEvent(2);
     expect((await request(`/api/admin/users/${guest.id}/owner`)).status).toBe(500);
     expect(server.store.people.get(me.id)!.role).toBe("owner");
     expect(server.store.people.get(guest.id)!.role).toBe("member");
     expect(server.store.currentSeq()).toBe(seq);
-    expect(publish).not.toHaveBeenCalled();
+    expect(await watching.heard()).toEqual([]);
   });
 
   it("restores revoked sessions and never disconnects a rolled-back deactivation", async () => {
     await owner();
     const guest = (await register("guest")).body;
-    const disconnect = vi.spyOn(server.gateway, "disconnectUser");
+    const guests = await device(guest.token);
     failEvent();
     expect(
       (await request(`/api/admin/users/${guest.user.id}`, { deactivated: true }, "PATCH")).status,
     ).toBe(500);
     expect(server.store.people.get(guest.user.id)!.deactivated).toBe(false);
     expect((await request("/api/me", undefined, "GET", guest.token)).status).toBe(200);
-    expect(disconnect).not.toHaveBeenCalled();
+    // Still connected, and told nothing.
+    expect(await guests.heard()).toEqual([]);
+    expect(guests.ws.readyState).toBe(WebSocket.OPEN);
   });
 });
 
@@ -210,7 +248,7 @@ describe("atomic messages and integrations", () => {
       if (action === "unpin") await request(`/api/messages/${message.id}/pin`, undefined, "PUT");
       const before = server.store.messages.get(message.id);
       const seq = server.store.currentSeq();
-      const publish = vi.spyOn(server.gateway, "publish");
+      const watching = await device();
       failEvent();
       const path =
         `/api/messages/${message.id}` +
@@ -232,7 +270,7 @@ describe("atomic messages and integrations", () => {
       ).toBe(500);
       expect(server.store.messages.get(message.id)).toEqual(before);
       expect(server.store.currentSeq()).toBe(seq);
-      expect(publish).not.toHaveBeenCalled();
+      expect(await watching.heard()).toEqual([]);
     },
   );
 

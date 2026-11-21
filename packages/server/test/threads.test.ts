@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import WebSocket from "ws";
 import { PROTOCOL_VERSION, type ServerToClient, type ThreadFollow } from "@ownbase/protocol";
 import { createWorkspaceServer, type WorkspaceServer } from "../src/server.js";
@@ -38,8 +38,18 @@ async function connect(auth: string) {
     ),
   );
   await expect.poll(() => frames.some((f) => f.type === "ready")).toBe(true);
-  return { ws, frames };
+  /** Resolves once the server has answered a ping, so all it sent before has arrived. */
+  const settle = async () => {
+    const from = frames.length;
+    ws.send(JSON.stringify({ type: "ping" }));
+    await expect.poll(() => frames.slice(from).some((f) => f.type === "pong")).toBe(true);
+  };
+  return { ws, frames, settle };
 }
+
+/** The ephemeral events of one type a socket has been told, oldest first. */
+const told = (frames: ServerToClient[], type: string) =>
+  frames.filter((f) => f.type === "ephemeral" && f.event.type === type);
 
 /** Follow updates this socket has been told about, newest last. */
 const followFrames = (frames: ServerToClient[]): ThreadFollow[] =>
@@ -345,19 +355,15 @@ describe("thread following", () => {
       (await request("/api/messages/" + deleted.id, undefined, "DELETE", peer.token)).status,
     ).toBe(200);
     const nonMessageSeq = server.store.currentSeq();
-    const tellPerson = vi.spyOn(server.gateway, "tellPerson");
+    const mine = await connect(owner.token);
 
     for (const seq of [otherReply.seq, deleted.seq, nonMessageSeq]) {
       expect((await request("/api/messages/" + root.id + "/thread/unread", { seq })).status).toBe(
         400,
       );
     }
-    expect(
-      tellPerson.mock.calls.some(
-        ([userId, event]) => userId === owner.id && event.type === "thread.follow",
-      ),
-    ).toBe(false);
-    tellPerson.mockRestore();
+    await mine.settle();
+    expect(told(mine.frames, "thread.follow")).toEqual([]);
     const state = server.store.threads.follow(owner.id, root.id);
     expect(state?.lastReadSeq).toBe(first.seq);
     expect(state?.following).toBe(true);
@@ -425,17 +431,13 @@ describe("thread following", () => {
     ).body.message;
     const deleted = await post("Deleted channel target", owner.token);
     expect((await request("/api/messages/" + deleted.id, undefined, "DELETE")).status).toBe(200);
-    const tellPerson = vi.spyOn(server.gateway, "tellPerson");
+    const mine = await connect(owner.token);
 
     for (const seq of [otherMessage.seq, deleted.seq, nonMessageSeq]) {
       expect((await request("/api/channels/" + channelId + "/unread", { seq })).status).toBe(400);
     }
-    expect(
-      tellPerson.mock.calls.some(
-        ([userId, event]) => userId === owner.id && event.type === "channel.unread",
-      ),
-    ).toBe(false);
-    tellPerson.mockRestore();
+    await mine.settle();
+    expect(told(mine.frames, "channel.unread")).toEqual([]);
     const membership = server.store.channels
       .memberships(owner.id)
       .find((item) => item.channelId === channelId);

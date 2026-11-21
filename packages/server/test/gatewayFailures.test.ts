@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, onTestFinished, vi } from 
 import WebSocket from "ws";
 import { PROTOCOL_VERSION, type ServerToClient } from "@ownbase/protocol";
 import { createWorkspaceServer, type WorkspaceServer } from "../src/server.js";
+import { moveableClock, passGrace } from "./huddleClock.js";
 
 /**
  * Socket callbacks run outside Fastify's error handler, so a read that throws
@@ -68,9 +69,6 @@ async function start() {
     port: 0,
     mdns: false,
     rateLimits: false,
-    // A dropped device's place in a call goes at once here; huddleRejoin.test.ts
-    // covers the grace it gets for coming back.
-    huddleGraceMs: 0,
   });
   base = `http://127.0.0.1:${server.port}`;
   people = [];
@@ -210,9 +208,15 @@ describe("socket callbacks that fail (F03)", () => {
     await expect.poll(() => server.huddles.participants(general)).toEqual([person.user.id]);
 
     vi.spyOn(server.store.channels, "get").mockImplementation(failing("disk"));
+    moveableClock();
     device.ws.close();
     await expect.poll(() => server.gateway.isOnline(person.user.id)).toBe(false);
-    await expect.poll(() => server.huddles.participants(general)).toEqual([]);
+    await expect
+      .poll(async () => {
+        await passGrace();
+        return server.huddles.participants(general);
+      })
+      .toEqual([]);
     expect(await healthy()).toBe(true);
   });
 });

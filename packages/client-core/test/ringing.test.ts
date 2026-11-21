@@ -13,6 +13,20 @@ let base: string;
 let alice: { token: string; id: string };
 let bob: { token: string; id: string };
 
+/** How long the server rings a direct message's huddle (its `HUDDLE_RING_MS`). */
+const SERVER_RING_MS = 30_000;
+
+/**
+ * Puts timeouts on a clock the test moves, still running at real speed, so
+ * a ring runs out without the test waiting the whole of it.
+ */
+function moveableClock() {
+  vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"], shouldAdvanceTime: true });
+  onTestFinished(() => {
+    vi.useRealTimers();
+  });
+}
+
 function until(
   client: WorkspaceClient,
   predicate: (s: WorkspaceState) => boolean,
@@ -71,7 +85,6 @@ beforeAll(async () => {
     port: 0,
     mdns: false,
     rateLimits: false,
-    huddleGraceMs: 0,
   });
   base = `http://127.0.0.1:${server.port}`;
   const api = new Api(base);
@@ -179,16 +192,15 @@ describe("rings on the client", () => {
     expect(callee.state.ringNotice).toBeNull();
     caller({ type: "huddle.leave", channelId });
 
-    // Nobody answering in time, on a server that rings briefly.
-    const brief = await createWorkspaceServer({
+    // Nobody answering in time, on a clock the test moves past the ring.
+    const other = await createWorkspaceServer({
       dataDir: ":memory:",
       port: 0,
       mdns: false,
       rateLimits: false,
-      huddleRingMs: 150,
     });
-    onTestFinished(() => brief.stop());
-    const url = `http://127.0.0.1:${brief.port}`;
+    onTestFinished(() => other.stop());
+    const url = `http://127.0.0.1:${other.port}`;
     const api = new Api(url);
     const carol = await api.register({
       handle: "carol",
@@ -205,7 +217,11 @@ describe("rings on the client", () => {
     ).channel.id;
     const carols = await online(carol.token, url);
     carols.store.setState({ huddle: { channelId: quiet } as HuddleState });
-    (await socket(carol.token, url))({ type: "huddle.join", channelId: quiet, requestId: "a" });
+    const carolsSocket = await socket(carol.token, url);
+    moveableClock();
+    carolsSocket({ type: "huddle.join", channelId: quiet, requestId: "a" });
+    await until(carols, (s) => !!s.rings?.[quiet], "the ring");
+    await vi.advanceTimersByTimeAsync(SERVER_RING_MS);
     const missed = await until(carols, (s) => s.ringNotice !== null, "no answer");
     expect(missed.ringNotice).toMatchObject({ channelId: quiet, message: "No answer" });
   });
@@ -225,15 +241,14 @@ describe("rings on the client", () => {
   });
 
   it("in a group, tell only the caller, and say nobody answered only when nobody did", async () => {
-    const brief = await createWorkspaceServer({
+    const other = await createWorkspaceServer({
       dataDir: ":memory:",
       port: 0,
       mdns: false,
       rateLimits: false,
-      huddleRingMs: 300,
     });
-    onTestFinished(() => brief.stop());
-    const url = `http://127.0.0.1:${brief.port}`;
+    onTestFinished(() => other.stop());
+    const url = `http://127.0.0.1:${other.port}`;
     const api = new Api(url);
     const made = async (handle: string) =>
       api.register({ handle, displayName: handle, password: "password123" });
@@ -265,11 +280,14 @@ describe("rings on the client", () => {
 
     // Again: Dave answers and Erin lets it ring out. Someone answered, so nothing is said.
     for (const send of [callerSocket, daveSocket]) send({ type: "huddle.leave", channelId });
-    await expect.poll(() => brief.huddles.participants(channelId)).toEqual([]);
+    await expect.poll(() => other.huddles.participants(channelId)).toEqual([]);
     caller.store.setState({ ringNotice: null });
+    moveableClock();
     callerSocket({ type: "huddle.join", channelId, requestId: "c" });
     await until(erins, (s) => !!s.rings?.[channelId], "the second ring");
     daveSocket({ type: "huddle.join", channelId, requestId: "d" });
+    await until(erins, (s) => s.rings?.[channelId]?.answered.length === 1, "dave answering again");
+    await vi.advanceTimersByTimeAsync(SERVER_RING_MS);
     await until(caller, (s) => !s.rings?.[channelId], "the second ring to run out");
     expect(caller.state.ringNotice).toBeNull();
   });
