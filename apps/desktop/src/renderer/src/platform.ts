@@ -46,6 +46,16 @@ export function invoker(bridge: Pick<OwnBaseBridge, "invoke">): Call {
   };
 }
 
+/**
+ * A call that only tells the main process something. Nothing waits for it,
+ * and a failure changes nothing anyone could act on, so it is let go here,
+ * the one place the page makes such a call.
+ */
+export function teller(call: Call) {
+  return <C extends Channel>(channel: C, ...args: Args<C>): void =>
+    void call(channel, ...args).catch(() => {});
+}
+
 type Callers<M extends Record<string, Channel>> = {
   [K in keyof M]: (...args: Args<M[K]>) => Promise<Result<M[K]>>;
 };
@@ -153,11 +163,12 @@ export function systemMicrophone(
         resolve(port);
       });
     });
+  const tell = teller(call);
   return {
     list: () => call("microphone:list"),
     open: async (id): Promise<OpenedSystemMicrophone> => {
       const { session, sampleRate, name } = await call("microphone:open", id);
-      const close = () => void call("microphone:close", session).catch(() => {});
+      const close = () => tell("microphone:close", session);
       try {
         return { port: await portFor(session), sampleRate, name, close };
       } catch (err) {
@@ -170,6 +181,7 @@ export function systemMicrophone(
 
 export function electronPlatform(bridge: OwnBaseBridge): Platform {
   const call = invoker(bridge);
+  const tell = teller(call);
   const { capabilities } = bridge;
   const { openAtLogin, ...hosting } = hostingCalls(call);
   const preparing = {
@@ -186,7 +198,7 @@ export function electronPlatform(bridge: OwnBaseBridge): Platform {
       } catch {
         // Failure is handed back to the native close decision; it must not silently quit.
       }
-      await call("window:preparedClose", id, saved).catch(() => {});
+      tell("window:preparedClose", id, saved);
     })();
   });
   return {
@@ -198,7 +210,7 @@ export function electronPlatform(bridge: OwnBaseBridge): Platform {
       };
     },
     downloadFile: (url) => call("file:download", url),
-    setUnread: (badge) => void call("unread:set", badge).catch(() => {}),
+    setUnread: (badge) => tell("unread:set", badge),
     appLogTail: () => call("diagnostics:logTail"),
     downloads: {
       onSaved: (cb) =>
@@ -206,7 +218,7 @@ export function electronPlatform(bridge: OwnBaseBridge): Platform {
           cb({ name: file.name, show: () => call("file:showInFolder", file.id) }),
         ),
     },
-    setWindowTheme: (theme) => void call("window:setTheme", theme).catch(() => {}),
+    setWindowTheme: (theme) => tell("window:setTheme", theme),
     // One window, so nothing else changes what it stores: no watch* here.
     storage: {
       get: async <T>(key: string, options?: { strict?: boolean }) =>
@@ -228,7 +240,7 @@ export function electronPlatform(bridge: OwnBaseBridge): Platform {
           event.preventDefault();
           // The renderer cannot raise a window that is minimized or closed to
           // the tray; the main process can.
-          void call("window:reveal").catch(() => {});
+          tell("window:reveal");
           onClick();
           note.close();
         };
@@ -256,13 +268,16 @@ export function electronPlatform(bridge: OwnBaseBridge): Platform {
       onAsk: (cb) => bridge.on("window:ask", cb),
       onWithdraw: (cb) => bridge.on("window:withdrawQuestion", cb),
       onNotice: (cb) => bridge.on("window:notice", cb),
-      shown: (id) => call("window:questionShown", id),
-      answer: (id, index) => call("window:answerQuestion", id, index),
+      shown: (id) => tell("window:questionShown", id),
+      answer: (id, index) => tell("window:answerQuestion", id, index),
     },
     ...(capabilities.updates !== "none"
       ? {
           updates: {
             ...updateCalls(call),
+            later: () => tell("updates:later"),
+            reportCall: (on) => tell("updates:reportCall", on),
+            openDownloadPage: () => tell("updates:openDownloadPage"),
             mode: capabilities.updates,
             subscribe: (cb) => bridge.on("updates:changed", cb),
             onRestartAsked: (cb) => bridge.on("updates:restartAsked", () => cb()),
@@ -284,6 +299,7 @@ export async function followPlace(
   delayMs = 250,
 ): Promise<void> {
   const call = invoker(bridge);
+  const tell = teller(call);
   // A recovered page starts from the entry it had; the app checks that entry
   // belongs to the workspace it opens before using it.
   const recovered = await call("window:takePlace").catch(() => null);
@@ -294,7 +310,7 @@ export async function followPlace(
     if (timer) return;
     timer = setTimeout(() => {
       timer = null;
-      void call("window:rememberPlace", window.location.href, window.history.state).catch(() => {});
+      tell("window:rememberPlace", window.location.href, window.history.state);
     }, delayMs);
   };
   for (const method of ["pushState", "replaceState"] as const) {

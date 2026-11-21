@@ -42,7 +42,7 @@ export function WindowDialogs() {
     const offAsk = dialogs.onAsk((question) => {
       // Said at once, so the main process waits for the person rather than
       // falling back to a native box; a later question waits its turn here.
-      void dialogs.shown(question.id).catch(() => {});
+      dialogs.shown(question.id);
       setQueue((now) => [...now, question]);
     });
     const offWithdraw = dialogs.onWithdraw((id) =>
@@ -59,7 +59,7 @@ export function WindowDialogs() {
   if (!dialogs || !current) return null;
   const choose = (index: number) => {
     setQueue((now) => now.filter((question) => question.id !== current.id));
-    void dialogs.answer(current.id, index).catch(() => {});
+    dialogs.answer(current.id, index);
   };
   return <QuestionDialog key={current.id} question={current} choose={choose} />;
 }

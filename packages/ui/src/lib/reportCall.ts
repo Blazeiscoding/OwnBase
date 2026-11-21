@@ -11,7 +11,7 @@ export function useReportCall(inCall: boolean): void {
   const updates = usePlatform().updates;
   useEffect(() => {
     if (!updates) return;
-    void updates.reportCall(inCall).catch(() => {});
-    return () => void updates.reportCall(false).catch(() => {});
+    updates.reportCall(inCall);
+    return () => updates.reportCall(false);
   }, [updates, inCall]);
 }

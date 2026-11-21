@@ -168,6 +168,35 @@ describe("what the platform offers", () => {
     expect(() => electronPlatform(bridge).setWindowTheme!("dark")).not.toThrow();
     await vi.waitFor(() => expect(calls).toEqual([["window:setTheme", ["dark"]]]));
   });
+
+  it("lets a failed call that only tells the app something go, so the page need not", async () => {
+    const { bridge, calls } = fakeBridge(
+      () => {
+        throw new Error("no window");
+      },
+      { updates: "install" },
+    );
+    const platform = electronPlatform(bridge);
+    const told = [
+      platform.updates!.later(),
+      platform.updates!.reportCall(true),
+      platform.updates!.openDownloadPage(),
+      platform.windowDialogs!.shown(7),
+      platform.windowDialogs!.answer(7, 1),
+      platform.setUnread!({ count: 2, dot: false }),
+    ];
+    expect(told).toEqual(told.map(() => undefined));
+    await vi.waitFor(() =>
+      expect(calls).toEqual([
+        ["updates:later", []],
+        ["updates:reportCall", [true]],
+        ["updates:openDownloadPage", []],
+        ["window:questionShown", [7]],
+        ["window:answerQuestion", [7, 1]],
+        ["unread:set", [{ count: 2, dot: false }]],
+      ]),
+    );
+  });
 });
 
 describe("handing over final local work before close", () => {
