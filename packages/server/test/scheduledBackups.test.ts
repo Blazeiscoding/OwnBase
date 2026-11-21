@@ -4,12 +4,14 @@ import { existsSync, mkdirSync, mkdtempSync, readdirSync, rmSync, writeFileSync 
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { verifyBackup, type BackupManifest } from "../src/backups/backup.js";
+import { backupWorkspace, verifyBackup, type BackupManifest } from "../src/backups/backup.js";
 import {
   backupFolderName,
   backupFolderTime,
   backupInChildProcess,
+  backupRetryDelay,
   listScheduledBackups,
+  pruneBackups,
 } from "../src/backups/backupSchedule.js";
 import { createWorkspaceServer, type ServerOptions, type WorkspaceServer } from "../src/server.js";
 
@@ -114,9 +116,62 @@ describe("backup folder names", () => {
       "backup-2026-13-25T03-04-05Z",
       "backup-2026-02-30T03-04-05Z",
       "Backup-2026-10-25T03-04-05Z",
+      "backup-2026-10-25T03-04-05",
+      "rocket-team-2026-10-25T03-04-05Z",
       "notes",
     ])
       expect(backupFolderTime(name), name).toBeNull();
+  });
+
+  it("carry the workspace's name in the desktop app, which reads its older names too", () => {
+    const at = Date.UTC(2026, 9, 25, 3, 4, 5);
+    expect(backupFolderName(at, "rocket-team")).toBe("rocket-team-2026-10-25T03-04-05Z");
+    for (const name of [
+      "rocket-team-2026-10-25T03-04-05Z",
+      // As desktop versions before the shared rule named them.
+      "rocket-team-2026-10-25T03-04-05",
+      "backup-2026-10-25T03-04-05Z",
+    ])
+      expect(backupFolderTime(name, null), name).toBe(at);
+    for (const name of [
+      "rocket-team-2026-02-30T03-04-05",
+      "Rocket-2026-10-25T03-04-05",
+      "rocket-team-2026-10-25T03-04-05Zz",
+    ])
+      expect(backupFolderTime(name, null), name).toBeNull();
+  });
+});
+
+describe("the wait after a failed backup", () => {
+  it("is an hour, doubling after each failure in a row, never past a day or the interval", () => {
+    const DAY = 24 * HOUR;
+    expect([1, 2, 3, 4, 5, 6, 9].map((n) => backupRetryDelay(n, 7 * DAY) / HOUR)).toEqual([
+      1, 2, 4, 8, 16, 24, 24,
+    ]);
+    expect(backupRetryDelay(3, 3 * HOUR)).toBe(3 * HOUR);
+    expect(backupRetryDelay(1, 10 * 60_000)).toBe(10 * 60_000);
+  });
+});
+
+describe("pruning past what is kept", () => {
+  const named = (...names: string[]) => names.map((name, i) => ({ name, at: i }));
+
+  it("keeps the fresh one, counts only recoverable copies, and removes everything past keep", async () => {
+    const removed: string[] = [];
+    const gone = await pruneBackups({
+      // Oldest first, as listed; "f" was just made though its time is not the newest.
+      backups: named("a", "b", "bad", "c", "f", "d"),
+      fresh: "f",
+      keep: 3,
+      recoverable: async ({ name }) => {
+        if (name === "bad") throw new Error("damaged");
+        return name !== "d";
+      },
+      remove: async ({ name }) => void removed.push(name),
+    });
+    // f counts one, d fails, c two, bad fails, b three; a goes.
+    expect(gone.map((b) => b.name)).toEqual(["a"]);
+    expect(removed).toEqual(["a"]);
   });
 });
 
@@ -174,18 +229,57 @@ describe("scheduled backups", () => {
     expect(nextAt).toBeLessThanOrEqual(Date.now() + 60_000);
   });
 
+  /** Real backups of the running workspace, named as taken `days` ago. */
+  async function earlier(...days: number[]) {
+    const names = days.map((d) => backupFolderName(Date.now() - d * 24 * HOUR));
+    for (const name of names) await backupWorkspace({ dataDir, out: join(backupDir, name) });
+    return names;
+  }
+
   it("keeps the newest few and touches nothing else in the folder", async () => {
-    const old = [3, 2, 1].map((days) => backupFolderName(Date.now() - days * 24 * HOUR));
-    for (const name of old) mkdirSync(join(backupDir, name), { recursive: true });
+    await start(schedule({ keep: 2, firstDelayMs: HOUR }));
+    const old = await earlier(3, 2, 1);
     mkdirSync(join(backupDir, "notes"));
     mkdirSync(join(backupDir, `${old[0]}-copy`));
     writeFileSync(join(backupDir, "README.txt"), "mine");
-    await start(schedule({ keep: 2 }));
     await server!.runBackup();
     expect(server!.backupStatus()!.failures).toBe(0);
     const left = readdirSync(backupDir).sort();
     const newest = (await listScheduledBackups(backupDir)).at(-1)!.name;
     expect(left).toEqual([`${old[0]}-copy`, "README.txt", old[2], newest, "notes"].sort());
+  });
+
+  it("counts only copies that open, and leaves one that does not while it has room", async () => {
+    await start(schedule({ keep: 2, firstDelayMs: HOUR }));
+    const [oldest, good, broken] = await earlier(3, 2, 1);
+    rmSync(join(backupDir, broken!, "manifest.json"));
+    await server!.runBackup();
+    const newest = (await listScheduledBackups(backupDir)).at(-1)!.name;
+    // The broken one never counted, so the good one before it is still one of the two.
+    expect(readdirSync(backupDir).sort()).toEqual([good, broken, newest].sort());
+    expect(existsSync(join(backupDir, oldest!))).toBe(false);
+  });
+
+  it("keeps the backup just made when the clock has gone back", async () => {
+    await start(schedule({ keep: 1, firstDelayMs: HOUR }));
+    const [ahead] = await earlier(-30);
+    await server!.runBackup();
+    const left = readdirSync(backupDir);
+    expect(left).toHaveLength(1);
+    expect(left[0]).not.toBe(ahead);
+    await expect(verifyBackup(join(backupDir, left[0]!))).resolves.toBeDefined();
+  });
+
+  it("waits longer after each failure in a row, up to the interval", async () => {
+    const run = vi.fn().mockRejectedValue(new Error("disk full"));
+    await start(schedule({ keep: 1, run, everyMs: 3 * HOUR, firstDelayMs: HOUR }));
+    const waits: number[] = [];
+    for (let i = 0; i < 3; i++) {
+      const before = Date.now();
+      await server!.runBackup();
+      waits.push(Math.round((server!.backupStatus()!.nextAt! - before) / HOUR));
+    }
+    expect(waits).toEqual([1, 2, 3]);
   });
 
   it("records a failure, keeps every earlier backup, and tries again within the hour", async () => {

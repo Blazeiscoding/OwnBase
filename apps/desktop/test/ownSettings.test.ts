@@ -75,7 +75,11 @@ describe("the main process's own settings", () => {
       createSettingsStorage(pagePath, protector),
       ["publicAddress"],
     );
-    await expect(own.get("publicAddress")).rejects.toThrow(/damaged/);
+    // A plain read answers null, as every settings read does when its file
+    // cannot be read, so no caller needs its own catch. A strict one says why.
+    expect(await own.get("publicAddress")).toBeNull();
+    await expect(own.get("publicAddress", { strict: true })).rejects.toThrow(/damaged/);
+    await expect(own.set("publicAddress", "https://new.example.org")).rejects.toThrow(/damaged/);
     writeFileSync(pagePath, JSON.stringify({ publicAddress: "https://chat.example.org" }));
     expect(await own.get("publicAddress")).toBe("https://chat.example.org");
   });

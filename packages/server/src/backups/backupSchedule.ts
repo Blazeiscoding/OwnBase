@@ -53,24 +53,42 @@ export interface BackupScheduleStatus {
   offsite: { lastSuccessAt: number | null; lastError: string | null; failures: number } | null;
 }
 
-const NAME = /^backup-(\d{4})-(\d{2})-(\d{2})T(\d{2})-(\d{2})-(\d{2})Z$/;
-/** A failed backup is tried again this soon, or at the next regular time if that comes first. */
-const RETRY_MS = 3600_000;
+/*
+ * The rule every scheduled backup follows, the server's own and the desktop
+ * app's for the workspaces it hosts: how a backup is named, when the next is
+ * due, how long a failure waits, and which older ones go. Each caller says
+ * only which workspace, which folder, and what checks a copy.
+ */
+
+const STAMP = String.raw`(\d{4})-(\d{2})-(\d{2})T(\d{2})-(\d{2})-(\d{2})`;
+/** A label of plain letters, digits and hyphens, the time, then Z. */
+const NAME = new RegExp(String.raw`^([a-z0-9-]+)-${STAMP}(Z?)$`);
+const HOUR_MS = 3600_000;
+const DAY_MS = 24 * HOUR_MS;
 /** The longest a timer can wait; a later time is reached by waiting again. */
 const LONGEST_TIMER_MS = 2_147_483_647;
 
-/** The folder a backup started at `at` goes in: sortable, and legal on Windows. */
-export function backupFolderName(at: number): string {
-  return `backup-${new Date(at).toISOString().slice(0, 19).replaceAll(":", "-")}Z`;
+/**
+ * The folder a backup started at `at` goes in: sortable, and legal on
+ * Windows. `label` comes first: "backup" for the server's own schedule, the
+ * workspace's name in the desktop app, where one folder may hold several.
+ */
+export function backupFolderName(at: number, label = "backup"): string {
+  return `${label}-${new Date(at).toISOString().slice(0, 19).replaceAll(":", "-")}Z`;
 }
 
-/** When a folder written by `backupFolderName` was started, or null for any other name. */
-export function backupFolderTime(name: string): number | null {
+/**
+ * When a folder written by `backupFolderName` with `label` was started, or
+ * null for any other name. A null label takes any, and also the names the
+ * desktop app wrote until November 2026, which end without the Z.
+ */
+export function backupFolderTime(name: string, label: string | null = "backup"): number | null {
   const match = NAME.exec(name);
   if (!match) return null;
-  const [, y, mo, d, h, mi, s] = match;
+  const [, found, y, mo, d, h, mi, s, z] = match;
+  if (label !== null && (found !== label || !z)) return null;
   const at = Date.UTC(+y!, +mo! - 1, +d!, +h!, +mi!, +s!);
-  return backupFolderName(at) === name ? at : null;
+  return backupFolderName(at, found) === (z ? name : `${name}Z`) ? at : null;
 }
 
 /**
@@ -78,18 +96,22 @@ export function backupFolderTime(name: string): number | null {
  * `backupFolderName`, or an encrypted file named the same with
  * `.encrypted` after it. Null for any other name.
  */
-export function scheduledBackupTime(name: string): number | null {
+export function scheduledBackupTime(name: string, label: string | null = "backup"): number | null {
   return backupFolderTime(
     name.endsWith(ENCRYPTED_SUFFIX) ? name.slice(0, -ENCRYPTED_SUFFIX.length) : name,
+    label,
   );
 }
 
 /**
- * This schedule's backups in `dir`, oldest first: plain folders and
- * encrypted files both, so turning a passphrase on or off keeps counting the
- * ones from before, and prunes them in their turn.
+ * The scheduled backups in `dir` named with `label` (null for any), oldest
+ * first: plain folders and encrypted files both, so turning a passphrase on
+ * or off keeps counting the ones from before, and prunes them in their turn.
  */
-export async function listScheduledBackups(dir: string): Promise<{ name: string; at: number }[]> {
+export async function listScheduledBackups(
+  dir: string,
+  label: string | null = "backup",
+): Promise<{ name: string; at: number }[]> {
   let entries;
   try {
     entries = await readdir(dir, { withFileTypes: true });
@@ -101,21 +123,70 @@ export async function listScheduledBackups(dir: string): Promise<{ name: string;
     .map((entry) => ({
       name: entry.name,
       at: entry.isDirectory()
-        ? backupFolderTime(entry.name)
+        ? backupFolderTime(entry.name, label)
         : entry.isFile() && entry.name.endsWith(ENCRYPTED_SUFFIX)
-          ? scheduledBackupTime(entry.name)
+          ? scheduledBackupTime(entry.name, label)
           : null,
     }))
     .filter((entry): entry is { name: string; at: number } => entry.at !== null)
     .sort((a, b) => a.at - b.at);
 }
 
-/** Removes this schedule's oldest backups past `keep`, returning their names. */
-export async function pruneScheduledBackups(dir: string, keep: number): Promise<string[]> {
-  const backups = await listScheduledBackups(dir);
-  const doomed = backups.slice(0, Math.max(0, backups.length - keep)).map((b) => b.name);
-  for (const name of doomed) await rm(join(dir, name), { recursive: true, force: true });
-  return doomed;
+/** When the next backup is due: `everyMs` after the last, or at once when there is none. */
+export function nextBackupAt(lastAt: number | null | undefined, everyMs: number): number {
+  return lastAt === null || lastAt === undefined ? 0 : lastAt + everyMs;
+}
+
+/**
+ * How long to wait after the `failures`-th failure in a row before trying
+ * again: an hour, doubling with each failure after it, never longer than a
+ * day or than the regular interval. Each try can copy the whole database, so
+ * a full disk or a folder out of reach is not tried every hour forever.
+ */
+export function backupRetryDelay(failures: number, everyMs: number): number {
+  return Math.min(HOUR_MS * 2 ** (Math.max(1, failures) - 1), DAY_MS, everyMs);
+}
+
+/**
+ * Removes the backups past `keep` once `fresh` is made, and gives back what
+ * it removed. `keep` recoverable copies stay: the fresh one, verified as it
+ * was made, and the newest others that `recoverable` passes. They are taken
+ * newest first by the time in their names; a clock set wrong can make that
+ * order lie, which is why only checked copies count and the fresh one always
+ * stays. A copy that fails the check is neither counted nor removed while
+ * copies are still wanted, so a damaged or oddly dated one cannot take a
+ * good one's place. Past `keep`, every older one goes.
+ */
+export async function pruneBackups<T extends { name: string; at: number }>(opts: {
+  backups: readonly T[];
+  fresh: string;
+  keep: number;
+  recoverable: (backup: T) => Promise<boolean>;
+  remove: (backup: T) => Promise<void>;
+}): Promise<T[]> {
+  const older = opts.backups.filter((b) => b.name !== opts.fresh).sort((a, b) => b.at - a.at);
+  const removed: T[] = [];
+  let kept = 1;
+  for (const backup of older) {
+    if (kept >= opts.keep) {
+      await opts.remove(backup);
+      removed.push(backup);
+    } else if (await opts.recoverable(backup).catch(() => false)) kept++;
+  }
+  return removed;
+}
+
+/**
+ * Whether a backup in the server's folder opens: a folder whose manifest
+ * reads, or an encrypted file whose manifest the passphrase opens. The full
+ * check is not run on every kept copy: it reads each one through, and each
+ * was verified before it was published.
+ */
+async function backupOpens(path: string, encryption: BackupEncryption | undefined) {
+  const manifest: unknown = path.endsWith(ENCRYPTED_SUFFIX)
+    ? encryption && (await readSealedManifest(path, encryption.passphrase))
+    : JSON.parse(await readFile(join(path, "manifest.json"), "utf8"));
+  return typeof (manifest as BackupManifest | undefined)?.database?.bytes === "number";
 }
 
 /**
@@ -180,7 +251,7 @@ export function backupInChildProcess(opts: {
  * The timer behind scheduled backups. The next one is due `everyMs` after the
  * newest already in the directory, so a server that restarts often does not
  * take one each time, and one stopped past its time takes one soon after it
- * starts. A failure is tried again within the hour.
+ * starts. A failure is tried again as `backupRetryDelay` says.
  */
 export class BackupSchedule {
   private timer: ReturnType<typeof setTimeout> | null = null;
@@ -236,7 +307,7 @@ export class BackupSchedule {
     }
     if (newest) this.state.lastSuccessAt = newest.at;
     const soonest = this.now() + (this.opts.firstDelayMs ?? 60_000);
-    this.arm(newest ? Math.max(soonest, newest.at + this.opts.everyMs) : soonest);
+    this.arm(Math.max(soonest, nextBackupAt(newest?.at, this.opts.everyMs)));
   }
 
   private arm(at: number): void {
@@ -279,9 +350,15 @@ export class BackupSchedule {
       this.state.lastSuccessAt = started;
       this.state.lastError = null;
       this.state.failures = 0;
-      const removed = await pruneScheduledBackups(this.dir, this.opts.keep);
+      const removed = await pruneBackups({
+        backups: await listScheduledBackups(this.dir),
+        fresh: name,
+        keep: this.opts.keep,
+        recoverable: (backup) => backupOpens(join(this.dir, backup.name), this.opts.encryption),
+        remove: (backup) => rm(join(this.dir, backup.name), { recursive: true, force: true }),
+      });
       this.opts.log.info(
-        { backup: name, attachments: manifest.files.length, removed },
+        { backup: name, attachments: manifest.files.length, removed: removed.map((b) => b.name) },
         "scheduled backup done",
       );
       this.arm(started + this.opts.everyMs);
@@ -294,7 +371,7 @@ export class BackupSchedule {
         { err: error, failures: this.state.failures, backup: name },
         "scheduled backup failed; it will be tried again",
       );
-      this.arm(this.now() + Math.min(RETRY_MS, this.opts.everyMs));
+      this.arm(this.now() + backupRetryDelay(this.state.failures, this.opts.everyMs));
       return;
     }
     this.offsitePending = name;
@@ -305,7 +382,7 @@ export class BackupSchedule {
   /**
    * Sends the newest backup offsite and removes the oldest copies there. A
    * failure leaves the backup itself standing, and only the sending is tried
-   * again within the hour; a newer backup goes in its place.
+   * again, after the first retry delay; a newer backup goes in its place.
    */
   private async sendOffsite(): Promise<void> {
     const offsite = this.opts.offsite;
@@ -341,7 +418,7 @@ export class BackupSchedule {
             this.running = null;
           });
         },
-        Math.min(RETRY_MS, this.opts.everyMs),
+        backupRetryDelay(1, this.opts.everyMs),
       );
       this.offsiteTimer.unref();
     }

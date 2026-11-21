@@ -222,7 +222,7 @@ export class Updates {
   constructor(private readonly deps: UpdateDeps) {}
 
   async load(): Promise<void> {
-    this.kept = readKept(await this.deps.settings.get(UPDATES_KEY).catch(() => null));
+    this.kept = readKept(await this.deps.settings.get(UPDATES_KEY));
     this.loaded = true;
     const { version } = this.deps;
     if (this.kept.ranVersion !== version) {

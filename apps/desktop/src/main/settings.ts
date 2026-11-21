@@ -9,6 +9,10 @@ import {
 } from "./credentials.js";
 
 export interface SettingsStorage {
+  /**
+   * Null when the key is absent or its file cannot be read. Only a strict
+   * read, or one of the saved sign-ins, rejects.
+   */
   get(
     key: string,
     options?: { strict?: boolean; distinguishMissing?: boolean },
@@ -32,8 +36,9 @@ const MOVED_KEY = "movedFromPageSettings";
  * writes. Before the first read or write, `keys` found in `page` are moved
  * here (one already here wins) and removed there, once: after that the page's
  * file is never read for them, so nothing the page writes under those names
- * reaches the main process. While either file cannot be read, nothing is
- * answered and the move is tried again on the next call.
+ * reaches the main process. While either file cannot be read, a read answers
+ * null (a strict one rejects), a write rejects, and the move is tried again
+ * on the next call.
  */
 export function ownSettings(
   own: SettingsStorage,
@@ -58,7 +63,15 @@ export function ownSettings(
       throw error;
     }));
   return {
-    get: async (key, options) => (await move(), own.get(key, options)),
+    get: async (key, options) => {
+      try {
+        await move();
+      } catch (error) {
+        if (options?.strict) throw error;
+        return null;
+      }
+      return own.get(key, options);
+    },
     set: async (key, value) => (await move(), own.set(key, value)),
     update: async (key, change) => (await move(), own.update(key, change)),
     drain: () => own.drain(),

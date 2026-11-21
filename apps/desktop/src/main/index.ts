@@ -1238,13 +1238,11 @@ void app.whenReady().then(async () => {
   await hosting.load();
   await updates.load();
   // Unreadable, the window follows the system until the page says its theme.
-  const saved = await ownSettings.get(WINDOW_THEME_KEY).catch(() => null);
-  windowTheme = isWindowTheme(saved)
-    ? saved
-    : themeOfAppearance(await settings.get("appearance").catch(() => null));
+  const saved = await ownSettings.get(WINDOW_THEME_KEY);
+  windowTheme = isWindowTheme(saved) ? saved : themeOfAppearance(await settings.get("appearance"));
   // Unreadable, the window opens at its usual size, centred.
-  savedWindowPlace = await ownSettings.get(WINDOW_PLACE_KEY).catch(() => null);
-  savedZoom = savedZoomLevel(await ownSettings.get(ZOOM_KEY).catch(() => null));
+  savedWindowPlace = await ownSettings.get(WINDOW_PLACE_KEY);
+  savedZoom = savedZoomLevel(await ownSettings.get(ZOOM_KEY));
   pageLocale = readerLocale({
     appLocale: app.getLocale(),
     systemLocale: app.getSystemLocale(),

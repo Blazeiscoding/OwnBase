@@ -162,7 +162,7 @@ export function createHostingLaunch(
 
   async function readReopenPublic(): Promise<{ folder: string; address: string } | null> {
     if (reopenPublic !== undefined) return reopenPublic;
-    const stored = (await options.settings.get(REOPEN_PUBLIC_KEY).catch(() => null)) as {
+    const stored = (await options.settings.get(REOPEN_PUBLIC_KEY)) as {
       folder?: unknown;
       address?: unknown;
     } | null;

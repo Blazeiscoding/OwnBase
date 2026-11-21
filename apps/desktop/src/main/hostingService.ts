@@ -439,7 +439,7 @@ export function createHostingService(options: HostingServiceOptions) {
     async load(): Promise<void> {
       // Unreadable settings mean no saved address, not a failed launch: the
       // environment can still supply one, and Manage hosting can save one.
-      const stored = await settings.get(PUBLIC_ADDRESS_KEY).catch(() => null);
+      const stored = await settings.get(PUBLIC_ADDRESS_KEY);
       savedAddress = typeof stored === "string" && stored.trim() ? stored.trim() : null;
       addressConfig.forget();
     },

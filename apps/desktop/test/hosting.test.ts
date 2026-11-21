@@ -1678,7 +1678,7 @@ describe("backing up a hosted workspace", () => {
     expect(h.backups).toEqual([
       {
         dataDir: join(h.dataRoot, entry!.folder),
-        out: expect.stringMatching(/rocket-team-\d{4}-\d{2}-\d{2}T\d{2}-\d{2}-\d{2}$/),
+        out: expect.stringMatching(/rocket-team-\d{4}-\d{2}-\d{2}T\d{2}-\d{2}-\d{2}Z$/),
       },
     ]);
     expect(made.path).toBe(h.backups[0]!.out);
@@ -3112,6 +3112,67 @@ describe("protecting recovery copies", () => {
     expect(fresh < join(destination, "rocket-team-2030")).toBe(true);
     expect(readdirSync(destination)).toEqual([fresh.slice(destination.length + 1)]);
     await expect(verifyBackup(fresh)).resolves.toBeDefined();
+  });
+
+  /**
+   * A backup folder as earlier versions left it: their names end without the
+   * Z the shared rule writes. Three good copies of this workspace, a newer
+   * one whose manifest is ruined, another workspace's, and the host's own.
+   */
+  async function namedByEarlierVersions(dataDir: string, destination: string) {
+    const good = [];
+    for (const day of ["01", "02", "03"])
+      good.push(await archive(dataDir, destination, `2026-01-${day}T09-00-00`));
+    const damaged = await archive(dataDir, destination, "2026-01-04T09-00-00");
+    writeFileSync(join(damaged, "manifest.json"), "{}");
+    workspaceDb(join(destination, "other-team-2026-01-05T09-00-00"), "ws-other", "Other Team");
+    writeFileSync(join(destination, "other-team-2026-01-05T09-00-00", "manifest.json"), "{}");
+    mkdirSync(join(destination, "holiday-photos"));
+    writeFileSync(join(destination, "notes.txt"), "mine");
+    return { good, damaged, before: readdirSync(destination).sort() };
+  }
+
+  it("loses nothing named by earlier versions on the first run after the update", async () => {
+    const { h, destination, dataDir, folder } = await realScheduled(4);
+    const { good, damaged, before } = await namedByEarlierVersions(dataDir, destination);
+    h.clock = Date.UTC(2026, 0, 10, 9);
+
+    await h.controller.runDueBackups();
+
+    const fresh = h.backups[0]!.out.slice(destination.length + 1);
+    expect(fresh).toBe("rocket-team-2026-01-10T09-00-00Z");
+    expect(readdirSync(destination).sort()).toEqual([...before, fresh].sort());
+    // Each is still listed, oldest names included, and can be chosen to restore.
+    const listed = await h.controller.listBackups(folder);
+    expect(listed.map((b) => [b.name, b.at, b.damaged])).toEqual([
+      [fresh, Date.UTC(2026, 0, 10, 9), false],
+      ["rocket-team-2026-01-04T09-00-00", Date.UTC(2026, 0, 4, 9), true],
+      ["rocket-team-2026-01-03T09-00-00", Date.UTC(2026, 0, 3, 9), false],
+      ["rocket-team-2026-01-02T09-00-00", Date.UTC(2026, 0, 2, 9), false],
+      ["rocket-team-2026-01-01T09-00-00", Date.UTC(2026, 0, 1, 9), false],
+    ]);
+    await expect(verifyBackup(damaged)).rejects.toThrow();
+    for (const dir of good) await expect(verifyBackup(dir)).resolves.toBeDefined();
+    await expect(
+      h.controller.restoreOver({ folder, backup: "rocket-team-2026-01-01T09-00-00" }),
+    ).resolves.toMatchObject({ folder });
+  });
+
+  it("removes only what earlier versions would have removed when it has to make room", async () => {
+    const { h, destination, dataDir } = await realScheduled(2);
+    const { good, damaged, before } = await namedByEarlierVersions(dataDir, destination);
+    h.clock = Date.UTC(2026, 0, 10, 9);
+
+    await h.controller.runDueBackups();
+
+    // As before: the fresh copy and the newest good one count; the ruined one
+    // newer than both is not counted, so not removed; the two oldest go.
+    const fresh = h.backups[0]!.out.slice(destination.length + 1);
+    const removed = [good[0]!, good[1]!].map((dir) => dir.slice(destination.length + 1));
+    expect(readdirSync(destination).sort()).toEqual(
+      [...before.filter((name) => !removed.includes(name)), fresh].sort(),
+    );
+    expect(existsSync(damaged)).toBe(true);
   });
 
   it("leaves one good copy intact through failed attachment retries and replaces it after repair", async () => {

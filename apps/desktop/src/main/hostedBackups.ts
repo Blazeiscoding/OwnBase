@@ -1,7 +1,14 @@
 import { existsSync } from "node:fs";
 import { readdir, rm, stat } from "node:fs/promises";
-import { isAbsolute, join } from "node:path";
+import { basename, isAbsolute, join } from "node:path";
 import type { HostedBackup } from "@ownbase/protocol/desktop";
+import {
+  backupFolderName,
+  backupRetryDelay,
+  listScheduledBackups,
+  nextBackupAt,
+  pruneBackups,
+} from "@ownbase/server/backupSchedule";
 import type { HostedList } from "./hostedList.js";
 import type { HostingOptions } from "./hosting.js";
 import {
@@ -37,9 +44,6 @@ async function folderBytes(dir: string): Promise<number> {
   }
   return total;
 }
-
-/** The name `backup` gives a backup's folder: the workspace's name, then when. */
-export const BACKUP_NAME = /^[a-z0-9-]+-\d{4}-\d{2}-\d{2}T\d{2}-\d{2}-\d{2}$/;
 
 export function megabytes(bytes: number): string {
   return `${Math.max(1, Math.round(bytes / (1024 * 1024)))} MB`;
@@ -184,10 +188,7 @@ export function createHostedBackups(
     // Two backups in one second would want one name; the later moves on a second.
     let at = now();
     const named = (time: number) =>
-      join(
-        destination,
-        `${legacyFolder(entry.name)}-${new Date(time).toISOString().slice(0, 19).replaceAll(":", "-")}`,
-      );
+      join(destination, backupFolderName(time, legacyFolder(entry.name)));
     while (existsSync(named(at))) at += 1000;
     const out = named(at);
     await options.backupWorkspace({ dataDir, out });
@@ -208,23 +209,23 @@ export function createHostedBackups(
 
   /**
    * This workspace's own backups in `destination`, newest first by the time
-   * in their names: folders named as `backup` names them, holding a manifest
-   * and this very workspace's id. Nothing is checked or touched here.
+   * in their names: folders named as scheduled backups are, under any
+   * workspace's name, holding a manifest and this very workspace's id.
+   * Nothing is checked or touched here.
    */
   async function ownBackups(
     entry: HostedWorkspace,
     destination: string,
-  ): Promise<{ name: string; path: string; stamp: string }[]> {
+  ): Promise<{ name: string; path: string; at: number }[]> {
     if (!entry.id) return [];
-    const found: { name: string; path: string; stamp: string }[] = [];
-    for (const item of await readdir(destination, { withFileTypes: true })) {
-      if (!item.isDirectory() || !BACKUP_NAME.test(item.name)) continue;
-      const path = join(destination, item.name);
+    const found: { name: string; path: string; at: number }[] = [];
+    for (const { name, at } of await listScheduledBackups(destination, null)) {
+      const path = join(destination, name);
       if (!existsSync(join(path, "manifest.json"))) continue;
       if (read(path)?.id !== entry.id) continue;
-      found.push({ name: item.name, path, stamp: item.name.slice(-19) });
+      found.push({ name, path, at });
     }
-    return found.sort((a, b) => (a.stamp < b.stamp ? 1 : a.stamp > b.stamp ? -1 : 0));
+    return found.reverse();
   }
 
   /**
@@ -239,17 +240,13 @@ export function createHostedBackups(
     const destination = entry.autoBackup?.destination;
     if (!destination || !existsSync(destination)) return [];
     const listed: HostedBackup[] = [];
-    for (const found of await ownBackups(entry, destination).catch(() => [])) {
-      // The name holds when it was made, in UTC, as `backup` wrote it.
-      const at = Date.parse(
-        `${found.stamp.slice(0, 10)}T${found.stamp.slice(11).replaceAll("-", ":")}Z`,
-      );
+    for (const { name, path, at } of await ownBackups(entry, destination).catch(() => [])) {
       try {
-        const manifest = await options.verifyBackup(found.path);
+        const manifest = await options.verifyBackup(path);
         const bytes = manifest.database.bytes + manifest.files.reduce((n, f) => n + f.bytes, 0);
-        listed.push({ name: found.name, at, bytes, damaged: false });
+        listed.push({ name, at, bytes, damaged: false });
       } catch {
-        listed.push({ name: found.name, at, bytes: null, damaged: true });
+        listed.push({ name, at, bytes: null, damaged: true });
       }
     }
     return listed;
@@ -311,40 +308,26 @@ export function createHostedBackups(
   }
 
   /**
-   * Removes a workspace's older backups from its schedule's folder, keeping
-   * `keep` recoverable copies: the one just made, which the server has
-   * verified, and the newest others that pass the same check. A copy that
-   * fails it never counts towards `keep`, so a damaged or oddly dated folder
-   * cannot take a good copy's place. Only a folder this app named, holding a
-   * backup of this very workspace, is ever removed; anything else there is
-   * left alone.
+   * Removes a workspace's older backups from its schedule's folder by the
+   * shared rule, counting a copy only when it passes the check a restore
+   * makes. Only a folder named as a backup, holding a backup of this very
+   * workspace, is ever removed; anything else there is left alone.
    */
-  async function pruneBackups(
+  async function removeOlderBackups(
     entry: HostedWorkspace,
     schedule: AutoBackup,
     fresh: string,
   ): Promise<void> {
-    // Newest first by the time in its name. A clock set wrong can make that
-    // order lie, which is why only checked copies count and the fresh one stays.
-    const found = (await ownBackups(entry, schedule.destination)).filter((b) => b.path !== fresh);
-    let kept = 1;
-    for (const candidate of found) {
-      if (kept >= schedule.keep) {
-        await rm(candidate.path, { recursive: true, force: true });
-        continue;
-      }
-      let recoverable = false;
-      try {
-        if (options.verifyBackup) {
-          await options.verifyBackup(candidate.path);
-          recoverable = read(candidate.path)?.id === entry.id;
-        }
-      } catch {
-        recoverable = false;
-      }
-      // One that fails is neither counted nor removed while copies are still wanted.
-      if (recoverable) kept++;
-    }
+    await pruneBackups({
+      backups: await ownBackups(entry, schedule.destination),
+      fresh: basename(fresh),
+      keep: schedule.keep,
+      recoverable: async ({ path }) => {
+        await options.verifyBackup(path);
+        return read(path)?.id === entry.id;
+      },
+      remove: ({ path }) => rm(path, { recursive: true, force: true }),
+    });
   }
 
   /**
@@ -401,17 +384,15 @@ export function createHostedBackups(
           if (!existsSync(hosted.dataDirOf(entry))) return false;
           if (schedule.retry && now() < schedule.retry.nextAt && !retryFailed) return false;
           // Never backed up by this schedule into its folder, it is due now.
-          // Otherwise a little early is fine: the check runs every few minutes.
-          const due =
-            schedule.lastAt === undefined
-              ? 0
-              : schedule.lastAt + schedule.everyDays * 24 * 3600_000 - 10 * 60_000;
-          if (now() < due) return false;
+          // A little early is fine: the check runs every 15 minutes.
+          const everyMs = schedule.everyDays * 24 * 3600_000;
+          if (now() < nextBackupAt(schedule.lastAt, everyMs) - 10 * 60_000) return false;
           const attempt = now();
+          // The delay stops growing by the sixth.
           const attempts = Math.min((schedule.retry?.attempts ?? 0) + 1, 6);
           const retry = {
             attempts,
-            nextAt: attempt + Math.min(3600_000 * 2 ** (attempts - 1), 24 * 3600_000),
+            nextAt: attempt + backupRetryDelay(attempts, everyMs),
             error: "The last scheduled backup did not finish. OwnBase will try it again later.",
           };
           // Reserve before taking any snapshot. A killed worker/app must not
@@ -459,7 +440,7 @@ export function createHostedBackups(
             await hosted.save();
             savedCompletion = true;
             // A failed capture cannot trigger retention or displace a verified copy.
-            await pruneBackups(latest, schedule, made.path);
+            await removeOlderBackups(latest, schedule, made.path);
           } catch (error) {
             // A verified copy is a successful capture even if its metadata or
             // retention cleanup fails. Do not promise a capture retry that its
