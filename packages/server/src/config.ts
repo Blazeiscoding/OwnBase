@@ -88,9 +88,21 @@ export function parseMetricsToken(raw: string | undefined): string | undefined {
  */
 export function parsePushContact(raw: string | undefined): string | undefined {
   if (raw === undefined) return undefined;
-  if (typeof raw !== "string" || !/^(mailto:\S+@\S+|https:\/\/\S+)$/.test(raw))
+  if (typeof raw !== "string" || !usablePushContact(raw))
     throw new ConfigError("--push-contact must be a mailto: or https: address");
   return raw;
+}
+
+/**
+ * `mailto:` with an @ that has something on each side, or `https://` and
+ * more, with no spaces. Written without a regular expression: `\S+@\S+`
+ * backtracks on a long run of `@`s.
+ */
+function usablePushContact(contact: string): boolean {
+  if (/\s/.test(contact)) return false;
+  if (contact.startsWith("https://")) return contact.length > "https://".length;
+  // After "mailto:" and one character, before the last one.
+  return contact.startsWith("mailto:") && contact.slice("mailto:".length + 1, -1).includes("@");
 }
 
 /** How the server sends email (G10), when its host gave it an SMTP account. */

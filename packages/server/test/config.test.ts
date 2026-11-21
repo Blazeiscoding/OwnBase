@@ -9,6 +9,7 @@ import {
   parseMailSettings,
   parsePort,
   parsePublicUrl,
+  parsePushContact,
   parseWholeNumber,
 } from "../src/config.js";
 import { envSetting } from "../src/cli/flags.js";
@@ -118,6 +119,30 @@ describe("a count of whole units", () => {
     for (const bad of ["-1", "abc", "", "1e3", "99999999999999999999"]) {
       expect(() => parseWholeNumber(bad, "--retention-days", 0), bad).toThrow(ConfigError);
     }
+  });
+});
+
+describe("a push contact", () => {
+  it("is a mailto: address with an @, or an https: address, without spaces", () => {
+    for (const good of ["mailto:ops@example.test", "mailto:a@b", "https://example.test/contact"])
+      expect(parsePushContact(good), good).toBe(good);
+    for (const bad of [
+      "mailto:@example.test",
+      "mailto:ops@",
+      "mailto:ops",
+      "mailto:ops @example.test",
+      "https://",
+      "http://example.test",
+      "ops@example.test",
+      "",
+    ])
+      expect(() => parsePushContact(bad), bad).toThrow(ConfigError);
+  });
+
+  it("is checked at once however long it is", () => {
+    const started = performance.now();
+    expect(() => parsePushContact(`mailto:${"!@".repeat(50_000)} `)).toThrow(ConfigError);
+    expect(performance.now() - started).toBeLessThan(100);
   });
 });
 
