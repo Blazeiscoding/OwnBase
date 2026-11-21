@@ -355,6 +355,24 @@ describe("subscriptions and commands", () => {
     expect(received).toEqual([]);
   });
 
+  it("are audited without a host, made or removed, for an app on Socket Mode", async () => {
+    const app = await socketApp("Quiet Bot");
+    const sub = await api<{ subscription: { id: string } }>(`/api/apps/${app.id}/subscriptions`, {
+      token: aliceToken,
+      body: { eventTypes: ["message.created"] },
+    });
+    await api(`/api/subscriptions/${sub.data.subscription.id}`, {
+      token: aliceToken,
+      method: "DELETE",
+    });
+    const details = server.store.audit
+      .list({ limit: 50 })
+      .filter((entry) => entry.targetId === sub.data.subscription.id)
+      .map((entry) => entry.details);
+    expect(details).toHaveLength(2);
+    for (const entry of details) expect(entry).not.toHaveProperty("host");
+  });
+
   it("still need a URL, and the URL still answers the check, for an app sent things by URL", async () => {
     const app = await newApp("Plain Bot");
     const sub = await api<{ error: string }>(`/api/apps/${app.id}/subscriptions`, {
