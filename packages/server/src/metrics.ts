@@ -11,9 +11,6 @@ import { SERVER_VERSION } from "./version.js";
  * as `/api/channels/:id/messages`, never by the address asked for.
  */
 
-/** The shortest token accepted, so a guessable one is refused at start. */
-export const METRICS_TOKEN_MIN_LENGTH = 16;
-
 /** Upper bounds of the request-duration buckets, in seconds. */
 const BUCKETS = [0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5, 10];
 

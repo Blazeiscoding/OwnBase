@@ -201,4 +201,23 @@ describe("the server checks too, for callers other than the CLI", () => {
     // Refused at the door: no workspace was created on the way to failing.
     expect(existsSync(join(dir, "workspace.db"))).toBe(false);
   });
+
+  it("refuses a push contact push services could not use, as the CLI does", async () => {
+    dir = mkdtempSync(join(tmpdir(), "ownbase-config-"));
+    for (const pushContact of ["ops@example.test", "http://example.test", "mailto:nobody"])
+      await expect(
+        createWorkspaceServer({ dataDir: dir, port: 0, mdns: false, logger: false, pushContact }),
+        pushContact,
+      ).rejects.toThrow("--push-contact must be a mailto: or https: address");
+    expect(existsSync(join(dir, "workspace.db"))).toBe(false);
+  });
+
+  it("refuses a short metrics token with the CLI's words", async () => {
+    dir = mkdtempSync(join(tmpdir(), "ownbase-config-"));
+    await expect(
+      createWorkspaceServer({ dataDir: dir, port: 0, mdns: false, metricsToken: "too-short" }),
+    ).rejects.toThrow(
+      new ConfigError("--metrics-token must be at least 16 characters without spaces"),
+    );
+  });
 });

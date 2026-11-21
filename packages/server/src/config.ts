@@ -68,6 +68,31 @@ export function parsePublicUrl(raw: string, flag = "--public-url"): string {
   return url.href.replace(/\/+$/, "");
 }
 
+/** The shortest metrics token accepted, so a guessable one is refused at start (G15). */
+export const METRICS_TOKEN_MIN_LENGTH = 16;
+
+/** --metrics-token (G15): the token `GET /metrics` asks for. */
+export function parseMetricsToken(raw: string | undefined): string | undefined {
+  if (raw === undefined) return undefined;
+  if (typeof raw !== "string" || raw.length < METRICS_TOKEN_MIN_LENGTH || /\s/.test(raw))
+    throw new ConfigError(
+      `--metrics-token must be at least ${METRICS_TOKEN_MIN_LENGTH} characters without spaces`,
+    );
+  return raw;
+}
+
+/**
+ * --push-contact: how push services reach whoever runs this server. RFC 8292
+ * allows only a `mailto:` or `https:` address, and a push service may refuse
+ * every notification signed with anything else.
+ */
+export function parsePushContact(raw: string | undefined): string | undefined {
+  if (raw === undefined) return undefined;
+  if (typeof raw !== "string" || !/^(mailto:\S+@\S+|https:\/\/\S+)$/.test(raw))
+    throw new ConfigError("--push-contact must be a mailto: or https: address");
+  return raw;
+}
+
 /** How the server sends email (G10), when its host gave it an SMTP account. */
 export interface MailSettings {
   /** smtp://user:password@host:587, or smtps:// for TLS from the start. */
