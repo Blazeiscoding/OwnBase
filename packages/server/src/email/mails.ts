@@ -24,12 +24,7 @@ interface MailLink {
  * text part shows the address itself, to copy where a link cannot be opened;
  * the HTML part says what the link does.
  */
-function compose(
-  to: string,
-  subject: string,
-  paragraphs: string[],
-  link: MailLink | null,
-): Mail {
+function compose(to: string, subject: string, paragraphs: string[], link: MailLink | null): Mail {
   const text = paragraphs.map((p) => (p === "{link}" ? link!.url : p)).join("\n\n") + "\n";
   const body = paragraphs
     .map((p) =>
@@ -47,8 +42,7 @@ ${body}
 }
 
 /** "Maya Chen (@maya)": the name people know the account by, and its username. */
-export const accountName = (displayName: string, handle: string) =>
-  `${displayName} (@${handle})`;
+export const accountName = (displayName: string, handle: string) => `${displayName} (@${handle})`;
 
 export function resetMail(input: {
   to: string;
