@@ -115,18 +115,12 @@ function StandInRows({ label }: { label: string }) {
 }
 
 /**
- * When what it wraps goes while holding focus, focus moves to `home` instead
- * of falling to the page. A layout cleanup runs while the wrapped content is
- * still in the document, so it can still tell where focus is.
+ * When the element given the ref goes while holding focus, focus moves to
+ * `home` instead of falling to the page. A layout cleanup runs while the
+ * element is still in the document, so it can still tell where focus is.
  */
-export function KeepsFocus({
-  home,
-  children,
-}: {
-  home: RefObject<HTMLElement | null>;
-  children: ReactNode;
-}) {
-  const own = useRef<HTMLDivElement>(null);
+export function useKeepsFocus<T extends HTMLElement>(home: RefObject<HTMLElement | null>) {
+  const own = useRef<T>(null);
   useLayoutEffect(() => {
     const element = own.current;
     return () => {
@@ -134,5 +128,16 @@ export function KeepsFocus({
       if (element?.contains(document.activeElement)) home.current?.focus({ preventScroll: true });
     };
   }, [home]);
-  return <div ref={own}>{children}</div>;
+  return own;
+}
+
+/** Keeps focus in `home` when what it wraps goes; see `useKeepsFocus`. */
+export function KeepsFocus({
+  home,
+  children,
+}: {
+  home: RefObject<HTMLElement | null>;
+  children: ReactNode;
+}) {
+  return <div ref={useKeepsFocus<HTMLDivElement>(home)}>{children}</div>;
 }
