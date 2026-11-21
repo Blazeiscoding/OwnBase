@@ -1,4 +1,5 @@
 import { useMemo } from "react";
+import { SEARCH_WORDS_MAX } from "@ownbase/protocol";
 import { useStore } from "zustand";
 import { createStore } from "zustand/vanilla";
 import { useClient, usePlatform, useWorkspace } from "../context.js";
@@ -27,7 +28,7 @@ function parse(value: unknown): RecentSearch[] {
     if (
       !item ||
       typeof item.query !== "string" ||
-      item.query.length > 200 ||
+      item.query.length > SEARCH_WORDS_MAX ||
       (item.channelId !== undefined && (typeof item.channelId !== "string" || !item.channelId)) ||
       (!item.query.trim() && !item.channelId)
     )

@@ -1,6 +1,11 @@
 import { useEffect, useId, useMemo, useRef, useState, type FormEvent } from "react";
 import { ApiError } from "@ownbase/client-core";
-import { CUSTOM_EMOJI_NAME, isAdministrator, type CustomEmoji } from "@ownbase/protocol";
+import {
+  CUSTOM_EMOJI_NAME_MAX,
+  CUSTOM_EMOJI_NAME,
+  mayRemoveEmoji,
+  type CustomEmoji,
+} from "@ownbase/protocol";
 import { useClient, useWorkspace } from "../context.js";
 import { failureText } from "../lib/failure.js";
 import { EmojiPictureProblem, prepareEmojiPicture } from "../lib/emojiImage.js";
@@ -17,7 +22,7 @@ export function nameFromFile(fileName: string): string {
     .toLowerCase()
     .replace(/[^a-z0-9_-]+/g, "-")
     .replace(/^-+|-+$/g, "")
-    .slice(0, 32);
+    .slice(0, CUSTOM_EMOJI_NAME_MAX);
 }
 
 /** How long a row just added stays marked, so the eye finds it in the list. */
@@ -121,8 +126,7 @@ export function CustomEmojiDialog({ onClose }: { onClose: () => void }) {
         ) : (
           <ul className="divide-y divide-edge/60">
             {list.map((emoji) => {
-              const mayRemove =
-                !!self && (emoji.createdBy === self.id || isAdministrator(self.role));
+              const mayRemove = mayRemoveEmoji(self, emoji);
               const by = emoji.createdBy === self?.id ? "you" : users[emoji.createdBy]?.displayName;
               return (
                 <li
@@ -220,7 +224,9 @@ function AddEmojiForm({ onAdded }: { onAdded: (name: string) => void }) {
       return;
     }
     if (!CUSTOM_EMOJI_NAME.test(chosen))
-      return nameRefused("A name has 1 to 32 lowercase letters, digits, dashes or underscores.");
+      return nameRefused(
+        `A name has 1 to ${CUSTOM_EMOJI_NAME_MAX} lowercase letters, digits, dashes or underscores.`,
+      );
     if (Object.hasOwn(custom, chosen))
       return nameRefused(`:${chosen}: is already in this workspace. Choose another name.`);
     setBusy(true);
@@ -293,7 +299,7 @@ function AddEmojiForm({ onAdded }: { onAdded: (name: string) => void }) {
           ref={nameInput}
           id={nameId}
           value={name}
-          maxLength={34}
+          maxLength={CUSTOM_EMOJI_NAME_MAX + 2}
           autoComplete="off"
           spellCheck={false}
           onChange={(event) => {

@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useId, useRef, useState } from "react";
+import { PASSWORD_MAX, TWO_STEP_CODE_MAX } from "@ownbase/protocol";
 import { useDismissGuard } from "../lib/dismissGuard.js";
 import { ApiError, selfMay } from "@ownbase/client-core";
 import { useClient, useWorkspace } from "../context.js";
@@ -241,7 +242,7 @@ export function TwoStepSettings() {
             autoComplete="current-password"
             value={password}
             onChange={(event) => setPassword(event.target.value)}
-            maxLength={256}
+            maxLength={PASSWORD_MAX}
             readOnly={busy}
           />
           {error && (
@@ -305,7 +306,7 @@ export function TwoStepSettings() {
               spellCheck={false}
               value={code}
               onChange={(event) => setCode(event.target.value)}
-              maxLength={16}
+              maxLength={TWO_STEP_CODE_MAX}
               readOnly={busy}
             />
           </div>

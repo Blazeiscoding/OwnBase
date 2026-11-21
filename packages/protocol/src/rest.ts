@@ -20,17 +20,36 @@ import { idSchema } from "./socket.js";
 import { appEventType } from "./appEvents.js";
 import { COMMAND_NAME } from "./commands.js";
 import { EMAIL_MAX, isEmailAddress } from "./email.js";
+import { PAGE_ID_CHARS } from "./pageLinks.js";
+import { NOTIFICATION_PREVIEWS } from "./notify.js";
+import {
+  CHANNEL_DESCRIPTION_MAX,
+  CHANNEL_NAME_MAX,
+  CHANNEL_TOPIC_MAX,
+  DISPLAY_NAME_MAX,
+  GROUP_DM_OTHERS_MAX,
+  HANDLE_CHARS,
+  HANDLE_MAX,
+  HANDLE_MIN,
+  PASSWORD_MAX,
+  PASSWORD_MIN,
+  SEARCH_WORDS_MAX,
+  STATUS_TEXT_MAX,
+  TWO_STEP_CODE_MAX,
+  USER_GROUP_DESCRIPTION_MAX,
+  USER_GROUP_NAME_MAX,
+} from "./limits.js";
 
 export const handleSchema = z
   .string()
-  .min(2)
-  .max(32)
-  .regex(/^[a-z0-9][a-z0-9._-]*$/, "lowercase letters, digits, . _ - only");
+  .min(HANDLE_MIN)
+  .max(HANDLE_MAX)
+  .regex(HANDLE_CHARS, "lowercase letters, digits, . _ - only");
 
 export const registerBody = z.object({
   handle: handleSchema,
-  displayName: z.string().min(1).max(80),
-  password: z.string().min(8).max(256),
+  displayName: z.string().min(1).max(DISPLAY_NAME_MAX),
+  password: z.string().min(PASSWORD_MIN).max(PASSWORD_MAX),
   inviteCode: z.string().optional(),
   /** Proves the first account is being created by whoever runs the server. */
   claimCode: z.string().max(128).optional(),
@@ -47,23 +66,23 @@ export const settingsValuesBody = z.record(z.string().max(64), z.union([z.string
 
 /** Joining as a guest, where the workspace allows it: a name and nothing else. */
 export const guestJoinBody = z.object({
-  displayName: z.string().trim().min(1).max(80),
+  displayName: z.string().trim().min(1).max(DISPLAY_NAME_MAX),
 });
 
 /** A guest choosing to keep their identity as an ordinary account. */
 export const guestAccountBody = z.object({
   handle: handleSchema,
-  password: z.string().min(8).max(256),
+  password: z.string().min(PASSWORD_MIN).max(PASSWORD_MAX),
 });
 
 export const changePasswordBody = z.object({
-  currentPassword: z.string().min(1).max(256),
-  newPassword: z.string().min(8).max(256),
+  currentPassword: z.string().min(1).max(PASSWORD_MAX),
+  newPassword: z.string().min(PASSWORD_MIN).max(PASSWORD_MAX),
 });
 
 export const loginBody = z.object({
   handle: handleSchema,
-  password: z.string().min(1).max(256),
+  password: z.string().min(1).max(PASSWORD_MAX),
   /**
    * This client can answer a second step (E11). An account with two-step
    * sign-in is refused to one that does not say so, which could not finish.
@@ -75,7 +94,7 @@ export const loginBody = z.object({
 export const twoStepSignInBody = z
   .object({
     challenge: z.string().min(1).max(128),
-    code: z.string().min(1).max(16).optional(),
+    code: z.string().min(1).max(TWO_STEP_CODE_MAX).optional(),
     recoveryCode: z.string().min(1).max(32).optional(),
   })
   .refine((body) => (body.code === undefined) !== (body.recoveryCode === undefined), {
@@ -91,7 +110,7 @@ export const reportMessageBody = z.object({
 export const resolveReportBody = z.object({ action: z.enum(REPORT_RESOLUTIONS) });
 
 /** Proves it is this account's owner before its two-step sign-in changes (E11). */
-export const twoStepPasswordBody = z.object({ password: z.string().min(1).max(256) });
+export const twoStepPasswordBody = z.object({ password: z.string().min(1).max(PASSWORD_MAX) });
 
 /** An email address as people type one; see `isEmailAddress`. */
 export const emailAddress = z
@@ -103,7 +122,7 @@ export const emailAddress = z
 /** An address for this account, with its password (G10): a stolen session cannot add one. */
 export const setEmailBody = z.object({
   email: emailAddress,
-  password: z.string().min(1).max(256),
+  password: z.string().min(1).max(PASSWORD_MAX),
 });
 
 /** The token from a link that was emailed (G10). */
@@ -115,18 +134,18 @@ export const forgotPasswordBody = z.object({ email: emailAddress });
 /** A new password, with the token from the emailed link (G10). */
 export const resetPasswordBody = z.object({
   token: z.string().min(1).max(128),
-  password: z.string().min(8).max(256),
+  password: z.string().min(PASSWORD_MIN).max(PASSWORD_MAX),
 });
 
 /** Where to email an invite link (G10). */
 export const emailInviteBody = z.object({ email: emailAddress });
 
 /** A code from the authenticator app, to turn two-step sign-in on (E11). */
-export const twoStepCodeBody = z.object({ code: z.string().min(1).max(16) });
+export const twoStepCodeBody = z.object({ code: z.string().min(1).max(TWO_STEP_CODE_MAX) });
 
 export const updateMeBody = z.object({
-  displayName: z.string().min(1).max(80).optional(),
-  statusText: z.string().max(120).optional(),
+  displayName: z.string().min(1).max(DISPLAY_NAME_MAX).optional(),
+  statusText: z.string().max(STATUS_TEXT_MAX).optional(),
   statusEmoji: z.string().max(32).optional(),
   /**
    * When the status clears itself, epoch ms; null to keep it until changed.
@@ -163,10 +182,6 @@ export const channelPrefsBody = z.object({
   hiddenSeq: z.number().int().min(0).nullable().optional(),
 });
 
-/** How much a notification may say: the message, only who sent it and where, or nothing. */
-export const PUSH_PREVIEWS = ["full", "sender", "none"] as const;
-export type PushPreview = (typeof PUSH_PREVIEWS)[number];
-
 /**
  * `PUT /api/push/subscription`: a browser's push subscription, as
  * `PushSubscription.toJSON()` gives it, with how much its pushes may say.
@@ -174,7 +189,7 @@ export type PushPreview = (typeof PUSH_PREVIEWS)[number];
 export const pushSubscriptionBody = z.object({
   endpoint: z.string().max(2000),
   keys: z.object({ p256dh: z.string().max(200), auth: z.string().max(100) }),
-  preview: z.enum(PUSH_PREVIEWS),
+  preview: z.enum(NOTIFICATION_PREVIEWS),
 });
 
 /** `PUT /api/me/notify-default`: what conversations notify about unless set on their own (v53). */
@@ -224,12 +239,12 @@ export const sharedFilesQuery = z.object({
   limit: z.coerce.number().int().min(1).max(100).default(30),
   cursor: z
     .string()
-    .regex(/^[A-Za-z0-9_-]{1,64}:[A-Za-z0-9_-]{1,64}$/)
+    .regex(new RegExp(`^${PAGE_ID_CHARS}:${PAGE_ID_CHARS}$`))
     .optional(),
   kind: z.enum(FILE_KINDS).optional(),
   userId: idSchema.optional(),
   channelId: idSchema.optional(),
-  q: z.string().trim().max(200).optional(),
+  q: z.string().trim().max(SEARCH_WORDS_MAX).optional(),
 });
 export const followedThreadsQuery = savedMessagesQuery.extend({
   unreadOnly: z.enum(["true", "false"]).default("false"),
@@ -260,15 +275,15 @@ export const markUnreadBody = z.object({ seq: z.number().int().positive() });
 export const createChannelBody = z.discriminatedUnion("type", [
   z.object({
     type: z.literal("public"),
-    name: z.string().trim().min(1).max(80),
-    topic: z.string().max(250).optional(),
-    description: z.string().max(500).optional(),
+    name: z.string().trim().min(1).max(CHANNEL_NAME_MAX),
+    topic: z.string().max(CHANNEL_TOPIC_MAX).optional(),
+    description: z.string().max(CHANNEL_DESCRIPTION_MAX).optional(),
   }),
   z.object({
     type: z.literal("private"),
-    name: z.string().trim().min(1).max(80),
-    topic: z.string().max(250).optional(),
-    description: z.string().max(500).optional(),
+    name: z.string().trim().min(1).max(CHANNEL_NAME_MAX),
+    topic: z.string().max(CHANNEL_TOPIC_MAX).optional(),
+    description: z.string().max(CHANNEL_DESCRIPTION_MAX).optional(),
     memberIds: z.array(z.string()).optional(),
   }),
   z.object({
@@ -277,14 +292,14 @@ export const createChannelBody = z.discriminatedUnion("type", [
   }),
   z.object({
     type: z.literal("group_dm"),
-    memberIds: z.array(z.string()).min(2).max(8),
+    memberIds: z.array(z.string()).min(2).max(GROUP_DM_OTHERS_MAX),
   }),
 ]);
 
 export const updateChannelBody = z.object({
-  name: z.string().trim().min(1).max(80).optional(),
-  topic: z.string().max(250).optional(),
-  description: z.string().max(500).optional(),
+  name: z.string().trim().min(1).max(CHANNEL_NAME_MAX).optional(),
+  topic: z.string().max(CHANNEL_TOPIC_MAX).optional(),
+  description: z.string().max(CHANNEL_DESCRIPTION_MAX).optional(),
   archived: z.boolean().optional(),
 });
 
@@ -550,16 +565,16 @@ const groupMemberIds = z.array(idSchema).max(USER_GROUP_MAX_MEMBERS);
 
 export const createUserGroupBody = z.object({
   handle: handleSchema,
-  name: z.string().trim().min(1).max(80),
-  description: z.string().trim().max(250).default(""),
+  name: z.string().trim().min(1).max(USER_GROUP_NAME_MAX),
+  description: z.string().trim().max(USER_GROUP_DESCRIPTION_MAX).default(""),
   memberIds: groupMemberIds.default([]),
 });
 
 /** What to change; `memberIds` replaces the whole list. */
 export const updateUserGroupBody = z.object({
   handle: handleSchema.optional(),
-  name: z.string().trim().min(1).max(80).optional(),
-  description: z.string().trim().max(250).optional(),
+  name: z.string().trim().min(1).max(USER_GROUP_NAME_MAX).optional(),
+  description: z.string().trim().max(USER_GROUP_DESCRIPTION_MAX).optional(),
   memberIds: groupMemberIds.optional(),
 });
 
@@ -586,7 +601,7 @@ export const messageHistoryQuery = z.object({
 });
 
 export const searchQuery = z.object({
-  q: z.string().max(200).default(""),
+  q: z.string().max(SEARCH_WORDS_MAX).default(""),
   limit: z.coerce.number().int().positive().max(100).default(30),
   cursor: z.string().min(1).max(100).optional(),
   channelId: z.string().min(1).max(100).optional(),

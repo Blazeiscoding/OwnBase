@@ -1,6 +1,10 @@
 import { useId, useMemo, useRef, useState } from "react";
 import {
-  handleSchema,
+  HANDLE_MAX,
+  HANDLE_MIN,
+  isHandle,
+  USER_GROUP_DESCRIPTION_MAX,
+  USER_GROUP_NAME_MAX,
   RESERVED_HANDLES,
   type ID,
   type User,
@@ -216,7 +220,7 @@ export function handleFromName(name: string): string {
     .replace(/[^a-z0-9._-]+/g, "-")
     .replace(/^[^a-z0-9]+/, "")
     .replace(/[-._]+$/, "")
-    .slice(0, 32);
+    .slice(0, HANDLE_MAX);
 }
 
 /**
@@ -231,8 +235,8 @@ export function handleProblem(
   ownId: ID | null,
 ): string | null {
   if (!handle) return "Give the group a handle, the word people type after @.";
-  if (!handleSchema.safeParse(handle).success)
-    return "Use 2 to 32 lowercase letters, digits, dots, dashes or underscores, starting with a letter or digit.";
+  if (!isHandle(handle))
+    return `Use ${HANDLE_MIN} to ${HANDLE_MAX} lowercase letters, digits, dots, dashes or underscores, starting with a letter or digit.`;
   if (RESERVED_HANDLES.includes(handle))
     return `@${handle} already means everyone in a conversation. Choose another.`;
   const person = Object.values(users).find((user) => user.handle === handle);
@@ -371,7 +375,7 @@ function GroupForm({
             placeholder="Design"
             error={tried && nameProblem ? nameProblem : undefined}
             value={name}
-            maxLength={80}
+            maxLength={USER_GROUP_NAME_MAX}
             onChange={(event) => setName(event.target.value)}
           />
           <div>
@@ -389,7 +393,7 @@ function GroupForm({
                 ref={handleField}
                 id={handleId}
                 value={handle}
-                maxLength={33}
+                maxLength={HANDLE_MAX + 1}
                 autoComplete="off"
                 spellCheck={false}
                 placeholder="design"
@@ -420,7 +424,7 @@ function GroupForm({
             label="Description"
             hint="Optional. Who it is for, shown beside its name."
             value={description}
-            maxLength={250}
+            maxLength={USER_GROUP_DESCRIPTION_MAX}
             onChange={(event) => setDescription(event.target.value)}
           />
           <fieldset>

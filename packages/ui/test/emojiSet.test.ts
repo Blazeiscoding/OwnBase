@@ -117,6 +117,12 @@ describe("a message of emoji alone", () => {
       expect(onlyEmoji(text, custom), text).toBe(false);
     expect(onlyEmoji(":party-parrot:")).toBe(false);
   });
+
+  it("reads a name as the message draws it, so a name drawn as text is not shown large", () => {
+    // Mrkdwn draws no picture for a name right after a colon: the second
+    // name here shows as ":ok:", text in a message that must stay small.
+    expect(onlyEmoji(":party-parrot::ok:", { "party-parrot": {}, ok: {} })).toBe(false);
+  });
 });
 
 describe("the emoji files", () => {

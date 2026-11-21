@@ -25,11 +25,12 @@ export function escapeMrkdwn(text: string): string {
  */
 export type Broadcast = "channel" | "here";
 
-const BROADCAST_RE = /<!(channel|here|everyone)>/g;
+/** `<!here>`, `<!channel>` or `<!everyone>`. Global: use with matchAll or replaceAll. */
+export const BROADCAST_MENTION = /<!(channel|here|everyone)>/g;
 
 export function broadcastsIn(text: string): Set<Broadcast> {
   const found = new Set<Broadcast>();
-  for (const m of text.matchAll(BROADCAST_RE)) {
+  for (const m of text.matchAll(BROADCAST_MENTION)) {
     found.add(m[1] === "here" ? "here" : "channel");
   }
   return found;
@@ -84,7 +85,29 @@ export function groupMentionLabel(
  * A custom emoji's name (J12): 1 to 32 lowercase letters, digits, `_` and
  * `-`. Text writes it between colons, `:name:`, as Slack does.
  */
-export const CUSTOM_EMOJI_NAME = /^[a-z0-9_-]{1,32}$/;
+export const CUSTOM_EMOJI_NAME_MAX = 32;
+const emojiName = `[a-z0-9_-]{1,${CUSTOM_EMOJI_NAME_MAX}}`;
+export const CUSTOM_EMOJI_NAME = new RegExp(`^${emojiName}$`);
+
+/**
+ * A custom emoji's `:name:` in words, read as the app draws one: not against
+ * a letter, digit or colon, so 10:30:45 stays a time. Global: use with
+ * matchAll or replaceAll.
+ */
+export const CUSTOM_EMOJI_TOKEN = new RegExp(
+  `(?<![A-Za-z0-9:]):(${emojiName}):(?![A-Za-z0-9])`,
+  "g",
+);
+
+/**
+ * Every mention token, in the order a client reads them: a person's id, a
+ * channel's id, a broadcast's word, and a group's id and label are groups 1
+ * to 5. Global: use with matchAll or replaceAll.
+ */
+export const MENTION_TOKEN = new RegExp(
+  [USER_MENTION, CHANNEL_MENTION, BROADCAST_MENTION, GROUP_MENTION].map((r) => r.source).join("|"),
+  "g",
+);
 
 /** The name a `:name:` token stands for, or null for any other text. */
 export function customEmojiName(token: string): string | null {
@@ -114,7 +137,7 @@ export function plainText(text: string, labels: MentionLabels): string {
     .replaceAll(USER_MENTION, (_all, id: ID) => labels.user(id))
     .replaceAll(CHANNEL_MENTION, (_all, id: ID) => labels.channel(id))
     .replaceAll(GROUP_MENTION, (_all, id: ID, label?: string) => labels.group(id, label ?? null))
-    .replaceAll(BROADCAST_RE, (_all, who: string) => broadcastLabel(who))
+    .replaceAll(BROADCAST_MENTION, (_all, who: string) => broadcastLabel(who))
     .replaceAll(LINK, (_all, url: string, label?: string) => label?.trim() || url);
 }
 

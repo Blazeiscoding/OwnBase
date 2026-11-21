@@ -131,3 +131,43 @@ export function notificationWords(
   if (count === 0) return message.forwardedFrom ? "Forwarded a message" : "Sent a message";
   return count === 1 ? "Sent a file" : `Sent ${count} files`;
 }
+
+/**
+ * How much a message notification shows (IMP-03): the message, only who sent
+ * it and where, or nothing but that something arrived, for a screen others
+ * can see. A push says what the page's own notification would.
+ */
+export const NOTIFICATION_PREVIEWS = ["full", "sender", "none"] as const;
+export type NotificationPreview = (typeof NOTIFICATION_PREVIEWS)[number];
+
+export function isNotificationPreview(value: unknown): value is NotificationPreview {
+  return (NOTIFICATION_PREVIEWS as readonly unknown[]).includes(value);
+}
+
+/** What one notification about a message says. */
+export interface NotificationWords {
+  title: string;
+  body: string;
+}
+
+export function notificationContent(
+  preview: NotificationPreview,
+  message: { from: string; channelName?: string; body: string },
+): NotificationWords {
+  if (preview === "none") return { title: "New message", body: "Open OwnBase to read it." };
+  const title = `${message.from}${message.channelName ? ` in #${message.channelName}` : ""}`;
+  return { title, body: preview === "full" ? message.body : "New message" };
+}
+
+/**
+ * What a reminder come due says under each choice (E4): that it is one, and
+ * then as much of its message as a message's notification would show.
+ */
+export function reminderContent(
+  preview: NotificationPreview,
+  message: { from: string; channelName?: string; body: string },
+): NotificationWords {
+  if (preview === "none") return { title: "Reminder", body: "Open OwnBase to see it." };
+  const title = `Reminder: ${message.from}${message.channelName ? ` in #${message.channelName}` : ""}`;
+  return { title, body: preview === "full" ? message.body : "About a message" };
+}

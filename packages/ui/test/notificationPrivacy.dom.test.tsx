@@ -2,8 +2,8 @@ import { act, cleanup, render, waitFor } from "@testing-library/react";
 import { afterEach, describe, expect, it } from "vitest";
 import { PlatformContext } from "../src/context.js";
 import { webPlatform, type Platform } from "../src/platform.js";
+import { notificationContent } from "@ownbase/protocol";
 import {
-  notificationContent,
   previewAccount,
   previewFor,
   useNotificationPreviews,

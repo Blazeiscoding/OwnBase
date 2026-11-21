@@ -1,4 +1,4 @@
-import type { ID } from "@ownbase/protocol";
+import { conversationHash, isPageId, readConversationHash, type ID } from "@ownbase/protocol";
 import { isAccountSection, type AccountSection } from "./accountSections.js";
 
 /** Side panels that are places of their own, as the address names them. */
@@ -70,9 +70,6 @@ export interface WorkspaceRoute {
   drawer?: boolean;
 }
 
-/** Channel and message ids never contain anything else. */
-const TOKEN = /^[A-Za-z0-9_-]{1,64}$/;
-
 /** The key this app's part of a history entry's state sits under. */
 const KEY = "ownbase";
 
@@ -105,11 +102,12 @@ export interface ReadingPosition {
  * over once and taken out of the address, so it is not read here.
  */
 export function parseRouteHash(hash: string): WorkspaceRoute | null {
-  const parts = hash.replace(/^#\/?/, "").split("/");
-  if (parts[0] !== "c" || !TOKEN.test(parts[1] ?? "")) return null;
-  const route: WorkspaceRoute = { channelId: parts[1]!, threadRootId: null };
-  let at = 2;
-  if (parts[at] === "t" && TOKEN.test(parts[at + 1] ?? "")) {
+  const conversation = readConversationHash(hash);
+  if (!conversation) return null;
+  const route: WorkspaceRoute = { channelId: conversation.channelId, threadRootId: null };
+  const parts = conversation.rest;
+  let at = 0;
+  if (parts[at] === "t" && isPageId(parts[at + 1])) {
     route.threadRootId = parts[at + 1]!;
     at += 2;
   } else if (parts[at] === "p" && isView(parts[at + 1])) {
@@ -127,12 +125,12 @@ export function parseRouteHash(hash: string): WorkspaceRoute | null {
 }
 
 export function routeHash(route: WorkspaceRoute): string {
-  const e = encodeURIComponent;
+  const conversation = conversationHash(route.channelId);
   const place = route.threadRootId
-    ? `#/c/${e(route.channelId)}/t/${e(route.threadRootId)}`
+    ? `${conversation}/t/${encodeURIComponent(route.threadRootId)}`
     : route.view
-      ? `#/c/${e(route.channelId)}/p/${route.view}`
-      : `#/c/${e(route.channelId)}`;
+      ? `${conversation}/p/${route.view}`
+      : conversation;
   const dialog = route.dialog;
   if (!dialog) return place;
   return `${place}/d/${dialog.name}${dialog.section ? `/${dialog.section}` : ""}`;
@@ -256,8 +254,7 @@ export function rememberedReadingPosition(
   if (entry?.server !== serverUrl || entry.channelId !== channelId) return null;
   const scroll = entry.scroll as Partial<ReadingPosition> | null | undefined;
   return scroll &&
-    typeof scroll.messageId === "string" &&
-    TOKEN.test(scroll.messageId) &&
+    isPageId(scroll.messageId) &&
     typeof scroll.offset === "number" &&
     Number.isFinite(scroll.offset)
     ? { messageId: scroll.messageId, offset: scroll.offset }

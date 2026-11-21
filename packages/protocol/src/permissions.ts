@@ -80,3 +80,43 @@ export function canSetChannelManager(
     target.id !== channel.creatorId
   );
 }
+
+/**
+ * Adding a workspace emoji: any member, unless the workspace keeps that to
+ * its owner and admins. Guests add none.
+ */
+export function mayAddEmoji(role: Role | undefined | null, adminsOnly: boolean): boolean {
+  return !!role && role !== "guest" && (!adminsOnly || isAdministrator(role));
+}
+
+/** Removing a workspace emoji: whoever added it, or an admin. */
+export function mayRemoveEmoji(
+  user: Pick<User, "id" | "role"> | undefined | null,
+  emoji: { createdBy: string },
+): boolean {
+  return (
+    !!user && user.role !== "guest" && (emoji.createdBy === user.id || isAdministrator(user.role))
+  );
+}
+
+/** Seeing and revoking an invite code: whoever made it, or an admin. */
+export function mayManageInvite(
+  user: Pick<User, "id" | "role"> | undefined | null,
+  invite: { createdBy: string },
+): boolean {
+  return !!user && (invite.createdBy === user.id || isAdministrator(user.role));
+}
+
+/**
+ * Why an admin may not change someone's role or account, or null when they
+ * may: not their own, never the owner's, another admin's only as the owner.
+ */
+export function changePersonRefusal(
+  actor: Pick<User, "id" | "role">,
+  target: Pick<User, "id" | "role">,
+): "self" | "owner" | "admin" | null {
+  if (target.id === actor.id) return "self";
+  if (target.role === "owner") return "owner";
+  if (target.role === "admin" && actor.role !== "owner") return "admin";
+  return null;
+}

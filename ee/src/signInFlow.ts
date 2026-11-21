@@ -1,6 +1,9 @@
 import {
-  DEEP_LINK_PROTOCOL,
+  desktopLink,
+  DISPLAY_NAME_MAX,
+  HANDLE_MAX,
   handleSchema,
+  pageLink,
   type Endpoint,
   type EndpointSpec,
   type extensionRoutes,
@@ -122,6 +125,9 @@ export function handleFor(claims: Claims, taken: (handle: string) => boolean): s
   );
 }
 
+/** Room left in a handle for "-999", the most `handleFrom` adds to make one free. */
+const BASE_MAX = HANDLE_MAX - 4;
+
 /** A username made from `from`, such as an address's first part, not one taken. */
 export function handleFrom(from: string, taken: (handle: string) => boolean): string {
   let base = from
@@ -130,8 +136,8 @@ export function handleFrom(from: string, taken: (handle: string) => boolean): st
     .replace(/[̀-ͯ]/g, "")
     .replace(/[^a-z0-9._-]+/g, "")
     .replace(/^[._-]+/, "")
-    .slice(0, 28);
-  if (!handleSchema.safeParse(base).success) base = `member${base}`.slice(0, 28);
+    .slice(0, BASE_MAX);
+  if (!handleSchema.safeParse(base).success) base = `member${base}`.slice(0, BASE_MAX);
   for (let n = 1; n < 1000; n++) {
     const handle = n === 1 ? base : `${base}-${n}`;
     if (!taken(handle)) return handle;
@@ -490,7 +496,7 @@ export function signInFlow<Extra extends object>(opts: {
         const handle = handleFor(claims, (h) => given.users.handleTaken(h));
         user = await given.users.create({
           handle,
-          displayName: claims.name?.trim().slice(0, 80) || handle,
+          displayName: claims.name?.trim().slice(0, DISPLAY_NAME_MAX) || handle,
         });
       } catch (error) {
         const code = (error as { code?: string }).code;
@@ -514,8 +520,7 @@ export function signInFlow<Extra extends object>(opts: {
       expiresAt: now() + CODE_MS,
     });
     if (flow.client === "desktop") {
-      const host = encodeURIComponent(base()!).replaceAll("%3A", ":").replaceAll("%2F", "/");
-      const target = `${DEEP_LINK_PROTOCOL}://sso?host=${host}&code=${code}`;
+      const target = desktopLink(base()!, { kind: "sso", code });
       return page(
         reply,
         200,
@@ -525,7 +530,7 @@ export function signInFlow<Extra extends object>(opts: {
         target,
       );
     }
-    return redirect(reply, `${base()}/#/sso/${code}`);
+    return redirect(reply, pageLink(base()!, { kind: "sso", code }));
   }
 
   return {

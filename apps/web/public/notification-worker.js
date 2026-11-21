@@ -13,7 +13,8 @@ self.addEventListener("install", function () {
   self.skipWaiting();
 });
 
-// Channel and message ids never contain anything else.
+// PAGE_ID and the message link from packages/protocol/src/pageLinks.ts, which
+// this script cannot import. notificationWorker.test.ts holds them together.
 var TOKEN = /^[A-Za-z0-9_-]{1,64}$/;
 function isToken(value) {
   return typeof value === "string" && TOKEN.test(value);

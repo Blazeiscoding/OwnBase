@@ -1,4 +1,4 @@
-import { endpoints, type User } from "@ownbase/protocol";
+import { endpoints, pageLink, type User } from "@ownbase/protocol";
 import { inviteFingerprint } from "../accounts/feature.js";
 import { hashPassword, hashToken, verifyPassword } from "../auth.js";
 import type { ServerContext } from "../core/context.js";
@@ -103,7 +103,7 @@ export function registerEmail(ctx: ServerContext) {
             to: email,
             workspace,
             who: accountName(me.displayName, me.handle),
-            link: `${base()}/#/verify-email/${token}`,
+            link: pageLink(base()!, { kind: "verifyEmail", token }),
           }),
       "confirm",
     );
@@ -189,7 +189,7 @@ export function registerEmail(ctx: ServerContext) {
           to: email,
           workspace: settings.get("workspaceName"),
           who: accountName(owner.displayName, owner.handle),
-          link: `${base()}/#/reset/${token}`,
+          link: pageLink(base()!, { kind: "reset", token }),
         }),
         "reset",
       );
@@ -275,7 +275,7 @@ export function registerEmail(ctx: ServerContext) {
           to: body.email,
           workspace: settings.get("workspaceName"),
           inviter: me.displayName,
-          link: `${base()}/#/join/${encodeURIComponent(invite.code)}`,
+          link: pageLink(base()!, { kind: "join", code: invite.code }),
           expiresAt: invite.expiresAt!,
         }),
       );

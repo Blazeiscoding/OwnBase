@@ -4,13 +4,14 @@ import {
   endpoints,
   groupMentionLabel,
   isDirect,
+  notificationContent,
   notificationWords,
   notifyDecision,
+  reminderContent,
   reminderNotifyDecision,
   type Channel,
   type EventEnvelope,
   type Message,
-  type PushPreview,
   type User,
 } from "@ownbase/protocol";
 import { hashToken } from "../auth.js";
@@ -42,29 +43,6 @@ export function cutWords(text: string, max = PUSH_BODY_LENGTH): string {
   const flat = text.replace(/\s+/g, " ").trim();
   const chars = [...flat];
   return chars.length <= max ? flat : `${chars.slice(0, max - 1).join("")}…`;
-}
-
-/**
- * The words of a push, as the page's own notification would say them under
- * each choice of how much to show (ui's notificationContent and
- * reminderContent).
- */
-export function pushWords(
-  preview: PushPreview,
-  kind: "message" | "reminder",
-  message: { from: string; channelName?: string; body: string },
-): { title: string; body: string } {
-  if (preview === "none")
-    return kind === "message"
-      ? { title: "New message", body: "Open OwnBase to read it." }
-      : { title: "Reminder", body: "Open OwnBase to see it." };
-  const where = `${message.from}${message.channelName ? ` in #${message.channelName}` : ""}`;
-  if (kind === "reminder")
-    return {
-      title: `Reminder: ${where}`,
-      body: preview === "full" ? message.body : "About a message",
-    };
-  return { title: where, body: preview === "full" ? message.body : "New message" };
 }
 
 /**
@@ -131,7 +109,10 @@ export function registerPush(ctx: ServerContext) {
     const channelName = isDirect(channel.type) ? undefined : channel.name || undefined;
     const body = cutWords(notificationWords(message, labels));
     for (const subscription of store.push.forUser(user.id)) {
-      const words = pushWords(subscription.preview, kind, { from, channelName, body });
+      const words = (kind === "message" ? notificationContent : reminderContent)(
+        subscription.preview,
+        { from, channelName, body },
+      );
       const payload: PushPayload = {
         ...words,
         tag,

@@ -1,11 +1,13 @@
 import { describe, expect, it } from "vitest";
 import {
   broadcastsIn,
+  CUSTOM_EMOJI_TOKEN,
   customEmojiName,
   escapeMrkdwn,
   groupMentionLabel,
   groupMentionsIn,
   groupMentionToken,
+  MENTION_TOKEN,
   plainText,
 } from "../src/format.js";
 
@@ -42,6 +44,12 @@ describe("custom emoji tokens", () => {
     expect(customEmojiName("party:")).toBeNull();
     expect(customEmojiName(`:${"a".repeat(33)}:`)).toBeNull();
     expect(customEmojiName("👍")).toBeNull();
+  });
+
+  it("is found in words, but not against a letter, digit or colon", () => {
+    const names = (text: string) => [...text.matchAll(CUSTOM_EMOJI_TOKEN)].map((m) => m[1]);
+    expect(names("ship it :party-parrot: :ok:")).toEqual(["party-parrot", "ok"]);
+    expect(names("at 10:30:45, a:ok: or :ok:b")).toEqual([]);
   });
 
   it("stays as its token in the plain-words reading", () => {
@@ -84,5 +92,18 @@ describe("user group mentions", () => {
 
   it("is not a room-wide mention", () => {
     expect(broadcastsIn("<!subteam^G1|@design>").size).toBe(0);
+  });
+});
+
+describe("mention tokens", () => {
+  it("are read in one pass, each kind in its own groups", () => {
+    const text = "<@U1> <#C1> <!here> <!subteam^G1|@design> <!subteam^G2>";
+    expect([...text.matchAll(MENTION_TOKEN)].map((m) => m.slice(1))).toEqual([
+      ["U1", undefined, undefined, undefined, undefined],
+      [undefined, "C1", undefined, undefined, undefined],
+      [undefined, undefined, "here", undefined, undefined],
+      [undefined, undefined, undefined, "G1", "@design"],
+      [undefined, undefined, undefined, "G2", undefined],
+    ]);
   });
 });

@@ -5,6 +5,13 @@ import type { DatabaseSync } from "node:sqlite";
 import {
   CUSTOM_EMOJI_MAX_BYTES,
   CUSTOM_EMOJI_NAME,
+  CUSTOM_EMOJI_TOKEN,
+  CHANNEL_DESCRIPTION_MAX,
+  CHANNEL_NAME_MAX,
+  CHANNEL_TOPIC_MAX,
+  DISPLAY_NAME_MAX,
+  HANDLE_MAX,
+  HANDLE_MIN,
   DEFAULT_WORKSPACE_NAME,
   type CustomEmojiType,
   MESSAGE_TEXT_MAX,
@@ -84,9 +91,6 @@ export interface SlackImportResult {
    */
   customEmoji: string[];
 }
-
-/** A `:name:` in words, read as the app draws one: not against a letter, digit or colon. */
-const CUSTOM_EMOJI_TOKEN = /(?<![A-Za-z0-9:]):([a-z0-9_-]{1,32}):(?![A-Za-z0-9])/g;
 
 /** Messages written in one transaction, between which other work gets a turn. */
 const BATCH = 2000;
@@ -358,8 +362,8 @@ class SlackImport {
       };
       for (const conversation of this.channels.values()) {
         this.store.channels.update(conversation.id, {
-          topic: slackWords(conversation.topic, names).slice(0, 250),
-          description: slackWords(conversation.purpose, names).slice(0, 500),
+          topic: slackWords(conversation.topic, names).slice(0, CHANNEL_TOPIC_MAX),
+          description: slackWords(conversation.purpose, names).slice(0, CHANNEL_DESCRIPTION_MAX),
         });
       }
       return ownerId;
@@ -445,11 +449,11 @@ class SlackImport {
       .toLowerCase()
       .replace(/[^a-z0-9._-]+/g, "-")
       .replace(/^[^a-z0-9]+/, "")
-      .slice(0, 32);
-    if (base.length < 2) base = `${base || "member"}-slack`.slice(0, 32);
+      .slice(0, HANDLE_MAX);
+    if (base.length < HANDLE_MIN) base = `${base || "member"}-slack`.slice(0, HANDLE_MAX);
     let handle = base;
     for (let n = 2; this.handles.has(handle); n++)
-      handle = `${base.slice(0, 32 - String(n).length - 1)}-${n}`;
+      handle = `${base.slice(0, HANDLE_MAX - String(n).length - 1)}-${n}`;
     this.handles.add(handle);
     return handle;
   }
@@ -460,7 +464,7 @@ class SlackImport {
       user.profile?.real_name?.trim() ||
       user.real_name?.trim() ||
       user.name
-    ).slice(0, 80);
+    ).slice(0, DISPLAY_NAME_MAX);
     if (user.is_bot || user.id === SLACKBOT) {
       this.people.set(user.id, this.bot(displayName, user.name));
       return;
@@ -489,7 +493,7 @@ class SlackImport {
     if (!id) {
       id = this.store.apps.createBotUser(
         this.handleFor(handle),
-        name.slice(0, 80),
+        name.slice(0, DISPLAY_NAME_MAX),
         this.unknown.hash,
         this.unknown.salt,
       ).id;
@@ -513,7 +517,7 @@ class SlackImport {
       slackId;
     const person = this.store.people.create({
       handle: this.handleFor(profile?.name || `slack-${slackId}`),
-      displayName: displayName.slice(0, 80),
+      displayName: displayName.slice(0, DISPLAY_NAME_MAX),
       passwordHash: this.unknown.hash,
       salt: this.unknown.salt,
       role: "member",
@@ -555,7 +559,7 @@ class SlackImport {
       if (!this.store.channels.findDmByKey(key)) dmKey = key;
     }
     const isDirect = type === "dm" || type === "group_dm";
-    const name = isDirect ? "" : item.entry!.name.trim().slice(0, 80);
+    const name = isDirect ? "" : item.entry!.name.trim().slice(0, CHANNEL_NAME_MAX);
     const channel = this.store.channels.create({
       type,
       ...(isDirect ? {} : { name }),

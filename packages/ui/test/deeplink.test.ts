@@ -1,7 +1,6 @@
 import { describe, expect, it } from "vitest";
+import { desktopLink, pageLink } from "@ownbase/protocol";
 import {
-  browserLink,
-  desktopLink,
   isLoopbackUrl,
   parseDeepLink,
   serverAddress,
@@ -130,7 +129,9 @@ describe("links", () => {
   it.each(servers)("lead back to %s in both forms", (serverUrl) => {
     const join = { kind: "join", code: "ABCD1234" } as const;
     const message = { kind: "message", channelId: "C123", messageId: "M456" } as const;
-    for (const build of [browserLink, desktopLink]) {
+    const desktop = (url: string, link: typeof join | typeof message) =>
+      desktopLink(serverAddress(url), link);
+    for (const build of [pageLink, desktop]) {
       expect(parseDeepLink(build(serverUrl, join))).toEqual({ ...join, serverUrl });
       expect(parseDeepLink(build(serverUrl, message))).toEqual({ ...message, serverUrl });
     }
@@ -140,10 +141,10 @@ describe("links", () => {
     expect(serverAddress("http://192.168.1.5:8543")).toBe("192.168.1.5:8543");
     expect(serverAddress("https://chat.team.dev")).toBe("https://chat.team.dev");
     expect(serverAddress("http://chat.local")).toBe("http://chat.local");
-    expect(desktopLink("https://chat.team.dev", { kind: "join", code: "ABCD1234" })).toBe(
-      "ownbase://join?host=https://chat.team.dev&code=ABCD1234",
-    );
-    expect(browserLink("http://192.168.1.5:8543", { kind: "join", code: "ABCD1234" })).toBe(
+    expect(
+      desktopLink(serverAddress("https://chat.team.dev"), { kind: "join", code: "ABCD1234" }),
+    ).toBe("ownbase://join?host=https://chat.team.dev&code=ABCD1234");
+    expect(pageLink("http://192.168.1.5:8543", { kind: "join", code: "ABCD1234" })).toBe(
       "http://192.168.1.5:8543/#/join/ABCD1234",
     );
   });

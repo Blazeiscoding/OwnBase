@@ -1,10 +1,16 @@
 import { useMemo, useRef } from "react";
 import type { WorkspaceState } from "@ownbase/client-core";
-import { USER_MENTION, type Channel, type ID, type Message, type User } from "@ownbase/protocol";
+import {
+  CHANNEL_MENTION,
+  USER_MENTION,
+  type Channel,
+  type ID,
+  type Message,
+  type User,
+} from "@ownbase/protocol";
 import { useWorkspace } from "../context.js";
 import { parseDeepLink } from "./deeplink.js";
 
-const NAMED_CHANNEL = /<#([A-Za-z0-9_-]+)>/g;
 const LINK = /https?:\/\/[^\s<>]+/g;
 
 /**
@@ -27,7 +33,7 @@ export function messageReferences(
   const forward = message.forwardedFrom;
   for (const text of [message.text, quote?.text ?? "", forward?.text ?? ""]) {
     for (const [, id] of text.matchAll(USER_MENTION)) userIds.add(id!);
-    for (const [, id] of text.matchAll(NAMED_CHANNEL)) channelIds.add(id!);
+    for (const [, id] of text.matchAll(CHANNEL_MENTION)) channelIds.add(id!);
   }
   if (quote?.userId) userIds.add(quote.userId);
   if (forward?.userId) userIds.add(forward.userId);

@@ -1,5 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { notifyDecision, reminderNotifyDecision, type NotifyInputs } from "../src/notify.js";
+import {
+  notificationContent,
+  notifyDecision,
+  reminderContent,
+  reminderNotifyDecision,
+  type NotifyInputs,
+} from "../src/notify.js";
 
 const NOW = 1_700_000_000_000;
 
@@ -113,5 +119,41 @@ describe("reminderNotifyDecision", () => {
   it("waits during Do Not Disturb, and otherwise notifies", () => {
     expect(reminderNotifyDecision(NOW + 1, NOW)).toEqual({ notify: false, reason: "dnd" });
     expect(reminderNotifyDecision(null, NOW)).toEqual({ notify: true, reason: "reminder" });
+  });
+});
+
+/** How much a message notification shows (IMP-03), on the page and in a push. */
+describe("notification previews", () => {
+  const message = { from: "Priya Shah", channelName: "design", body: "Launch moves to Friday" };
+
+  it("shows the message, only who sent it, or nothing about it", () => {
+    expect(notificationContent("full", message)).toEqual({
+      title: "Priya Shah in #design",
+      body: "Launch moves to Friday",
+    });
+    expect(notificationContent("sender", message)).toEqual({
+      title: "Priya Shah in #design",
+      body: "New message",
+    });
+    const none = notificationContent("none", message);
+    expect(none).toEqual({ title: "New message", body: "Open OwnBase to read it." });
+    expect(JSON.stringify(none)).not.toMatch(/Priya|design|Friday/);
+  });
+
+  it("leaves out the channel of a direct message", () => {
+    expect(notificationContent("sender", { from: "Priya Shah", body: "hi" }).title).toBe(
+      "Priya Shah",
+    );
+  });
+
+  it("says a reminder is one, then as much as a message's notification would", () => {
+    expect(reminderContent("full", message)).toEqual({
+      title: "Reminder: Priya Shah in #design",
+      body: "Launch moves to Friday",
+    });
+    expect(reminderContent("sender", message).body).toBe("About a message");
+    const none = reminderContent("none", message);
+    expect(none).toEqual({ title: "Reminder", body: "Open OwnBase to see it." });
+    expect(JSON.stringify(none)).not.toMatch(/Priya|design|Friday/);
   });
 });

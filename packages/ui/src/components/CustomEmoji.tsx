@@ -1,5 +1,5 @@
 import { useContext, useEffect, useState, useSyncExternalStore } from "react";
-import { customEmojiName, isAdministrator, type CustomEmoji } from "@ownbase/protocol";
+import { customEmojiName, mayAddEmoji, type CustomEmoji } from "@ownbase/protocol";
 import { ClientContext } from "../context.js";
 
 const NONE: Record<string, CustomEmoji> = {};
@@ -77,7 +77,7 @@ export function useEmojiAccess(): "add" | "list" | null {
     const state = client?.store.getState();
     const role = state?.self?.role;
     if (!role || role === "guest") return null;
-    return !state.emojiAddingAdminsOnly || isAdministrator(role) ? "add" : "list";
+    return mayAddEmoji(role, state.emojiAddingAdminsOnly) ? "add" : "list";
   };
   return useSyncExternalStore(
     (changed) => client?.store.subscribe(changed) ?? unsubscribed,
