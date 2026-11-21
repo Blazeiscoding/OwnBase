@@ -1,21 +1,22 @@
-import { useEffect, useId, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { isEmailAddress } from "@ownbase/protocol";
 import { ApiError } from "@ownbase/client-core";
 import { useClient } from "../context.js";
 import { failureText } from "../lib/failure.js";
 import { buttonClass } from "./Button.js";
 import { Swap } from "./Motion.js";
+import { TextField } from "./TextField.js";
 import { useToast } from "./Toast.js";
 
 /**
- * Sends an invite's link by email (G10), in the invite dialog, where the
- * workspace sends email. The invite is the same one the link above holds.
+ * Sends an invite by email (G10), in the invite dialog, where the workspace
+ * sends email. Each address gets an invite of its own that works once, for
+ * 7 days, rather than the link above, which may let in any number of people.
  * Nothing shows where the workspace sends none.
  */
-export function InviteByEmail({ code }: { code: string }) {
+export function InviteByEmail({ onSent }: { onSent: () => void }) {
   const client = useClient();
   const toast = useToast();
-  const id = useId();
   const [on, setOn] = useState(false);
   const [email, setEmail] = useState("");
   const [busy, setBusy] = useState(false);
@@ -47,13 +48,13 @@ export function InviteByEmail({ code }: { code: string }) {
     }
     setBusy(true);
     setError(null);
-    const failed = await client.admin.emailInvite(code, typed);
+    const failed = await client.admin.emailInvite(typed);
     if (!alive.current) return;
     setBusy(false);
     if (failed) {
       setError(
-        failed.code === "invite_inactive"
-          ? "That invite no longer works. Make a new link and send that."
+        failed.code === "mail_failed"
+          ? "The invite was not sent. The workspace's mail server did not take it. Copy the link above and send it another way, or try again later."
           : failureText("The invite was not sent.", failed, "Try again."),
       );
       field.current?.focus();
@@ -61,6 +62,7 @@ export function InviteByEmail({ code }: { code: string }) {
     }
     setEmail("");
     toast({ message: `Invite sent to ${typed}.`, kind: "success" });
+    onSent();
   }
 
   return (
@@ -68,39 +70,33 @@ export function InviteByEmail({ code }: { code: string }) {
       noValidate
       aria-label="Send the invite by email"
       onSubmit={(event) => void send(event)}
-      className="border-t border-edge px-4 py-3"
+      className="flex items-start gap-2 border-t border-edge px-4 py-3"
     >
-      <label htmlFor={`${id}-email`} className="mb-1.5 block text-[12px] text-ink-faint">
-        Send the link by email
-      </label>
-      <div className="flex items-center gap-2">
-        <input
-          id={`${id}-email`}
-          ref={field}
-          type="email"
-          autoComplete="off"
-          spellCheck={false}
-          autoCapitalize="none"
-          maxLength={254}
-          placeholder="name@example.com"
-          value={email}
-          onChange={(event) => setEmail(event.target.value)}
-          readOnly={busy}
-          className="h-8 min-w-0 flex-1 rounded-lg border border-edge bg-raised px-2.5 text-[13px] text-ink"
-        />
-        <button
-          type="submit"
-          aria-disabled={busy || undefined}
-          className={buttonClass("secondary", "h-8 shrink-0 px-3 text-[13px]")}
-        >
-          <Swap text>{busy ? "Sending…" : "Send"}</Swap>
-        </button>
-      </div>
-      {error && (
-        <p role="alert" className="mt-2 text-[12px] text-alert">
-          {error}
-        </p>
-      )}
+      <TextField
+        ref={field}
+        size="small"
+        className="min-w-0 flex-1"
+        label="Send an invite by email"
+        hint="Each one works once, for 7 days."
+        type="email"
+        autoComplete="off"
+        spellCheck={false}
+        autoCapitalize="none"
+        maxLength={254}
+        placeholder="name@example.com"
+        value={email}
+        onChange={(event) => setEmail(event.target.value)}
+        readOnly={busy}
+        error={error ?? undefined}
+      />
+      {/* Level with the field, under its label. */}
+      <button
+        type="submit"
+        aria-disabled={busy || undefined}
+        className={buttonClass("secondary", "mt-5 h-8 shrink-0 px-3 text-[13px]")}
+      >
+        <Swap text>{busy ? "Sending…" : "Send invite"}</Swap>
+      </button>
     </form>
   );
 }

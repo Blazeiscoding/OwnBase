@@ -34,6 +34,7 @@ export type SettingId =
   | "camera"
   | "join-muted"
   | "password"
+  | "email"
   | "two-step"
   | "blocked-people"
   | "sign-out"

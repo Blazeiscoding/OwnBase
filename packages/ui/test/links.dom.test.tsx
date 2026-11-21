@@ -73,6 +73,8 @@ async function inviteWith(options: {
   hosting?: HostingStatus;
   invites?: Invite[];
   createInvite?: () => Promise<{ invite: Invite }>;
+  /** The workspace sends email (G10). */
+  email?: boolean;
 }) {
   const client = new WorkspaceClient(options.baseUrl, "test-token-not-a-credential");
   client.store.setState({ self: owner, users: { U_SAM: owner }, status: "online" });
@@ -88,9 +90,12 @@ async function inviteWith(options: {
     iconVersion: null,
     requiresClaim: false,
     ...(options.publicUrl ? { publicUrl: options.publicUrl } : {}),
+    ...(options.email ? { email: true } : {}),
   };
   const serverInfo = vi.spyOn(client.api, "serverInfo").mockResolvedValue(info);
-  vi.spyOn(client.api, "listInvites").mockResolvedValue({ invites: options.invites ?? [] });
+  const listInvites = vi
+    .spyOn(client.api, "listInvites")
+    .mockResolvedValue({ invites: options.invites ?? [] });
   const createInvite = vi
     .spyOn(client.api, "createInvite")
     .mockImplementation(options.createInvite ?? (async () => ({ invite: madeInvite })));
@@ -123,10 +128,41 @@ async function inviteWith(options: {
     serverInfo,
     revokeInvite,
     createInvite,
+    listInvites,
+    client,
   };
 }
 
 describe("inviting someone", () => {
+  it("offers an invite by email right under the link, and lists it once sent", async () => {
+    const { dialog, user, client, listInvites } = await inviteWith({
+      baseUrl: "http://192.168.1.20:8543",
+      email: true,
+    });
+    const field = await dialog.findByLabelText("Send an invite by email");
+    const copyLink = dialog.getByRole("button", { name: "Copy link" });
+    // After the link, before the QR code and the code, so a phone shows it without scrolling.
+    expect(copyLink.compareDocumentPosition(field) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(
+      field.compareDocumentPosition(dialog.getByText("Invite code")) &
+        Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+    const emailed: Invite = {
+      ...madeInvite,
+      code: "MAIL2345",
+      maxUses: 1,
+      expiresAt: Date.now() + 7 * DAY,
+    };
+    const send = vi.spyOn(client.api, "emailInvite").mockResolvedValue({ invite: emailed });
+    listInvites.mockResolvedValue({ invites: [emailed, madeInvite] });
+    await user.type(field, "sam@example.test");
+    await user.click(dialog.getByRole("button", { name: "Send invite" }));
+    expect(send).toHaveBeenCalledWith("sam@example.test");
+    // Its own code, in the list; the link on screen stays the one it was.
+    expect(await dialog.findByText("MAIL2345")).toBeVisible();
+    expect(dialog.getByText("http://192.168.1.20:8543/#/join/ABCD1234")).toBeVisible();
+  });
+
   it("opens with a link ready to copy, made for a week and anyone (UX-43)", async () => {
     const { dialog, root, user, createInvite } = await inviteWith({
       baseUrl: "http://192.168.1.20:8543",

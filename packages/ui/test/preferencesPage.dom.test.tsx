@@ -49,6 +49,25 @@ function page(
   // A server that blocks (E12), so Security lists blocked people.
   client.store.setState({ self: sam, users: { [sam.id]: sam }, status: "online", blocked: [] });
   vi.spyOn(client.api, "listSessions").mockResolvedValue({ sessions: [] });
+  // A workspace that sends email, so Security has the email address.
+  vi.spyOn(client.api, "serverInfo").mockResolvedValue({
+    app: "ownbase",
+    protocolVersion: 2,
+    serverVersion: "0.0.0-test",
+    workspaceName: "Rocket Team",
+    userCount: 1,
+    requiresInvite: false,
+    accessPolicy: "account_required",
+    workspaceCopies: false,
+    iconVersion: null,
+    requiresClaim: false,
+    email: true,
+  });
+  vi.spyOn(client.api, "emailAddress").mockResolvedValue({
+    email: null,
+    verifiedAt: null,
+    pending: null,
+  });
   vi.spyOn(client.api, "storageUsage").mockResolvedValue({
     usedBytes: 0,
     limitBytes: null,
@@ -286,6 +305,12 @@ describe("the settings index", () => {
     ]);
     expect(findSettings("   ")).toEqual([]);
     expect(findSettings("zebra")).toEqual([]);
+  });
+
+  it("finds the email address by the words people use for it", () => {
+    for (const word of ["email", "mail", "address", "forgot", "reset", "recover"])
+      expect(findSettings(word).map((s) => s.label)).toContain("Email address");
+    expect(findSettings("email")[0]).toMatchObject({ id: "email", section: "security" });
   });
 
   it("names and marks each setting once", () => {

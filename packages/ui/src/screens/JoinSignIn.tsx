@@ -401,6 +401,7 @@ export function AuthCard(props: {
             setRecovery(null);
           }}
           onBack={() => setRecovery(null)}
+          onForgot={() => setRecovery("forgot")}
         />
       ) : recovery === "forgot" ? (
         <ForgotPasswordForm url={props.url} onBack={() => setRecovery(null)} />

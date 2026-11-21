@@ -101,6 +101,12 @@ export const SETTINGS: readonly Setting[] = [
   },
   { id: "password", section: "security", label: "Change password", words: "password" },
   {
+    id: "email",
+    section: "security",
+    label: "Email address",
+    words: "email mail address forgot reset recover",
+  },
+  {
     id: "two-step",
     section: "security",
     label: "Two-step sign-in",
