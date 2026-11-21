@@ -646,4 +646,3 @@ export type ScheduleMessageBody = z.infer<typeof scheduleMessageBody>;
 export type EditScheduledBody = z.infer<typeof editScheduledBody>;
 export type CreateCommandBody = z.infer<typeof createCommandBody>;
 export type CreateSubscriptionBody = z.infer<typeof createSubscriptionBody>;
-export type AppReceiveBody = z.infer<typeof appReceiveBody>;

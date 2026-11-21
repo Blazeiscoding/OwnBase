@@ -31,8 +31,10 @@ import {
   parseBackupPassphrase,
   parseMailSettings,
   parseMemberNotice,
+  parseMetricsToken,
   parsePort,
   parsePublicUrl,
+  parsePushContact,
   parseWholeNumber,
 } from "../config.js";
 
@@ -504,6 +506,8 @@ ${extensions.map((extension) => `\n${extension.help.replace(/\n+$/, "")}\n`).joi
   let iceServers: IceServer[];
   let relay: ServerRelay | null;
   let mail: MailSettings | undefined;
+  let metricsToken: string | undefined;
+  let pushContact: string | undefined;
   const made: ServerExtension[] = [];
   try {
     port = parsePort(values.port);
@@ -528,6 +532,12 @@ ${extensions.map((extension) => `\n${extension.help.replace(/\n+$/, "")}\n`).joi
       smtpUrl: flagOrEnv(values, "smtp-url", envSetting),
       from: flagOrEnv(values, "mail-from", envSetting),
     });
+    metricsToken = parseMetricsToken(
+      flagOrEnv(values, "metrics-token", envSetting)?.trim() || undefined,
+    );
+    pushContact = parsePushContact(
+      flagOrEnv(values, "push-contact", envSetting)?.trim() || undefined,
+    );
     for (const extension of extensions) {
       made.push(
         await extension.create(
@@ -608,14 +618,6 @@ ${extensions.map((extension) => `\n${extension.help.replace(/\n+$/, "")}\n`).joi
       keep,
     );
   }
-
-  const metricsToken = flagOrEnv(values, "metrics-token", envSetting)?.trim() || undefined;
-  if (metricsToken !== undefined && (metricsToken.length < 16 || /\s/.test(metricsToken)))
-    refuse("--metrics-token must be at least 16 characters without spaces");
-
-  const pushContact = flagOrEnv(values, "push-contact", envSetting)?.trim() || undefined;
-  if (pushContact !== undefined && !/^(mailto:\S+@\S+|https:\/\/\S+)$/.test(pushContact))
-    refuse("--push-contact must be a mailto: or https: address");
 
   const accessPolicy = values["access-policy"];
   if (accessPolicy !== undefined && !isAccessPolicy(accessPolicy))

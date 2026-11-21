@@ -14,7 +14,13 @@ import { checkWorkspaceOptions, createWorkspace, type WorkspaceChange } from "./
 import { registerBackups, scheduledBackupsOf } from "./backups/feature.js";
 import { type BackupScheduleStatus } from "./backups/backupSchedule.js";
 import { registerChannels } from "./channels/feature.js";
-import { ConfigError, parseMailSettings, parsePort } from "./config.js";
+import {
+  ConfigError,
+  parseMailSettings,
+  parseMetricsToken,
+  parsePort,
+  parsePushContact,
+} from "./config.js";
 import { BackgroundWork } from "./core/background.js";
 import { createCommits } from "./core/commit.js";
 import { rationWith, type ServerContext } from "./core/context.js";
@@ -29,7 +35,7 @@ import { registerHuddles } from "./huddles/feature.js";
 import type { HuddleRooms } from "./huddles/rooms.js";
 import { DEFAULT_LIMITS, RateLimiter } from "./limits.js";
 import { advertise, type MdnsHandle } from "./mdns.js";
-import { createMetrics, METRICS_TOKEN_MIN_LENGTH } from "./metrics.js";
+import { createMetrics } from "./metrics.js";
 import { registerMessages } from "./messages/feature.js";
 import { holdWorkspace, type WorkspaceHold } from "./core/ownership.js";
 import { workspaceDatabase } from "./core/workspaceFile.js";
@@ -200,18 +206,10 @@ async function startWorkspaceServer(
   ) {
     throw new Error("retentionDays must be a non-negative safe integer");
   }
-  if (
-    opts.metricsToken !== undefined &&
-    (typeof opts.metricsToken !== "string" ||
-      opts.metricsToken.length < METRICS_TOKEN_MIN_LENGTH ||
-      /\s/.test(opts.metricsToken))
-  ) {
-    throw new Error(
-      `metricsToken must be at least ${METRICS_TOKEN_MIN_LENGTH} characters without spaces`,
-    );
-  }
   // Checked here as well as by the CLI, so the desktop app's embedded server
   // and anyone calling this directly get the same refusal.
+  parseMetricsToken(opts.metricsToken);
+  parsePushContact(opts.pushContact);
   if (opts.port !== undefined) parsePort(opts.port, "port");
   // Before the database opens, so a refused start leaves nothing open in the folder.
   checkWorkspaceOptions(opts);

@@ -8,7 +8,7 @@ import { CAPABILITIES_ALIVE } from "../limits.js";
 import type { registerMessages } from "../messages/feature.js";
 import { requireMessageText, slackRefusal } from "../messages/posting.js";
 import { blocksToActions, payloadToText } from "./blockKit.js";
-import type { AppCalls } from "./calls.js";
+import { takesPresses, type AppCalls } from "./calls.js";
 import type { NewTrigger } from "./views.js";
 
 /**
@@ -193,9 +193,7 @@ export function registerAppReplies(
 
     const owner = store.apps.forBotUser(message.userId);
     if (!owner) throw new HttpError(400, "not_an_app_message");
-    // An app on Socket Mode is sent presses over its socket, with no URL.
-    if (owner.receive === "url" && !owner.interactivityUrl)
-      throw new HttpError(400, "no_interactivity_url");
+    if (!takesPresses(owner)) throw new HttpError(400, "no_interactivity_url");
 
     const release = calls.admit(me.id, owner.id);
     try {

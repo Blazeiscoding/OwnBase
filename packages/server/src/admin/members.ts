@@ -19,6 +19,40 @@ function mayChange(me: User, target: User): void {
     throw new HttpError(403, "admins_are_equals", "Only the owner can change another admin.");
 }
 
+/** Who deactivated or reactivated someone: an admin, or an extension such as SCIM (P10). */
+export type ChangedBy = { person: ID } | { extension: string };
+
+/**
+ * Deactivates or reactivates `target` inside the write `afterCommit` belongs
+ * to, with an audit entry when that changes anything. Deactivating ends every
+ * session and closes every socket: access has to be taken from what is
+ * already in their hands. The caller tells everyone, with the person this
+ * returns, so a deactivated person drops out of member lists and the
+ * composer's suggestions without a reload.
+ */
+export function setDeactivated(
+  { store, gateway }: Pick<ServerContext, "store" | "gateway">,
+  afterCommit: (effect: () => void) => void,
+  target: User,
+  deactivated: boolean,
+  by: ChangedBy,
+): User {
+  const updated = store.people.update(target.id, { deactivated });
+  if (deactivated !== target.deactivated)
+    store.audit.record({
+      actorId: "person" in by ? by.person : null,
+      action: deactivated ? "user.deactivated" : "user.reactivated",
+      targetType: "user",
+      targetId: target.id,
+      ...("extension" in by ? { details: { by: by.extension } } : {}),
+    });
+  if (deactivated) {
+    store.accounts.deleteSessionsFor(target.id);
+    afterCommit(() => gateway.disconnectUser(target.id));
+  }
+  return updated;
+}
+
 /**
  * An admin looking after the workspace's people: the audit log, everyone's
  * roles and accounts, password and two-step resets, and reported messages.
@@ -74,9 +108,8 @@ export function registerMemberAdmin(
     return mutate((emit, afterCommit) => {
       const hadInvitePermission =
         body.canInvite !== undefined && store.people.invitePermission(target.id);
-      const updated = store.people.update(target.id, {
+      let updated = store.people.update(target.id, {
         role: body.role,
-        deactivated: body.deactivated,
         canInvite: body.canInvite,
       });
       // Only what actually changed: setting a role someone already has is not
@@ -100,23 +133,8 @@ export function registerMemberAdmin(
           targetId: target.id,
         });
       }
-      if (body.deactivated !== undefined && body.deactivated !== target.deactivated) {
-        store.audit.record({
-          actorId: me.id,
-          action: body.deactivated ? "user.deactivated" : "user.reactivated",
-          targetType: "user",
-          targetId: target.id,
-        });
-      }
-
-      if (body.deactivated === true) {
-        // Revoking access has to reach what is already in their hands: every
-        // session token, and every socket that authenticated with one.
-        store.accounts.deleteSessionsFor(target.id);
-        afterCommit(() => gateway.disconnectUser(target.id));
-      }
-      // Everyone sees the change, so a deactivated person drops out of the member
-      // lists and the composer's autocomplete without a reload.
+      if (body.deactivated !== undefined)
+        updated = setDeactivated(ctx, afterCommit, target, body.deactivated, { person: me.id });
       emit({ type: "user.updated", user: updated });
       return { user: updated };
     });
@@ -205,15 +223,7 @@ export function registerMemberAdmin(
       const message = store.messages.get(open.messageId);
       if (action !== "dismiss" && message) messages.removeMessageWithin(message, emit);
       if (action === "deactivate" && author && !author.deactivated) {
-        const updated = store.people.update(author.id, { deactivated: true });
-        store.audit.record({
-          actorId: me.id,
-          action: "user.deactivated",
-          targetType: "user",
-          targetId: author.id,
-        });
-        store.accounts.deleteSessionsFor(author.id);
-        afterCommit(() => gateway.disconnectUser(author.id));
+        const updated = setDeactivated(ctx, afterCommit, author, true, { person: me.id });
         emit({ type: "user.updated", user: updated });
       }
       const reports = store.reports.resolve(open.messageId, me.id, action);

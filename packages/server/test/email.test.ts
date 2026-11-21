@@ -4,6 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { createWorkspaceServer, type WorkspaceServer } from "../src/server.js";
 import type { ServerExtension } from "../src/extensions.js";
+import { hashPassword, needsRehash } from "../src/auth.js";
 import { codeFor, stepAt } from "../src/twoStep.js";
 import { confirmMail, inviteMail, resetMail } from "../src/email/mails.js";
 import { linkIn, startSmtpSink, type SmtpSink } from "./smtpSink.js";
@@ -208,6 +209,23 @@ describe("an address on an account", () => {
     expect(refused.data.error).toBe("invalid_credentials");
     await server!.flushMail();
     expect(sink.mails).toHaveLength(0);
+  });
+
+  it("stores the password again at today's cost once it is confirmed, as signing in does", async () => {
+    await start();
+    const owner = await register("owner");
+    const old = await hashPassword("password123", { ln: 5, r: 4, p: 1 });
+    server!.store.accounts.setPassword(owner.id, old.hash, old.salt);
+    expect(
+      (
+        await call("/api/me/email", owner.token, {
+          email: "owner@example.test",
+          password: "password123",
+        })
+      ).status,
+    ).toBe(200);
+    const stored = server!.store.people.authByHandle("owner")!.passwordHash;
+    expect(needsRehash(stored)).toBe(false);
   });
 
   it("belongs to one account: another asking for it is answered the same, and only the mailbox is told", async () => {

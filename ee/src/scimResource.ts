@@ -10,7 +10,6 @@ export const CORE_USER = "urn:ietf:params:scim:schemas:core:2.0:User";
 export const ENTERPRISE_USER = "urn:ietf:params:scim:schemas:extension:enterprise:2.0:User";
 export const ERROR_SCHEMA = "urn:ietf:params:scim:api:messages:2.0:Error";
 export const LIST_SCHEMA = "urn:ietf:params:scim:api:messages:2.0:ListResponse";
-export const PATCH_SCHEMA = "urn:ietf:params:scim:api:messages:2.0:PatchOp";
 
 /** A refusal in SCIM's shape: its status, and for a 400 or 409 what kind of problem. */
 export class ScimError extends Error {

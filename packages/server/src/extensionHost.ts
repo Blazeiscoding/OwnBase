@@ -3,6 +3,7 @@ import { join } from "node:path";
 import { planMembers, registerBody } from "@ownbase/protocol";
 import { OutboundError, postToUrl } from "./outbound.js";
 import type { Accounts } from "./accounts/feature.js";
+import { setDeactivated } from "./admin/members.js";
 import { hashPassword } from "./auth.js";
 import type { ServerContext } from "./core/context.js";
 import { HttpError } from "./httpError.js";
@@ -68,20 +69,9 @@ export async function registerExtensions(
           "owner_is_protected",
           "The workspace's owner cannot be deactivated.",
         );
-      const updated = store.people.update(id, patch);
-      if (patch.deactivated !== undefined && patch.deactivated !== target.deactivated) {
-        store.audit.record({
-          actorId: null,
-          action: patch.deactivated ? "user.deactivated" : "user.reactivated",
-          targetType: "user",
-          targetId: id,
-          details: { by },
-        });
-      }
-      if (patch.deactivated === true) {
-        store.accounts.deleteSessionsFor(id);
-        afterCommit(() => gateway.disconnectUser(id));
-      }
+      let updated = store.people.update(id, { displayName: patch.displayName });
+      if (patch.deactivated !== undefined)
+        updated = setDeactivated(ctx, afterCommit, target, patch.deactivated, { extension: by });
       if (updated.displayName !== target.displayName || updated.deactivated !== target.deactivated)
         emit({ type: "user.updated", user: updated });
       return updated;

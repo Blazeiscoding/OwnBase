@@ -420,7 +420,7 @@ export function registerAppManagement(
         details: {
           appId: subscription.appId,
           name: store.apps.get(subscription.appId)?.name ?? null,
-          host: hostOf(subscription.url),
+          ...(subscription.url ? { host: hostOf(subscription.url) } : {}),
         },
       });
       return true;

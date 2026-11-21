@@ -71,7 +71,6 @@ export const slackDm = z.object({
   created: seconds.nullish(),
   members: z.array(z.string()),
 });
-export type SlackDm = z.infer<typeof slackDm>;
 
 export const slackFile = z.object({
   id: words,

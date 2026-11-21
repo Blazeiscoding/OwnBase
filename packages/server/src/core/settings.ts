@@ -13,7 +13,6 @@ import {
   type WorkspaceIcon,
 } from "./workspaceIcon.js";
 import { WORKSPACE_NAME_ROW } from "./workspaceFile.js";
-import { makeVapidKeys, validVapidKeys, type VapidKeys } from "../push/webPush.js";
 
 /** The rows of the database's `meta` table, which hold every workspace setting. */
 export interface MetaRows {
@@ -26,7 +25,7 @@ export interface MetaRows {
 type Row = [key: string, value: string | null];
 
 /** One workspace setting: the rows it is kept in, and what they mean. */
-interface Setting<T> {
+export interface Setting<T> {
   /** The setting as its rows hold it, or null when they hold none that is valid. */
   read(row: (key: string) => string | null): T | null;
   /** The rows that hold `value`; a null value removes its row. */
@@ -47,7 +46,6 @@ interface SettingValues {
   emojiAddingAdminsOnly: boolean;
   claimCode: string | null;
   icon: WorkspaceIcon | null;
-  pushKeys: VapidKeys;
 }
 
 /** Every workspace setting, each declared once. */
@@ -120,26 +118,6 @@ export const SETTINGS: { [K in keyof SettingValues]: Setting<SettingValues[K]> }
       icon ? storedIconRows(icon) : Object.values(ICON_META_KEYS).map((key): Row => [key, null]),
     fallback: null,
   },
-  /**
-   * The key pair this server signs pushes with (RFC 8292), made on first use.
-   * Browsers subscribe to its public half, so a new pair would leave every
-   * subscription unable to receive; a damaged one is replaced all the same.
-   */
-  pushKeys: {
-    read: (row) => {
-      const publicKey = row("push_public_key");
-      const privateKey = row("push_private_key");
-      if (!publicKey || !privateKey) return null;
-      const keys = { publicKey, privateKey };
-      return validVapidKeys(keys) ? keys : null;
-    },
-    write: (keys) => [
-      ["push_public_key", keys.publicKey],
-      ["push_private_key", keys.privateKey],
-    ],
-    fallback: () => makeVapidKeys(),
-    kept: true,
-  },
 };
 
 export type SettingName = keyof SettingValues;
@@ -150,14 +128,19 @@ export class Settings {
 
   /** The setting, or its fallback while none is stored. */
   get<K extends SettingName>(name: K): SettingValue<K> {
-    const setting: Setting<SettingValue<K>> = SETTINGS[name];
-    const stored = this.stored(name);
+    return this.value<SettingValue<K>>(SETTINGS[name]);
+  }
+
+  /**
+   * A setting a feature declares beside its own code, such as push's keys,
+   * read as `get` reads the workspace's.
+   */
+  value<T>(setting: Setting<T>): T {
+    const stored = setting.read((key) => this.rows.getMeta(key));
     if (stored !== null) return stored;
     const value =
-      typeof setting.fallback === "function"
-        ? (setting.fallback as () => SettingValue<K>)()
-        : setting.fallback;
-    if (setting.kept) this.set(name, value);
+      typeof setting.fallback === "function" ? (setting.fallback as () => T)() : setting.fallback;
+    if (setting.kept) this.write(setting, value);
     return value;
   }
 
@@ -169,7 +152,10 @@ export class Settings {
 
   /** Writes the setting's rows. Call it inside a transaction to write them with other changes. */
   set<K extends SettingName>(name: K, value: SettingValue<K>): void {
-    const setting: Setting<SettingValue<K>> = SETTINGS[name];
+    this.write<SettingValue<K>>(SETTINGS[name], value);
+  }
+
+  private write<T>(setting: Setting<T>, value: T): void {
     for (const [key, row] of setting.write(value)) {
       if (row === null) this.rows.deleteMeta(key);
       else this.rows.setMeta(key, row);

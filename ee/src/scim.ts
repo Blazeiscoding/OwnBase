@@ -7,7 +7,7 @@ import {
 } from "@ownbase/protocol";
 import type { ExtensionContext } from "@ownbase/server/extensions";
 import { HttpError } from "@ownbase/server/httpError";
-import { eeEndpoints } from "./endpoints.js";
+import { eeEndpoints, type ScimEndpoint } from "./endpoints.js";
 import { randomToken, s256 } from "./oidc.js";
 import {
   applyPatch,
@@ -73,11 +73,6 @@ export interface Provisioning {
 }
 
 type Request = Parameters<ExtensionContext["startSession"]>[1];
-interface Reply {
-  code(status: number): Reply;
-  header(name: string, value: string): Reply;
-  send(payload?: unknown): Reply;
-}
 
 /** What the provider sends that is not the person's: kept apart from what is stored. */
 const NOT_STORED = new Set(["schemas", "id", "meta", "password", "active", "groups"]);
@@ -257,8 +252,8 @@ export function provisioning(opts: { licensed: () => boolean; now?: () => number
     const { route } = given;
 
     /** A SCIM route: the token checked, the answer and any refusal in SCIM's JSON. */
-    const scim = <E extends Parameters<typeof route>[0]>(
-      endpoint: E,
+    const scim = (
+      endpoint: ScimEndpoint,
       work: (
         req: Request,
         params: Record<string, string>,
@@ -267,15 +262,7 @@ export function provisioning(opts: { licensed: () => boolean; now?: () => number
         body?: unknown;
       }>,
     ) =>
-      route(endpoint, (async ({
-        req,
-        reply,
-        params,
-      }: {
-        req: Request;
-        reply: Reply;
-        params: unknown;
-      }) => {
+      route(endpoint, async ({ req, reply, params }) => {
         const send = (status: number, body?: unknown) =>
           body === undefined
             ? reply.code(status).header("cache-control", "no-store").send()
@@ -292,17 +279,16 @@ export function provisioning(opts: { licensed: () => boolean; now?: () => number
           );
         }
         try {
-          const answer = await work(req, params as Record<string, string>);
+          const answer = await work(req, params);
           return send(answer.status ?? 200, answer.body);
         } catch (error) {
           if (error instanceof ScimError) return send(error.status, error.body());
           given.log.error(error, "SCIM request failed");
           return send(500, new ScimError(500, "Something went wrong here. Try again.").body());
         }
-      }) as never);
+      });
 
-    const bodyOf = (req: Request): Attributes => {
-      const body = (req as unknown as { body?: unknown }).body;
+    const bodyOf = ({ body }: Request): Attributes => {
       if (!isObject(body))
         throw new ScimError(400, "Send the person as a JSON object.", "invalidSyntax");
       return body;
@@ -357,7 +343,7 @@ export function provisioning(opts: { licensed: () => boolean; now?: () => number
     }));
 
     scim(eeEndpoints.scimListUsers, async (req) => {
-      const query = (req as unknown as { query: Record<string, unknown> }).query ?? {};
+      const query: Record<string, unknown> = isObject(req.query) ? req.query : {};
       const number = (value: unknown, fallback: number) => {
         const n = typeof value === "string" && /^-?\d+$/.test(value) ? Number(value) : fallback;
         return n;

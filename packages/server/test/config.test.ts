@@ -9,6 +9,7 @@ import {
   parseMailSettings,
   parsePort,
   parsePublicUrl,
+  parsePushContact,
   parseWholeNumber,
 } from "../src/config.js";
 import { envSetting } from "../src/cli/flags.js";
@@ -121,6 +122,30 @@ describe("a count of whole units", () => {
   });
 });
 
+describe("a push contact", () => {
+  it("is a mailto: address with an @, or an https: address, without spaces", () => {
+    for (const good of ["mailto:ops@example.test", "mailto:a@b", "https://example.test/contact"])
+      expect(parsePushContact(good), good).toBe(good);
+    for (const bad of [
+      "mailto:@example.test",
+      "mailto:ops@",
+      "mailto:ops",
+      "mailto:ops @example.test",
+      "https://",
+      "http://example.test",
+      "ops@example.test",
+      "",
+    ])
+      expect(() => parsePushContact(bad), bad).toThrow(ConfigError);
+  });
+
+  it("is checked at once however long it is", () => {
+    const started = performance.now();
+    expect(() => parsePushContact(`mailto:${"!@".repeat(50_000)} `)).toThrow(ConfigError);
+    expect(performance.now() - started).toBeLessThan(100);
+  });
+});
+
 describe("a claim code from the host", () => {
   it("takes a long, plain code, trimmed, and nothing when none is set", () => {
     expect(parseClaimCode(undefined)).toBeUndefined();
@@ -200,5 +225,24 @@ describe("the server checks too, for callers other than the CLI", () => {
     ).rejects.toThrow(ConfigError);
     // Refused at the door: no workspace was created on the way to failing.
     expect(existsSync(join(dir, "workspace.db"))).toBe(false);
+  });
+
+  it("refuses a push contact push services could not use, as the CLI does", async () => {
+    dir = mkdtempSync(join(tmpdir(), "ownbase-config-"));
+    for (const pushContact of ["ops@example.test", "http://example.test", "mailto:nobody"])
+      await expect(
+        createWorkspaceServer({ dataDir: dir, port: 0, mdns: false, logger: false, pushContact }),
+        pushContact,
+      ).rejects.toThrow("--push-contact must be a mailto: or https: address");
+    expect(existsSync(join(dir, "workspace.db"))).toBe(false);
+  });
+
+  it("refuses a short metrics token with the CLI's words", async () => {
+    dir = mkdtempSync(join(tmpdir(), "ownbase-config-"));
+    await expect(
+      createWorkspaceServer({ dataDir: dir, port: 0, mdns: false, metricsToken: "too-short" }),
+    ).rejects.toThrow(
+      new ConfigError("--metrics-token must be at least 16 characters without spaces"),
+    );
   });
 });

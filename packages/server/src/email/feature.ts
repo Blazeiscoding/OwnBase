@@ -1,6 +1,6 @@
 import { endpoints, pageLink, type User } from "@ownbase/protocol";
-import { inviteFingerprint } from "../accounts/feature.js";
-import { hashPassword, hashToken, verifyPassword } from "../auth.js";
+import { inviteFingerprint, passwordRules } from "../accounts/feature.js";
+import { hashPassword, hashToken } from "../auth.js";
 import type { ServerContext } from "../core/context.js";
 import { HttpError } from "../httpError.js";
 import { secretToken } from "../ids.js";
@@ -21,8 +21,8 @@ export const EMAILED_INVITE_MS = 7 * 24 * 3600_000;
  * `serverInfo` says the server sends no email.
  */
 export function registerEmail(ctx: ServerContext) {
-  const { opts, store, settings, gateway, route, ration, network, limiter, lifecycle, log } = ctx;
-  const extensions = opts.extensions ?? [];
+  const { opts, store, settings, gateway, route, ration, network, lifecycle, log } = ctx;
+  const { mayUsePassword, ssoRequired, authSucceeded, confirmPassword } = passwordRules(ctx);
   const mailer = opts.mail ? new Mailer(opts.mail) : null;
   /** The links lead here, never to the Host a request named, which anyone can set. */
   const base = () => network.publicUrl() ?? null;
@@ -62,18 +62,7 @@ export function registerEmail(ctx: ServerContext) {
       "email_link_gone",
       "This link no longer works. It may have been used already or be too old. Ask for a new one.",
     );
-  const singleSignOnRequired = () =>
-    extensions.some((extension) => extension.requiresSingleSignOn?.() === true);
   const addressKey = (email: string) => email.trim().toLowerCase();
-
-  /** The account's password, asked before its address changes: a stolen session cannot add one. */
-  const confirmPassword = async (me: User, password: string): Promise<void> => {
-    ration("authByHandle", me.handle.toLowerCase());
-    const auth = store.people.authByHandle(me.handle);
-    if (!auth || !(await verifyPassword(password, auth.salt, auth.passwordHash)))
-      throw new HttpError(403, "invalid_credentials", "That is not your password.");
-    limiter?.forget("authByHandle", me.handle.toLowerCase());
-  };
 
   route(endpoints.emailAddress, async ({ user: me }) => {
     requireMail();
@@ -175,8 +164,7 @@ export function registerEmail(ctx: ServerContext) {
       !owner.isBot &&
       owner.role !== "guest" &&
       owner.hasPassword &&
-      // Single sign-on keeps passwords for the owner alone (P9).
-      (owner.role === "owner" || !singleSignOnRequired());
+      mayUsePassword(owner.role);
     if (may) {
       const token = secretToken();
       const email = store.email.addressOf(owner.id).email!;
@@ -210,12 +198,7 @@ export function registerEmail(ctx: ServerContext) {
       address?.toLowerCase() !== link.email.toLowerCase()
     )
       throw linkGone();
-    if (account.role !== "owner" && singleSignOnRequired())
-      throw new HttpError(
-        403,
-        "sso_required",
-        "This workspace signs people in through its single sign-on.",
-      );
+    if (!mayUsePassword(account.role)) throw ssoRequired("signs people in");
     return account;
   };
 
@@ -247,7 +230,7 @@ export function registerEmail(ctx: ServerContext) {
       return { handle: account.handle, revoked };
     });
     for (const session of revoked) gateway.disconnectSession(session);
-    limiter?.forget("authByHandle", handle.toLowerCase());
+    authSucceeded(handle);
     return { handle };
   });
 

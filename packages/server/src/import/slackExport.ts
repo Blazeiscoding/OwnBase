@@ -12,9 +12,11 @@ import { writeFile } from "node:fs/promises";
 import { basename, dirname, join, resolve } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import { pipeline } from "node:stream/promises";
+import { isAdministrator } from "@ownbase/protocol";
 import { fileCrc32, zipArchive, type ZipSource } from "../backups/zip.js";
-import { shape } from "../core/rows.js";
+import { oneOf, shape } from "../core/rows.js";
 import { WORKSPACE_DATABASE } from "../core/workspaceFile.js";
+import { ROLES } from "../people/store.js";
 import { SCHEMA_VERSION } from "../db.js";
 import { slackNameForEmoji } from "./slackEmoji.js";
 import { slackTimeOf } from "./slackFormat.js";
@@ -55,7 +57,7 @@ const userRow = shape({
   id: "text",
   handle: "text",
   display_name: "text",
-  role: "text",
+  role: oneOf(ROLES),
   is_bot: "number",
   deactivated: "number",
   time_zone: "text?",
@@ -240,7 +242,7 @@ class Exporter {
         deleted: u.deactivated === 1,
         real_name: u.display_name,
         is_bot: u.is_bot === 1,
-        is_admin: u.role === "owner" || u.role === "admin",
+        is_admin: isAdministrator(u.role),
         is_owner: u.role === "owner",
         is_primary_owner: u.role === "owner",
         // A guest here reads public channels only, as Slack's single-channel guests read theirs.
