@@ -16,6 +16,7 @@ import { IconProblem, prepareIcon } from "../lib/iconImage.js";
 import { useCurrentWorkspaceIcon } from "../lib/workspaceIcon.js";
 import { buttonClass } from "./Button.js";
 import { useConfirm } from "./Confirm.js";
+import { openCustomEmoji } from "./CustomEmojiHost.js";
 import { Icon } from "./Icon.js";
 import { JoinPolicyChoice } from "./JoinPolicyChoice.js";
 import { SettingsWindow } from "./SettingsWindow.js";
@@ -463,6 +464,9 @@ function EmojiAddingSection() {
           </span>
         </span>
       </label>
+      <button type="button" onClick={openCustomEmoji} className={buttonClass("secondary", "mt-3")}>
+        Manage custom emoji
+      </button>
       {error && (
         <p role="alert" className="mt-3 text-sm text-alert">
           {error}

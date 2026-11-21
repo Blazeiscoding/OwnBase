@@ -66,16 +66,18 @@ export function CustomEmojiImage({ emoji }: { emoji: CustomEmoji }) {
 }
 
 /**
- * Whether this account may add custom emoji: any member, unless the workspace
- * keeps adding to its owner and admins. Guests never.
+ * What this account may do with the Custom emoji window: add, which any
+ * member may unless the workspace keeps adding to its owner and admins; or
+ * only see the list, where whoever added one can still remove it. Guests
+ * get no window: they add none, so have none to remove.
  */
-export function useMayAddEmoji(): boolean {
+export function useEmojiAccess(): "add" | "list" | null {
   const client = useContext(ClientContext);
   const read = () => {
     const state = client?.store.getState();
     const role = state?.self?.role;
-    if (!role || role === "guest") return false;
-    return !state.emojiAddingAdminsOnly || isAdministrator(role);
+    if (!role || role === "guest") return null;
+    return !state.emojiAddingAdminsOnly || isAdministrator(role) ? "add" : "list";
   };
   return useSyncExternalStore(
     (changed) => client?.store.subscribe(changed) ?? unsubscribed,
