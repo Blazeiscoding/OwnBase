@@ -1,4 +1,6 @@
 import {
+  CHANNEL_TOPIC_MAX,
+  STATUS_TEXT_MAX,
   IN_APP_COMMANDS,
   isInAppCommand,
   userMentionsIn,
@@ -65,7 +67,8 @@ export async function runAppCommand(
       const first = firstGrapheme(args);
       const emoji = /\p{Extended_Pictographic}/u.test(first) ? first : "";
       const words = (emoji ? args.slice(first.length) : args).trim();
-      if (words.length > 120) return { ok: false, said: "A status can be up to 120 characters." };
+      if (words.length > STATUS_TEXT_MAX)
+        return { ok: false, said: `A status can be up to ${STATUS_TEXT_MAX} characters.` };
       const error = await client.updateProfile({
         statusEmoji: emoji,
         statusText: words,
@@ -76,7 +79,8 @@ export async function runAppCommand(
     }
     case "topic": {
       if (!args) return { ok: false, said: "Write the new topic after /topic." };
-      if (args.length > 250) return { ok: false, said: "A topic can be up to 250 characters." };
+      if (args.length > CHANNEL_TOPIC_MAX)
+        return { ok: false, said: `A topic can be up to ${CHANNEL_TOPIC_MAX} characters.` };
       if (await client.updateChannel(channelId, { topic: args }))
         return {
           ok: false,

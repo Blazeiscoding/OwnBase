@@ -1,7 +1,7 @@
 import { Suspense, lazy, useEffect, useId, useMemo, useRef, useState } from "react";
 import { UnsavedGuard } from "../lib/dismissGuard.js";
 import { ApiError } from "@ownbase/client-core";
-import { currentZoneName, type ID } from "@ownbase/protocol";
+import { DISPLAY_NAME_MAX, STATUS_TEXT_MAX, currentZoneName, type ID } from "@ownbase/protocol";
 import { IconProblem, prepareIcon } from "../lib/iconImage.js";
 import { readerTimeZone, theirTime, useMinute, zoneLabel } from "../lib/localTime.js";
 import { useClient, useWorkspace } from "../context.js";
@@ -356,7 +356,7 @@ export function ProfileForm() {
       // What was typed stays in the form, so saving again is one press.
       setError(
         failure.code === "invalid_request"
-          ? "Your profile was not saved. A display name can be up to 80 characters and a status up to 120."
+          ? `Your profile was not saved. A display name can be up to ${DISPLAY_NAME_MAX} characters and a status up to ${STATUS_TEXT_MAX}.`
           : failure.code === "unauthorized"
             ? "You were signed out. Sign in again to change your profile."
             : failureText("Your profile was not saved.", failure, "Try again."),
@@ -389,7 +389,7 @@ export function ProfileForm() {
             id={`${id}-display-name`}
             value={displayName}
             onChange={(e) => setDisplayName(e.target.value)}
-            maxLength={80}
+            maxLength={DISPLAY_NAME_MAX}
             className={inputCls}
           />
         </div>
@@ -503,7 +503,7 @@ export function ProfileForm() {
             aria-label="Status text"
             value={statusText}
             onChange={(e) => setStatusText(e.target.value)}
-            maxLength={120}
+            maxLength={STATUS_TEXT_MAX}
             placeholder="What's happening?"
             className={inputCls}
           />

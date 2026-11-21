@@ -1,5 +1,10 @@
 import { timingSafeEqual } from "node:crypto";
-import type { SettingsAction, SettingsPanel, User } from "@ownbase/protocol";
+import {
+  DISPLAY_NAME_MAX,
+  type SettingsAction,
+  type SettingsPanel,
+  type User,
+} from "@ownbase/protocol";
 import type { ExtensionContext } from "@ownbase/server/extensions";
 import { HttpError } from "@ownbase/server/httpError";
 import { eeEndpoints } from "./endpoints.js";
@@ -106,7 +111,7 @@ export function displayNameFrom(attributes: Attributes): string {
     parts.filter(Boolean).join(" "),
     textOf(attribute(attributes, "userName")).split("@")[0]!,
   ];
-  return (candidates.find(Boolean) ?? "").slice(0, 80).trim();
+  return (candidates.find(Boolean) ?? "").slice(0, DISPLAY_NAME_MAX).trim();
 }
 
 /** Every address the provider gave a person: their userName when it is one, and their emails. */

@@ -1,5 +1,5 @@
 import { useEffect, useId, useRef, useState } from "react";
-import { isEmailAddress } from "@ownbase/protocol";
+import { EMAIL_MAX, PASSWORD_MAX, PASSWORD_MIN, isEmailAddress } from "@ownbase/protocol";
 import { Api, ApiError } from "@ownbase/client-core";
 import { buttonClass } from "../components/Button.js";
 import { inputClass, TextField } from "../components/TextField.js";
@@ -92,7 +92,7 @@ export function ForgotPasswordForm(props: { url: string; onBack: () => void }) {
         autoComplete="email"
         spellCheck={false}
         autoCapitalize="none"
-        maxLength={254}
+        maxLength={EMAIL_MAX}
         value={email}
         onChange={(e) => setEmail(e.target.value)}
         error={error}
@@ -143,8 +143,8 @@ export function NewPasswordForm(props: {
 
   async function submit(event: React.FormEvent) {
     event.preventDefault();
-    if (password.length < 8) {
-      setError("Use at least 8 characters.");
+    if (password.length < PASSWORD_MIN) {
+      setError(`Use at least ${PASSWORD_MIN} characters.`);
       document.getElementById(`${id}-new`)?.focus();
       return;
     }
@@ -212,7 +212,7 @@ export function NewPasswordForm(props: {
           autoFocus
           type="password"
           autoComplete="new-password"
-          maxLength={256}
+          maxLength={PASSWORD_MAX}
           value={password}
           onChange={(e) => setPassword(e.target.value)}
           aria-describedby={`${id}-new-hint`}
@@ -230,7 +230,7 @@ export function NewPasswordForm(props: {
           id={`${id}-confirm`}
           type="password"
           autoComplete="new-password"
-          maxLength={256}
+          maxLength={PASSWORD_MAX}
           value={confirm}
           onChange={(e) => setConfirm(e.target.value)}
           className={inputClass("large")}

@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { isEmailAddress } from "@ownbase/protocol";
+import { EMAIL_MAX, isEmailAddress } from "@ownbase/protocol";
 import { ApiError } from "@ownbase/client-core";
 import { useClient } from "../context.js";
 import { failureText } from "../lib/failure.js";
@@ -82,7 +82,7 @@ export function InviteByEmail({ onSent }: { onSent: () => void }) {
         autoComplete="off"
         spellCheck={false}
         autoCapitalize="none"
-        maxLength={254}
+        maxLength={EMAIL_MAX}
         placeholder="name@example.com"
         value={email}
         onChange={(event) => setEmail(event.target.value)}

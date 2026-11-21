@@ -85,9 +85,9 @@ export function groupMentionLabel(
  * A custom emoji's name (J12): 1 to 32 lowercase letters, digits, `_` and
  * `-`. Text writes it between colons, `:name:`, as Slack does.
  */
-export const CUSTOM_EMOJI_NAME = /^[a-z0-9_-]{1,32}$/;
-
-const emojiName = CUSTOM_EMOJI_NAME.source.slice(1, -1);
+export const CUSTOM_EMOJI_NAME_MAX = 32;
+const emojiName = `[a-z0-9_-]{1,${CUSTOM_EMOJI_NAME_MAX}}`;
+export const CUSTOM_EMOJI_NAME = new RegExp(`^${emojiName}$`);
 
 /**
  * A custom emoji's `:name:` in words, read as the app draws one: not against

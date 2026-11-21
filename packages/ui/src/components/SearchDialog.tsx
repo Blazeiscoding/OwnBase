@@ -10,7 +10,7 @@ import {
 } from "react";
 import { ApiError } from "@ownbase/client-core";
 import type { FileMeta, FileType, ID, Message } from "@ownbase/protocol";
-import { parseSearchQuery } from "@ownbase/protocol";
+import { SEARCH_WORDS_MAX, parseSearchQuery } from "@ownbase/protocol";
 import { useClient, useWorkspace } from "../context.js";
 import { useRecentSearches, type RecentSearch } from "../lib/recentSearches.js";
 import { channelTitle, formatBytes, formatFull } from "../lib/format.js";
@@ -396,7 +396,7 @@ export function SearchDialog(props: {
       setAsked(null);
       return;
     }
-    if (query.length > 200 || unreadable || askedAlready(key)) return;
+    if (query.length > SEARCH_WORDS_MAX || unreadable || askedAlready(key)) return;
     const timer = setTimeout(
       () => setAsked((before) => (keyOf(before) === key ? before : criteria)),
       LIVE_DELAY,
@@ -428,7 +428,7 @@ export function SearchDialog(props: {
       setText(taken.text);
     }
     const settled = criteriaOf(taken.text, nextFilters, scope, tab);
-    if (!settled || settled.query.length > 200) return;
+    if (!settled || settled.query.length > SEARCH_WORDS_MAX) return;
     const settledKey = keyOf(settled);
     committed.current = settledKey;
     if (settledKey !== askedKey) {
@@ -514,7 +514,7 @@ export function SearchDialog(props: {
       setTab(next);
       // Another tab is another question, asked at once rather than after a pause.
       const switched = criteriaOf(text, filters, scope, next);
-      if (switched && switched.query.length <= 200 && !unreadable) setAsked(switched);
+      if (switched && switched.query.length <= SEARCH_WORDS_MAX && !unreadable) setAsked(switched);
     },
   });
   const files = useMemo(
@@ -543,7 +543,7 @@ export function SearchDialog(props: {
             autoFocus
             aria-label="Search messages"
             enterKeyHint="search"
-            maxLength={200}
+            maxLength={SEARCH_WORDS_MAX}
             value={text}
             onChange={(e) => {
               const typed = e.target.value;
@@ -582,9 +582,9 @@ export function SearchDialog(props: {
             </button>
           </Tooltip>
         </div>
-        {query.length > 200 && (
+        {query.length > SEARCH_WORDS_MAX && (
           <p role="alert" className="text-xs text-ink-dim">
-            Shorten the search or remove a filter (200 characters maximum).
+            Shorten the search or remove a filter ({SEARCH_WORDS_MAX} characters maximum).
           </p>
         )}
         <div className="flex flex-wrap items-center gap-1.5">

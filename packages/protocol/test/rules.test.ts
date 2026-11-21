@@ -3,6 +3,8 @@ import {
   canDeleteMessage,
   editRefusal,
   errorCodeOf,
+  handleSchema,
+  isHandle,
   isAdministrator,
   isDirect,
   isRoom,
@@ -82,5 +84,24 @@ describe("shared rules", () => {
     expect(errorCodeOf("channel_archived")).toBe("channel_archived");
     expect(errorCodeOf("FST_ERR_CTP_BODY_TOO_LARGE")).toBe("http_error");
     expect(errorCodeOf(undefined)).toBe("http_error");
+  });
+});
+
+describe("usernames", () => {
+  it("are what handleSchema takes, said without zod", () => {
+    for (const text of [
+      "ab",
+      "a.b",
+      "a_b-c",
+      "x".repeat(32),
+      "",
+      "a",
+      "x".repeat(33),
+      "-ab",
+      "Ab",
+      "a b",
+      "é1",
+    ])
+      expect(isHandle(text), text).toBe(handleSchema.safeParse(text).success);
   });
 });

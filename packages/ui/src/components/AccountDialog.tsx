@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useId, useRef, useState } from "react";
+import { PASSWORD_MAX, PASSWORD_MIN } from "@ownbase/protocol";
 import type { SessionInfo, StorageUsage } from "@ownbase/protocol";
 import { ApiError, failureOf, snoozedUntil } from "@ownbase/client-core";
 import { formatBytes, formatFull, formatWhen } from "../lib/format.js";
@@ -427,7 +428,7 @@ export function AccountDialog({
                       value={currentPassword}
                       onChange={(e) => setCurrentPassword(e.target.value)}
                       required
-                      maxLength={256}
+                      maxLength={PASSWORD_MAX}
                     />
                   </label>
                   <label className="block text-sm">
@@ -440,12 +441,12 @@ export function AccountDialog({
                       onChange={(e) => setNewPassword(e.target.value)}
                       required
                       minLength={8}
-                      maxLength={256}
+                      maxLength={PASSWORD_MAX}
                       aria-describedby="account-password-hint"
                     />
                   </label>
                   <p id="account-password-hint" className="text-xs text-ink-faint">
-                    Use at least 8 characters. A long, unique password is best.
+                    Use at least {PASSWORD_MIN} characters. A long, unique password is best.
                   </p>
                   <label className="block text-sm">
                     Confirm new password
@@ -457,7 +458,7 @@ export function AccountDialog({
                       onChange={(e) => setRepeatPassword(e.target.value)}
                       required
                       minLength={8}
-                      maxLength={256}
+                      maxLength={PASSWORD_MAX}
                     />
                   </label>
                   <label className="flex items-center gap-2 text-sm text-ink-dim">

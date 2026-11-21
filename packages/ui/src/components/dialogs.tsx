@@ -1,6 +1,17 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { ApiError } from "@ownbase/client-core";
-import { isRoom, type Channel, type ID } from "@ownbase/protocol";
+import {
+  CHANNEL_DESCRIPTION_MAX,
+  CHANNEL_NAME_MAX,
+  GROUP_DM_OTHERS_MAX,
+  HANDLE_MAX,
+  HANDLE_MIN,
+  isHandle,
+  PASSWORD_MIN,
+  isRoom,
+  type Channel,
+  type ID,
+} from "@ownbase/protocol";
 import { useClient, useWorkspace } from "../context.js";
 import { failureText } from "../lib/failure.js";
 import { Avatar } from "./Avatar.js";
@@ -104,7 +115,7 @@ export function NewChannelDialog(props: { onClose: () => void; onCreated: (ch: C
               // eslint-disable-next-line jsx-a11y/no-autofocus -- the dialog's first field: focus moves there as it opens
               autoFocus
               value={name}
-              maxLength={80}
+              maxLength={CHANNEL_NAME_MAX}
               onChange={(e) => {
                 setName(e.target.value);
                 setError(null);
@@ -131,7 +142,7 @@ export function NewChannelDialog(props: { onClose: () => void; onCreated: (ch: C
           <input
             id="new-channel-description"
             value={description}
-            maxLength={500}
+            maxLength={CHANNEL_DESCRIPTION_MAX}
             onChange={(e) => setDescription(e.target.value)}
             placeholder="Planning the launch party"
             className={inputCls}
@@ -193,13 +204,13 @@ export function GuestAccountDialog(props: {
     return {
       handle: !name
         ? "Choose a username."
-        : !/^[a-z0-9][a-z0-9._-]{1,31}$/.test(name)
-          ? "Usernames are 2 to 32 lowercase letters or numbers, and may use . _ or -."
+        : !isHandle(name)
+          ? `Usernames are ${HANDLE_MIN} to ${HANDLE_MAX} lowercase letters or numbers, and may use . _ or -.`
           : undefined,
       password: !password
         ? "Choose a password."
-        : password.length < 8
-          ? "Use at least 8 characters for the password."
+        : password.length < PASSWORD_MIN
+          ? `Use at least ${PASSWORD_MIN} characters for the password.`
           : undefined,
     };
   }
@@ -233,7 +244,7 @@ export function GuestAccountDialog(props: {
     }
     setError(
       kept.code === "invalid_request"
-        ? "Usernames use lowercase letters and numbers. Passwords need at least 8 characters."
+        ? `Usernames use lowercase letters and numbers. Passwords need at least ${PASSWORD_MIN} characters.`
         : kept.code === "invite_required"
           ? "This workspace now needs an invite to create an account."
           : failureText("Could not create the account.", kept, "Try again."),
@@ -266,7 +277,7 @@ export function GuestAccountDialog(props: {
         <TextField
           ref={passwordField}
           label="Password"
-          hint="At least 8 characters."
+          hint={`At least ${PASSWORD_MIN} characters.`}
           error={problems.password}
           type="password"
           value={password}
@@ -505,7 +516,7 @@ export function NewDmDialog(props: {
     .sort((a, b) => a.displayName.localeCompare(b.displayName));
 
   async function start() {
-    if (busy || picked.length < 1 || picked.length > 8) return;
+    if (busy || picked.length < 1 || picked.length > GROUP_DM_OTHERS_MAX) return;
     if (picked.some((id) => !users[id] || users[id]?.deactivated || users[id]?.isBot)) {
       setError("Some people you chose cannot get direct messages. Remove them to continue.");
       return;
@@ -616,7 +627,7 @@ export function NewDmDialog(props: {
                     <input
                       type="checkbox"
                       checked={chosen}
-                      disabled={busy || (!chosen && picked.length >= 8)}
+                      disabled={busy || (!chosen && picked.length >= GROUP_DM_OTHERS_MAX)}
                       onChange={(e) => toggle(u.id, e.target.checked)}
                       className="sr-only"
                     />

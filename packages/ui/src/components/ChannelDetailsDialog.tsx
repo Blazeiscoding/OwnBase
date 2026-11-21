@@ -1,6 +1,9 @@
 import { useEffect, useId, useRef, useState } from "react";
 import { UnsavedGuard } from "../lib/dismissGuard.js";
 import {
+  CHANNEL_DESCRIPTION_MAX,
+  CHANNEL_NAME_MAX,
+  CHANNEL_TOPIC_MAX,
   channelPermissions,
   canRemoveChannelMember,
   canSetChannelManager,
@@ -283,7 +286,7 @@ export function ChannelDetailsDialog(props: {
                 error={nameProblem}
                 value={name}
                 required={permissions.manage}
-                maxLength={80}
+                maxLength={CHANNEL_NAME_MAX}
                 readOnly={!permissions.manage || busy}
                 onChange={(e) => {
                   setName(e.target.value);
@@ -299,7 +302,7 @@ export function ChannelDetailsDialog(props: {
               )}
               <TextField
                 label="Topic"
-                maxLength={250}
+                maxLength={CHANNEL_TOPIC_MAX}
                 value={topic}
                 readOnly={!permissions.manage || busy}
                 onChange={(e) => {
@@ -318,7 +321,7 @@ export function ChannelDetailsDialog(props: {
                 <textarea
                   dir="auto"
                   id={`${fieldId}-description`}
-                  maxLength={500}
+                  maxLength={CHANNEL_DESCRIPTION_MAX}
                   value={description}
                   readOnly={!permissions.manage || busy}
                   onChange={(e) => {

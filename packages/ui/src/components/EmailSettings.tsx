@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useId, useRef, useState } from "react";
-import { isEmailAddress } from "@ownbase/protocol";
+import { EMAIL_MAX, PASSWORD_MAX, isEmailAddress } from "@ownbase/protocol";
 import { ApiError, selfMay } from "@ownbase/client-core";
 import type { EmailAddressInfo } from "@ownbase/protocol";
 import { useClient, useWorkspace } from "../context.js";
@@ -216,7 +216,7 @@ export function EmailSettings() {
             autoComplete="email"
             spellCheck={false}
             autoCapitalize="none"
-            maxLength={254}
+            maxLength={EMAIL_MAX}
             value={email}
             onChange={(event) => setEmail(event.target.value)}
             readOnly={busy}
@@ -228,7 +228,7 @@ export function EmailSettings() {
             hint="To check it's you."
             type="password"
             autoComplete="current-password"
-            maxLength={256}
+            maxLength={PASSWORD_MAX}
             value={password}
             onChange={(event) => setPassword(event.target.value)}
             readOnly={busy}

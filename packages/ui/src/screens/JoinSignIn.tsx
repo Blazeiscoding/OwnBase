@@ -1,4 +1,11 @@
 import { useEffect, useEffectEvent, useId, useRef, useState } from "react";
+import {
+  DISPLAY_NAME_MAX,
+  HANDLE_MAX,
+  HANDLE_MIN,
+  isHandle,
+  PASSWORD_MIN,
+} from "@ownbase/protocol";
 import type { ServerInfo, SignInMethod } from "@ownbase/protocol";
 import { Api, ApiError } from "@ownbase/client-core";
 import type { Platform, SavedServer } from "../platform.js";
@@ -206,14 +213,17 @@ export function AuthCard(props: {
         text: mode === "login" ? "Enter your username." : "Choose a username.",
         field: "handle",
       };
-    if (mode === "register" && !/^[a-z0-9][a-z0-9._-]{1,31}$/.test(name))
+    if (mode === "register" && !isHandle(name))
       return {
-        text: "Usernames are 2 to 32 lowercase letters or numbers, and may use . _ or -.",
+        text: `Usernames are ${HANDLE_MIN} to ${HANDLE_MAX} lowercase letters or numbers, and may use . _ or -.`,
         field: "handle",
       };
     if (!password) return { text: "Enter your password.", field: "password" };
-    if (mode === "register" && password.length < 8)
-      return { text: "Use at least 8 characters for your password.", field: "password" };
+    if (mode === "register" && password.length < PASSWORD_MIN)
+      return {
+        text: `Use at least ${PASSWORD_MIN} characters for your password.`,
+        field: "password",
+      };
     return null;
   }
 
@@ -332,8 +342,8 @@ export function AuthCard(props: {
     e.preventDefault();
     if (!mustReplace) return;
     setError(null);
-    if (newPassword.length < 8) {
-      setError("Use at least 8 characters.");
+    if (newPassword.length < PASSWORD_MIN) {
+      setError(`Use at least ${PASSWORD_MIN} characters.`);
       return;
     }
     if (newPassword !== confirmPassword) {
@@ -637,7 +647,7 @@ export function AuthCard(props: {
                     value={displayName}
                     onChange={(e) => setDisplayName(e.target.value)}
                     autoComplete="nickname"
-                    maxLength={80}
+                    maxLength={DISPLAY_NAME_MAX}
                     aria-describedby={`${id}-guest-name-hint`}
                     className={fieldCls}
                   />
