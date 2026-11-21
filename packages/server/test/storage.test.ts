@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { mkdtempSync, readdirSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -74,6 +74,7 @@ beforeEach(() => {
 });
 
 afterEach(async () => {
+  vi.useRealTimers();
   await stop();
   rmSync(dataDir, { recursive: true, force: true });
 });
@@ -234,17 +235,10 @@ describe("workspace storage quota", () => {
 });
 
 describe("abandoned uploads", () => {
-  /** Ages an upload past the sweep line without waiting for real time. */
-  function backdate(fileId: string, msAgo: number) {
-    server!.store.transaction(() => {
-      (
-        server!.store as unknown as {
-          db: { prepare: (sql: string) => { run: (...a: unknown[]) => void } };
-        }
-      ).db
-        .prepare("UPDATE files SET created_at = ? WHERE id = ?")
-        .run(Date.now() - msAgo, fileId);
-    });
+  /** Moves the clock the server reads `ms` on, so uploads made before are that old. */
+  function later(ms: number) {
+    vi.useFakeTimers({ toFake: ["Date"], shouldAdvanceTime: true });
+    vi.setSystemTime(Date.now() + ms);
   }
 
   it("frees an upload nobody ever sent, and its space with it", async () => {
@@ -258,7 +252,7 @@ describe("abandoned uploads", () => {
     expect(server!.expireAbandonedUploads()).toBe(0);
     expect((await usage()).usedBytes).toBe(150 * 1024);
 
-    backdate(id, 2 * 3600_000);
+    later(2 * 3600_000);
     expect(server!.expireAbandonedUploads()).toBe(1);
     await server!.flushFileDeletions();
 
@@ -279,7 +273,7 @@ describe("abandoned uploads", () => {
     });
     expect(posted.status).toBe(201);
 
-    backdate(id, 90 * 24 * 3600_000);
+    later(90 * 24 * 3600_000);
     expect(server!.expireAbandonedUploads()).toBe(0);
     await server!.flushFileDeletions();
     expect(blobsOnDisk()).toEqual([id]);
@@ -304,7 +298,8 @@ describe("abandoned uploads", () => {
     });
     expect(scheduled.status).toBe(201);
 
-    backdate(id, 30 * 24 * 3600_000);
+    // Past the sweep line, and still before it sends.
+    later(2 * 24 * 3600_000);
     expect(server!.expireAbandonedUploads()).toBe(0);
     await server!.flushFileDeletions();
     expect(blobsOnDisk()).toEqual([id]);

@@ -1,4 +1,4 @@
-import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -13,6 +13,7 @@ import {
   APP_SCOPES,
 } from "@ownbase/protocol";
 import { createWorkspaceServer, type WorkspaceServer } from "../src/index.js";
+import { moveableClock, passGrace } from "./huddleClock.js";
 
 /** The searcher's zone, which the server reads `before:` and `after:` in. */
 const TZ = encodeURIComponent(Intl.DateTimeFormat().resolvedOptions().timeZone);
@@ -34,11 +35,12 @@ beforeAll(async () => {
     // Rationing has its own file, where it is the subject rather than a
     // background condition every other case has to work around.
     rateLimits: false,
-    // A dropped device's place in a call goes at once here; huddleRejoin.test.ts
-    // covers the grace it gets for coming back.
-    huddleGraceMs: 0,
   });
   base = `http://127.0.0.1:${server.port}`;
+});
+
+afterEach(() => {
+  vi.useRealTimers();
 });
 
 afterAll(async () => {
@@ -997,10 +999,16 @@ describe("workspace server", () => {
         m.event.userIds.length === 1,
     );
 
-    // And dropping the socket removes the last one, rather than leaving a ghost.
+    // And dropping the socket removes the last one once its grace is up,
+    // rather than leaving a ghost.
+    moveableClock();
     b.ws.close();
-    await new Promise((r) => setTimeout(r, 200));
-    expect(server.huddles.participants(general.id)).toEqual([]);
+    await expect
+      .poll(async () => {
+        await passGrace();
+        return server.huddles.participants(general.id);
+      })
+      .toEqual([]);
     a.ws.close();
   });
 

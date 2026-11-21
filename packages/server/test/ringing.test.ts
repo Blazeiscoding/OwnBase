@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import WebSocket from "ws";
 import {
   PROTOCOL_VERSION,
@@ -7,6 +7,7 @@ import {
   type ServerToClient,
 } from "@ownbase/protocol";
 import { createWorkspaceServer, type WorkspaceServer } from "../src/server.js";
+import { moveableClock, passGrace, passRing } from "./huddleClock.js";
 
 /**
  * Ringing for direct calls (E10): the first one into a direct message's
@@ -19,11 +20,12 @@ let base: string;
 const sockets: WebSocket[] = [];
 
 afterEach(async () => {
+  vi.useRealTimers();
   for (const ws of sockets.splice(0)) ws.terminate();
   await server?.stop();
 });
 
-async function start(huddleRingMs = 60_000) {
+async function start() {
   server = await createWorkspaceServer({
     dataDir: ":memory:",
     host: "127.0.0.1",
@@ -31,8 +33,6 @@ async function start(huddleRingMs = 60_000) {
     mdns: false,
     rateLimits: false,
     logger: false,
-    huddleGraceMs: 0,
-    huddleRingMs,
   });
   base = `http://127.0.0.1:${server.port}`;
 }
@@ -125,7 +125,7 @@ describe("a direct message's huddle", () => {
       await expect.poll(() => last(device.rings())?.ringing).toEqual([bob.user.id]);
     const ring = last(laptop.rings())!;
     expect(ring).toMatchObject({ channelId, callerId: alice.user.id, answered: [], declined: [] });
-    expect(ring.endsAt - ring.startedAt).toBe(60_000);
+    expect(ring.endsAt - ring.startedAt).toBe(30_000);
     expect(server.huddles.ring(channelId)).toEqual(ring);
     await outsider.settle();
     expect(outsider.rings()).toEqual([]);
@@ -215,15 +215,22 @@ describe("a direct message's huddle", () => {
   });
 
   it("leaves a note as from the caller when nobody answers in time", async () => {
-    await start(150);
+    await start();
     const alice = await register("alice");
     const bob = await register("bob");
     const channelId = await dm(alice, bob);
     const caller = await connect(alice.token);
     const callee = await connect(bob.token);
+    moveableClock();
     caller.send({ type: "huddle.join", channelId, requestId: "a" });
     await expect.poll(() => callee.rings().length).toBe(1);
 
+    // Still ringing for half a minute...
+    await vi.advanceTimersByTimeAsync(29_000);
+    await callee.settle();
+    expect(callee.rings()).toHaveLength(1);
+    // ...and missed after it.
+    await passRing();
     await expect.poll(() => last(callee.rings())?.ringing).toEqual([]);
     await expect.poll(async () => (await messages(channelId, bob.token)).length).toBe(1);
     const [note] = await messages(channelId, bob.token);
@@ -285,8 +292,14 @@ describe("a direct message's huddle", () => {
     caller.send({ type: "huddle.join", channelId, requestId: "a" });
     await expect.poll(() => callee.rings().length).toBe(1);
 
+    moveableClock();
     caller.ws.terminate();
-    await expect.poll(() => last(callee.rings())?.ringing).toEqual([]);
+    await expect
+      .poll(async () => {
+        await passGrace();
+        return last(callee.rings())?.ringing;
+      })
+      .toEqual([]);
     await expect.poll(async () => (await messages(channelId, bob.token)).length).toBe(1);
   });
 
@@ -317,7 +330,7 @@ describe("a direct message's huddle", () => {
 
 describe("a group direct message's huddle", () => {
   it("rings everyone in it but bots, and goes on for the others as one answers", async () => {
-    await start(400);
+    await start();
     const alice = await register("alice");
     const bob = await register("bob");
     const carol = await register("carol");
@@ -327,6 +340,7 @@ describe("a group direct message's huddle", () => {
     const bobs = await connect(bob.token);
     const carols = await connect(carol.token);
 
+    moveableClock();
     caller.send({ type: "huddle.join", channelId, requestId: "a" });
     await expect
       .poll(() => [...(last(carols.rings())?.ringing ?? [])].sort())
@@ -340,6 +354,7 @@ describe("a group direct message's huddle", () => {
         answered: [bob.user.id],
       });
     // Carol never answers. Someone did, so the call happened: no note.
+    await passRing();
     await expect.poll(() => last(caller.rings())?.ringing).toEqual([]);
     await new Promise((settled) => setTimeout(settled, 100));
     expect(await messages(channelId, alice.token)).toEqual([]);

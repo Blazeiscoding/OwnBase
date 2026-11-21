@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { Message } from "@ownbase/protocol";
 import { createWorkspaceServer, type WorkspaceServer } from "../src/server.js";
 
@@ -29,24 +29,22 @@ beforeEach(async () => {
 });
 
 afterEach(async () => {
+  vi.useRealTimers();
   await server.stop();
 });
 
-/** Posts a message and moves it to the given moment. */
+/**
+ * Posts a message at the given moment, on a clock the server reads, which
+ * stays there: the session slid along with it.
+ */
 async function postedAt(text: string, at: number) {
-  const res = await fetch(`${base}/api/channels/${channelId}/messages`, {
+  vi.useFakeTimers({ toFake: ["Date"], shouldAdvanceTime: true });
+  vi.setSystemTime(at);
+  await fetch(`${base}/api/channels/${channelId}/messages`, {
     method: "POST",
     headers: { authorization: `Bearer ${token}`, "content-type": "application/json" },
     body: JSON.stringify({ text }),
   });
-  const { message } = (await res.json()) as { message: Message };
-  (
-    server.store as unknown as {
-      db: { prepare: (sql: string) => { run: (...a: unknown[]) => void } };
-    }
-  ).db
-    .prepare("UPDATE messages SET created_at = ? WHERE id = ?")
-    .run(at, message.id);
 }
 
 async function search(q: string, tz: string) {

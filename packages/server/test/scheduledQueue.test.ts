@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import WebSocket from "ws";
 import { PROTOCOL_VERSION, type ServerToClient } from "@ownbase/protocol";
 import { createWorkspaceServer, type WorkspaceServer } from "../src/server.js";
+import { SCHEDULED_LIMITS } from "../src/scheduled/feature.js";
 
 /**
  * The scheduled queue has bounds: how much one account and the workspace may
@@ -19,16 +20,13 @@ afterEach(async () => {
   server = undefined;
 });
 
-async function start(
-  scheduledLimits?: Parameters<typeof createWorkspaceServer>[0]["scheduledLimits"],
-) {
+async function start() {
   server = await createWorkspaceServer({
     dataDir: ":memory:",
     host: "127.0.0.1",
     port: 0,
     mdns: false,
     rateLimits: false,
-    scheduledLimits,
   });
   base = `http://127.0.0.1:${server.port}`;
 }
@@ -61,7 +59,6 @@ const schedule = (token: string, text: string, channelId = general()) =>
     text,
     sendAt: Date.now() + 3_600_000,
   });
-/** Brings every waiting row forward instead of idling the test until it is due. */
 /** Makes every waiting message due, by moving it as its author would: they hear of it too. */
 const allDue = () => {
   for (const item of server!.store.scheduled.due(Date.now() + 7_200_000, 100_000))
@@ -70,20 +67,27 @@ const allDue = () => {
 const sent = () => server!.store.messages.list({ channelId: general(), limit: 500 }).length;
 
 describe("admission to the scheduled queue", () => {
-  it("refuses one account's next message past its limit, and takes one again after a cancel", async () => {
-    await start({ perAccount: 3 });
-    const owner = await register("owner");
-    const other = await register("other");
+  const { perAccount, perWorkspace } = SCHEDULED_LIMITS;
+  /** Fills an account's queue to its limit, less `short`. */
+  const fill = async (token: string, short = 0) => {
     const ids: string[] = [];
-    for (let i = 0; i < 3; i++) {
-      const res = await schedule(owner.token, `queued ${i}`);
+    for (let i = 0; i < perAccount - short; i++) {
+      const res = await schedule(token, `queued ${i}`);
       expect(res.status).toBe(201);
       ids.push(res.body.scheduled.id);
     }
+    return ids;
+  };
+
+  it("refuses one account's next message past its limit, and takes one again after a cancel", async () => {
+    await start();
+    const owner = await register("owner");
+    const other = await register("other");
+    const ids = await fill(owner.token);
     const refused = await schedule(owner.token, "one too many");
     expect(refused.status).toBe(409);
     expect(refused.body.error).toBe("scheduled_limit");
-    expect(refused.body.message).toMatch(/already have 3 messages waiting/);
+    expect(refused.body.message).toMatch(/already have 200 messages waiting/);
 
     // Someone else's queue is theirs.
     expect((await schedule(other.token, "mine")).status).toBe(201);
@@ -93,21 +97,34 @@ describe("admission to the scheduled queue", () => {
   });
 
   it("still replays a request it already accepted when the account is at its limit", async () => {
-    await start({ perAccount: 1 });
+    await start();
     const owner = await register("owner");
+    await fill(owner.token, 1);
     const body = { text: "once", nonce: "same-request", sendAt: Date.now() + 3_600_000 };
     const path = `/api/channels/${general()}/scheduled`;
     expect((await request(path, owner.token, body)).status).toBe(201);
+    expect((await schedule(owner.token, "one too many")).status).toBe(409);
     expect((await request(path, owner.token, body)).status).toBe(200);
   });
 
   it("refuses anyone once the workspace holds as many as it allows", async () => {
-    await start({ perWorkspace: 2 });
+    await start();
     const owner = await register("owner");
     const other = await register("other");
-    expect((await schedule(owner.token, "one")).status).toBe(201);
-    expect((await schedule(other.token, "two")).status).toBe(201);
-    const refused = await schedule(owner.token, "three");
+    // Ten thousand requests would take most of a minute, so all but one are
+    // put in the queue directly, as from people this test does not need.
+    const filler = await register("filler");
+    for (let i = 0; i < perWorkspace - 1; i++)
+      server!.store.scheduled.schedule({
+        channelId: general(),
+        userId: filler.id,
+        text: `queued ${i}`,
+        threadRootId: null,
+        fileIds: [],
+        sendAt: Date.now() + 3_600_000,
+      });
+    expect((await schedule(owner.token, "the last place")).status).toBe(201);
+    const refused = await schedule(other.token, "one too many");
     expect(refused.status).toBe(409);
     expect(refused.body.error).toBe("scheduled_limit");
   });
@@ -115,7 +132,7 @@ describe("admission to the scheduled queue", () => {
 
 describe("draining the scheduled queue", () => {
   it("takes a batch per turn, and the rest on later turns, until all are sent", async () => {
-    await start({ batch: 10, perAccount: 1000 });
+    await start();
     const owner = await register("owner");
     for (let i = 0; i < 35; i++) await schedule(owner.token, `due ${i}`);
     allDue();
@@ -130,7 +147,7 @@ describe("draining the scheduled queue", () => {
 
 describe("a held scheduled message", () => {
   it("waits for its next attempt instead of being checked on every tick", async () => {
-    await start({ heldRetryMs: 60_000 });
+    await start();
     const owner = await register("owner");
     const queued = await schedule(owner.token, "for a closed room");
     await request(`/api/channels/${general()}`, owner.token, { archived: true }, "PATCH");
@@ -138,11 +155,9 @@ describe("a held scheduled message", () => {
     server!.flushScheduled();
     expect(server!.store.scheduled.get(queued.body.scheduled.id)!.status).toBe("held");
 
-    const hold = vi.spyOn(server!.store.scheduled, "hold");
-    server!.flushScheduled();
-    server!.flushScheduled();
-    expect(hold).not.toHaveBeenCalled();
-    // It comes round again once its pause is over.
+    // Not on the next ticks, nor for most of a minute...
+    expect(server!.store.scheduled.due(Date.now() + 59_000)).toEqual([]);
+    // ...but once its pause is over.
     expect(server!.store.scheduled.due(Date.now() + 61_000).map((s) => s.id)).toEqual([
       queued.body.scheduled.id,
     ]);
@@ -210,7 +225,7 @@ describe("telling the author's devices that their queue changed (UX-08)", () => 
   }
 
   it("says so to the author alone as a message is queued, edited, moved, held, sent and cancelled", async () => {
-    await start({ heldRetryMs: 60_000 });
+    await start();
     const owner = await register("owner");
     const other = await register("other");
     const mine = await connect(owner.token);

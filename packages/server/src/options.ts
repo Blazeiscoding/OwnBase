@@ -8,8 +8,6 @@ import type { Limits } from "./limits.js";
 import type { FetchedPreview } from "./linkPreview.js";
 import type { ServerRelay } from "./huddles/relay.js";
 import type { PushLimits } from "./push/sender.js";
-import type { REMINDER_LIMITS } from "./reminders/feature.js";
-import type { SCHEDULED_LIMITS } from "./scheduled/feature.js";
 
 /** How a workspace server is started: by the command line, the desktop app or a test. */
 export interface ServerOptions {
@@ -67,13 +65,6 @@ export interface ServerOptions {
    * actually written.
    */
   logger?: boolean | { stream: NodeJS.WritableStream };
-  /**
-   * How long a huddle place waits for a device whose connection dropped
-   * (`HUDDLE_GRACE_MS` by default). For tests.
-   */
-  huddleGraceMs?: number;
-  /** How long a direct message's huddle rings (`HUDDLE_RING_MS` by default). For tests. */
-  huddleRingMs?: number;
   /** Private deployments default to LAN-only media with no external ICE service. */
   iceServers?: { urls: string | string[]; username?: string; credential?: string }[];
   /**
@@ -89,10 +80,6 @@ export interface ServerOptions {
    * anywhere reachable from outside it.
    */
   rateLimits?: Partial<Limits> | false;
-  /** Overrides for the scheduled queue's bounds; see `SCHEDULED_LIMITS`. */
-  scheduledLimits?: Partial<typeof SCHEDULED_LIMITS>;
-  /** Overrides for reminders' bounds; see `REMINDER_LIMITS`. */
-  reminderLimits?: Partial<typeof REMINDER_LIMITS>;
   /** Overrides for pushes to closed browsers; see `PUSH_LIMITS`. */
   pushLimits?: Partial<PushLimits>;
   /**

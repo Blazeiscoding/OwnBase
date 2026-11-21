@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { existsSync, mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -73,17 +73,14 @@ function loggedPayloads(): string {
 }
 
 /**
- * Makes rows old. Only time can otherwise do this, and a test that waited a day
- * would not be a test. A second connection is how it reaches past the store's
- * own API; WAL lets the server's connection see the change.
+ * Moves the clock the server reads `days` on, and signs in again, as someone
+ * back after that long would: their session has ended meanwhile.
  */
-function backdate(days: number) {
-  const db = new DatabaseSync(join(directory, "workspace.db"));
-  try {
-    db.exec(`UPDATE messages SET created_at = created_at - ${days * 24 * 3600_000}`);
-  } finally {
-    db.close();
-  }
+async function later(days: number) {
+  vi.useFakeTimers({ toFake: ["Date"], shouldAdvanceTime: true });
+  vi.setSystemTime(Date.now() + days * 24 * 3600_000);
+  token = (await api("/api/auth/login", "POST", { handle: "owner", password: "password123" })).body
+    .token;
 }
 
 beforeEach(() => {
@@ -91,6 +88,7 @@ beforeEach(() => {
 });
 
 afterEach(async () => {
+  vi.useRealTimers();
   await server?.stop();
   server = undefined;
   rmSync(directory, { recursive: true, force: true });
@@ -247,7 +245,7 @@ describe("a retention window", () => {
     await start();
     await signIn();
     const message = await post("from a long time ago");
-    backdate(400);
+    await later(400);
 
     expect(server!.applyRetention()).toBe(0);
     expect(server!.store.messages.get(message.id)).not.toBeNull();
@@ -269,7 +267,7 @@ describe("a retention window", () => {
     await start({ retentionDays: 30 });
     await signIn();
     const old = await post("said last quarter");
-    backdate(60);
+    await later(60);
     const recent = await post("said this morning");
 
     expect(server!.applyRetention()).toBe(1);
@@ -285,7 +283,7 @@ describe("a retention window", () => {
     await post(secret, { fileIds: [fileId] });
     const blob = join(directory, "files", fileId);
     expect(existsSync(blob)).toBe(true);
-    backdate(60);
+    await later(60);
 
     expect(server!.applyRetention()).toBe(1);
     await server!.flushFileDeletions();
@@ -299,7 +297,7 @@ describe("a retention window", () => {
     await start({ retentionDays: 30 });
     await signIn();
     const root = await post("started this long ago");
-    backdate(60);
+    await later(60);
     const reply = await api(`/api/channels/${channelId}/messages`, "POST", {
       text: "still talking about it",
       threadRootId: root.id,
@@ -320,7 +318,7 @@ describe("a retention window", () => {
       text: "and here is the last word on it",
       threadRootId: root.id,
     });
-    backdate(60);
+    await later(60);
 
     expect(server!.applyRetention()).toBe(2);
     expect(server!.store.messages.get(root.id)).toBeNull();
@@ -345,7 +343,7 @@ describe("a retention window", () => {
       url: "https://example.invalid/events",
       eventTypes: [],
     });
-    // Due in an hour, so the delivery timer leaves it where it is.
+    // Due after the clock moves, so the delivery timer leaves it where it is.
     store.deliveries.enqueue(
       subscription.id,
       channelId,
@@ -355,10 +353,10 @@ describe("a retention window", () => {
         event: { type: "message", text: secret, ts: message.id },
         ownbase: { type: "message.created", seq: 1 },
       }),
-      Date.now() + 3600_000,
+      Date.now() + 61 * 24 * 3600_000,
       message.id,
     );
-    backdate(60);
+    await later(60);
 
     expect(server!.applyRetention()).toBe(1);
     const db = new DatabaseSync(join(directory, "workspace.db"));
@@ -375,7 +373,7 @@ describe("a retention window", () => {
     await start({ retentionDays: 30 });
     await signIn();
     await post("old one");
-    backdate(60);
+    await later(60);
     const cursor = server!.store.currentSeq();
     await post("new one");
 
@@ -389,7 +387,7 @@ describe("a retention window", () => {
     await start({ retentionDays: 30 });
     await signIn();
     await post("ancient history");
-    backdate(60);
+    await later(60);
     server!.applyRetention();
 
     // The rows it removed were referenced by six other tables; a foreign key it

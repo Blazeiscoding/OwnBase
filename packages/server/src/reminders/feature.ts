@@ -20,7 +20,6 @@ export function registerReminders(
   deps: { reminderDue?: (userId: ID, message: Message) => void } = {},
 ) {
   const { store, route, opts, background } = ctx;
-  const limits = { ...REMINDER_LIMITS, ...opts.reminderLimits };
 
   /**
    * Reminders come due on one timer set for the soonest, and on starting,
@@ -35,7 +34,7 @@ export function registerReminders(
     due: () =>
       background.maintain("reminders", () => {
         const now = Date.now();
-        for (const due of store.reminders.due(now, limits.batch)) {
+        for (const due of store.reminders.due(now, REMINDER_LIMITS.batch)) {
           const message = store.messages.get(due.messageId);
           const user = store.people.get(due.userId);
           if (
@@ -58,15 +57,15 @@ export function registerReminders(
     const { at } = body;
     const now = Date.now();
     if (at <= now) throw new HttpError(400, "reminder_in_past", "Choose a time in the future.");
-    if (at > now + limits.maxAheadMs) {
+    if (at > now + REMINDER_LIMITS.maxAheadMs) {
       throw new HttpError(400, "reminder_too_far", "Choose a time within five years.");
     }
     const existing = store.reminders.get(me.id, message.id);
-    if (!existing && store.reminders.count(me.id) >= limits.perAccount) {
+    if (!existing && store.reminders.count(me.id) >= REMINDER_LIMITS.perAccount) {
       throw new HttpError(
         409,
         "reminder_limit",
-        `You already have ${limits.perAccount} reminders. Finish or cancel some before setting more.`,
+        `You already have ${REMINDER_LIMITS.perAccount} reminders. Finish or cancel some before setting more.`,
       );
     }
     const reminder = store.reminders.set(me.id, message.id, at);
