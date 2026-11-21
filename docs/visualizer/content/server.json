@@ -1151,7 +1151,8 @@
       "details": [
         "notifyDecision weighs own message, blocked sender, membership, mute, the conversation's level or the account's default, a muted thread, mentions and pinging replies, @channel and @here, and Do Not Disturb, in that order, and names the reason.",
         "client-core's decideNotification reads the inputs from its workspace state; the server's push feature reads them from its tables, with live false since nobody pushed to has a connection open.",
-        "notificationWords is what a notification says of a message: its words with mentions read out, code fences dropped, or what it carries when it has no words."
+        "notificationWords is what a notification says of a message: its words with mentions read out, code fences dropped, or what it carries when it has no words.",
+        "NOTIFICATION_PREVIEWS (full, sender, none), notificationContent and reminderContent say what a message or reminder notification shows under each choice; the page's own notifications and the server's pushes both use them, so a push says what the page would."
       ],
       "concepts": ["notify rule", "shared rule", "G09"]
     },
@@ -1192,9 +1193,33 @@
         "Owner/admin, creator and delegated member managers receive different management powers; active human status and room type are checked.",
         "Delegated management ends with membership. Removing someone is not a public-room ban, and an administrator's management role does not grant visibility into private rooms.",
         "Removal protects self, owner, admins and privileged managers according to the actor's authority; manager assignment rejects inappropriate bot/deactivated/creator targets.",
-        "Visibility must be checked separately by the server even when a management helper returns true."
+        "Visibility must be checked separately by the server even when a management helper returns true.",
+        "mayAddEmoji, mayRemoveEmoji and mayManageInvite are who may add or remove a workspace emoji and send or revoke an invite; changePersonRefusal names why an admin may not change someone's role or account. The server refuses with them and the UI offers only what they allow."
       ],
       "concepts": ["authorization", "delegated managers", "shared policy"]
+    },
+    {
+      "path": "packages/protocol/src/pageLinks.ts",
+      "plain": "Builds and reads the links that open a place in the app, such as an invite, a password reset or one message, the same way everywhere.",
+      "summary": "PageLink, pageHash/readPageHash, pageLink, desktopLink and the id pattern every link carries.",
+      "details": [
+        "The web client keeps the place in the fragment (#/join/…, #/reset/…, #/c/<channel>/m/<message>), which the browser never sends to the server, so an invite code or mailed token stays out of logs and any Referer.",
+        "Server email, the Enterprise sign-in and the cloud claim link build with it; the UI's deep links, routes, remembered conversations and link previews read with it.",
+        "desktopLink is the ownbase://<action>?host=… form the desktop app registers.",
+        "The web notification worker cannot import it and keeps its own copy of the pattern, which a test holds to this one."
+      ],
+      "concepts": ["links", "shared rule", "untangle round 2"]
+    },
+    {
+      "path": "packages/protocol/src/limits.ts",
+      "plain": "Names each field's length limit once, such as how long a username or channel topic may be, for the server's checks and the app's fields.",
+      "summary": "Field length limits and isHandle, kept apart from the request schemas.",
+      "details": [
+        "rest.ts's schemas check these; the UI sets them as maxLength and says them in hints, so the two cannot disagree.",
+        "It is its own module because importing a limit from rest.ts would pull every request schema into the client's first download (about 100 kB).",
+        "isHandle is the username rule handleSchema takes, used by forms that check a name as it is typed."
+      ],
+      "concepts": ["limits", "shared rule", "first load", "untangle round 2"]
     },
     {
       "path": "packages/protocol/src/messageRules.ts",
