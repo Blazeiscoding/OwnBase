@@ -15,6 +15,7 @@ export * from "./plan.js";
 export * from "./errors.js";
 export * from "./email.js";
 export * from "./pageLinks.js";
+export * from "./limits.js";
 export * from "./endpoint.js";
 export * from "./endpoints.js";
 

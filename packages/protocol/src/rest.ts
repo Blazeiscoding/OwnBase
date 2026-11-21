@@ -22,38 +22,29 @@ import { COMMAND_NAME } from "./commands.js";
 import { EMAIL_MAX, isEmailAddress } from "./email.js";
 import { PAGE_ID_CHARS } from "./pageLinks.js";
 import { NOTIFICATION_PREVIEWS } from "./notify.js";
-
-/*
- * Field limits, each named once: the schemas here check them, and the ui sets
- * them on its fields and says them in its hints.
- */
-export const HANDLE_MIN = 2;
-export const HANDLE_MAX = 32;
-const HANDLE_CHARS = /^[a-z0-9][a-z0-9._-]*$/;
-export const DISPLAY_NAME_MAX = 80;
-export const PASSWORD_MIN = 8;
-export const PASSWORD_MAX = 256;
-export const STATUS_TEXT_MAX = 120;
-export const TWO_STEP_CODE_MAX = 16;
-export const CHANNEL_NAME_MAX = 80;
-export const CHANNEL_TOPIC_MAX = 250;
-export const CHANNEL_DESCRIPTION_MAX = 500;
-/** The most people a group conversation names besides whoever starts it. */
-export const GROUP_DM_OTHERS_MAX = 8;
-export const USER_GROUP_NAME_MAX = 80;
-export const USER_GROUP_DESCRIPTION_MAX = 250;
-export const SEARCH_WORDS_MAX = 200;
+import {
+  CHANNEL_DESCRIPTION_MAX,
+  CHANNEL_NAME_MAX,
+  CHANNEL_TOPIC_MAX,
+  DISPLAY_NAME_MAX,
+  GROUP_DM_OTHERS_MAX,
+  HANDLE_CHARS,
+  HANDLE_MAX,
+  HANDLE_MIN,
+  PASSWORD_MAX,
+  PASSWORD_MIN,
+  SEARCH_WORDS_MAX,
+  STATUS_TEXT_MAX,
+  TWO_STEP_CODE_MAX,
+  USER_GROUP_DESCRIPTION_MAX,
+  USER_GROUP_NAME_MAX,
+} from "./limits.js";
 
 export const handleSchema = z
   .string()
   .min(HANDLE_MIN)
   .max(HANDLE_MAX)
   .regex(HANDLE_CHARS, "lowercase letters, digits, . _ - only");
-
-/** Whether `text` is a username `handleSchema` takes. */
-export function isHandle(text: string): boolean {
-  return text.length >= HANDLE_MIN && text.length <= HANDLE_MAX && HANDLE_CHARS.test(text);
-}
 
 export const registerBody = z.object({
   handle: handleSchema,
