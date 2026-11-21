@@ -4,7 +4,7 @@ import { createStore, type StoreApi } from "zustand/vanilla";
 import { PlatformContext } from "../context.js";
 import type { Platform } from "../platform.js";
 import { inTone, type Emoji, type Liking } from "./emojiSet.js";
-import { perDevice } from "./perDevice.js";
+import { perDeviceOrPage } from "./perDevice.js";
 
 /**
  * What someone has chosen about emoji, kept on this device: the skin tone
@@ -135,14 +135,7 @@ function createPreferences(platform: Platform | null): StoreApi<EmojiPreferences
   return store;
 }
 
-const preferencesOf = perDevice(createPreferences);
-/** Where there is no platform, as in a test of one component, choices last as long as the page. */
-let unsaved: StoreApi<EmojiPreferences> | null = null;
-
-export function emojiPreferences(platform: Platform | null): StoreApi<EmojiPreferences> {
-  if (!platform) return (unsaved ??= createPreferences(null));
-  return preferencesOf(platform);
-}
+export const emojiPreferences = perDeviceOrPage(createPreferences);
 
 /** An emoji as this device writes it: in its skin tone, and counted as used. */
 export function writeEmoji(platform: Platform | null, emoji: Emoji): string {
