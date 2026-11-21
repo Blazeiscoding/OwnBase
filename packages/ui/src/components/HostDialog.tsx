@@ -20,7 +20,13 @@ import { inputCls } from "./TextField.js";
 import { buttonClass } from "./Button.js";
 import { Icon } from "./Icon.js";
 import { useConfirm } from "./Confirm.js";
-import { LaunchProblem, type Hosting, type HostingBusy } from "./hostParts.js";
+import {
+  LaunchProblem,
+  useHostingOperation,
+  useRowForm,
+  type Hosting,
+  type SaveName,
+} from "./hostParts.js";
 import { StartupWhileStopped } from "./HostStartup.js";
 import { HostOverview } from "./HostOverview.js";
 import { HostInternet } from "./HostInternet.js";
@@ -94,8 +100,7 @@ export function HostDialog(props: {
   const nameInput = useRef<HTMLInputElement>(null);
   /** The port for a new workspace, as typed. Empty for the usual one. */
   const [portText, setPortText] = useState("");
-  const [busy, setBusy] = useState<HostingBusy>(null);
-  const operationPending = useRef(false);
+  const { busy, run, running } = useHostingOperation();
   const [section, setSection] = useState<Section>(props.initialSection ?? "overview");
   const [error, setError] = useState<{ message: string; tunnel?: boolean } | null>(null);
   /** Null while the saved address is shown; a string while it is being edited. */
@@ -139,150 +144,79 @@ export function HostDialog(props: {
   );
   /** What the last backup or removal from the list did, until another starts. */
   const [backupNote, setBackupNote] = useState<{ ok: boolean; text: string } | null>(null);
-  const backupFn = props.hosting.backup;
-  const forgetFn = props.hosting.forget;
-  const restoreFn = props.hosting.restore;
-  /** The restored workspace whose "put back in use" question is showing. */
-  const [activating, setActivating] = useState<string | null>(null);
-  /** The stopped workspace whose earlier copies are showing. */
-  const [earlierOf, setEarlierOf] = useState<string | null>(null);
-  const renameFn = props.hosting.rename;
-  const openFolderFn = props.hosting.openFolder;
-  /** The folder of the workspace being renamed, while its form is open. */
-  const [renaming, setRenaming] = useState<string | null>(null);
-  const setPortFn = props.hosting.setPort;
-  /** The folder of the workspace whose port is being changed, while its form is open. */
-  const [changingPort, setChangingPort] = useState<string | null>(null);
-  const portReturn = useRef<string | null>(null);
-  useEffect(() => {
-    if (changingPort !== null || !portReturn.current) return;
-    document.getElementById(`port-${portReturn.current}`)?.focus();
-    portReturn.current = null;
-  }, [changingPort]);
+  const refreshList = () => setListRevision((n) => n + 1);
+  /** The running workspace's name, while its form is open. */
+  const renaming = useRowForm("rename");
 
-  async function savePort(folder: string, name: string, port: number): Promise<string | null> {
-    if (operationPending.current) return null;
-    operationPending.current = true;
-    setBusy("renaming");
-    setBackupNote(null);
-    try {
-      await setPortFn(folder, port);
-      portReturn.current = folder;
-      setChangingPort(null);
-      setBackupNote({ ok: true, text: `${name} will start on port ${port}.` });
-      return null;
-    } catch (reason) {
-      return failureMessage(reason, "The port could not be saved. Try again.");
-    } finally {
-      setListRevision((n) => n + 1);
-      operationPending.current = false;
-      setBusy(null);
-    }
-  }
-  /** Whose Rename button gets focus back once the form closes. */
-  const renameReturn = useRef<string | null>(null);
+  /** Runs an operation that changes the list: the note clears, and the list is read again after. */
+  const changeList: typeof run = (kind, work) =>
+    run(kind, async () => {
+      setBackupNote(null);
+      try {
+        return await work();
+      } finally {
+        refreshList();
+      }
+    });
 
-  useEffect(() => {
-    if (renaming !== null || !renameReturn.current) return;
-    document.getElementById(`rename-${renameReturn.current}`)?.focus();
-    renameReturn.current = null;
-  }, [renaming]);
-
-  function closeRename() {
-    renameReturn.current = renaming;
-    setRenaming(null);
-  }
-
-  async function saveName(folder: string, previous: string, next: string): Promise<string | null> {
-    if (operationPending.current) return null;
-    operationPending.current = true;
-    setBusy("renaming");
-    setBackupNote(null);
-    try {
-      const done = await renameFn(folder, next);
-      renameReturn.current = folder;
-      setRenaming(null);
-      setBackupNote({ ok: true, text: `Renamed ${previous} to ${done.name}.` });
-      return null;
-    } catch (reason) {
-      // The main process says what is wrong with the name, or with the folder.
-      return failureMessage(reason, "The new name could not be saved. Try again.");
-    } finally {
-      setListRevision((n) => n + 1);
-      operationPending.current = false;
-      setBusy(null);
-    }
-  }
+  const saveName: SaveName = async (folder, previous, next, onSaved) => {
+    const refusal = await changeList("renaming", async () => {
+      try {
+        const done = await props.hosting.rename(folder, next);
+        onSaved();
+        setBackupNote({ ok: true, text: `Renamed ${previous} to ${done.name}.` });
+        return null;
+      } catch (reason) {
+        // The main process says what is wrong with the name, or with the folder.
+        return failureMessage(reason, "The new name could not be saved. Try again.");
+      }
+    });
+    return refusal ?? null;
+  };
 
   async function openFolder(folder: string) {
     setBackupNote(null);
     try {
-      await openFolderFn(folder);
+      await props.hosting.openFolder(folder);
     } catch (reason) {
       setBackupNote({ ok: false, text: failureMessage(reason, "The folder could not be opened.") });
     }
   }
 
   async function restoreBackup() {
-    if (operationPending.current || unavailable) return;
-    operationPending.current = true;
-    setBusy("restoring");
-    setBackupNote(null);
-    try {
-      const restored = await restoreFn();
-      if (restored)
+    if (unavailable) return;
+    await changeList("restoring", async () => {
+      try {
+        const restored = await props.hosting.restore();
+        if (restored)
+          setBackupNote({
+            ok: true,
+            text:
+              `Restored ${restored.name}. Until you put it back in use, Look inside opens it on this computer only, sends nothing it had waiting and calls no app.` +
+              (restored.inventory ? ` ${inventorySummary(restored.inventory)}` : ""),
+          });
+      } catch (reason) {
         setBackupNote({
-          ok: true,
-          text:
-            `Restored ${restored.name}. Until you put it back in use, Look inside opens it on this computer only, sends nothing it had waiting and calls no app.` +
-            (restored.inventory ? ` ${inventorySummary(restored.inventory)}` : ""),
+          ok: false,
+          text: failureWithReason("The backup was not restored.", reason),
         });
-    } catch (reason) {
-      setBackupNote({ ok: false, text: failureWithReason("The backup was not restored.", reason) });
-    } finally {
-      setListRevision((n) => n + 1);
-      operationPending.current = false;
-      setBusy(null);
-    }
-  }
-
-  async function removeMissing(folder: string, name: string) {
-    if (operationPending.current || unavailable) return;
-    operationPending.current = true;
-    setBusy("removing");
-    setBackupNote(null);
-    try {
-      await forgetFn(folder);
-    } catch (reason) {
-      setBackupNote({
-        ok: false,
-        text: failureWithReason(`${name} could not be removed from the list.`, reason),
-      });
-    } finally {
-      setListRevision((n) => n + 1);
-      operationPending.current = false;
-      setBusy(null);
-    }
+      }
+    });
   }
 
   async function backUp(folder: string, name: string) {
-    if (operationPending.current || unavailable) return;
-    operationPending.current = true;
-    setBusy("backing-up");
-    setBackupNote(null);
-    try {
-      const made = await backupFn(folder);
-      if (made) setBackupNote({ ok: true, text: `Backed up ${name} to ${made.path}` });
-    } catch (reason) {
-      setBackupNote({
-        ok: false,
-        text: failureWithReason(`The backup of ${name} did not finish.`, reason),
-      });
-    } finally {
-      setListRevision((n) => n + 1);
-      operationPending.current = false;
-      setBusy(null);
-    }
+    if (unavailable) return;
+    await changeList("backing-up", async () => {
+      try {
+        const made = await props.hosting.backup(folder);
+        if (made) setBackupNote({ ok: true, text: `Backed up ${name} to ${made.path}` });
+      } catch (reason) {
+        setBackupNote({
+          ok: false,
+          text: failureWithReason(`The backup of ${name} did not finish.`, reason),
+        });
+      }
+    });
   }
 
   const backupStatus = backupNote && (
@@ -320,95 +254,76 @@ export function HostDialog(props: {
   }
 
   async function launch(request: HostingStart) {
-    if (operationPending.current || unavailable) return;
-    operationPending.current = true;
-    setBusy("starting");
-    setError(null);
-    try {
-      props.onStarted(await props.hosting.start(request));
-    } catch (reason) {
-      // The desktop app says what went wrong in words it chose to show.
-      setError({
-        message: failureMessage(
-          reason,
-          "The workspace could not start. Check that its data folder is writable and its port is available, then try again.",
-        ),
-      });
-    } finally {
-      operationPending.current = false;
-      setBusy(null);
-    }
+    if (unavailable) return;
+    await run("starting", async () => {
+      setError(null);
+      try {
+        props.onStarted(await props.hosting.start(request));
+      } catch (reason) {
+        // The desktop app says what went wrong in words it chose to show.
+        setError({
+          message: failureMessage(
+            reason,
+            "The workspace could not start. Check that its data folder is writable and its port is available, then try again.",
+          ),
+        });
+      }
+    });
   }
 
   // The button already says what it does, so it stops without asking first.
   async function stop() {
-    if (operationPending.current || unavailable) return;
-    operationPending.current = true;
-    setBusy("stopping");
-    setError(null);
-    try {
-      await props.hosting.stop();
-    } catch {
-      setError({
-        message:
-          "The workspace did not stop. If it keeps failing, quitting OwnBase offers ways to recover.",
-      });
-    } finally {
-      operationPending.current = false;
-      setBusy(null);
-    }
+    if (unavailable) return;
+    await run("stopping", async () => {
+      setError(null);
+      try {
+        await props.hosting.stop();
+      } catch {
+        setError({
+          message:
+            "The workspace did not stop. If it keeps failing, quitting OwnBase offers ways to recover.",
+        });
+      }
+    });
   }
 
   async function openToAll() {
-    if (
-      operationPending.current ||
-      unavailable ||
-      status?.publicAddressError ||
-      status?.tunnelAvailable === false
-    )
-      return;
-    operationPending.current = true;
-    setBusy("opening");
-    setError(null);
-    try {
-      await props.hosting.openToAll(openPolicy);
-    } catch (err) {
-      setError({
-        tunnel: true,
-        message:
-          failureCode(err) === "owner-account-missing"
-            ? "Open the workspace and create its owner account first, then try again."
-            : "The public link did not open. Check that cloudflared is installed and this computer is online, then try again.",
-      });
-    } finally {
-      operationPending.current = false;
-      setBusy(null);
-    }
+    if (unavailable || status?.publicAddressError || status?.tunnelAvailable === false) return;
+    await run("opening", async () => {
+      setError(null);
+      try {
+        await props.hosting.openToAll(openPolicy);
+      } catch (err) {
+        setError({
+          tunnel: true,
+          message:
+            failureCode(err) === "owner-account-missing"
+              ? "Open the workspace and create its owner account first, then try again."
+              : "The public link did not open. Check that cloudflared is installed and this computer is online, then try again.",
+        });
+      }
+    });
   }
 
   async function endOpenToAll() {
-    if (operationPending.current) return;
-    operationPending.current = true;
-    setBusy("closing");
-    setError(null);
-    try {
-      await props.hosting.endOpenToAll();
-    } catch {
-      setError({
-        tunnel: true,
-        message: externallyCarried
-          ? "OwnBase could not stop publishing this address. Try again, then stop its external tunnel or proxy separately."
-          : "OwnBase’s Cloudflare connection could not be closed cleanly. Try again before quitting OwnBase.",
-      });
-    } finally {
-      operationPending.current = false;
-      setBusy(null);
-    }
+    await run("closing", async () => {
+      setError(null);
+      try {
+        await props.hosting.endOpenToAll();
+      } catch {
+        setError({
+          tunnel: true,
+          message: externallyCarried
+            ? "OwnBase could not stop publishing this address. Try again, then stop its external tunnel or proxy separately."
+            : "OwnBase’s Cloudflare connection could not be closed cleanly. Try again before quitting OwnBase.",
+        });
+      }
+    });
   }
 
   /** Changes who may join, showing what the workspace then holds rather than the wish. */
   async function changeAccessPolicy(next: AccessPolicy) {
-    if (operationPending.current) return;
+    if (running()) return;
     // Signing guests out cannot be taken back, so it is asked first, as
     // Workspace settings asks for the same change.
     if (livePolicy === "guest_allowed" && next !== "guest_allowed") {
@@ -420,23 +335,20 @@ export function HostDialog(props: {
       });
       if (!sure) return;
     }
-    operationPending.current = true;
-    setBusy("policy");
-    setError(null);
-    try {
-      await props.hosting.setAccessPolicy(next);
-    } catch {
-      setError({
-        message: "Who may join could not be changed. The previous setting is still in use.",
-      });
-    } finally {
-      operationPending.current = false;
-      setBusy(null);
-    }
+    await run("policy", async () => {
+      setError(null);
+      try {
+        await props.hosting.setAccessPolicy(next);
+      } catch {
+        setError({
+          message: "Who may join could not be changed. The previous setting is still in use.",
+        });
+      }
+    });
   }
 
   async function saveAddress() {
-    if (operationPending.current) return;
+    if (running()) return;
     setAddressError(null);
     if (!addressValue.trim() && !savedAddress) {
       setAddressError("Enter the address, such as https://box.tail1234.ts.net.");
@@ -449,20 +361,17 @@ export function HostDialog(props: {
       setAddressUnchanged(true);
       return;
     }
-    operationPending.current = true;
-    setBusy("address");
-    try {
-      await props.hosting.setPublicAddress(addressValue.trim());
-      setAddressDraft(null);
-    } catch (err) {
-      // The main process says exactly what is wrong with the address; a
-      // rewritten message here would only be vaguer than the real one.
-      setAddressError(failureMessage(err, "The address could not be saved. Try again."));
-      addressField.current?.focus();
-    } finally {
-      operationPending.current = false;
-      setBusy(null);
-    }
+    await run("address", async () => {
+      try {
+        await props.hosting.setPublicAddress(addressValue.trim());
+        setAddressDraft(null);
+      } catch (err) {
+        // The main process says exactly what is wrong with the address; a
+        // rewritten message here would only be vaguer than the real one.
+        setAddressError(failureMessage(err, "The address could not be saved. Try again."));
+        addressField.current?.focus();
+      }
+    });
   }
 
   /** The sections of a running workspace; one being looked inside is not on the internet. */
@@ -481,7 +390,7 @@ export function HostDialog(props: {
     <Dialog
       title={status?.running ? "Workspace is live" : "Host a workspace"}
       onClose={() => {
-        if (!operationPending.current) props.onClose();
+        if (!running()) props.onClose();
       }}
       dismissible={!busy}
       width={live ? 560 : 500}
@@ -521,9 +430,7 @@ export function HostDialog(props: {
                     busy={busy}
                     unavailable={unavailable}
                     renaming={renaming}
-                    setRenaming={setRenaming}
                     saveName={saveName}
-                    closeRename={closeRename}
                     openToAll={openToAll}
                     setBackupNote={setBackupNote}
                     copy={copy}
@@ -575,7 +482,7 @@ export function HostDialog(props: {
                     unavailable={unavailable}
                     backUp={backUp}
                     setBackupNote={setBackupNote}
-                    setListRevision={setListRevision}
+                    refreshList={refreshList}
                   />
                 )}
                 {shown === "advanced" && (
@@ -686,34 +593,22 @@ export function HostDialog(props: {
                 chosen={existing.find((w) => w.startsOnLaunch) ?? null}
                 launchError={status.launchError}
                 disabled={unavailable}
-                onChanged={() => setListRevision((n) => n + 1)}
+                onChanged={refreshList}
                 onError={(text) => setBackupNote(text ? { ok: false, text } : null)}
               />
-              {existing.length > 0 && (
+              {hosted && existing.length > 0 && (
                 <HostedList
                   hosting={props.hosting}
                   hosted={hosted}
-                  existing={existing}
                   busy={busy}
                   unavailable={unavailable}
-                  renaming={renaming}
-                  setRenaming={setRenaming}
+                  changeList={changeList}
                   saveName={saveName}
-                  closeRename={closeRename}
-                  changingPort={changingPort}
-                  setChangingPort={setChangingPort}
-                  savePort={savePort}
-                  portReturn={portReturn}
-                  earlierOf={earlierOf}
-                  setEarlierOf={setEarlierOf}
-                  activating={activating}
-                  setActivating={setActivating}
                   openFolder={openFolder}
                   backUp={backUp}
-                  removeMissing={removeMissing}
                   launch={launch}
-                  setBackupNote={setBackupNote}
-                  setListRevision={setListRevision}
+                  setNote={setBackupNote}
+                  refreshList={refreshList}
                 />
               )}
               <form onSubmit={start} className="space-y-3">

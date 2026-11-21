@@ -1,4 +1,4 @@
-import { useState, type Dispatch, type SetStateAction } from "react";
+import { useState } from "react";
 import {
   failureMessage,
   type AutoBackup,
@@ -25,9 +25,9 @@ export function HostBackups(props: {
   unavailable: boolean;
   backUp: (folder: string, name: string) => Promise<void>;
   setBackupNote: (note: HostNote | null) => void;
-  setListRevision: Dispatch<SetStateAction<number>>;
+  refreshList: () => void;
 }) {
-  const { status, phase, runningEntry, busy, unavailable, backUp, setBackupNote, setListRevision } =
+  const { status, phase, runningEntry, busy, unavailable, backUp, setBackupNote, refreshList } =
     props;
   return (
     <>
@@ -60,7 +60,7 @@ export function HostBackups(props: {
           held={!!runningEntry.restored}
           disabled={unavailable}
           onNote={setBackupNote}
-          onChanged={() => setListRevision((n) => n + 1)}
+          onChanged={refreshList}
         />
       )}
     </>

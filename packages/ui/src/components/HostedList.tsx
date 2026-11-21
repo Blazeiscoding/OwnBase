@@ -1,7 +1,12 @@
-import { useRef, useState, type Dispatch, type RefObject, type SetStateAction } from "react";
+import { useRef, useState } from "react";
 import { DEFAULT_PORT } from "@ownbase/protocol";
 import { PORT_RULE, portFromText } from "@ownbase/protocol/desktop";
-import { type HostedWorkspaces, type HostingStart } from "../platform.js";
+import {
+  failureMessage,
+  failureWithReason,
+  type HostedWorkspaces,
+  type HostingStart,
+} from "../platform.js";
 import { useHostedIcon } from "../lib/workspaceIcon.js";
 import { isImeKey } from "../lib/textInput.js";
 import { inputClass } from "./TextField.js";
@@ -12,98 +17,95 @@ import {
   RenameForm,
   backedUpWhen,
   linkBtnCls,
+  useRowForm,
   type Hosting,
   type HostingBusy,
   type HostNote,
+  type RunOperation,
+  type SaveName,
 } from "./hostParts.js";
 
 /**
  * Hosted on this computer, on the stopped screen: each workspace this
- * computer hosts, with what can be done to it while nothing runs.
+ * computer hosts, with what can be done to it while nothing runs. Which
+ * line has a form or a question open is its own.
  */
 export function HostedList(props: {
   hosting: Hosting;
-  hosted: HostedWorkspaces | null;
-  existing: HostedWorkspaces["workspaces"];
+  hosted: HostedWorkspaces;
   busy: HostingBusy;
   unavailable: boolean;
-  /** The folder of the workspace being renamed, while its form is open. */
-  renaming: string | null;
-  setRenaming: (folder: string | null) => void;
-  saveName: (folder: string, previous: string, next: string) => Promise<string | null>;
-  closeRename: () => void;
-  /** The folder of the workspace whose port is being changed, while its form is open. */
-  changingPort: string | null;
-  setChangingPort: (folder: string | null) => void;
-  savePort: (folder: string, name: string, port: number) => Promise<string | null>;
-  /** Whose Change port button gets focus back once the form closes. */
-  portReturn: RefObject<string | null>;
-  /** The stopped workspace whose earlier copies are showing. */
-  earlierOf: string | null;
-  setEarlierOf: (folder: string | null) => void;
-  /** The restored workspace whose "put back in use" question is showing. */
-  activating: string | null;
-  setActivating: (folder: string | null) => void;
+  /** Runs an operation that changes the list: the note clears, and the list is read again after. */
+  changeList: RunOperation;
+  saveName: SaveName;
   openFolder: (folder: string) => Promise<void>;
   backUp: (folder: string, name: string) => Promise<void>;
-  removeMissing: (folder: string, name: string) => Promise<void>;
   launch: (request: HostingStart) => Promise<void>;
-  setBackupNote: (note: HostNote | null) => void;
-  setListRevision: Dispatch<SetStateAction<number>>;
+  setNote: (note: HostNote | null) => void;
+  refreshList: () => void;
 }) {
-  const {
-    hosted,
-    existing,
-    busy,
-    unavailable,
-    renaming,
-    setRenaming,
-    saveName,
-    closeRename,
-    changingPort,
-    setChangingPort,
-    savePort,
-    portReturn,
-    earlierOf,
-    setEarlierOf,
-    activating,
-    setActivating,
-    openFolder,
-    backUp,
-    removeMissing,
-    launch,
-    setBackupNote,
-    setListRevision,
-  } = props;
+  const { hosted, busy, unavailable, changeList, openFolder, backUp, launch, setNote } = props;
+  const renaming = useRowForm("rename");
+  const changingPort = useRowForm("port");
+  /** The stopped workspace whose earlier copies are showing. */
+  const [earlierOf, setEarlierOf] = useState<string | null>(null);
+  /** The restored workspace whose "put back in use" question is showing. */
+  const [activating, setActivating] = useState<string | null>(null);
+
+  async function savePort(folder: string, name: string, port: number): Promise<string | null> {
+    const refusal = await changeList("renaming", async () => {
+      try {
+        await props.hosting.setPort(folder, port);
+        changingPort.close();
+        setNote({ ok: true, text: `${name} will start on port ${port}.` });
+        return null;
+      } catch (reason) {
+        return failureMessage(reason, "The port could not be saved. Try again.");
+      }
+    });
+    return refusal ?? null;
+  }
+
+  async function removeMissing(folder: string, name: string) {
+    if (unavailable) return;
+    await changeList("removing", async () => {
+      try {
+        await props.hosting.forget(folder);
+      } catch (reason) {
+        setNote({
+          ok: false,
+          text: failureWithReason(`${name} could not be removed from the list.`, reason),
+        });
+      }
+    });
+  }
+
   return (
     <section aria-label="Hosted on this computer" className="mb-5">
       <h3 className="mb-2 text-[13px] font-semibold text-ink">Hosted on this computer</h3>
       <ul className="space-y-2">
-        {existing.map((w) => (
+        {hosted.workspaces.map((w) => (
           <li
             key={w.folder}
             className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-edge px-3 py-2"
           >
-            {changingPort === w.folder && !w.missing ? (
+            {changingPort.folder === w.folder && !w.missing ? (
               <PortForm
                 folder={w.folder}
                 name={w.name}
                 port={w.port}
                 saving={busy === "renaming"}
                 onSave={(port) => savePort(w.folder, w.name, port)}
-                onCancel={() => {
-                  portReturn.current = w.folder;
-                  setChangingPort(null);
-                }}
+                onCancel={changingPort.close}
               />
-            ) : renaming === w.folder && !w.missing ? (
+            ) : renaming.folder === w.folder && !w.missing ? (
               <RenameForm
                 folder={w.folder}
                 name={w.name}
                 blocked={unavailable}
                 saving={busy === "renaming"}
-                onSave={(next) => saveName(w.folder, w.name, next)}
-                onCancel={closeRename}
+                onSave={(next) => props.saveName(w.folder, w.name, next, renaming.close)}
+                onCancel={renaming.close}
               />
             ) : (
               <>
@@ -148,7 +150,7 @@ export function HostedList(props: {
                         type="button"
                         disabled={unavailable}
                         aria-label={`Rename ${w.name}`}
-                        onClick={() => setRenaming(w.folder)}
+                        onClick={() => renaming.set(w.folder)}
                         className={linkBtnCls}
                       >
                         Rename
@@ -159,8 +161,8 @@ export function HostedList(props: {
                         disabled={unavailable}
                         aria-label={`Change port for ${w.name}`}
                         onClick={() => {
-                          setRenaming(null);
-                          setChangingPort(w.folder);
+                          renaming.set(null);
+                          changingPort.set(w.folder);
                         }}
                         className={linkBtnCls}
                       >
@@ -244,8 +246,8 @@ export function HostedList(props: {
                 disabled={unavailable}
                 onDone={(note) => {
                   setEarlierOf(null);
-                  setBackupNote(note);
-                  setListRevision((n) => n + 1);
+                  setNote(note);
+                  props.refreshList();
                 }}
                 onClose={() => setEarlierOf(null)}
               />
@@ -283,11 +285,11 @@ export function HostedList(props: {
           </li>
         ))}
       </ul>
-      {hosted!.unreadable.length > 0 && (
+      {hosted.unreadable.length > 0 && (
         <p className="mt-2 text-xs text-ink-dim">
           Could not read the workspace in{" "}
-          {hosted!.unreadable.length === 1 ? "the folder" : "the folders"}{" "}
-          {hosted!.unreadable.join(", ")}, so it is not listed.
+          {hosted.unreadable.length === 1 ? "the folder" : "the folders"}{" "}
+          {hosted.unreadable.join(", ")}, so it is not listed.
         </p>
       )}
       <h3 className="mt-5 text-[13px] font-semibold text-ink">New workspace</h3>
