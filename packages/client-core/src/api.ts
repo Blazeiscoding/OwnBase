@@ -233,6 +233,11 @@ export class Api {
     return this.http.json(endpoints.removeEmailAddress);
   }
 
+  /** Mails a new link to the address waiting to be confirmed (G10). */
+  resendEmailLink() {
+    return this.http.json(endpoints.resendEmailLink);
+  }
+
   /** Opens a mailed link that confirms an address (G10). No sign-in needed. */
   confirmEmail(token: string) {
     return this.http.json(endpoints.confirmEmail, { body: { token } });
@@ -246,6 +251,11 @@ export class Api {
   /** Sets a new password with a mailed link's token (G10). */
   resetPasswordWithLink(token: string, password: string) {
     return this.http.json(endpoints.resetPasswordWithLink, { body: { token, password } });
+  }
+
+  /** Whether a mailed link to set a new password still works, without using it (G10). */
+  checkResetLink(token: string) {
+    return this.http.json(endpoints.checkResetLink, { body: { token } });
   }
 
   /** Blocks someone for this account (E12); everyone it has blocked now. */
@@ -859,9 +869,9 @@ export class Api {
     return this.http.json(endpoints.createInvite, { body });
   }
 
-  /** Emails an invite's link (G10). */
-  emailInvite(code: string, email: string) {
-    return this.http.json(endpoints.emailInvite, { params: { code }, body: { email } });
+  /** Emails someone an invite of their own, one use for 7 days (G10). */
+  emailInvite(email: string) {
+    return this.http.json(endpoints.emailInvite, { body: { email } });
   }
 
   callLog() {

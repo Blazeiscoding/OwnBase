@@ -4,10 +4,15 @@ import { ApiError, selfMay } from "@ownbase/client-core";
 import type { EmailAddressInfo } from "@ownbase/protocol";
 import { useClient, useWorkspace } from "../context.js";
 import { accountError } from "../lib/account.js";
-import { inputCls } from "./TextField.js";
+import { settingMark } from "../lib/accountSections.js";
+import { onEmailConfirmed } from "../lib/emailLinks.js";
+import { TextField } from "./TextField.js";
 import { Swap } from "./Motion.js";
 import { buttonClass } from "./Button.js";
 import { useConfirm } from "./Confirm.js";
+
+/** Which field a mistake is about; null for one about neither. */
+type Mistake = { field: "email" | "password" | null; text: string };
 
 /**
  * The account's email address in Account settings, under Security (G10):
@@ -26,10 +31,11 @@ export function EmailSettings() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [mistake, setMistake] = useState<Mistake | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const alive = useRef(true);
-  const field = useRef<HTMLInputElement>(null);
+  const emailField = useRef<HTMLInputElement>(null);
+  const passwordField = useRef<HTMLInputElement>(null);
   // Guests have no password to set, so no address to get one back with.
   const owned = !!self && selfMay({ self }, "twoStep");
 
@@ -43,13 +49,25 @@ export function EmailSettings() {
   }, [client]);
   useEffect(() => {
     alive.current = true;
-    if (owned) void load();
+    if (!owned) return;
+    void load();
+    // The link is often opened in another tab, app or device: coming back to
+    // this window, or confirming it in this one, shows what it did.
+    const again = () => {
+      if (document.visibilityState === "visible") void load();
+    };
+    window.addEventListener("focus", again);
+    document.addEventListener("visibilitychange", again);
+    const stop = onEmailConfirmed(again);
     return () => {
       alive.current = false;
+      window.removeEventListener("focus", again);
+      document.removeEventListener("visibilitychange", again);
+      stop();
     };
   }, [load, owned]);
   useEffect(() => {
-    if (editing) field.current?.focus();
+    if (editing) emailField.current?.focus();
   }, [editing]);
 
   if (!owned || !status) return null;
@@ -58,35 +76,47 @@ export function EmailSettings() {
     setEditing(true);
     setEmail("");
     setPassword("");
-    setError(null);
+    setMistake(null);
     setNotice(null);
+  }
+
+  function wrong(field: Mistake["field"], text: string) {
+    setMistake({ field, text });
+    (field === "password" ? passwordField : emailField).current?.focus();
   }
 
   async function send(event: React.FormEvent) {
     event.preventDefault();
     if (busy) return;
     const typed = email.trim();
-    if (!isEmailAddress(typed)) {
-      setError("Enter an email address, such as maya@example.com.");
-      field.current?.focus();
-      return;
-    }
-    if (!password) {
-      setError("Enter your current password.");
-      document.getElementById(`${id}-password`)?.focus();
-      return;
-    }
+    if (!isEmailAddress(typed))
+      return wrong("email", "Enter an email address, such as maya@example.com.");
+    if (!password) return wrong("password", "Enter your password.");
     setBusy(true);
-    setError(null);
+    setMistake(null);
     const failed = await client.account.setEmailAddress(typed, password);
     if (!alive.current) return;
     setBusy(false);
     if (failed) {
-      setError(accountError(failed));
+      if (failed.code === "invalid_credentials") wrong("password", "That is not your password.");
+      else wrong(null, accountError(failed));
       return;
     }
     setEditing(false);
     setNotice(`A link is on its way to ${typed}. Open it to confirm the address.`);
+    void load();
+  }
+
+  async function resend(to: string) {
+    if (busy) return;
+    setBusy(true);
+    setMistake(null);
+    setNotice(null);
+    const failed = await client.account.resendEmailLink();
+    if (!alive.current) return;
+    setBusy(false);
+    if (failed) setMistake({ field: null, text: accountError(failed) });
+    else setNotice(`A new link is on its way to ${to}. Open it within 24 hours.`);
     void load();
   }
 
@@ -98,11 +128,11 @@ export function EmailSettings() {
       destructive: true,
     });
     if (!go) return;
-    setError(null);
+    setMistake(null);
     const failed = await client.account.removeEmailAddress();
     if (!alive.current) return;
     if (failed) {
-      setError(accountError(failed));
+      setMistake({ field: null, text: accountError(failed) });
       return;
     }
     setNotice("Your email address is removed.");
@@ -110,37 +140,61 @@ export function EmailSettings() {
   }
 
   const titleId = `${id}-title`;
+  const general = mistake && mistake.field === null ? mistake.text : null;
+  const waiting = status.pending;
   return (
-    <section aria-labelledby={titleId} className="mt-6 border-t border-edge pt-5">
+    <section
+      {...settingMark("email")}
+      aria-labelledby={titleId}
+      className="mt-6 border-t border-edge pt-5"
+    >
       <h3 id={titleId} className="font-semibold">
         Email address
       </h3>
-      <p className="mt-1 text-sm text-ink-dim">
-        {status.email
-          ? `${status.email}. If you forget your password, a link to set a new one goes here. Only you see it.`
-          : "Add one so that, if you forget your password, a link to set a new one can go to it. Only you see it."}
-      </p>
-      {status.pending && !editing && !notice && (
-        <p className="mt-3 text-sm text-ink-dim">
-          Waiting for you to open the link sent to {status.pending}. It works for 24 hours.
+      {(status.email || !waiting) && (
+        <p className="mt-1 text-sm text-ink-dim">
+          {status.email
+            ? `${status.email}. If you forget your password, a link to set a new one goes here. Only you see it.`
+            : "Add one so that, if you forget your password, a link to set a new one can go to it. Only you see it."}
+        </p>
+      )}
+      {waiting && !editing && !notice && (
+        <p className={`${status.email ? "mt-3" : "mt-1"} text-sm text-ink-dim`}>
+          {waiting} isn't confirmed yet. Open the link sent to it within 24 hours.
         </p>
       )}
       {notice && (
-        <p role="status" className="mt-3 text-sm text-online">
+        <p role="status" className="mt-3 text-sm text-ink-dim">
           {notice}
         </p>
       )}
-      {error && !editing && (
+      {general && (
         <p role="alert" className="mt-3 text-sm text-alert">
-          {error}
+          {general}
         </p>
       )}
 
       {!editing && (
         <div className="mt-3 flex flex-wrap gap-2">
-          <button type="button" className={buttonClass("secondary")} onClick={open}>
-            {status.email ? "Change address" : "Add email address"}
-          </button>
+          {waiting ? (
+            <>
+              <button
+                type="button"
+                className={buttonClass("secondary")}
+                aria-disabled={busy || undefined}
+                onClick={() => void resend(waiting)}
+              >
+                <Swap text>{busy ? "Sending…" : "Send the link again"}</Swap>
+              </button>
+              <button type="button" className={buttonClass("secondary")} onClick={open}>
+                Use a different address
+              </button>
+            </>
+          ) : (
+            <button type="button" className={buttonClass("secondary")} onClick={open}>
+              {status.email ? "Change address" : "Add email address"}
+            </button>
+          )}
           {status.email && (
             <button
               type="button"
@@ -155,13 +209,9 @@ export function EmailSettings() {
 
       {editing && (
         <form noValidate onSubmit={(event) => void send(event)} className="mt-3 space-y-3">
-          <label className="block text-sm" htmlFor={`${id}-email`}>
-            New email address
-          </label>
-          <input
-            id={`${id}-email`}
-            ref={field}
-            className={inputCls}
+          <TextField
+            ref={emailField}
+            label="New email address"
             type="email"
             autoComplete="email"
             spellCheck={false}
@@ -170,25 +220,20 @@ export function EmailSettings() {
             value={email}
             onChange={(event) => setEmail(event.target.value)}
             readOnly={busy}
+            error={mistake?.field === "email" ? mistake.text : undefined}
           />
-          <label className="block text-sm" htmlFor={`${id}-password`}>
-            Current password
-          </label>
-          <input
-            id={`${id}-password`}
-            className={inputCls}
+          <TextField
+            ref={passwordField}
+            label="Your password"
+            hint="To check it's you."
             type="password"
             autoComplete="current-password"
             maxLength={256}
             value={password}
             onChange={(event) => setPassword(event.target.value)}
             readOnly={busy}
+            error={mistake?.field === "password" ? mistake.text : undefined}
           />
-          {error && (
-            <p role="alert" className="text-sm text-alert">
-              {error}
-            </p>
-          )}
           <div className="flex flex-wrap gap-2">
             {/* Secondary: Security's one primary is Update password, above it. */}
             <button

@@ -54,7 +54,6 @@ export const ERROR_CODES = [
   "invalid_friend",
   "invalid_owner",
   "invite_not_found",
-  "invite_inactive",
   "invite_permission_required",
   "invite_required",
   "not_a_guest",
@@ -204,6 +203,7 @@ export const ERROR_CODES = [
   "email_off",
   "email_link_gone",
   "email_taken",
+  "email_not_pending",
   "mail_failed",
 
   // Made by the client when no answer explains a failure

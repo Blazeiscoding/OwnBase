@@ -217,14 +217,37 @@ export function AccountDialog({
     setGoingTo(setting);
   }
 
+  /** Stops waiting for a setting that shows once its section has asked the workspace. */
+  const stopWaiting = useRef<() => void>(() => {});
+  useEffect(() => () => stopWaiting.current(), []);
+
   useEffect(() => {
     if (!goingTo || !panel.current) return;
     setGoingTo(null);
-    const group = settingOnPage(panel.current, goingTo.id);
-    if (!group) {
-      document.getElementById(`${tabsId}-tab-${goingTo.section}`)?.focus();
-      return;
-    }
+    stopWaiting.current();
+    const page = panel.current;
+    const group = settingOnPage(page, goingTo.id);
+    if (group) return bringIntoView(page, group);
+    const tab = document.getElementById(`${tabsId}-tab-${goingTo.section}`);
+    tab?.focus();
+    // Some show only once the workspace answers, such as the email address.
+    // Gone to then, unless focus has moved on from the tab meanwhile.
+    const watch = new MutationObserver(() => {
+      const late = settingOnPage(page, goingTo.id);
+      if (!late) return;
+      stopWaiting.current();
+      if (document.activeElement === tab) bringIntoView(page, late);
+    });
+    watch.observe(page, { childList: true, subtree: true });
+    const timer = setTimeout(() => stopWaiting.current(), 5000);
+    stopWaiting.current = () => {
+      watch.disconnect();
+      clearTimeout(timer);
+      stopWaiting.current = () => {};
+    };
+  }, [goingTo, section, tabsId]);
+
+  function bringIntoView(page: HTMLElement, group: HTMLElement) {
     group.scrollIntoView?.({ block: "center" });
     const control = group.querySelector<HTMLElement>(CONTROLS);
     if (control) control.focus({ preventScroll: true });
@@ -236,14 +259,14 @@ export function AccountDialog({
       heading.focus({ preventScroll: true });
     }
     // Marked for a moment, for whoever chose it with a pointer and sees no focus ring.
-    for (const marked of panel.current.querySelectorAll(".setting-found"))
+    for (const marked of page.querySelectorAll(".setting-found"))
       marked.classList.remove("setting-found");
     void group.offsetWidth;
     group.classList.add("setting-found");
     group.addEventListener("animationend", () => group.classList.remove("setting-found"), {
       once: true,
     });
-  }, [goingTo, section, tabsId]);
+  }
 
   // Back and Forward can name another section while the dialog stays open.
   const chooseRef = useRef(choose);

@@ -413,6 +413,11 @@ export class AccountStore {
     return rows.map((r) => this.toInvite(r, now));
   }
 
+  /** Forgets an invite nobody has used, as one whose mail never went (G10). */
+  dropUnusedInvite(code: string): void {
+    this.db.prepare("DELETE FROM invites WHERE code = ? AND uses = 0").run(code);
+  }
+
   /** True if this call withdrew it; false if it was already withdrawn or never existed. */
   revokeInvite(code: string, by: ID, now = Date.now()): boolean {
     return (

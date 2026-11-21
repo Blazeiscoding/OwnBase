@@ -1,5 +1,13 @@
 import { Api, ApiError } from "@ownbase/client-core";
 
+const confirmedListeners = new Set<() => void>();
+
+/** Calls `listener` each time this window confirms an address; returns the way to stop. */
+export function onEmailConfirmed(listener: () => void): () => void {
+  confirmedListeners.add(listener);
+  return () => confirmedListeners.delete(listener);
+}
+
 /**
  * Opens a mailed link that confirms an email address (G10), from whichever
  * device it was clicked on: the token is all it needs. What to tell the
@@ -11,11 +19,18 @@ export async function confirmEmailLink(
 ): Promise<{ message: string; ok: boolean }> {
   try {
     const { email } = await new Api(serverUrl).confirmEmail(token);
+    for (const listener of confirmedListeners) listener();
     return {
       message: `Your email address ${email} is confirmed. A link to set a new password can go to it now.`,
       ok: true,
     };
   } catch (err) {
+    if (err instanceof ApiError && err.code === "email_link_gone")
+      return {
+        message:
+          "This link was already used or is too old. If your address isn't confirmed yet, send a new link from Account settings, under Security.",
+        ok: false,
+      };
     return { message: emailLinkError(err), ok: false };
   }
 }

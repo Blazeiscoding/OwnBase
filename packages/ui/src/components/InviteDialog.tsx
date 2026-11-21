@@ -185,7 +185,7 @@ export function InviteDialog(props: {
       {canInvite ? (
         shown && links ? (
           <div className="card-warm animate-pop-in mb-4 overflow-hidden rounded-xl">
-            <div className="px-4 pt-3">
+            <div className="px-4 py-3">
               <div className="mb-1.5 text-[13px] font-medium text-ink-dim">Invite link</div>
               <div className="flex items-center justify-between gap-3">
                 <code className="min-w-0 font-mono text-xs leading-5 text-ink">
@@ -211,54 +211,56 @@ export function InviteDialog(props: {
                   {changing ? "Keep this link" : "Change"}
                 </button>
               </p>
+              {changing && (
+                <form
+                  aria-label="New invite link"
+                  className="mt-3 grid gap-3 rounded-lg border border-edge p-3 sm:grid-cols-2"
+                  onSubmit={(event) => {
+                    event.preventDefault();
+                    if (!busy) void make(hours, maxUses);
+                  }}
+                >
+                  <Select
+                    size="small"
+                    label="Expires after"
+                    value={String(hours)}
+                    onChange={(event) =>
+                      setHours(event.target.value === "null" ? null : Number(event.target.value))
+                    }
+                  >
+                    {INVITE_EXPIRY_CHOICES.map((choice) => (
+                      <option key={choice.label} value={String(choice.hours)}>
+                        {choice.label}
+                      </option>
+                    ))}
+                  </Select>
+                  <Select
+                    size="small"
+                    label="Number of uses"
+                    value={String(maxUses)}
+                    onChange={(event) =>
+                      setMaxUses(event.target.value === "null" ? null : Number(event.target.value))
+                    }
+                  >
+                    {INVITE_USE_CHOICES.map((uses) => (
+                      <option key={String(uses)} value={String(uses)}>
+                        {uses === null ? "No limit" : uses === 1 ? "1 use" : `${uses} uses`}
+                      </option>
+                    ))}
+                  </Select>
+                  <button
+                    type="submit"
+                    aria-disabled={busy || undefined}
+                    className={buttonClass("secondary", "h-8 text-[13px] sm:col-span-2")}
+                  >
+                    {busy ? "Making a link…" : "Make a new link"}
+                  </button>
+                </form>
+              )}
             </div>
-            {changing && (
-              <form
-                aria-label="New invite link"
-                className="mx-4 mt-3 grid gap-3 rounded-lg border border-edge p-3 sm:grid-cols-2"
-                onSubmit={(event) => {
-                  event.preventDefault();
-                  if (!busy) void make(hours, maxUses);
-                }}
-              >
-                <Select
-                  size="small"
-                  label="Expires after"
-                  value={String(hours)}
-                  onChange={(event) =>
-                    setHours(event.target.value === "null" ? null : Number(event.target.value))
-                  }
-                >
-                  {INVITE_EXPIRY_CHOICES.map((choice) => (
-                    <option key={choice.label} value={String(choice.hours)}>
-                      {choice.label}
-                    </option>
-                  ))}
-                </Select>
-                <Select
-                  size="small"
-                  label="Number of uses"
-                  value={String(maxUses)}
-                  onChange={(event) =>
-                    setMaxUses(event.target.value === "null" ? null : Number(event.target.value))
-                  }
-                >
-                  {INVITE_USE_CHOICES.map((uses) => (
-                    <option key={String(uses)} value={String(uses)}>
-                      {uses === null ? "No limit" : uses === 1 ? "1 use" : `${uses} uses`}
-                    </option>
-                  ))}
-                </Select>
-                <button
-                  type="submit"
-                  aria-disabled={busy || undefined}
-                  className={buttonClass("secondary", "h-8 text-[13px] sm:col-span-2")}
-                >
-                  {busy ? "Making a link…" : "Make a new link"}
-                </button>
-              </form>
-            )}
-            <div className="mt-3 flex gap-4 border-t border-edge px-4 py-3">
+            {/* Right under the link, where a phone shows it without scrolling. */}
+            <InviteByEmail onSent={() => void loadInvites()} />
+            <div className="flex gap-4 border-t border-edge px-4 py-3">
               {!shareable.localOnly && (
                 <QrCode value={links.browser} label="QR code for the invite link" size={104} />
               )}
@@ -270,7 +272,7 @@ export function InviteDialog(props: {
                 )}
                 <div>
                   <div className="text-[12px] text-ink-faint">Invite code</div>
-                  <div className="flex items-center justify-between gap-2">
+                  <div className="flex flex-wrap items-center justify-between gap-x-2">
                     <code className="font-mono text-[15px] font-semibold tracking-[0.2em] text-ink">
                       {shown.code}
                     </code>
@@ -292,7 +294,6 @@ export function InviteDialog(props: {
                 </button>
               </div>
             </div>
-            <InviteByEmail code={shown.code} />
           </div>
         ) : busy || invites === undefined ? (
           <p role="status" className="card-warm mb-4 rounded-xl p-4 text-sm text-ink-dim">

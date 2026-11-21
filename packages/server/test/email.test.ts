@@ -5,6 +5,7 @@ import { join } from "node:path";
 import { createWorkspaceServer, type WorkspaceServer } from "../src/server.js";
 import type { ServerExtension } from "../src/extensions.js";
 import { codeFor, stepAt } from "../src/twoStep.js";
+import { confirmMail, inviteMail, resetMail } from "../src/email/mails.js";
 import { linkIn, startSmtpSink, type SmtpSink } from "./smtpSink.js";
 
 /**
@@ -26,6 +27,7 @@ async function start(
     mail?: boolean;
     rateLimits?: false | Record<string, { burst: number; perMinute: number }>;
     extensions?: ServerExtension[];
+    inviteOnly?: boolean;
   } = {},
 ) {
   server = await createWorkspaceServer({
@@ -38,6 +40,7 @@ async function start(
     workspaceName: "Rocket Team",
     publicUrl: PUBLIC_URL,
     extensions: options.extensions,
+    ...(options.inviteOnly ? { accessPolicy: "invite_only" as const } : {}),
     ...(options.mail === false
       ? {}
       : {
@@ -62,11 +65,12 @@ async function call(path: string, token: string | null, body?: unknown, method =
   return { status: response.status, data: (await response.json()) as any };
 }
 
-async function register(handle: string) {
+async function register(handle: string, more: { displayName?: string; inviteCode?: string } = {}) {
   const made = await call("/api/auth/register", null, {
     handle,
-    displayName: handle,
+    displayName: more.displayName ?? handle,
     password: "password123",
+    ...(more.inviteCode ? { inviteCode: more.inviteCode } : {}),
     // With a public address, the first account needs the claim code from here too.
     ...(server!.claimCode ? { claimCode: server!.claimCode } : {}),
   });
@@ -123,6 +127,9 @@ describe("with no SMTP account", () => {
       await call("/api/auth/password/forgot", null, { email: "owner@example.test" }),
       await call("/api/auth/password/reset", null, { token: "abc", password: "password456" }),
       await call("/api/auth/email/confirm", null, { token: "abc" }),
+      await call("/api/auth/password/reset/check", null, { token: "abc" }),
+      await call("/api/me/email/resend", owner.token, undefined),
+      await call("/api/invites/email", owner.token, { email: "sam@example.test" }),
       await call("/api/me/email", owner.token, undefined, "GET"),
       await call("/api/me/email", owner.token, {
         email: "owner@example.test",
@@ -165,7 +172,7 @@ describe("an address on an account", () => {
     expect(mail.from).toBe("chat@example.test");
     expect(mail.user).toBe("rocket");
     expect(mail.subject).toBe("Confirm your email address for Rocket Team");
-    expect(mail.text).toContain("@owner asked to use this address");
+    expect(mail.text).toContain("owner (@owner) asked to use this address");
     expect(mail.raw).toMatch(/Content-Type: text\/html/i);
     const link = linkIn(mail, PUBLIC_URL);
     expect(link).toMatch(/^https:\/\/chat\.example\.test\/#\/verify-email\/[0-9a-f]{48}$/);
@@ -237,7 +244,7 @@ describe("forgot password", () => {
     expect(answer).toEqual({ status: 200, data: { ok: true } });
     expect(mail!.to).toEqual(["owner@example.test"]);
     expect(mail!.subject).toBe("Set a new password for Rocket Team");
-    expect(mail!.text).toContain("your account @owner in Rocket Team");
+    expect(mail!.text).toContain("your account owner (@owner) in Rocket Team");
     expect(mail!.text).toContain("If this was not you");
     expect(linkIn(mail!, PUBLIC_URL)).toMatch(/\/#\/reset\/[0-9a-f]{48}$/);
 
@@ -369,39 +376,190 @@ describe("forgot password", () => {
 });
 
 describe("invites by email", () => {
-  it("sends the invite's link, and only for one that still works", async () => {
-    await start();
-    const owner = await register("owner");
-    const made = await call("/api/invites", owner.token, { maxUses: 1 });
-    const code = made.data.invite.code as string;
-    const sent = await call(`/api/invites/${code}/email`, owner.token, {
+  it("sends each address an invite of its own, which works once, for 7 days", async () => {
+    await start({ inviteOnly: true });
+    const owner = await register("owner", { displayName: "Owner Person" });
+    const shown = (await call("/api/invites", owner.token, {})).data.invite.code as string;
+
+    const sent = await call("/api/invites/email", owner.token, {
       email: "new.person@example.test",
     });
-    expect(sent).toEqual({ status: 200, data: { ok: true } });
+    expect(sent.status).toBe(201);
+    const code = sent.data.invite.code as string;
+    expect(code).not.toBe(shown);
+    expect(sent.data.invite).toMatchObject({
+      maxUses: 1,
+      uses: 0,
+      expiresAt: now + 7 * 24 * 3600_000,
+      status: "active",
+    });
     const mail = await sink.mail();
     expect(mail.to).toEqual(["new.person@example.test"]);
-    expect(mail.subject).toBe("owner invited you to Rocket Team");
+    expect(mail.subject).toBe("Owner Person invited you to Rocket Team");
     expect(linkIn(mail, PUBLIC_URL)).toBe(`${PUBLIC_URL}/#/join/${code}`);
-    expect(mail.text).toContain("ask owner about it");
+    expect(mail.text).toContain("It works once, until");
+    expect(mail.text).toContain("ask Owner Person about it");
 
-    await call(`/api/invites/${code}`, owner.token, undefined, "DELETE");
-    const revoked = await call(`/api/invites/${code}/email`, owner.token, {
-      email: "new.person@example.test",
+    // Another address, another invite.
+    const other = await call("/api/invites/email", owner.token, { email: "sam@example.test" });
+    const otherCode = other.data.invite.code as string;
+    expect(otherCode).not.toBe(code);
+    expect(linkIn(await sink.mail(1), PUBLIC_URL)).toBe(`${PUBLIC_URL}/#/join/${otherCode}`);
+
+    // Whoever joins with it uses it up: nobody else gets in with the mailed link.
+    await register("newperson", { inviteCode: code });
+    const second = await call("/api/auth/register", null, {
+      handle: "stranger",
+      displayName: "stranger",
+      password: "password123",
+      inviteCode: code,
     });
-    expect(revoked.status).toBe(409);
-    expect(revoked.data.error).toBe("invite_inactive");
+    expect(second.status).toBe(403);
+    expect(second.data.error).toBe("invite_required");
+
+    // Unused, the other runs out after 7 days.
+    now += 7 * 24 * 3600_000 + 60_000;
+    vi.setSystemTime(now);
+    const late = await call("/api/auth/register", null, {
+      handle: "sam",
+      displayName: "sam",
+      password: "password123",
+      inviteCode: otherCode,
+    });
+    expect(late.status).toBe(403);
   });
 
-  it("says so when the mail server does not take it", async () => {
+  it("is for those who may make invites", async () => {
+    await start();
+    await register("owner");
+    const maya = await register("maya");
+    const refused = await call("/api/invites/email", maya.token, { email: "sam@example.test" });
+    expect(refused.status).toBe(403);
+    expect(refused.data.error).toBe("invite_permission_required");
+    await server!.flushMail();
+    expect(sink.mails).toHaveLength(0);
+  });
+
+  it("says so when the mail server does not take it, and keeps no invite", async () => {
     await start();
     const owner = await register("owner");
-    const code = (await call("/api/invites", owner.token, {})).data.invite.code as string;
     await sink.stop();
-    const failed = await call(`/api/invites/${code}/email`, owner.token, {
+    const failed = await call("/api/invites/email", owner.token, {
       email: "new.person@example.test",
     });
     expect(failed.status).toBe(502);
     expect(failed.data.error).toBe("mail_failed");
+    expect((await call("/api/invites", owner.token, undefined, "GET")).data.invites).toEqual([]);
     sink = await startSmtpSink();
+  });
+});
+
+describe("a link to confirm an address, sent again", () => {
+  it("goes to the address waiting, and only the newest link works", async () => {
+    await start();
+    const owner = await register("owner");
+    await call("/api/me/email", owner.token, {
+      email: "owner@example.test",
+      password: "password123",
+    });
+    const first = tokenOf(linkIn(await sink.mail(), PUBLIC_URL));
+    const again = await call("/api/me/email/resend", owner.token, undefined);
+    expect(again).toEqual({ status: 200, data: { ok: true } });
+    const mail = await sink.mail(1);
+    expect(mail.to).toEqual(["owner@example.test"]);
+    expect(mail.subject).toBe("Confirm your email address for Rocket Team");
+    const second = tokenOf(linkIn(mail, PUBLIC_URL));
+    expect(second).not.toBe(first);
+    expect((await call("/api/auth/email/confirm", null, { token: first })).status).toBe(410);
+    expect((await call("/api/auth/email/confirm", null, { token: second })).status).toBe(200);
+  });
+
+  it("is refused when no address is waiting", async () => {
+    await start();
+    const owner = await register("owner");
+    const refused = await call("/api/me/email/resend", owner.token, undefined);
+    expect(refused.status).toBe(409);
+    expect(refused.data.error).toBe("email_not_pending");
+    await confirmAddress(owner.token, "owner@example.test");
+    expect((await call("/api/me/email/resend", owner.token, undefined)).status).toBe(409);
+    await server!.flushMail();
+    expect(sink.mails).toHaveLength(1);
+  });
+});
+
+describe("checking a link to set a new password", () => {
+  it("says whether it works, without using it up", async () => {
+    await start();
+    const owner = await register("owner");
+    await confirmAddress(owner.token, "owner@example.test");
+    const { token } = await forgot("owner@example.test");
+    const check = () => call("/api/auth/password/reset/check", null, { token });
+    expect(await check()).toEqual({ status: 200, data: { ok: true } });
+    expect(await check()).toEqual({ status: 200, data: { ok: true } });
+    expect(
+      (await call("/api/auth/password/reset", null, { token, password: "password456" })).status,
+    ).toBe(200);
+    const used = await check();
+    expect(used.status).toBe(410);
+    expect(used.data.error).toBe("email_link_gone");
+    const unknown = await call("/api/auth/password/reset/check", null, { token: "abc" });
+    expect(unknown.status).toBe(410);
+  });
+
+  it("says a link more than 30 minutes old no longer works", async () => {
+    await start();
+    const owner = await register("owner");
+    await confirmAddress(owner.token, "owner@example.test");
+    const { token } = await forgot("owner@example.test");
+    now += 31 * 60_000;
+    vi.setSystemTime(now);
+    expect((await call("/api/auth/password/reset/check", null, { token })).status).toBe(410);
+  });
+
+  it("says the link of a deactivated account no longer works", async () => {
+    await start();
+    const owner = await register("owner");
+    const maya = await register("maya");
+    await confirmAddress(maya.token, "maya@example.test");
+    const { token } = await forgot("maya@example.test");
+    await call(`/api/admin/users/${maya.id}`, owner.token, { deactivated: true }, "PATCH");
+    expect((await call("/api/auth/password/reset/check", null, { token })).status).toBe(410);
+  });
+});
+
+describe("the mail", () => {
+  const link = "https://chat.example.test/#/verify-email/" + "ab".repeat(24);
+
+  it("names each link by what it does, with the address itself in the text part", () => {
+    const confirm = confirmMail({
+      to: "maya@example.test",
+      workspace: "Rocket Team",
+      who: "Maya Chen (@maya)",
+      link,
+    });
+    expect(confirm.html).toContain(">Confirm my email address</a>");
+    expect(confirm.html).not.toContain(`>${link}</a>`);
+    expect(confirm.text).toContain(`\n${link}\n`);
+    expect(confirm.text).toContain("Maya Chen (@maya) asked to use this address");
+
+    const reset = resetMail({
+      to: "maya@example.test",
+      workspace: "Rocket Team",
+      who: "Maya Chen (@maya)",
+      link,
+    });
+    expect(reset.html).toContain(">Set a new password</a>");
+    expect(reset.text).toContain(`\n${link}\n`);
+    expect(reset.text).toContain("your account Maya Chen (@maya) in Rocket Team");
+
+    const invite = inviteMail({
+      to: "sam@example.test",
+      workspace: "Rocket Team",
+      inviter: "Maya Chen",
+      link,
+      expiresAt: now,
+    });
+    expect(invite.html).toContain(">Join Rocket Team</a>");
+    expect(invite.text).toContain(`\n${link}\n`);
   });
 });

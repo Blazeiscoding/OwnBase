@@ -43,12 +43,32 @@ function page(
     section?: AccountSection;
     kind?: Platform["kind"];
     save?: () => Promise<void>;
+    /** Holds the account's email address back until it settles. */
+    emailAnswer?: Promise<void>;
   } = {},
 ) {
   const client = new WorkspaceClient("http://127.0.0.1:9", "test-token-not-a-credential");
   // A server that blocks (E12), so Security lists blocked people.
   client.store.setState({ self: sam, users: { [sam.id]: sam }, status: "online", blocked: [] });
   vi.spyOn(client.api, "listSessions").mockResolvedValue({ sessions: [] });
+  // A workspace that sends email, so Security has the email address.
+  vi.spyOn(client.api, "serverInfo").mockResolvedValue({
+    app: "ownbase",
+    protocolVersion: 2,
+    serverVersion: "0.0.0-test",
+    workspaceName: "Rocket Team",
+    userCount: 1,
+    requiresInvite: false,
+    accessPolicy: "account_required",
+    workspaceCopies: false,
+    iconVersion: null,
+    requiresClaim: false,
+    email: true,
+  });
+  vi.spyOn(client.api, "emailAddress").mockImplementation(async () => {
+    await options.emailAnswer;
+    return { email: null, verifiedAt: null, pending: null };
+  });
   vi.spyOn(client.api, "storageUsage").mockResolvedValue({
     usedBytes: 0,
     limitBytes: null,
@@ -219,6 +239,40 @@ describe("searching settings", () => {
     }
   });
 
+  it("goes to a setting that shows once its section has asked the workspace", async () => {
+    // The email address shows only once the workspace answers, as over a real network.
+    let answer = () => {};
+    const late = new Promise<void>((resolve) => {
+      answer = resolve;
+    });
+    const { settings, search, user } = page({ emailAnswer: late });
+    await user.type(search, "email");
+    await user.click(within(settings).getByRole("button", { name: /^Email address/ }));
+    // Until then, the section it is in.
+    expect(within(settings).getByRole("tab", { name: "Security" })).toHaveFocus();
+    await act(async () => answer());
+    const marked = await waitFor(() => {
+      const found = settings.querySelector(".setting-found");
+      expect(found).toHaveAttribute("data-setting", "email");
+      return found!;
+    });
+    expect(marked).toContainElement(document.activeElement as HTMLElement);
+  });
+
+  it("leaves focus where it went once its section has loaded, if it moved", async () => {
+    let answer = () => {};
+    const late = new Promise<void>((resolve) => {
+      answer = resolve;
+    });
+    const { settings, search, user } = page({ emailAnswer: late });
+    await user.type(search, "email");
+    await user.click(within(settings).getByRole("button", { name: /^Email address/ }));
+    await user.click(search);
+    await act(async () => answer());
+    await within(settings).findByRole("heading", { name: "Email address" });
+    expect(search).toHaveFocus();
+  });
+
   it("goes to a setting whose heading no longer reads as its search entry", async () => {
     const { settings, search, user } = page({ section: "appearance" });
     within(settings).getByText("Theme", { selector: "legend" }).textContent = "Colours";
@@ -286,6 +340,12 @@ describe("the settings index", () => {
     ]);
     expect(findSettings("   ")).toEqual([]);
     expect(findSettings("zebra")).toEqual([]);
+  });
+
+  it("finds the email address by the words people use for it", () => {
+    for (const word of ["email", "mail", "address", "forgot", "reset", "recover"])
+      expect(findSettings(word).map((s) => s.label)).toContain("Email address");
+    expect(findSettings("email")[0]).toMatchObject({ id: "email", section: "security" });
   });
 
   it("names and marks each setting once", () => {
