@@ -35,7 +35,6 @@ import {
   TITLE_BAR_HEIGHT,
   type DesktopCapabilities,
   type DiscoveredServer,
-  type UpdateMode,
   type WindowQuestion,
 } from "@ownbase/protocol/desktop";
 import type { OutboxChanges } from "@ownbase/client-core/outbox";
@@ -76,13 +75,20 @@ import {
   THUMBNAIL_SIZE,
   findSource,
   screenSoundSupported,
+  systemScreenPicker,
 } from "./screenShare.js";
 import { SystemMicrophones, isEndpointId } from "./microphone.js";
 import { mergeOutboxSetting } from "./outboxStorage.js";
 import { mergeDraftsSetting } from "./draftsStorage.js";
 import { HOSTING_KEYS, createHostingService, type LoginItem } from "./hostingService.js";
 import { backupTrayItems } from "./trayBackups.js";
-import { loginItemOptions, loginItemProblem, openedAtLogin } from "./loginItem.js";
+import {
+  autostartFile,
+  linuxLoginItem,
+  loginItemOptions,
+  loginItemProblem,
+  openedAtLogin,
+} from "./loginItem.js";
 import { isWindowTheme, themeOfAppearance, windowColours } from "./windowTheme.js";
 import { MIN_WINDOW_SIZE, WINDOW_PLACE_KEY, placeToOpen, placeToSave } from "./windowPlace.js";
 import {
@@ -97,11 +103,18 @@ import { SavedDownloads } from "./savedDownloads.js";
 import { contextMenuItems } from "./contextMenu.js";
 import { appMenuTemplate } from "./appMenu.js";
 import { readerLocale, systemHourCycle } from "./regionalFormat.js";
-import { DOWNLOAD_PAGE, HOUR_MS, Updates } from "./updates.js";
+import { DOWNLOAD_PAGE, HOUR_MS, Updates, systemUpdates } from "./updates.js";
 import { WindowQuestions } from "./windowQuestions.js";
 import { appLog, logTail, serverLogStream, uncaughtMonitor } from "./appLog.js";
 import { UnreadIndicator, electronSurfaces, readUnread } from "./unreadBadge.js";
-import { latestOnR2, updateLog, windowsFeed } from "./updateFeed.js";
+import {
+  FEED_FILE,
+  appImageUpdater,
+  latestOnR2,
+  nsisUpdater,
+  updateLog,
+  updaterFeed,
+} from "./updateFeed.js";
 
 /** Set when the Release workflow built this copy (electron.vite.config.ts). */
 declare const __OWNBASE_RELEASE__: boolean | undefined;
@@ -126,10 +139,7 @@ let tray: Tray | null = null;
 const unread = new UnreadIndicator(
   electronSurfaces({
     platform: process.platform,
-    file: (name) =>
-      app.isPackaged
-        ? join(process.resourcesPath, "tray", name)
-        : join(import.meta.dirname, "../../build", name),
+    file: (name) => trayImagePath(name),
     image: (path) => nativeImage.createFromPath(path),
     window: () => mainWindow,
     dock: app.dock,
@@ -179,6 +189,29 @@ function deepLinkFromArgv(argv: string[]): string | null {
   return argv.find((a) => a.startsWith(`${DEEP_LINK_PROTOCOL}://`)) ?? null;
 }
 
+// OwnBase never runs without Chromium's sandbox. The AppImage's launcher,
+// which electron-builder writes, adds --no-sandbox where the system refuses
+// the user namespaces the sandbox needs, as Ubuntu 24.04 does for a program
+// with no AppArmor profile; the .deb installs one. So the installed app says
+// why and stops instead of opening unprotected, once it is ready: before
+// then a Linux error box only goes to stderr. A copy run from source may
+// still be started that way, as a container sometimes needs.
+const unsandboxed =
+  process.platform === "linux" && app.isPackaged && app.commandLine.hasSwitch("no-sandbox");
+if (unsandboxed) {
+  console.error("OwnBase was started with --no-sandbox, and does not run without its sandbox.");
+  void app.whenReady().then(() => {
+    dialog.showErrorBox(
+      "OwnBase can't open safely here",
+      "This system doesn't let OwnBase use Chromium's sandbox, which keeps what web pages and " +
+        "messages run away from the rest of your computer, so OwnBase won't open without it.\n\n" +
+        "On Ubuntu 24.04 and later, install the .deb from ownbase.site instead of the AppImage. " +
+        "It sets up what the sandbox needs.",
+    );
+    app.exit(1);
+  });
+}
+
 // A second launch must hand its link to the running instance, not open a
 // second window with its own embedded server.
 const primaryInstance = app.requestSingleInstanceLock();
@@ -225,6 +258,7 @@ const screenSources = new SourceList((pictures) =>
 );
 const screenChoice = new ScreenChoice();
 const screenSound = screenSoundSupported(process.platform, process.getSystemVersion());
+const systemPicker = systemScreenPicker(process.platform, process.env);
 
 // ---------- microphones opened as other apps open them (Windows) ----------
 
@@ -435,16 +469,29 @@ function inWorker<T>(job: BackupJob): Promise<T> {
 
 /**
  * The OS opens only an installed app at sign-in: a copy run from source would
- * register Electron itself. Linux has no single place for it that Electron
- * manages, so it is offered on Windows and macOS. Tests must never register
- * the real app with the OS, so they get a stand-in.
+ * register Electron itself. Tests must never register the real app with the
+ * OS, so they get a stand-in. On Linux the app writes its own autostart
+ * entry, for the AppImage the person opened ($APPIMAGE, which the AppImage's
+ * runtime sets) or the installed app, and writes it again at each start
+ * while it is on, so it follows an AppImage that was moved.
  */
 const loginItem: LoginItem | null = (() => {
-  if (!app.isPackaged || (process.platform !== "win32" && process.platform !== "darwin"))
-    return null;
+  if (!app.isPackaged || !["win32", "darwin", "linux"].includes(process.platform)) return null;
   if (isTest) {
     let open = false;
     return { get: () => open, set: (next) => void (open = next) };
+  }
+  if (process.platform === "linux") {
+    const item = linuxLoginItem(
+      autostartFile(process.env, app.getPath("home")),
+      process.env.APPIMAGE || process.execPath,
+    );
+    try {
+      if (item.get()) item.set(true);
+    } catch {
+      // Unwritable, the entry stays as it was; turning it on again says why.
+    }
+    return item;
   }
   const options = loginItemOptions(process.platform);
   return {
@@ -499,21 +546,27 @@ const hosting = createHostingService({
 /**
  * Only a copy the Release workflow built looks for new versions: one built
  * anywhere else is not the version it would replace, and tests and the
- * installer gates never do. Both read dl.ownbase.site (updateFeed.ts).
- * Windows installs new versions; the Mac app, signed ad hoc, cannot be
- * replaced by Squirrel, so it says one is out (updates.ts).
+ * installer gates never do. All read dl.ownbase.site (updateFeed.ts). The
+ * Windows app and the AppImage install new versions; the Mac app and the
+ * .deb say one is out (systemUpdates in updates.ts).
  */
-const updateMode: UpdateMode = (() => {
+const { mode: updateMode, feed: updateFeed } = ((): ReturnType<typeof systemUpdates> => {
   const release = typeof __OWNBASE_RELEASE__ !== "undefined" && __OWNBASE_RELEASE__;
-  if (!app.isPackaged || !release || appEnv("RELEASE_GATE_REPORT") || isTest) return "none";
-  if (process.platform === "win32") return "install";
-  if (process.platform === "darwin") return "notify";
-  return "none";
+  if (!app.isPackaged || !release || appEnv("RELEASE_GATE_REPORT") || isTest)
+    return { mode: "none", feed: null };
+  return systemUpdates(process.platform, process.env);
 })();
 const logUpdates = updateLog(join(app.getPath("userData"), "updates.log"));
 const fetchUpdates = (url: string, init: RequestInit) => net.fetch(url, init);
-const installer =
-  updateMode === "install" ? windowsFeed(logUpdates, fetchUpdates, app.getVersion()) : null;
+const installer = updateFeed
+  ? updaterFeed(
+      logUpdates,
+      fetchUpdates,
+      app.getVersion(),
+      updateFeed === "appImage" ? appImageUpdater : nsisUpdater,
+      FEED_FILE[updateFeed],
+    )
+  : null;
 const updates = new Updates({
   mode: updateMode,
   version: app.getVersion(),
@@ -561,6 +614,7 @@ async function restartFromTray(): Promise<void> {
 /** What this copy of the app can do, handed to the window as it is made. */
 const capabilities: Omit<DesktopCapabilities, "readerLocale"> = {
   screenSound,
+  systemScreenPicker: systemPicker,
   systemMicrophone: microphoneHelper !== null,
   openAtLogin: loginItem !== null,
   updates: updateMode,
@@ -907,12 +961,16 @@ function updateTray(): void {
   );
 }
 
+/** An image in the tray folder (`extraResources`), or build/ in development. */
+function trayImagePath(name: string): string {
+  return app.isPackaged
+    ? join(process.resourcesPath, "tray", name)
+    : join(import.meta.dirname, "../../build", name);
+}
+
 function createTray(): void {
   try {
-    const file = process.platform === "win32" ? "icon.ico" : "icon.png";
-    const iconPath = app.isPackaged
-      ? join(process.resourcesPath, "tray", file)
-      : join(import.meta.dirname, "../../build", file);
+    const iconPath = trayImagePath(process.platform === "win32" ? "icon.ico" : "icon.png");
     const icon = nativeImage.createFromPath(iconPath);
     if (icon.isEmpty()) throw new Error("Tray icon is missing.");
     tray = new Tray(
@@ -958,6 +1016,9 @@ function createWindow(): void {
     minWidth: MIN_WINDOW_SIZE.width,
     minHeight: MIN_WINDOW_SIZE.height,
     backgroundColor: colours.background,
+    // Windows and macOS take the app's icon from the app; a Linux window
+    // shows this one in the taskbar and the window switcher.
+    ...(process.platform === "linux" ? { icon: trayImagePath("icon.png") } : {}),
     titleBarStyle: "hidden",
     titleBarOverlay: {
       color: colours.background,
@@ -1087,12 +1148,15 @@ function createWindow(): void {
   // The window chose what to share in its own picker just before asking, so
   // no system picker is shown: the request shares that choice, or nothing.
   // Its sound goes only when the page asked for it and the picker allowed it.
+  // On a Wayland desktop the system's picker opens when the screens are
+  // asked for, and hands back only the one chosen there, or none.
   mainWindow.webContents.session.setDisplayMediaRequestHandler((request, callback) => {
-    const chosen =
-      request.frame && trustedRenderer(request.frame.url)
-        ? screenChoice.take(request.audioRequested)
-        : null;
-    callback(chosen ?? {});
+    if (!request.frame || !trustedRenderer(request.frame.url)) return callback({});
+    if (!systemPicker) return callback(screenChoice.take(request.audioRequested) ?? {});
+    desktopCapturer.getSources({ types: ["screen", "window"] }).then(
+      ([chosen]) => callback(chosen ? { video: chosen } : {}),
+      () => callback({}),
+    );
   });
   mainWindow.webContents.on("will-navigate", (event) => {
     event.preventDefault();
@@ -1212,7 +1276,7 @@ function loadRenderer(win: BrowserWindow): void {
 }
 
 void app.whenReady().then(async () => {
-  if (!primaryInstance) return;
+  if (!primaryInstance || unsandboxed) return;
   // Asked of the system while the settings are read: whether it writes times
   // on the 24-hour clock, which Chromium does not follow.
   const hourCycle = systemHourCycle(
@@ -1267,7 +1331,9 @@ void app.whenReady().then(async () => {
   // address failed to reopen is a failure nobody would otherwise see. Without
   // a sign-in the window opens, and hosting starts meanwhile: it enters
   // "starting" long before the window asks.
-  const loginSettings = loginItem && !isTest ? app.getLoginItemSettings() : {};
+  // Electron keeps no login item on Linux; the argument says it there.
+  const loginSettings =
+    loginItem && !isTest && process.platform !== "linux" ? app.getLoginItemSettings() : {};
   if (openedAtLogin(process.platform, process.argv, loginSettings)) {
     await hosting.startForLaunch().catch(() => {});
     const hosted = hosting.status();

@@ -68,6 +68,11 @@ export interface DesktopCapabilities {
   readerLocale: string | null;
   /** A shared screen can carry its sound, with the app's own left out. */
   screenSound: boolean;
+  /**
+   * The system shows the screens and windows to share in its own picker, as
+   * on a Wayland desktop, so the app shows none of its own.
+   */
+  systemScreenPicker: boolean;
   /** Microphones can be opened the way other apps on this computer open them. */
   systemMicrophone: boolean;
   /** The OS can be asked to open OwnBase at sign-in. */

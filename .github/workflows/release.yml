@@ -382,10 +382,69 @@ jobs:
           path: release/
           retention-days: 1
 
+  # The Linux app for x64: the AppImage, which updates itself from
+  # dl.ownbase.site as the Windows app does, and the .deb, which says when a
+  # release is out. The unpacked app boots, hosts a workspace, serves the
+  # browser client and joins a huddle under a virtual display, then the .deb
+  # is installed and both are started as people would start them.
+  linux:
+    needs: [plan]
+    if: needs.plan.outputs.build == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: pnpm/action-setup@v6
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: pnpm
+      - name: Cache Electron and packaging tools
+        uses: actions/cache@v6
+        with:
+          path: |
+            ~/.cache/electron
+            ~/.cache/electron-builder
+          key: electron-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('pnpm-lock.yaml') }}
+          restore-keys: |
+            electron-${{ runner.os }}-${{ runner.arch }}-
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm --filter @ownbase/desktop package --linux --publish never "-c.extraMetadata.version=$OWNBASE_VERSION"
+        env:
+          OWNBASE_VERSION: ${{ needs.plan.outputs.version }}
+      - run: node scripts/check-desktop-archive.mjs apps/desktop/release/linux-unpacked/resources/app.asar
+      - run: node scripts/check-web-precompressed.mjs apps/desktop/release/linux-unpacked/resources/web
+      # The unpacked app has no AppArmor profile, which Ubuntu 24.04 asks of a
+      # program before Chromium's sandbox may use user namespaces; the gates
+      # below put the restriction back for the .deb, which installs one.
+      - run: sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
+      - run: xvfb-run --auto-servernum pnpm test:desktop --grep "packaged Linux app"
+        env:
+          DEBUG: pw:browser
+      - name: Install and start gates
+        env:
+          OWNBASE_VERSION: ${{ needs.plan.outputs.version }}
+        run: |
+          scripts/release-linux-gates.sh apps/desktop/release/OwnBase.AppImage \
+            apps/desktop/release/ownbase_"$OWNBASE_VERSION"_amd64.deb "$OWNBASE_VERSION" "$GITHUB_SHA"
+      - name: Collect the AppImage and the .deb
+        env:
+          OWNBASE_VERSION: ${{ needs.plan.outputs.version }}
+        run: |
+          mkdir -p release
+          deb="ownbase_${OWNBASE_VERSION}_amd64.deb"
+          cp apps/desktop/release/OwnBase.AppImage apps/desktop/release/latest-linux.yml "apps/desktop/release/$deb" release/
+          node --input-type=module -e "import { readAsarFile } from './scripts/build-identity.mjs'; import { writeFileSync } from 'node:fs'; writeFileSync('release/linux.build.json', readAsarFile('apps/desktop/release/linux-unpacked/resources/app.asar', 'out/build.json'));"
+          node scripts/release-manifest.mjs bind release linux release/OwnBase.AppImage release/latest-linux.yml "release/$deb"
+      - uses: actions/upload-artifact@v7
+        with:
+          name: release-linux
+          path: release/
+          retention-days: 1
+
   # Checks every file was built from this commit and writes the hashes and
   # notes; on a pull request it stops here.
   manifest:
-    needs: [plan, server, image, unit, browser, windows, mac]
+    needs: [plan, server, image, unit, browser, windows, mac, linux]
     runs-on: ubuntu-latest
     # gh reads the merged pull requests' titles for the notes.
     permissions:
@@ -583,8 +642,8 @@ jobs:
             | while read -r old; do s3 rm "s3://$BUCKET/$old/" --recursive --only-show-errors; done
           echo "https://dl.ownbase.site/latest.json names $TAG"
 
-  # The installer and the Mac disk image together are near 300 MB of a
-  # half-gigabyte storage allowance, and ci.yml's clean-up leaves release-*
+  # The installer, the Mac disk image and the two Linux packages together are
+  # near 500 MB, and ci.yml's clean-up leaves release-*
   # alone, so this run deletes its own artifacts once nothing needs them,
   # published or not.
   clean-up:

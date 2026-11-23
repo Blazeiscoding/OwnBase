@@ -179,6 +179,21 @@ export function screenSoundSupported(platform: string, systemVersion: string): b
 }
 
 /**
+ * Whether the system shows the screens and windows to share, not the app's
+ * own picker. On a Wayland desktop an app cannot see the screen: Chromium
+ * asks the desktop portal, which shows its own picker, and is handed only
+ * what was chosen there, so the app's list would open the portal again for
+ * every picture it takes. An X11 session lets the app list them as Windows
+ * and macOS do.
+ */
+export function systemScreenPicker(
+  platform: string,
+  env: Readonly<Record<string, string | undefined>>,
+): boolean {
+  return platform === "linux" && env.XDG_SESSION_TYPE === "wayland";
+}
+
+/**
  * What a getDisplayMedia request is answered with. "loopback" is what the
  * speakers play; asked for with `restrictOwnAudio`, as the huddle does,
  * Electron records it without this app's own sound (Chromium's

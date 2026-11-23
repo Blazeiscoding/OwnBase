@@ -12,6 +12,7 @@ import {
   check,
   inputsHash,
   manifestProblem,
+  packagedResources,
   readAsarFile,
   staleness,
   writeBuildIdentity,
@@ -198,4 +199,13 @@ test("a manifest of the wrong shape names what to rebuild instead of throwing (F
   } finally {
     rmSync(root, { recursive: true, force: true });
   }
+});
+
+test("the packaged app is looked for where each system's build puts it", () => {
+  assert.equal(packagedResources("win32"), "apps/desktop/release/win-unpacked/resources");
+  assert.equal(
+    packagedResources("darwin"),
+    "apps/desktop/release/mac-universal/OwnBase.app/Contents/Resources",
+  );
+  assert.equal(packagedResources("linux"), "apps/desktop/release/linux-unpacked/resources");
 });

@@ -229,6 +229,7 @@ export function readCapabilities(argv: readonly string[]): DesktopCapabilities {
   const none: DesktopCapabilities = {
     readerLocale: null,
     screenSound: false,
+    systemScreenPicker: false,
     systemMicrophone: false,
     openAtLogin: false,
     updates: "none",
@@ -240,6 +241,7 @@ export function readCapabilities(argv: readonly string[]): DesktopCapabilities {
     return {
       readerLocale: typeof read.readerLocale === "string" ? read.readerLocale : null,
       screenSound: read.screenSound === true,
+      systemScreenPicker: read.systemScreenPicker === true,
       systemMicrophone: read.systemMicrophone === true,
       openAtLogin: read.openAtLogin === true,
       updates: read.updates === "install" || read.updates === "notify" ? read.updates : "none",

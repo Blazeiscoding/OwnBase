@@ -5,6 +5,7 @@ import {
   blank,
   findSource,
   screenSoundSupported,
+  systemScreenPicker,
   type CapturedSource,
 } from "../src/main/screenShare.js";
 
@@ -265,5 +266,18 @@ describe("where a share can send the screen's sound", () => {
   it("is nowhere else, where a share is its picture only", () => {
     expect(screenSoundSupported("darwin", "15.1.0")).toBe(false);
     expect(screenSoundSupported("linux", "6.8.0")).toBe(false);
+  });
+});
+
+describe("who shows the screens to choose from", () => {
+  it("is the system on a Wayland desktop, where only its portal can see the screen", () => {
+    expect(systemScreenPicker("linux", { XDG_SESSION_TYPE: "wayland" })).toBe(true);
+  });
+
+  it("is the app's own picker everywhere else", () => {
+    expect(systemScreenPicker("linux", { XDG_SESSION_TYPE: "x11" })).toBe(false);
+    expect(systemScreenPicker("linux", {})).toBe(false);
+    expect(systemScreenPicker("win32", { XDG_SESSION_TYPE: "wayland" })).toBe(false);
+    expect(systemScreenPicker("darwin", {})).toBe(false);
   });
 });

@@ -11,6 +11,7 @@
     "build": "turbo build",
     "build:win": "pnpm --filter @ownbase/desktop package --win",
     "build:mac": "pnpm --filter @ownbase/desktop package --mac",
+    "build:linux": "pnpm --filter @ownbase/desktop package --linux",
     "typecheck": "turbo typecheck",
     "test": "turbo test",
     "test:e2e": "playwright test",

@@ -10,11 +10,13 @@ import { mkdtempSync, readFileSync, readdirSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 
-/** The packaged app: the unpacked folder on Windows, the universal app on a Mac. */
+/** The packaged app: the unpacked folder on Windows and Linux, the universal app on a Mac. */
 const PACKAGED =
   process.platform === "darwin"
     ? resolve("apps/desktop/release/mac-universal/OwnBase.app/Contents/MacOS/OwnBase")
-    : resolve("apps/desktop/release/win-unpacked/OwnBase.exe");
+    : process.platform === "linux"
+      ? resolve("apps/desktop/release/linux-unpacked/ownbase")
+      : resolve("apps/desktop/release/win-unpacked/OwnBase.exe");
 
 let launched: { app: ElectronApplication; data: string } | undefined;
 
@@ -729,6 +731,9 @@ async function launchApp(prefix: string) {
   const app = await electron.launch({
     executablePath: PACKAGED,
     env,
+    // On Linux, Playwright adds --no-sandbox unless told otherwise; the app
+    // is tested as people start it, with Chromium's sandbox.
+    chromiumSandbox: true,
   });
   launched = { app, data };
   const page = await app.firstWindow();
@@ -930,11 +935,10 @@ test("a window that keeps crashing comes back where it was, Try again included (
   });
 });
 
-// The release's Mac job runs only this, on the universal app it built. The
+// The release's Mac and Linux jobs run only these, on the app each built. The
 // rest of the file is Windows behaviour: the tray, closing to it, quitting.
-test("packaged Mac app boots with sandbox, hosts a workspace, serves the web client, and joins a huddle", async ({}, info) => {
-  test.skip(process.platform !== "darwin", "the Mac app is built and tested on macOS");
-  const { app, page } = await launchApp("ownbase-desktop-mac-");
+async function bootHostAndHuddle(prefix: string, name: string, shot: string) {
+  const { app, page } = await launchApp(prefix);
   expect(await app.evaluate(({ app }) => app.getName())).toBe("OwnBase");
   await expect(page).toHaveTitle("OwnBase");
   type CreatedWith = { getLastWebPreferences(): { sandbox?: boolean } };
@@ -949,10 +953,10 @@ test("packaged Mac app boots with sandbox, hosts a workspace, serves the web cli
 
   // The server runs inside the app, on Node's built-in SQLite.
   await page.getByRole("button", { name: "Host a workspace on this computer" }).click();
-  await page.getByPlaceholder("e.g. Rocket Team").fill("Mac Test");
+  await page.getByPlaceholder("e.g. Rocket Team").fill(`${name} Test`);
   await page.getByRole("button", { name: "Start hosting", exact: true }).click();
-  await page.getByLabel("Username", { exact: true }).fill("macowner");
-  await page.getByLabel("Display name", { exact: true }).fill("Mac Owner");
+  await page.getByLabel("Username", { exact: true }).fill(`${name.toLowerCase()}owner`);
+  await page.getByLabel("Display name", { exact: true }).fill(`${name} Owner`);
   await page.getByLabel("Password", { exact: true }).fill("password123");
   await page.getByRole("button", { name: /^(Join|Create) workspace$/ }).click();
   await expect(page.locator("textarea")).toBeVisible();
@@ -969,6 +973,36 @@ test("packaged Mac app boots with sandbox, hosts a workspace, serves the web cli
   await check.getByRole("button", { name: "Join huddle", exact: true }).click();
   await expect(page.getByText("Huddle in #general", { exact: true })).toBeVisible();
   await page.getByRole("button", { name: "Leave", exact: true }).click();
-  await page.screenshot({ path: info.outputPath("mac.png") });
+  await page.screenshot({ path: shot });
   await call(page, "hosting:stop");
+  return { app, page };
+}
+
+test("packaged Mac app boots with sandbox, hosts a workspace, serves the web client, and joins a huddle", async ({}, info) => {
+  test.skip(process.platform !== "darwin", "the Mac app is built and tested on macOS");
+  await bootHostAndHuddle("ownbase-desktop-mac-", "Mac", info.outputPath("mac.png"));
+});
+
+test("packaged Linux app boots with sandbox, hosts a workspace, serves the web client, and joins a huddle", async ({}, info) => {
+  test.skip(process.platform !== "linux", "the Linux app is built and tested on Linux");
+  const { app } = await bootHostAndHuddle(
+    "ownbase-desktop-linux-",
+    "Linux",
+    info.outputPath("linux.png"),
+  );
+  // Chromium's own sandbox, not only the page's: started without it, the
+  // app would still say sandbox above, while every renderer ran unconfined.
+  expect(await app.evaluate(({ app }) => app.commandLine.hasSwitch("no-sandbox"))).toBe(false);
+  // Electron reports `sandboxed` on Windows and macOS only. On Linux a
+  // sandboxed renderer runs under a seccomp-bpf filter, which the kernel
+  // shows as mode 2; without the sandbox it is 0.
+  const renderers = await app.evaluate(({ app }) =>
+    app
+      .getAppMetrics()
+      .filter((metric) => metric.type === "Tab")
+      .map((metric) => metric.pid),
+  );
+  expect(renderers.length).toBeGreaterThan(0);
+  for (const pid of renderers)
+    expect(readFileSync(`/proc/${pid}/status`, "utf8")).toMatch(/^Seccomp:\s+2$/m);
 });
