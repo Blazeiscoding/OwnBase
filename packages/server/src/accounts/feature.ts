@@ -206,14 +206,19 @@ export function registerAccounts(
 
       if (!isFirstUser && singleSignOnRequired()) throw ssoRequired("makes new accounts");
 
-      if (!isFirstUser && settings.get("accessPolicy") === "invite_only") {
-        if (!body.inviteCode || !store.accounts.consumeInvite(body.inviteCode)) {
+      // A mailed invite is used up wherever it is used: it carries an address.
+      const mailedTo =
+        !isFirstUser && body.inviteCode ? store.accounts.invitedAddress(body.inviteCode) : null;
+      let invitedAddress: string | null = null;
+      if (!isFirstUser && (settings.get("accessPolicy") === "invite_only" || mailedTo)) {
+        const used = !!body.inviteCode && store.accounts.consumeInvite(body.inviteCode);
+        if (used) invitedAddress = mailedTo;
+        else if (settings.get("accessPolicy") === "invite_only")
           throw new HttpError(
             403,
             "invite_required",
             "This workspace needs a valid invite code to join.",
           );
-        }
       }
       const account = {
         handle: body.handle,
@@ -224,6 +229,9 @@ export function registerAccounts(
       const user = isFirstUser
         ? store.people.create({ ...account, role: "owner" })
         : makeMember(emit, { ...account, role: "member" });
+      // Unless another account here already has it: one address, one account.
+      if (invitedAddress && !store.email.ownerOf(invitedAddress))
+        store.email.confirm(user.id, invitedAddress);
 
       if (isFirstUser) {
         // Single use: the workspace now has an owner and cannot be claimed again.

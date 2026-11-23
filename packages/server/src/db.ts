@@ -881,6 +881,11 @@ const MIGRATIONS: string[] = [
   CREATE INDEX idx_email_links_user ON email_links(user_id, purpose);
   CREATE INDEX idx_email_links_expiry ON email_links(expires_at);
   `,
+  // v63 — the address an invite was mailed to. Whoever joins with it opened
+  // a link only that mailbox was sent, so their account gets it confirmed.
+  `
+  ALTER TABLE invites ADD COLUMN email TEXT;
+  `,
 ];
 
 /** The schema this build understands. A workspace above it cannot be opened. */

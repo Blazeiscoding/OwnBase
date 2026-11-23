@@ -447,6 +447,50 @@ describe("invites by email", () => {
     expect(late.status).toBe(403);
   });
 
+  it("gives the account that joins with it the address it went to, confirmed", async () => {
+    await start({ inviteOnly: true });
+    const owner = await register("owner");
+    const sent = await call("/api/invites/email", owner.token, {
+      email: "New.Person@example.test",
+    });
+    const joined = await register("newperson", { inviteCode: sent.data.invite.code });
+    const address = await call("/api/me/email", joined.token, undefined, "GET");
+    expect(address.data).toMatchObject({
+      email: "New.Person@example.test",
+      verifiedAt: now,
+      pending: null,
+    });
+    // Forgot password now reaches them there.
+    expect((await forgot("new.person@example.test")).token).not.toBeNull();
+  });
+
+  it("gives the address in a workspace anyone may join, and is used up there too", async () => {
+    await start();
+    const owner = await register("owner");
+    const sent = await call("/api/invites/email", owner.token, { email: "sam@example.test" });
+    const code = sent.data.invite.code as string;
+    const sam = await register("sam", { inviteCode: code });
+    const address = await call("/api/me/email", sam.token, undefined, "GET");
+    expect(address.data.email).toBe("sam@example.test");
+    // A second account with the same code joins, as anyone may here, without the address.
+    const other = await register("other", { inviteCode: code });
+    expect((await call("/api/me/email", other.token, undefined, "GET")).data.email).toBeNull();
+    const invites = (await call("/api/invites", owner.token, undefined, "GET")).data.invites;
+    expect(invites.find((i: { code: string }) => i.code === code)).toMatchObject({
+      uses: 1,
+      status: "used_up",
+    });
+  });
+
+  it("leaves the address off when another account already has it", async () => {
+    await start({ inviteOnly: true });
+    const owner = await register("owner");
+    await confirmAddress(owner.token, "owner@example.test");
+    const sent = await call("/api/invites/email", owner.token, { email: "OWNER@example.test" });
+    const joined = await register("second", { inviteCode: sent.data.invite.code });
+    expect((await call("/api/me/email", joined.token, undefined, "GET")).data.email).toBeNull();
+  });
+
   it("is for those who may make invites", async () => {
     await start();
     await register("owner");
@@ -522,6 +566,17 @@ describe("checking a link to set a new password", () => {
     expect(used.data.error).toBe("email_link_gone");
     const unknown = await call("/api/auth/password/reset/check", null, { token: "abc" });
     expect(unknown.status).toBe(410);
+  });
+
+  it("spends none of the sign-in budget, so opening the page cannot lock anyone out", async () => {
+    // An office behind one address shares the sign-in budget; here it holds three.
+    await start({ rateLimits: { authByAddress: { burst: 3, perMinute: 0.001 } } });
+    const owner = await register("owner");
+    await confirmAddress(owner.token, "owner@example.test");
+    const { token } = await forgot("owner@example.test");
+    for (let i = 0; i < 5; i++)
+      expect((await call("/api/auth/password/reset/check", null, { token })).status).toBe(200);
+    expect((await signIn("owner", "password123")).status).toBe(200);
   });
 
   it("says a link more than 30 minutes old no longer works", async () => {
