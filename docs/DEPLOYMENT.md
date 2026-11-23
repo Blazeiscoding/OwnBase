@@ -2416,7 +2416,9 @@ How it behaves:
 - **An invite by email** is a new invite for that address alone: it works once,
   for 7 days, whatever the link on screen allows. It shows in the dialog's list
   of codes, where revoking it stops the mailed link. Whoever sends it is told if
-  the mail server did not take it, and then no invite is kept.
+  the mail server did not take it, and then no invite is kept. The account made
+  with it gets that address, already confirmed, unless another account here has
+  it; it is used up even in a workspace anyone may join.
 - **The mail** is plain text with a small HTML copy: the workspace's name, what
   to do, the link and who to ask if it was not you. No pictures, nothing loaded
   from elsewhere, no tracking. Tokens sit after `#` in the link, so they reach

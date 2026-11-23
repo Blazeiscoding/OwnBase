@@ -204,7 +204,10 @@ export function registerEmail(ctx: ServerContext) {
 
   route(endpoints.checkResetLink, async ({ req, body }) => {
     requireMail();
-    ration("authByAddress", network.callerAddress(req));
+    // A read the page makes as it opens, not an attempt: spending the sign-in
+    // budget here would lock out an office behind one address. Tokens are far
+    // too long to guess, so the loose budget for public reads is enough.
+    ration("publicByAddress", network.callerAddress(req));
     resetAccount(store.email.peekLink(hashToken(body.token), "reset"));
     return { ok: true };
   });
@@ -250,6 +253,7 @@ export function registerEmail(ctx: ServerContext) {
       createdBy: me.id,
       expiresAt: Date.now() + EMAILED_INVITE_MS,
       maxUses: 1,
+      email: body.email,
     });
     try {
       // Waited for: whoever sends it wants to know it went.

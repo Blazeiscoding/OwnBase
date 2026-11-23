@@ -169,6 +169,7 @@ describe("the default for what notifies", () => {
     `);
     db.exec("ALTER TABLE scheduled_files DROP COLUMN position");
     db.exec("ALTER TABLE scheduled_messages ADD COLUMN file_ids TEXT NOT NULL DEFAULT '[]'");
+    db.exec("ALTER TABLE invites DROP COLUMN email");
     db.exec("DROP TABLE email_links");
     db.exec("DROP INDEX idx_users_email");
     db.exec("ALTER TABLE users DROP COLUMN email_verified_at");

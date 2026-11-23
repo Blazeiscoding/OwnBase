@@ -35,6 +35,8 @@ const inviteRow = shape({
   creator_can_invite: "number?",
 });
 
+const invitedRow = shape({ email: "text?" });
+
 /** Signing in: sessions, passwords, two-step keys and recovery codes, guests, and invites. */
 export class AccountStore {
   constructor(
@@ -345,14 +347,28 @@ export class AccountStore {
     return row?.must_change_password === 1;
   }
 
-  createInvite(input: { createdBy: ID; expiresAt: number | null; maxUses: number | null }): Invite {
+  /** `email` is the address an invite was mailed to, which whoever joins with it gets. */
+  createInvite(input: {
+    createdBy: ID;
+    expiresAt: number | null;
+    maxUses: number | null;
+    email?: string;
+  }): Invite {
     const code = inviteCode();
     this.db
       .prepare(
-        "INSERT INTO invites (code, created_by, created_at, expires_at, max_uses) VALUES (?, ?, ?, ?, ?)",
+        "INSERT INTO invites (code, created_by, created_at, expires_at, max_uses, email) VALUES (?, ?, ?, ?, ?, ?)",
       )
-      .run(code, input.createdBy, Date.now(), input.expiresAt, input.maxUses);
+      .run(code, input.createdBy, Date.now(), input.expiresAt, input.maxUses, input.email ?? null);
     return this.getInvite(code)!;
+  }
+
+  /** The address an invite was mailed to, or null for one made to copy. */
+  invitedAddress(code: string): string | null {
+    return (
+      invitedRow.get(this.db.prepare("SELECT email FROM invites WHERE code = ?"), code)?.email ??
+      null
+    );
   }
 
   private toInvite(r: RowOf<typeof inviteRow.columns>, now: number): Invite {
