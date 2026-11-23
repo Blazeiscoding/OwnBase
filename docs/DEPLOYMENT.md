@@ -19,7 +19,9 @@ needs libfuse2 (`sudo apt install libfuse2t64` on Ubuntu 24.04). Chromium's
 sandbox needs unprivileged user namespaces, which Ubuntu 24.04 and later allow
 only to programs with an AppArmor profile. The `.deb` installs one; the AppImage
 cannot, so on those versions use the `.deb`, or add a profile for the
-AppImage's path yourself. OwnBase never starts with the sandbox turned off.
+AppImage's path yourself. The AppImage's launcher passes `--no-sandbox` where
+the sandbox cannot start; OwnBase then says why and closes instead of opening
+without it.
 
 Every change to the app merged to `main` is built, tested and published as the
 next alpha (`v0.2.0-alpha.4` after `v0.2.0-alpha.3`) by the Release workflow.

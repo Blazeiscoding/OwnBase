@@ -45,8 +45,8 @@ the `.deb`, started both and joined a huddle. Install the `.deb` with
 `sudo apt install ./ownbase_*.deb`. Make the AppImage runnable with
 `chmod +x OwnBase.AppImage` and open it; it needs libfuse2. Ubuntu 24.04 and
 later stop the AppImage from starting Chromium's sandbox, which the `.deb` sets
-up with an AppArmor profile, so use the `.deb` there. OwnBase never turns the
-sandbox off to start.
+up with an AppArmor profile, so use the `.deb` there. Where the sandbox cannot
+start, the AppImage says so and closes rather than open without it.
 
 The Windows app and the AppImage from a release update themselves: they download
 each new release in the background and install it when you restart or quit

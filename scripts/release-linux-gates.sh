@@ -38,6 +38,7 @@ launch() {
   local data report pid said="" processes="" renderers="" unsandboxed=""
   data=$(mktemp -d)
   report="$data.report.json"
+  last_log="$data.log"
   # A session of its own, so stopping it stops every process it started.
   OWNBASE_USER_DATA_DIR="$data" OWNBASE_RELEASE_GATE_REPORT="$report" \
     setsid xvfb-run --auto-servernum "$@" >"$data.log" 2>&1 &
@@ -127,15 +128,20 @@ restrict 0
 APPIMAGE_EXTRACT_AND_RUN=1 launch "$appimage" || fail "the AppImage did not start"
 echo "::endgroup::"
 
-# What the release notes and DEPLOYMENT.md tell people of Ubuntu 24.04: said
-# here as it is, so the words can be checked against a real start.
+# What the release notes and DEPLOYMENT.md tell people of Ubuntu 24.04. The
+# AppImage's launcher adds --no-sandbox where the sandbox cannot start, and
+# the app then refuses to run and says why.
 echo "::group::The AppImage, with user namespaces restricted"
 restrict 1
 started=0
 APPIMAGE_EXTRACT_AND_RUN=1 launch "$appimage" || started=$?
 case $started in
   0) echo "::notice::The AppImage starts, sandboxed, even where user namespaces are restricted." ;;
-  1) echo "::notice::As expected, the AppImage does not start where user namespaces are restricted; the .deb does." ;;
+  1)
+    grep -q "does not run without its sandbox" "$last_log" ||
+      fail "the AppImage did not start where user namespaces are restricted, and did not say it was for want of the sandbox"
+    echo "::notice::As expected, the AppImage refuses to run without its sandbox where user namespaces are restricted; the .deb runs there."
+    ;;
   *) fail "the AppImage ran without Chromium's sandbox where user namespaces are restricted" ;;
 esac
 echo "::endgroup::"

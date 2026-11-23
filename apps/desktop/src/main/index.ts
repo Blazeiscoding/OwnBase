@@ -189,6 +189,29 @@ function deepLinkFromArgv(argv: string[]): string | null {
   return argv.find((a) => a.startsWith(`${DEEP_LINK_PROTOCOL}://`)) ?? null;
 }
 
+// OwnBase never runs without Chromium's sandbox. The AppImage's launcher,
+// which electron-builder writes, adds --no-sandbox where the system refuses
+// the user namespaces the sandbox needs, as Ubuntu 24.04 does for a program
+// with no AppArmor profile; the .deb installs one. So the installed app says
+// why and stops instead of opening unprotected, once it is ready: before
+// then a Linux error box only goes to stderr. A copy run from source may
+// still be started that way, as a container sometimes needs.
+const unsandboxed =
+  process.platform === "linux" && app.isPackaged && app.commandLine.hasSwitch("no-sandbox");
+if (unsandboxed) {
+  console.error("OwnBase was started with --no-sandbox, and does not run without its sandbox.");
+  void app.whenReady().then(() => {
+    dialog.showErrorBox(
+      "OwnBase can't open safely here",
+      "This system doesn't let OwnBase use Chromium's sandbox, which keeps what web pages and " +
+        "messages run away from the rest of your computer, so OwnBase won't open without it.\n\n" +
+        "On Ubuntu 24.04 and later, install the .deb from ownbase.site instead of the AppImage. " +
+        "It sets up what the sandbox needs.",
+    );
+    app.exit(1);
+  });
+}
+
 // A second launch must hand its link to the running instance, not open a
 // second window with its own embedded server.
 const primaryInstance = app.requestSingleInstanceLock();
@@ -1253,7 +1276,7 @@ function loadRenderer(win: BrowserWindow): void {
 }
 
 void app.whenReady().then(async () => {
-  if (!primaryInstance) return;
+  if (!primaryInstance || unsandboxed) return;
   // Asked of the system while the settings are read: whether it writes times
   // on the 24-hour clock, which Chromium does not follow.
   const hourCycle = systemHourCycle(
