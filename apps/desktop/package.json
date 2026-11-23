@@ -6,6 +6,7 @@
   "main": "./out/main/index.js",
   "description": "OwnBase — self-hosted team chat",
   "author": "OwnBase contributors",
+  "homepage": "https://ownbase.site",
   "scripts": {
     "dev": "node scripts/build-microphone.mjs && electron-vite dev",
     "build": "electron-vite build",

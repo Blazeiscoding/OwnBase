@@ -31,12 +31,15 @@ export function autostartFile(
  * A path as one argument of a desktop entry's Exec line. Inside the quotes,
  * `"`, `` ` ``, `$` and `\` take a backslash; a literal `%` is `%%`, since
  * `%` starts a field code; then, the value being a string, every backslash is
- * doubled again. A line break cannot be written at all.
+ * doubled again. Done in one pass, character by character: `"` becomes `\\"`
+ * and `\` four backslashes. A line break cannot be written at all.
  */
 export function desktopExec(path: string): string {
   if (/[\n\r]/.test(path)) throw new Error("A path with a line break cannot start at sign-in.");
-  const quoted = path.replace(/["`$\\]/g, "\\$&").replaceAll("%", "%%");
-  return `"${quoted.replaceAll("\\", "\\\\")}"`;
+  const escaped = path.replace(/["`$\\%]/g, (char) =>
+    char === "%" ? "%%" : char === "\\" ? "\\\\\\\\" : `\\\\${char}`,
+  );
+  return `"${escaped}"`;
 }
 
 /**

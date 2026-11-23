@@ -731,6 +731,9 @@ async function launchApp(prefix: string) {
   const app = await electron.launch({
     executablePath: PACKAGED,
     env,
+    // On Linux, Playwright adds --no-sandbox unless told otherwise; the app
+    // is tested as people start it, with Chromium's sandbox.
+    chromiumSandbox: true,
   });
   launched = { app, data };
   const page = await app.firstWindow();
