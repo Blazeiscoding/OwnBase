@@ -16,11 +16,11 @@
     <meta name="theme-color" content="#0b0a20" />
     <link rel="preload" href="/fonts/onest-latin-wght-normal.woff2" as="font" type="font/woff2" crossorigin />
     <link rel="icon" href="/ownbase.svg?v=2" type="image/svg+xml" />
-    <link rel="stylesheet" href="/site.css?v=726c411de0" />
+    <link rel="stylesheet" href="/site.css?v=cf135c9b61" />
     <link rel="stylesheet" href="/docs.css?v=30dafeac35" />
     <script src="/docs.js?v=123540c9d0" defer></script>
   </head>
-  <body class="docs-body" data-search="/docs/search.json?v=635845a9fe" data-guide="hosting">
+  <body class="docs-body" data-search="/docs/search.json?v=2e7af91e47" data-guide="hosting">
     <a class="skip" href="#main">Skip to content</a>
 
     <header class="guide-head">
@@ -314,15 +314,15 @@ its <code>OwnBase.exe</code>. To launch it later from the Start menu, save the t
 as user environment variables first, then sign out and back in so newly launched
 apps inherit them. The token itself stays in the protected file; the environment
 contains only its path.</p>
-<p>On Linux, export the values and run the AppImage from that same shell:</p>
+<p>On Linux, export the values and start OwnBase from that same shell, as
+<code>ownbase</code> when it was installed from the <code>.deb</code>, or the AppImage&#39;s path:</p>
 <pre tabindex="0"><code class="language-sh">export OWNBASE_TUNNEL_URL=https://chat.example.org
 export OWNBASE_TUNNEL_TOKEN_FILE=/home/sam/.cloudflared/chat-token
-./OwnBase-0.2.0.AppImage</code></pre>
+./OwnBase.AppImage</code></pre>
 <p>The same inheritance rule applies on macOS: a GUI app opened from Finder or the
 Dock does not inherit variables exported in an unrelated terminal. Start its
 executable from the configured shell or provide the values through the service
-or launcher that owns the app process. Releases include no Linux package, and
-CI neither builds nor tests one.</p>
+or launcher that owns the app process.</p>
 <p><code>OWNBASE_TUNNEL_URL</code> has to be a public HTTPS origin: a hostname with a dot,
 and no path, query, credentials, or fragment. Loopback and private-network
 suffixes (<code>.local</code>, <code>.internal</code>, <code>.home</code>, <code>.lan</code>, <code>localhost</code>) and bare IP

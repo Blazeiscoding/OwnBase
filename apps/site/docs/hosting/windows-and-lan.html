@@ -16,11 +16,11 @@
     <meta name="theme-color" content="#0b0a20" />
     <link rel="preload" href="/fonts/onest-latin-wght-normal.woff2" as="font" type="font/woff2" crossorigin />
     <link rel="icon" href="/ownbase.svg?v=2" type="image/svg+xml" />
-    <link rel="stylesheet" href="/site.css?v=726c411de0" />
+    <link rel="stylesheet" href="/site.css?v=cf135c9b61" />
     <link rel="stylesheet" href="/docs.css?v=30dafeac35" />
     <script src="/docs.js?v=123540c9d0" defer></script>
   </head>
-  <body class="docs-body" data-search="/docs/search.json?v=635845a9fe" data-guide="hosting">
+  <body class="docs-body" data-search="/docs/search.json?v=2e7af91e47" data-guide="hosting">
     <a class="skip" href="#main">Skip to content</a>
 
     <header class="guide-head">
@@ -126,6 +126,17 @@ check a download with <code>Get-FileHash -Algorithm SHA256 &lt;file&gt;</code> a
 Its notes name the commit it was built and tested from, which Diagnostics in the
 app and <code>/api/server-info</code> on a server also report. Release installers are not
 code-signed yet.</p>
+<p>On Linux, <code>pnpm build:linux</code> builds <code>OwnBase.AppImage</code> and
+<code>ownbase_0.2.0_amd64.deb</code> for 64-bit Linux, beside the Windows output. Install
+the <code>.deb</code> with <code>sudo apt install ./ownbase_0.2.0_amd64.deb</code>, or make the
+AppImage runnable with <code>chmod +x OwnBase.AppImage</code> and open it. The AppImage
+needs libfuse2 (<code>sudo apt install libfuse2t64</code> on Ubuntu 24.04). Chromium&#39;s
+sandbox needs unprivileged user namespaces, which Ubuntu 24.04 and later allow
+only to programs with an AppArmor profile. The <code>.deb</code> installs one; the AppImage
+cannot, so on those versions use the <code>.deb</code>, or add a profile for the
+AppImage&#39;s path yourself. The AppImage&#39;s launcher passes <code>--no-sandbox</code> where
+the sandbox cannot start; OwnBase then says why and closes instead of opening
+without it.</p>
 <p>Every change to the app merged to <code>main</code> is built, tested and published as the
 next alpha (<code>v0.2.0-alpha.4</code> after <code>v0.2.0-alpha.3</code>) by the Release workflow.
 It is published as a normal release, not a pre-release, and marked Latest on
@@ -210,6 +221,12 @@ OwnBase off sign-in, without starting it first or removing it from the list.</p>
 <p>Current limit: opening at sign-in has not been tried on an installed macOS system.
 If macOS holds the registration for approval, the dialog says to allow OwnBase
 under Login Items in System Settings.</p>
+<p>On Linux, OwnBase adds <code>ownbase.desktop</code> to <code>~/.config/autostart</code> (or
+<code>$XDG_CONFIG_HOME/autostart</code>), which desktops that follow the XDG autostart
+spec open at sign-in. It starts the AppImage the setting was turned on from, and
+OwnBase writes the entry again at each start while it is on, so it follows an
+AppImage you move. Turned off in the desktop&#39;s own startup settings, it counts as
+off. It has not been tried on a real Linux desktop.</p>
 <h2 id="backing-up-from-the-desktop">Backing up from the desktop<a class="doc-anchor" href="#backing-up-from-the-desktop" aria-label="Link to Backing up from the desktop">#</a></h2>
 <p><strong>Back up now</strong> copies a hosted workspace into a new folder you choose, and
 <strong>Automatic backups</strong> does the same every day or week into one folder, keeping
@@ -237,8 +254,9 @@ clears the hold for good.</p>
 read the tray menu, stop hosting from the tray and from Manage hosting, quit from
 the tray, and quit with nothing hosted; the system&#39;s own
 quit confirmation is answered by the test, never shown. Whether a
-tray appears on Linux depends on the desktop environment, and macOS has not been
-run.</p>
+tray appears on Linux depends on the desktop environment: GNOME shows one only
+with an extension such as AppIndicator. CI starts the Linux app under a virtual
+display with no tray, and macOS has not been run.</p>
         </article>
         <nav class="docs-pager" aria-label="Pages"><a class="docs-prev" href="/docs/hosting/"><span>Previous</span>Overview</a><a class="docs-next" href="/docs/hosting/temporary-internet-sharing-with-cloudflare-tunnel"><span>Next</span>Temporary internet sharing with Cloudflare Tunnel</a></nav>
         <p class="docs-source">This page is made from <a href="https://github.com/Blazeiscoding/OwnBase/blob/main/docs/DEPLOYMENT.md#windows-and-lan">docs/DEPLOYMENT.md</a>.</p>

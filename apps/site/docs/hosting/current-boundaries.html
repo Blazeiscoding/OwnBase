@@ -16,11 +16,11 @@
     <meta name="theme-color" content="#0b0a20" />
     <link rel="preload" href="/fonts/onest-latin-wght-normal.woff2" as="font" type="font/woff2" crossorigin />
     <link rel="icon" href="/ownbase.svg?v=2" type="image/svg+xml" />
-    <link rel="stylesheet" href="/site.css?v=726c411de0" />
+    <link rel="stylesheet" href="/site.css?v=cf135c9b61" />
     <link rel="stylesheet" href="/docs.css?v=30dafeac35" />
     <script src="/docs.js?v=123540c9d0" defer></script>
   </head>
-  <body class="docs-body" data-search="/docs/search.json?v=635845a9fe" data-guide="hosting">
+  <body class="docs-body" data-search="/docs/search.json?v=2e7af91e47" data-guide="hosting">
     <a class="skip" href="#main">Skip to content</a>
 
     <header class="guide-head">
@@ -140,8 +140,11 @@ Backups can go to an S3-compatible bucket, see
 <li><strong>No signed builds.</strong> The Windows installer is not code-signed, so
 SmartScreen may warn. The Mac app is signed ad hoc and not notarized, so it
 cannot replace itself and only says when a new release is out.</li>
-<li><strong>No Linux desktop app.</strong> Releases build the desktop app for Windows and
-macOS. The server runs on Linux.</li>
+<li><strong>The Linux app is x64 only, and only booted in CI.</strong> Releases carry an
+AppImage and a <code>.deb</code> for 64-bit Linux, started under a virtual display on an
+Ubuntu runner. The tray, notifications, microphones, cameras and Wayland screen
+sharing have not been tried on a real Linux desktop. On Wayland, the
+system&#39;s own picker chooses what a huddle shares.</li>
 </ul>
 <p>Test with your environment before an office-wide rollout.</p>
         </article>

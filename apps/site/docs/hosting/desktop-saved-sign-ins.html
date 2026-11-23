@@ -16,11 +16,11 @@
     <meta name="theme-color" content="#0b0a20" />
     <link rel="preload" href="/fonts/onest-latin-wght-normal.woff2" as="font" type="font/woff2" crossorigin />
     <link rel="icon" href="/ownbase.svg?v=2" type="image/svg+xml" />
-    <link rel="stylesheet" href="/site.css?v=726c411de0" />
+    <link rel="stylesheet" href="/site.css?v=cf135c9b61" />
     <link rel="stylesheet" href="/docs.css?v=30dafeac35" />
     <script src="/docs.js?v=123540c9d0" defer></script>
   </head>
-  <body class="docs-body" data-search="/docs/search.json?v=635845a9fe" data-guide="hosting">
+  <body class="docs-body" data-search="/docs/search.json?v=2e7af91e47" data-guide="hosting">
     <a class="skip" href="#main">Skip to content</a>
 
     <header class="guide-head">
@@ -113,7 +113,9 @@
 <p>OwnBase encrypts the desktop app&#39;s saved sign-ins using Electron&#39;s
 <a href="https://www.electronjs.org/docs/latest/api/safe-storage">OS-backed safeStorage</a>.
 Windows uses the current OS account&#39;s protection; macOS uses Keychain and Linux
-needs a supported secret store. Linux&#39;s <code>basic_text</code> fallback is refused. On
+needs a Secret Service such as GNOME Keyring or KWallet. Linux&#39;s <code>basic_text</code>
+fallback is refused: without a secret store, a sign-in works but is not saved,
+the app says so, and the next start asks you to sign in again. On
 macOS, consistent application signing is needed for reliable Keychain behavior
 across updates. The alpha&#39;s Mac app is signed ad hoc, and each build&#39;s signature
 differs, so after an update macOS may ask for your password before OwnBase can
