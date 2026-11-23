@@ -29,7 +29,7 @@ The name OwnBase has not been trademark-cleared yet.
 Each of these gives you a workspace of your own. The first two need no clone and
 no build.
 
-**The desktop app.** Download it for Windows or Mac from
+**The desktop app.** Download it for Windows, Mac or Linux from
 [ownbase.site](https://ownbase.site), install it, and choose **Host a workspace
 on this computer**. The Windows installer is not code-signed, so Windows
 SmartScreen may warn before it runs. Check its SHA-256 against the `SHA256SUMS`
@@ -39,11 +39,21 @@ after a macOS runner has booted it, hosted a workspace and joined a huddle. It i
 signed ad hoc, not with an Apple Developer ID, so the first time it opens, allow
 it under System Settings → Privacy & Security → Open Anyway.
 
-The Windows app from a release updates itself: it downloads each new release in
-the background and installs it when you restart or quit OwnBase, never during a
-call. The Mac app says when a new release is out and links to the download,
-since macOS lets only an app with a Developer ID signature replace itself. Turn
-either off under Account settings → Updates. Builds made on your own computer
+For 64-bit Linux there is a `.deb` for Debian and Ubuntu and an AppImage for
+other distributions. Releases include them after an Ubuntu runner has installed
+the `.deb`, started both and joined a huddle. Install the `.deb` with
+`sudo apt install ./ownbase_*.deb`. Make the AppImage runnable with
+`chmod +x OwnBase.AppImage` and open it; it needs libfuse2. Ubuntu 24.04 and
+later stop the AppImage from starting Chromium's sandbox, which the `.deb` sets
+up with an AppArmor profile, so use the `.deb` there. OwnBase never turns the
+sandbox off to start.
+
+The Windows app and the AppImage from a release update themselves: they download
+each new release in the background and install it when you restart or quit
+OwnBase, never during a call. The Mac app and the `.deb` say when a new release
+is out and link to the download, since macOS lets only an app with a Developer
+ID signature replace itself, and a `.deb` belongs to the system's package tools.
+Turn any of them off under Account settings → Updates. Builds made on your own computer
 never look for updates.
 
 **In a browser, with Docker.**
@@ -65,8 +75,8 @@ pnpm build
 node apps/server-cli/dist/ownbase-server.js --data ./demo-data --name "Demo Team"
 ```
 
-Then open http://localhost:8543. `pnpm build:win` and `pnpm build:mac` build the
-desktop app. [Development](#development) has the rest.
+Then open http://localhost:8543. `pnpm build:win`, `pnpm build:mac` and
+`pnpm build:linux` build the desktop app. [Development](#development) has the rest.
 
 A new workspace is empty. To have a team to look at, run this from a clone in
 another terminal before anyone signs up:
@@ -613,6 +623,7 @@ a six-person call you would feel it.
 
 ```sh
 pnpm build:win      # Windows installer
+pnpm build:linux    # Linux AppImage and .deb, on Linux
 pnpm test:desktop   # drives the packaged app
 pnpm build
 pnpm test:e2e       # browser scenarios against the built server
@@ -622,7 +633,9 @@ pnpm test:e2e       # browser scenarios against the built server
 are unsigned unless you configure a signing certificate. The browser scenarios need
 `pnpm exec playwright install chromium webkit firefox` once (`--project=chromium`
 runs the Chromium scenarios alone). CI covers the server, the browser client,
-Docker and the Windows app, in parallel jobs that take about four minutes.
+Docker, the Windows app and the Linux app, in parallel jobs that take about four
+minutes. On Linux, run the packaged app's tests under a display, for example
+`xvfb-run pnpm test:desktop --grep "packaged Linux app"`.
 [CI duration and caching](docs/CI.md) has the build reuse, the installer
 selection and the measured times.
 

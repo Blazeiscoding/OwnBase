@@ -11,6 +11,16 @@ Its notes name the commit it was built and tested from, which Diagnostics in the
 app and `/api/server-info` on a server also report. Release installers are not
 code-signed yet.
 
+On Linux, `pnpm build:linux` builds `OwnBase.AppImage` and
+`ownbase_0.2.0_amd64.deb` for 64-bit Linux, beside the Windows output. Install
+the `.deb` with `sudo apt install ./ownbase_0.2.0_amd64.deb`, or make the
+AppImage runnable with `chmod +x OwnBase.AppImage` and open it. The AppImage
+needs libfuse2 (`sudo apt install libfuse2t64` on Ubuntu 24.04). Chromium's
+sandbox needs unprivileged user namespaces, which Ubuntu 24.04 and later allow
+only to programs with an AppArmor profile. The `.deb` installs one; the AppImage
+cannot, so on those versions use the `.deb`, or add a profile for the
+AppImage's path yourself. OwnBase never starts with the sandbox turned off.
+
 Every change to the app merged to `main` is built, tested and published as the
 next alpha (`v0.2.0-alpha.4` after `v0.2.0-alpha.3`) by the Release workflow.
 It is published as a normal release, not a pre-release, and marked Latest on
@@ -110,6 +120,13 @@ Current limit: opening at sign-in has not been tried on an installed macOS syste
 If macOS holds the registration for approval, the dialog says to allow OwnBase
 under Login Items in System Settings.
 
+On Linux, OwnBase adds `ownbase.desktop` to `~/.config/autostart` (or
+`$XDG_CONFIG_HOME/autostart`), which desktops that follow the XDG autostart
+spec open at sign-in. It starts the AppImage the setting was turned on from, and
+OwnBase writes the entry again at each start while it is on, so it follows an
+AppImage you move. Turned off in the desktop's own startup settings, it counts as
+off. It has not been tried on a real Linux desktop.
+
 ### Backing up from the desktop
 
 **Back up now** copies a hosted workspace into a new folder you choose, and
@@ -140,8 +157,9 @@ Only Windows has been checked. The packaged tests close the window while hosting
 read the tray menu, stop hosting from the tray and from Manage hosting, quit from
 the tray, and quit with nothing hosted; the system's own
 quit confirmation is answered by the test, never shown. Whether a
-tray appears on Linux depends on the desktop environment, and macOS has not been
-run.
+tray appears on Linux depends on the desktop environment: GNOME shows one only
+with an extension such as AppIndicator. CI starts the Linux app under a virtual
+display with no tray, and macOS has not been run.
 
 ## Temporary internet sharing with Cloudflare Tunnel
 
@@ -396,19 +414,19 @@ as user environment variables first, then sign out and back in so newly launched
 apps inherit them. The token itself stays in the protected file; the environment
 contains only its path.
 
-On Linux, export the values and run the AppImage from that same shell:
+On Linux, export the values and start OwnBase from that same shell, as
+`ownbase` when it was installed from the `.deb`, or the AppImage's path:
 
 ```sh
 export OWNBASE_TUNNEL_URL=https://chat.example.org
 export OWNBASE_TUNNEL_TOKEN_FILE=/home/sam/.cloudflared/chat-token
-./OwnBase-0.2.0.AppImage
+./OwnBase.AppImage
 ```
 
 The same inheritance rule applies on macOS: a GUI app opened from Finder or the
 Dock does not inherit variables exported in an unrelated terminal. Start its
 executable from the configured shell or provide the values through the service
-or launcher that owns the app process. Releases include no Linux package, and
-CI neither builds nor tests one.
+or launcher that owns the app process.
 
 `OWNBASE_TUNNEL_URL` has to be a public HTTPS origin: a hostname with a dot,
 and no path, query, credentials, or fragment. Loopback and private-network
@@ -2297,7 +2315,9 @@ desktop settings file can be retried without restarting the app.
 OwnBase encrypts the desktop app's saved sign-ins using Electron's
 [OS-backed safeStorage](https://www.electronjs.org/docs/latest/api/safe-storage).
 Windows uses the current OS account's protection; macOS uses Keychain and Linux
-needs a supported secret store. Linux's `basic_text` fallback is refused. On
+needs a Secret Service such as GNOME Keyring or KWallet. Linux's `basic_text`
+fallback is refused: without a secret store, a sign-in works but is not saved,
+the app says so, and the next start asks you to sign in again. On
 macOS, consistent application signing is needed for reliable Keychain behavior
 across updates. The alpha's Mac app is signed ad hoc, and each build's signature
 differs, so after an update macOS may ask for your password before OwnBase can
@@ -2908,7 +2928,10 @@ What OwnBase does not do today:
 - **No signed builds.** The Windows installer is not code-signed, so
   SmartScreen may warn. The Mac app is signed ad hoc and not notarized, so it
   cannot replace itself and only says when a new release is out.
-- **No Linux desktop app.** Releases build the desktop app for Windows and
-  macOS. The server runs on Linux.
+- **The Linux app is x64 only, and only booted in CI.** Releases carry an
+  AppImage and a `.deb` for 64-bit Linux, started under a virtual display on an
+  Ubuntu runner. The tray, notifications, microphones, cameras and Wayland screen
+  sharing have not been tried on a real Linux desktop. On Wayland, the
+  system's own picker chooses what a huddle shares.
 
 Test with your environment before an office-wide rollout.
