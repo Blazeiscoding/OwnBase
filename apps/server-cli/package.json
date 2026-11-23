@@ -20,7 +20,7 @@
     "@ownbase/ee": "workspace:*",
     "@ownbase/server": "workspace:*",
     "@ownbase/web": "workspace:*",
-    "@types/node": "^24.3.0",
+    "@types/node": "^24.19.2",
     "tsup": "^9.0.0",
     "typescript": "^5.9.2"
   }
