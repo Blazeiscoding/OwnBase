@@ -31,9 +31,11 @@ restrict() {
 
 # Starts the app under a virtual display, waits for it to say which data
 # folder it uses and which build it is, then stops it. Exit status 0 when it
-# said so with the right version and revision.
+# said so with the right version and revision, with Chromium's sandbox on:
+# no process of it started with --no-sandbox, and every renderer under a
+# seccomp filter (mode 2). 1 when it did not start, 2 when it ran unsandboxed.
 launch() {
-  local data report pid said=""
+  local data report pid said="" processes="" renderers="" unsandboxed=""
   data=$(mktemp -d)
   report="$data.report.json"
   # A session of its own, so stopping it stops every process it started.
@@ -49,6 +51,25 @@ launch() {
       break
     fi
   done
+  # Its processes, by the session it was started in, once a page has a renderer.
+  if [ -n "$said" ]; then
+    for _ in $(seq 15); do
+      processes=$(ps -o pid=,args= -s "$pid" || true)
+      renderers=$(awk '/--type=renderer/ { print $1 }' <<<"$processes")
+      [ -n "$renderers" ] && break
+      sleep 1
+    done
+    if grep -q -- "--no-sandbox" <<<"$processes"; then
+      echo "It was started with --no-sandbox:"
+      grep -- "--no-sandbox" <<<"$processes" | cut -c1-200 | head -n 3
+      unsandboxed=1
+    fi
+    [ -n "$renderers" ] || { echo "No renderer process was found."; unsandboxed=1; }
+    for renderer in $renderers; do
+      grep -q "^Seccomp:[[:space:]]*2$" "/proc/$renderer/status" 2>/dev/null ||
+        { echo "Renderer $renderer runs without a seccomp filter."; unsandboxed=1; }
+    done
+  fi
   kill -TERM -- "-$pid" 2>/dev/null || true
   wait "$pid" 2>/dev/null || true
   sleep 1
@@ -64,7 +85,9 @@ launch() {
     if (report.version !== version) throw new Error(`it is ${report.version}, not ${version}`);
     if (report.revision !== revision) throw new Error(`it was built from ${report.revision}, not ${revision}`);
     console.log(`Started: ${report.version} from ${report.revision.slice(0, 12)}, data in ${report.userData}`);
-  ' "$said" "$version" "$revision"
+  ' "$said" "$version" "$revision" || return 1
+  if [ -n "$unsandboxed" ]; then return 2; fi
+  echo "Sandboxed: no --no-sandbox, and renderers $(echo $renderers) under seccomp."
 }
 
 echo "::group::Install the .deb"
@@ -108,11 +131,13 @@ echo "::endgroup::"
 # here as it is, so the words can be checked against a real start.
 echo "::group::The AppImage, with user namespaces restricted"
 restrict 1
-if APPIMAGE_EXTRACT_AND_RUN=1 launch "$appimage"; then
-  echo "::notice::The AppImage starts even where user namespaces are restricted."
-else
-  echo "::notice::As expected, the AppImage does not start where user namespaces are restricted; the .deb does."
-fi
+started=0
+APPIMAGE_EXTRACT_AND_RUN=1 launch "$appimage" || started=$?
+case $started in
+  0) echo "::notice::The AppImage starts, sandboxed, even where user namespaces are restricted." ;;
+  1) echo "::notice::As expected, the AppImage does not start where user namespaces are restricted; the .deb does." ;;
+  *) fail "the AppImage ran without Chromium's sandbox where user namespaces are restricted" ;;
+esac
 echo "::endgroup::"
 
 sudo dpkg -r "$package"

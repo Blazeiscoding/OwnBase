@@ -105,6 +105,10 @@ linux:
 # a launcher or a sign-in entry that points at it.
 appImage:
   artifactName: ${productName}.${ext}
+  # With the AppImage toolset electron-builder uses by default, the AppImage
+  # starts the app with --no-sandbox unless told otherwise. OwnBase never
+  # runs without Chromium's sandbox; release-linux-gates.sh checks it.
+  executableArgs: []
 deb:
   artifactName: ownbase_${version}_amd64.${ext}
 protocols:
