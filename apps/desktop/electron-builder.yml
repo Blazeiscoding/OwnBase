@@ -82,11 +82,31 @@ mac:
     NSLocalNetworkUsageDescription: OwnBase finds workspaces on your network and lets teammates there join the one you host.
     NSBonjourServices:
       - _ownbase._tcp
+# x64 only. The AppImage runs on any distribution and updates itself from
+# dl.ownbase.site; the .deb installs on Debian and Ubuntu, with the AppArmor
+# profile Ubuntu 24.04 needs before Chromium's sandbox may start.
 linux:
+  icon: build/icon.png
+  executableName: ownbase
   target:
-    - AppImage
-    - deb
+    - target: AppImage
+      arch: x64
+    - target: deb
+      arch: x64
   category: Network
+  synopsis: Self-hosted team chat
+  # No email: the package goes out as a file, not through an archive whose
+  # tools would write to its maintainer.
+  maintainer: OwnBase contributors
+  vendor: OwnBase
+# No version in the name: electron-updater writes the new version over the
+# file it runs from only when the name has none. With one, it saves the new
+# version beside it under the new name and deletes the old file, which breaks
+# a launcher or a sign-in entry that points at it.
+appImage:
+  artifactName: ${productName}.${ext}
+deb:
+  artifactName: ownbase_${version}_amd64.${ext}
 protocols:
   - name: OwnBase
     schemes:

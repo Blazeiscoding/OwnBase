@@ -1,5 +1,5 @@
 name: Desktop
-# Test the packaged Windows app when its runtime or packaging inputs change.
+# Test the packaged Windows and Linux apps when their runtime or packaging inputs change.
 # Ordinary runtime PRs need win-unpacked; installer inputs and manual runs also
 # validate NSIS. Manual runs default to producing the installer.
 on:
@@ -99,3 +99,35 @@ jobs:
       - run: node scripts/check-web-precompressed.mjs apps/desktop/release/win-unpacked/resources/web
       # Both modes produce the unpacked executable these tests launch.
       - run: pnpm test:desktop --shard=${{ matrix.shard }}/2
+
+  # The Linux app, unpacked, tested under a virtual display with Chromium's
+  # own sandbox. The release's linux job packages the AppImage and the .deb
+  # from the same folder and checks them installed (release-linux-gates.sh).
+  linux:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: pnpm/action-setup@v6
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: pnpm
+      - name: Cache Electron and packaging tools
+        uses: actions/cache@v6
+        with:
+          path: |
+            ~/.cache/electron
+            ~/.cache/electron-builder
+          key: electron-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('pnpm-lock.yaml') }}
+          restore-keys: |
+            electron-${{ runner.os }}-${{ runner.arch }}-
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm typecheck:automation
+      - run: pnpm --filter @ownbase/desktop package --linux --dir
+      - run: node scripts/check-web-bundle.mjs apps/desktop/out/renderer
+      - run: node scripts/check-desktop-archive.mjs apps/desktop/release/linux-unpacked/resources/app.asar
+      - run: node scripts/check-web-precompressed.mjs apps/desktop/release/linux-unpacked/resources/web
+      # Whether this runner restricts user namespaces as Ubuntu 24.04 does,
+      # which the sandbox of an app without an AppArmor profile needs.
+      - run: sysctl kernel.apparmor_restrict_unprivileged_userns || true
+      - run: xvfb-run --auto-servernum pnpm test:desktop --grep "packaged Linux app"

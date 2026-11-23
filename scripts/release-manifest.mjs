@@ -15,7 +15,8 @@
  * server archive and one installer, each bound to its tested identity; any
  * other file, a swapped or changed one, or a second installer is refused.
  * The Windows app's update feed must name the installer beside it, by its
- * SHA-512, at the version the tag names, since that is all an update checks.
+ * SHA-512, at the version the tag names, since that is all an update checks;
+ * the AppImage's feed likewise names the AppImage.
  * `image.json` names the container image the release pushes, which is not a
  * file of the release; the notes give its digest. Folders in <dir> are skipped.
  * `SHA256SUMS` is written into <dir>, the notes to <file>, which is never
@@ -47,9 +48,21 @@ export const PUBLISHED = {
     { kind: "Windows installer block map", file: /Setup[^/]*\.exe\.blockmap$/ },
   ],
   mac: [{ kind: "Mac disk image", file: /^OwnBase-[^/]+-universal\.dmg$/ }],
+  linux: [
+    // No version in its name, so an update writes over the file people run.
+    { kind: "Linux AppImage", file: /^OwnBase\.AppImage$/ },
+    { kind: "Linux AppImage update feed", file: /^latest-linux\.yml$/ },
+    { kind: "Linux .deb package", file: /^ownbase_[^/]+_amd64\.deb$/ },
+  ],
 };
-/** The feed electron-builder writes for the Windows installer. */
-const FEED = "latest.yml";
+/**
+ * The feeds electron-builder writes, each with the file it offers: the
+ * Windows installer, and the AppImage, which carries its block map inside.
+ */
+const FEEDS = [
+  { feed: "latest.yml", artifact: "desktop", kind: "installer" },
+  { feed: "latest-linux.yml", artifact: "linux", kind: "AppImage" },
+];
 /**
  * The container image the image job tested, which publish pushes to the
  * registry rather than attaching to the release: its name, the digest of its
@@ -114,19 +127,22 @@ export function sha512(path) {
 }
 
 /**
- * What is wrong with the Windows update feed, or null. An installed app
- * trusts it for the version, the file to download and that file's SHA-512,
- * so each must be the installer published beside it.
+ * What is wrong with an update feed, or null. An installed app trusts it for
+ * the version, the file to download and that file's SHA-512, so each must be
+ * the file published beside it: the installer, or the AppImage.
  */
-export function feedProblem(feed, { installer, sha512: hash, version }) {
+export function feedProblem(
+  feed,
+  { installer, sha512: hash, version, name = "latest.yml", kind = "installer" },
+) {
   const field = (key) =>
     new RegExp(String.raw`^${key}:[ \t]*['"]?([^'"\r\n]*?)['"]?[ \t]*$`, "m").exec(feed)?.[1] ??
     null;
   if (field("version") !== version)
-    return `${FEED} is for version ${field("version")}, but the tag names ${version}`;
+    return `${name} is for version ${field("version")}, but the tag names ${version}`;
   if (field("path") !== installer)
-    return `${FEED} names ${field("path")}, not the installer ${installer}`;
-  if (field("sha512") !== hash) return `${FEED} does not have the installer's SHA-512`;
+    return `${name} names ${field("path")}, not the ${kind} ${installer}`;
+  if (field("sha512") !== hash) return `${name} does not have the ${kind}'s SHA-512`;
   return null;
 }
 
@@ -266,12 +282,15 @@ export function prepareRelease({
     const problem = imageProblem(image, server, { revision, version });
     if (problem) problems.push(problem);
   }
-  const installer = files.find((file) => PUBLISHED.desktop[0].file.test(file));
-  if (version && installer && files.includes(FEED)) {
-    const problem = feedProblem(readFileSync(join(dir, FEED), "utf8"), {
-      installer,
-      sha512: sha512(join(dir, installer)),
+  for (const { feed, artifact, kind } of FEEDS) {
+    const offered = files.find((file) => PUBLISHED[artifact][0].file.test(file));
+    if (!version || !offered || !files.includes(feed)) continue;
+    const problem = feedProblem(readFileSync(join(dir, feed), "utf8"), {
+      installer: offered,
+      sha512: sha512(join(dir, offered)),
       version,
+      name: feed,
+      kind,
     });
     if (problem) problems.push(problem);
   }
@@ -303,6 +322,8 @@ export function prepareRelease({
       : "The Windows installer is not code-signed, so Windows SmartScreen may warn before it runs; check its SHA-256 against `SHA256SUMS` first.",
     "",
     "The Mac app is signed ad hoc, not with an Apple Developer ID, and is not notarized. The first time it opens, macOS stops it; allow it under System Settings → Privacy & Security → Open Anyway.",
+    "",
+    "On Linux, make the AppImage runnable with `chmod +x OwnBase.AppImage`, then open it; it updates itself. It needs libfuse2 (`sudo apt install libfuse2t64` on Ubuntu). Ubuntu 24.04 and later refuse it the sandbox Chromium needs, so install the `.deb` there with `sudo apt install ./ownbase_*.deb`, which adds what it needs.",
     "",
     "SHA-256:",
     "",

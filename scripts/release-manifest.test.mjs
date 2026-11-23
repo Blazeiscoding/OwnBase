@@ -63,6 +63,9 @@ const feedFor = (installer, hash, version = "0.2.0") =>
     "",
   ].join("\n");
 const DISK_IMAGE = "OwnBase-0.2.0-universal.dmg";
+const APPIMAGE = "OwnBase.AppImage";
+const LINUX_FEED = "latest-linux.yml";
+const DEB = "ownbase_0.2.0_amd64.deb";
 const ARCHIVE = "ownbase-server-0.2.0.tar.gz";
 const DIGEST = `sha256:${"ab".repeat(32)}`;
 
@@ -83,7 +86,7 @@ const imageFor = (over = {}) => ({
  * tested it, and the container image's digest and identity.
  */
 function release(
-  identities = { server: identity(), desktop: identity(), mac: identity() },
+  identities = { server: identity(), desktop: identity(), mac: identity(), linux: identity() },
   image = imageFor(),
 ) {
   const dir = mkdtempSync(join(tmpdir(), "release-manifest-"));
@@ -98,6 +101,9 @@ function release(
   writeFileSync(join(dir, BLOCKMAP), "block map bytes");
   writeFileSync(join(dir, FEED), feedFor(INSTALLER, sha512(join(dir, INSTALLER))));
   writeFileSync(join(dir, DISK_IMAGE), "disk image bytes");
+  writeFileSync(join(dir, APPIMAGE), "appimage bytes");
+  writeFileSync(join(dir, LINUX_FEED), feedFor(APPIMAGE, sha512(join(dir, APPIMAGE))));
+  writeFileSync(join(dir, DEB), "deb bytes");
   writeFileSync(
     join(dir, ARCHIVE),
     tarGz({ "build.json": JSON.stringify(identities.server ?? identity()), "x.js": "server" }),
@@ -105,6 +111,7 @@ function release(
   bindAssets(dir, "server", [join(dir, ARCHIVE)]);
   bindAssets(dir, "desktop", [join(dir, INSTALLER), join(dir, FEED), join(dir, BLOCKMAP)]);
   bindAssets(dir, "mac", [join(dir, DISK_IMAGE)]);
+  bindAssets(dir, "linux", [join(dir, APPIMAGE), join(dir, LINUX_FEED), join(dir, DEB)]);
   return dir;
 }
 
@@ -121,11 +128,24 @@ test("every published file is hashed, and the notes name the tested revision", (
   const dir = release();
   try {
     const { sums, notes, files } = prepareRelease({ dir, revision: REVISION, tag: "v0.2.0" });
-    assert.deepEqual(files, [DISK_IMAGE, INSTALLER, BLOCKMAP, FEED, ARCHIVE]);
+    assert.deepEqual(files, [
+      DISK_IMAGE,
+      INSTALLER,
+      BLOCKMAP,
+      APPIMAGE,
+      LINUX_FEED,
+      FEED,
+      ARCHIVE,
+      DEB,
+    ]);
     assert.equal(sums, files.map((file) => `${sha256(join(dir, file))}  ${file}\n`).join(""));
     assert.match(notes, new RegExp(`Built and tested from ${REVISION}`));
     assert.match(notes, /\| desktop \| 0\.2\.0 \| `0123456789ab` \|/);
     assert.match(notes, /\| mac \| 0\.2\.0 \| `0123456789ab` \|/);
+    assert.match(notes, /\| linux \| 0\.2\.0 \| `0123456789ab` \|/);
+    // How to start the AppImage, and what Ubuntu 24.04 asks of it.
+    assert.match(notes, /chmod \+x OwnBase\.AppImage/);
+    assert.match(notes, /Ubuntu 24\.04[\s\S]*\.deb/);
     assert.match(notes, /\| server \| 0\.2\.0 \| `0123456789ab` \|/);
     assert.match(notes, /\| image \| 0\.2\.0 \| `0123456789ab` \| `0a1344b673e188e8` \|/);
     assert.match(notes, /ghcr\.io\/blazeiscoding\/ownbase:0\.2\.0/);
@@ -352,6 +372,66 @@ test("refuses an update feed that does not name the installer beside it", () => 
     rmSync(join(dir, FEED));
     bindAssets(dir, "desktop", [join(dir, INSTALLER), join(dir, BLOCKMAP)]);
     assert.throws(prepare(dir), /desktop must stage exactly one Windows update feed, not none/);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("refuses a release without the Linux app, or with a feed that names another file", () => {
+  const prepare = (dir) => () => prepareRelease({ dir, revision: REVISION, tag: "v0.2.0" });
+  const rebind = (dir) =>
+    bindAssets(dir, "linux", [join(dir, APPIMAGE), join(dir, LINUX_FEED), join(dir, DEB)]);
+  let dir = release();
+  try {
+    rmSync(join(dir, "linux.assets.json"));
+    rmSync(join(dir, APPIMAGE));
+    rmSync(join(dir, LINUX_FEED));
+    rmSync(join(dir, DEB));
+    assert.throws(prepare(dir), /no Linux AppImage was staged \(linux\.assets\.json\)/);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+  // The .deb is as required as the AppImage.
+  dir = release();
+  try {
+    rmSync(join(dir, DEB));
+    bindAssets(dir, "linux", [join(dir, APPIMAGE), join(dir, LINUX_FEED)]);
+    assert.throws(prepare(dir), /linux must stage exactly one Linux \.deb package, not none/);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+  // The AppImage takes its updates from latest-linux.yml, so it must name it.
+  dir = release();
+  try {
+    writeFileSync(join(dir, LINUX_FEED), feedFor(APPIMAGE, sha512(join(dir, DEB))));
+    rebind(dir);
+    assert.throws(prepare(dir), /latest-linux\.yml does not have the AppImage's SHA-512/);
+    writeFileSync(join(dir, LINUX_FEED), feedFor(DEB, sha512(join(dir, APPIMAGE))));
+    rebind(dir);
+    assert.throws(
+      prepare(dir),
+      /latest-linux\.yml names ownbase_0\.2\.0_amd64\.deb, not the AppImage OwnBase\.AppImage/,
+    );
+    writeFileSync(join(dir, LINUX_FEED), feedFor(APPIMAGE, sha512(join(dir, APPIMAGE)), "0.1.9"));
+    rebind(dir);
+    assert.throws(
+      prepare(dir),
+      /latest-linux\.yml is for version 0\.1\.9, but the tag names 0\.2\.0/,
+    );
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+  // No version in the AppImage's name, so an update replaces the same file.
+  dir = release();
+  try {
+    rmSync(join(dir, APPIMAGE));
+    writeFileSync(join(dir, "OwnBase-0.2.0.AppImage"), "appimage bytes");
+    bindAssets(dir, "linux", [
+      join(dir, "OwnBase-0.2.0.AppImage"),
+      join(dir, LINUX_FEED),
+      join(dir, DEB),
+    ]);
+    assert.throws(prepare(dir), /linux must stage exactly one Linux AppImage, not none/);
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }
