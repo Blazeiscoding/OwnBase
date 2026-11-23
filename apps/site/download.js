@@ -1,6 +1,6 @@
 // Offers the download that fits the visitor's system: the installer on
-// Windows, the server on Linux, and on a Mac or a phone, what they can use
-// instead. The files come from Cloudflare (dl.ownbase.site), several times
+// Windows, the disk image on a Mac, the .deb on Linux, with the AppImage
+// beside it, and on a phone, what it can use instead. The files come from Cloudflare (dl.ownbase.site), several times
 // faster than GitHub's servers in some places, and from the latest GitHub
 // release only when dl.ownbase.site cannot be read. Without this script every
 // button goes to GitHub's release page; when nothing has been released yet,
@@ -55,6 +55,8 @@
   const PATTERNS = {
     windows: /Setup.*\.exe$/i,
     mac: /-universal\.dmg$/i,
+    deb: /^ownbase_.*_amd64\.deb$/i,
+    appimage: /^OwnBase\.AppImage$/i,
     server: /^ownbase-server-.*\.tar\.gz$/i,
   };
   const versionOf = (tag) => String(tag ?? "").replace(/^v/, "");
@@ -167,7 +169,7 @@
   const os = system();
   const row = {
     windows: "windows",
-    linux: "server",
+    linux: "linux",
     mac: "mac",
     phone: "browser",
     other: "browser",
@@ -188,10 +190,13 @@
   }
 
   // Each file a release offers, the row it belongs to, and what its button
-  // says when there is no release to take it from.
+  // says when there is no release to take it from. A file without words is
+  // the second choice in its row, hidden then.
   const FILES = {
     windows: { source: "No installer is published yet. pnpm build:win makes one." },
     mac: { source: "No disk image is published yet. pnpm build:mac makes one." },
+    deb: { source: "No Linux app is published yet. pnpm build:linux makes one." },
+    appimage: {},
     server: { source: "No release is published yet. pnpm build makes the server." },
   };
   // What this system's main buttons offer, out of a release, and the short
@@ -209,11 +214,16 @@
       note: (version, size) => `${version} for Apple silicon and Intel, ${size}.`,
       link: { href: "#download", text: "How to open it" },
     },
+    // Most Linux desktops are Debian or Ubuntu, where the .deb also sets up
+    // what Chromium's sandbox needs on Ubuntu 24.04; the AppImage is for the rest.
     linux: {
-      file: "server",
-      label: "Download the server",
-      note: (version, size) => `${version} of the server, ${size}. It needs Node 24.`,
-      link: others,
+      file: "deb",
+      label: "Download for Linux",
+      note: (version, size) => `${version}, a .deb for Debian and Ubuntu, ${size}.`,
+      link: (release) =>
+        release.appimage
+          ? { href: release.appimage.url, text: "The AppImage, for other distributions" }
+          : others,
     },
   };
 
@@ -224,7 +234,8 @@
 
     if (release.none) {
       for (const [name, file] of Object.entries(FILES)) {
-        if (button(name)) {
+        if (button(name) && !file.source) button(name).hidden = true;
+        else if (button(name)) {
           button(name).href = SOURCE;
           button(name).textContent = "Build from source";
         }
@@ -254,8 +265,12 @@
     const offer = OFFERS[os];
     const asset = offer && release[offer.file];
     if (!asset) {
-      if (os === "mac" && note) {
-        say(note, "This release has no Mac app.", { href: "#download", text: "Your options" });
+      const missing = {
+        mac: "This release has no Mac app.",
+        linux: "This release has no Linux app.",
+      };
+      if (missing[os] && note) {
+        say(note, missing[os], { href: "#download", text: "Your options" });
       }
       return;
     }
@@ -263,6 +278,7 @@
       get.href = asset.url;
       get.textContent = offer.label;
     }
-    if (note) say(note, offer.note(version, megabytes(asset.size)), offer.link);
+    const link = typeof offer.link === "function" ? offer.link(release) : offer.link;
+    if (note) say(note, offer.note(version, megabytes(asset.size)), link);
   });
 })();

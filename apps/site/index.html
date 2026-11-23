@@ -20,7 +20,7 @@
         "@type": "SoftwareApplication",
         "name": "OwnBase",
         "description": "OwnBase is open-source team chat that you host. Run it on your own computer or a small server, and your team joins from the same Wi-Fi, from anywhere on the internet, or from a link that opens in any browser.",
-        "operatingSystem": "Windows, macOS",
+        "operatingSystem": "Windows, macOS, Linux",
         "applicationCategory": "CommunicationApplication",
         "offers": { "@type": "Offer", "price": "0", "priceCurrency": "USD" },
         "downloadUrl": "https://ownbase.site/"
@@ -55,7 +55,7 @@
     <link rel="icon" href="ownbase.svg?v=2" type="image/svg+xml" />
     <link rel="stylesheet" href="site.css?v=7" />
     <script src="scene.js?v=3" defer></script>
-    <script src="download.js?v=4" defer></script>
+    <script src="download.js?v=5" defer></script>
   </head>
   <body>
     <a class="skip" href="#main">Skip to content</a>
@@ -354,6 +354,30 @@
                 >Download for Mac</a
               >
               <p class="platform-meta" data-meta="mac">The latest release</p>
+            </div>
+          </li>
+          <li class="platform" data-platform="linux">
+            <h3>Linux <span class="yours" hidden>This device</span></h3>
+            <div class="platform-text">
+              <p>
+                The desktop app for 64-bit Linux. The .deb is for Debian and Ubuntu. The AppImage
+                runs on other distributions and updates itself.
+              </p>
+            </div>
+            <div class="platform-get">
+              <a
+                class="btn btn-host"
+                href="https://github.com/Blazeiscoding/OwnBase/releases/latest"
+                data-asset="deb"
+                >Download the .deb</a
+              >
+              <p class="platform-meta" data-meta="deb">The latest release</p>
+              <a
+                class="platform-also"
+                href="https://github.com/Blazeiscoding/OwnBase/releases/latest"
+                data-asset="appimage"
+                >Download the AppImage</a
+              >
             </div>
           </li>
           <li class="platform platform-server" data-platform="server">
