@@ -127,7 +127,12 @@ jobs:
       - run: node scripts/check-web-bundle.mjs apps/desktop/out/renderer
       - run: node scripts/check-desktop-archive.mjs apps/desktop/release/linux-unpacked/resources/app.asar
       - run: node scripts/check-web-precompressed.mjs apps/desktop/release/linux-unpacked/resources/web
-      # Whether this runner restricts user namespaces as Ubuntu 24.04 does,
-      # which the sandbox of an app without an AppArmor profile needs.
-      - run: sysctl kernel.apparmor_restrict_unprivileged_userns || true
+      # Ubuntu 24.04 lets a program use unprivileged user namespaces, which
+      # Chromium's sandbox needs, only under an AppArmor profile. The unpacked
+      # app has none, so the restriction is lifted for it here; the release's
+      # gates start the .deb, which installs one, with it on.
+      - run: sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
       - run: xvfb-run --auto-servernum pnpm test:desktop --grep "packaged Linux app"
+        env:
+          # What the app printed, should it fail to start.
+          DEBUG: pw:browser

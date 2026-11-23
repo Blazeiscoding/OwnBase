@@ -413,7 +413,13 @@ jobs:
           OWNBASE_VERSION: ${{ needs.plan.outputs.version }}
       - run: node scripts/check-desktop-archive.mjs apps/desktop/release/linux-unpacked/resources/app.asar
       - run: node scripts/check-web-precompressed.mjs apps/desktop/release/linux-unpacked/resources/web
+      # The unpacked app has no AppArmor profile, which Ubuntu 24.04 asks of a
+      # program before Chromium's sandbox may use user namespaces; the gates
+      # below put the restriction back for the .deb, which installs one.
+      - run: sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
       - run: xvfb-run --auto-servernum pnpm test:desktop --grep "packaged Linux app"
+        env:
+          DEBUG: pw:browser
       - name: Install and start gates
         env:
           OWNBASE_VERSION: ${{ needs.plan.outputs.version }}
