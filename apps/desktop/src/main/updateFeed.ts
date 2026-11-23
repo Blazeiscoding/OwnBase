@@ -1,4 +1,4 @@
-import type { NsisUpdater } from "electron-updater";
+import type { AppUpdater } from "electron-updater";
 import { appendLog } from "./appLog.js";
 import { isOffered, type InstallFeed } from "./updates.js";
 
@@ -87,11 +87,10 @@ export async function newerOnR2(
   return isOffered(release.version, current) ? release : null;
 }
 
-/** What windowsFeed uses of electron-updater's NsisUpdater. */
+/** What updaterFeed uses of electron-updater's NsisUpdater or AppImageUpdater. */
 export type Updater = Pick<
-  NsisUpdater,
+  AppUpdater,
   | "autoDownload"
-  | "disableWebInstaller"
   | "autoInstallOnAppQuit"
   | "logger"
   | "setFeedURL"
@@ -102,28 +101,48 @@ export type Updater = Pick<
   | "quitAndInstall"
 >;
 
-/** electron-updater is loaded on the first look, not at start. */
-async function nsisUpdater(): Promise<Updater> {
+/** electron-updater, loaded on the first look rather than at start. */
+async function electronUpdater(): Promise<typeof import("electron-updater")> {
   const module = await import("electron-updater");
   // A CommonJS package: its exports are the default export here.
-  const { NsisUpdater } = ((module as { default?: unknown }).default ??
-    module) as typeof import("electron-updater");
-  return new NsisUpdater();
+  return ((module as { default?: unknown }).default ?? module) as typeof import("electron-updater");
+}
+
+/** The Windows installer's updater, which reads latest.yml. */
+export async function nsisUpdater(): Promise<Updater> {
+  const updater = new (await electronUpdater()).NsisUpdater();
+  // There is no web installer, only the full one.
+  updater.disableWebInstaller = true;
+  return updater;
 }
 
 /**
- * The Windows installer's updater: electron-updater, pointed at the folder
- * on R2 of the release latest.json names, and only once that release is
- * newer than this copy. It reads the feed file (latest.yml) electron-builder
- * wrote beside the installer and the blockmap for a smaller download. The
- * installer is not code signed, so what it downloads is checked only against
- * the SHA-512 in that latest.yml, fetched over HTTPS from dl.ownbase.site.
+ * The AppImage's updater, which reads latest-linux.yml and writes the new
+ * version over the file named by $APPIMAGE, the one the person opened.
  */
-export function windowsFeed(
+export async function appImageUpdater(): Promise<Updater> {
+  return new (await electronUpdater()).AppImageUpdater();
+}
+
+/** The feed file electron-builder writes beside each kind of package. */
+export const FEED_FILE = { nsis: "latest.yml", appImage: "latest-linux.yml" } as const;
+
+/**
+ * The updater of a package that can replace itself, the Windows installer or
+ * the AppImage: electron-updater, pointed at the folder on R2 of the release
+ * latest.json names, and only once that release is newer than this copy. It
+ * reads the feed file electron-builder wrote beside the package (latest.yml,
+ * or latest-linux.yml) and a block map for a smaller download, beside the
+ * installer or inside the AppImage. Neither is code signed, so what it
+ * downloads is checked only against the SHA-512 in that feed, fetched over
+ * HTTPS from dl.ownbase.site.
+ */
+export function updaterFeed(
   log: (message: string, error?: unknown) => void,
   fetcher: (url: string, init: RequestInit) => Promise<Response>,
   current: string,
   makeUpdater: () => Promise<Updater> = nsisUpdater,
+  feedFile: string = FEED_FILE.nsis,
 ): InstallFeed & { quitAndInstall: () => void } {
   let installOnQuit = true;
   let loaded: Promise<Updater> | null = null;
@@ -131,8 +150,6 @@ export function windowsFeed(
   const load = () =>
     (loaded ??= makeUpdater().then((made) => {
       made.autoDownload = false;
-      // There is no web installer, only the full one.
-      made.disableWebInstaller = true;
       made.autoInstallOnAppQuit = installOnQuit;
       made.logger = {
         info: (message: unknown) => log(`updater: ${String(message)}`),
@@ -152,11 +169,11 @@ export function windowsFeed(
       const result = await made.checkForUpdates();
       const info = result?.updateInfo;
       if (!result?.isUpdateAvailable || info?.version !== release.version)
-        throw new Error(`${release.base}latest.yml is for ${info?.version ?? "nothing"}.`);
+        throw new Error(`${release.base}${feedFile} is for ${info?.version ?? "nothing"}.`);
       // Plain names of files latest.json lists, so the download stays in that folder.
       for (const { url } of info.files)
         if (!/^[\w.-]+$/.test(url) || !Object.hasOwn(release.files, url))
-          throw new Error(`${release.base}latest.yml names ${url}, which is not there.`);
+          throw new Error(`${release.base}${feedFile} names ${url}, which is not there.`);
       return release.version;
     },
     download: async (progress) => {
@@ -173,15 +190,17 @@ export function windowsFeed(
       installOnQuit = on;
       if (updater) updater.autoInstallOnAppQuit = on;
     },
-    // Silent, as the one-click installer is, and opening the new version after.
+    // Silent, as the one-click installer is, and opening the new version
+    // after; the AppImage has nothing to show either way.
     quitAndInstall: () => updater?.quitAndInstall(true, true),
   };
 }
 
 /**
  * The version latest.json names, when newer than `current`. For the Mac app,
- * which cannot replace itself until it has a real signature, so it only says
- * one is out and links to the website, whose download is the same R2 copy.
+ * which cannot replace itself until it has a real signature, and the .deb,
+ * which only the system's package tools may replace, so each only says one is
+ * out and links to the website, whose download is the same R2 copy.
  */
 export async function latestOnR2(
   fetcher: (url: string, init: RequestInit) => Promise<Response>,

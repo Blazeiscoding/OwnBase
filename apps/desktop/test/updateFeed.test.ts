@@ -1,11 +1,12 @@
 import { describe, expect, it, vi } from "vitest";
 import {
   DOWNLOADS,
+  FEED_FILE,
   LATEST,
   latestOnR2,
   newerOnR2,
   readLatest,
-  windowsFeed,
+  updaterFeed,
   type Updater,
 } from "../src/main/updateFeed.js";
 import { DAY_MS, Updates } from "../src/main/updates.js";
@@ -98,7 +99,7 @@ describe("readLatest", () => {
   });
 });
 
-/** A stand-in for electron-updater's NsisUpdater that serves `feed` as latest.yml. */
+/** A stand-in for electron-updater's updater that serves `feed` as its feed file. */
 function fakeUpdater(feed: { version: string; files: { url: string }[] }) {
   const updater = {
     setFeedURL: vi.fn(),
@@ -116,11 +117,39 @@ const yml = (version = "0.2.0-alpha.22") => ({
   files: [{ url: `OwnBase-Setup-${version}.exe` }],
 });
 
-describe("windowsFeed", () => {
+describe("updaterFeed", () => {
+  it("reads the AppImage's own feed, latest-linux.yml, and names it when it is wrong", async () => {
+    const body = latestJson();
+    body.files["OwnBase.AppImage"] = {
+      url: "https://dl.ownbase.site/v0.2.0-alpha.22/OwnBase.AppImage",
+      size: 10,
+    };
+    body.files["latest-linux.yml"] = {
+      url: "https://dl.ownbase.site/v0.2.0-alpha.22/latest-linux.yml",
+      size: 10,
+    };
+    const feed = updaterFeed(
+      () => {},
+      fakeFetch(body),
+      "0.2.0-alpha.1",
+      fakeUpdater({ version: "0.2.0-alpha.22", files: [{ url: "OwnBase.AppImage" }] }).make,
+      FEED_FILE.appImage,
+    );
+    expect(await feed.check()).toBe("0.2.0-alpha.22");
+    const stale = updaterFeed(
+      () => {},
+      fakeFetch(body),
+      "0.2.0-alpha.1",
+      fakeUpdater({ version: "0.2.0-alpha.21", files: [{ url: "OwnBase.AppImage" }] }).make,
+      FEED_FILE.appImage,
+    );
+    await expect(stale.check()).rejects.toThrow("latest-linux.yml is for 0.2.0-alpha.21");
+  });
+
   it("points electron-updater at the folder of the tag latest.json names", async () => {
     const { updater, make } = fakeUpdater(yml());
     const fetcher = fakeFetch(latestJson());
-    const feed = windowsFeed(() => {}, fetcher, "0.2.0-alpha.1", make);
+    const feed = updaterFeed(() => {}, fetcher, "0.2.0-alpha.1", make);
     expect(await feed.check()).toBe("0.2.0-alpha.22");
     expect(updater.setFeedURL).toHaveBeenCalledWith({
       provider: "generic",
@@ -131,13 +160,13 @@ describe("windowsFeed", () => {
 
   it("does not load electron-updater while nothing newer is on R2", async () => {
     const { make } = fakeUpdater(yml());
-    const feed = windowsFeed(() => {}, fakeFetch(latestJson()), "0.2.0-alpha.22", make);
+    const feed = updaterFeed(() => {}, fakeFetch(latestJson()), "0.2.0-alpha.22", make);
     expect(await feed.check()).toBeNull();
     expect(make).not.toHaveBeenCalled();
   });
 
   it("refuses a latest.yml for another version, or naming a file latest.json does not list", async () => {
-    const other = windowsFeed(
+    const other = updaterFeed(
       () => {},
       fakeFetch(latestJson()),
       "0.2.0-alpha.1",
@@ -145,7 +174,7 @@ describe("windowsFeed", () => {
     );
     await expect(other.check()).rejects.toThrow("latest.yml is for 0.2.0-alpha.21");
     for (const url of ["../OwnBase-Setup-0.2.0-alpha.22.exe", "evil.exe", "constructor"]) {
-      const feed = windowsFeed(
+      const feed = updaterFeed(
         () => {},
         fakeFetch(latestJson()),
         "0.2.0-alpha.1",
@@ -166,7 +195,7 @@ describe("windowsFeed", () => {
       version: "0.2.0-alpha.1",
       now: () => 10 * DAY_MS,
       settings: { get: async () => undefined, set: async () => {} },
-      feed: windowsFeed(log, fakeFetch(body), "0.2.0-alpha.1", make),
+      feed: updaterFeed(log, fakeFetch(body), "0.2.0-alpha.1", make),
       hosting: () => ({ running: false }),
       install: vi.fn(),
       onChange: () => {},

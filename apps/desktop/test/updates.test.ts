@@ -12,6 +12,7 @@ import {
   isOffered,
   offerDue,
   restartAnswer,
+  systemUpdates,
   type UpdateDeps,
 } from "../src/main/updates.js";
 
@@ -25,6 +26,21 @@ const due = (over: Partial<Parameters<typeof checkDue>[0]> = {}) =>
     now: 10 * DAY_MS,
     ...over,
   });
+
+describe("systemUpdates", () => {
+  it("installs on Windows and from an AppImage, and only says so on a Mac or from a .deb", () => {
+    expect(systemUpdates("win32", {})).toEqual({ mode: "install", feed: "nsis" });
+    expect(systemUpdates("linux", { APPIMAGE: "/home/sam/Apps/OwnBase.AppImage" })).toEqual({
+      mode: "install",
+      feed: "appImage",
+    });
+    expect(systemUpdates("darwin", {})).toEqual({ mode: "notify", feed: null });
+    // Installed from the .deb, which only the system's package tools may replace.
+    expect(systemUpdates("linux", {})).toEqual({ mode: "notify", feed: null });
+    expect(systemUpdates("linux", { APPIMAGE: "" })).toEqual({ mode: "notify", feed: null });
+    expect(systemUpdates("freebsd", {})).toEqual({ mode: "none", feed: null });
+  });
+});
 
 describe("checkDue", () => {
   it("never looks in a build the Release workflow did not make", () => {

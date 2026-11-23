@@ -12,6 +12,7 @@ import {
 const NONE: DesktopCapabilities = {
   readerLocale: null,
   screenSound: false,
+  systemScreenPicker: false,
   systemMicrophone: false,
   openAtLogin: false,
   updates: "none",
@@ -142,6 +143,13 @@ describe("what the platform offers", () => {
     expect(withAll.screenShare!.sound).toBe(true);
     expect(withAll.systemMicrophone).toBeDefined();
     expect(withAll.hosting!.openAtLogin).not.toBeNull();
+  });
+
+  it("leaves screens to the system's picker where the main process says it shows one", () => {
+    (globalThis as { window?: unknown }).window = new EventTarget();
+    const wayland = electronPlatform(fakeBridge(undefined, { systemScreenPicker: true }).bridge);
+    // The huddle then asks for a screen as a browser does.
+    expect(wayland.screenShare).toBeUndefined();
   });
 
   it("has no storage watchers, as the desktop app has one window", () => {

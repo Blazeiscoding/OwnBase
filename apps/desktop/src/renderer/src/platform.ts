@@ -246,10 +246,16 @@ export function electronPlatform(bridge: OwnBaseBridge): Platform {
         };
       }
     },
-    screenShare: {
-      ...callers(call, { sources: "screen:sources", choose: "screen:choose" }),
-      sound: capabilities.screenSound,
-    },
+    // Without one, the huddle asks for a screen as a browser would, and the
+    // system's picker answers (setDisplayMediaRequestHandler in main).
+    ...(capabilities.systemScreenPicker
+      ? {}
+      : {
+          screenShare: {
+            ...callers(call, { sources: "screen:sources", choose: "screen:choose" }),
+            sound: capabilities.screenSound,
+          },
+        }),
     ...(capabilities.systemMicrophone ? { systemMicrophone: systemMicrophone(call) } : {}),
     discoverLan: (cb) => {
       void call("lan:snapshot").then(cb, () => {});

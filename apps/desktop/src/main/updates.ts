@@ -152,6 +152,24 @@ export function isOffered(version: string, current: string): boolean {
   return (compareVersions(version, current) ?? 0) > 0;
 }
 
+/**
+ * How a released copy on this system gets new versions, and which updater
+ * installs them. The Windows installer and the AppImage replace themselves.
+ * The Mac app, signed ad hoc, cannot be replaced by Squirrel, and a .deb
+ * belongs to the system's package tools, so those say a version is out. An
+ * AppImage is told apart by $APPIMAGE, which its runtime sets to the file
+ * that was opened.
+ */
+export function systemUpdates(
+  platform: NodeJS.Platform,
+  env: Readonly<Record<string, string | undefined>>,
+): { mode: UpdateMode; feed: "nsis" | "appImage" | null } {
+  if (platform === "win32") return { mode: "install", feed: "nsis" };
+  if (platform === "linux" && env.APPIMAGE) return { mode: "install", feed: "appImage" };
+  if (platform === "darwin" || platform === "linux") return { mode: "notify", feed: null };
+  return { mode: "none", feed: null };
+}
+
 /** What is kept between runs. */
 interface Kept {
   automatic: boolean;

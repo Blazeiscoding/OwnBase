@@ -9,6 +9,7 @@ describe("what the main process decided, handed to the window", () => {
     const sent = {
       readerLocale: "en-IN",
       screenSound: true,
+      systemScreenPicker: true,
       systemMicrophone: false,
       openAtLogin: true,
       updates: "install" as const,
@@ -20,6 +21,7 @@ describe("what the main process decided, handed to the window", () => {
     const none = {
       readerLocale: null,
       screenSound: false,
+      systemScreenPicker: false,
       systemMicrophone: false,
       openAtLogin: false,
       updates: "none",
