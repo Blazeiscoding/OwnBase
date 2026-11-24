@@ -109,10 +109,25 @@ export const MessageTimeline = memo(function MessageTimeline({
   const status = useWorkspace((s) => s.timelineStatus[channelId]);
   const loadingHistory = status?.loading === "latest" ? null : (status?.loading ?? null);
   const historyError = status?.error === "latest" ? null : (status?.error ?? null);
-  const [lightbox, setLightbox] = useState<{ file: FileMeta; gallery?: FileMeta[] } | null>(null);
+  const [lightbox, setLightbox] = useState<{
+    file: FileMeta;
+    gallery?: FileMeta[];
+    from?: { userId: ID; at: number };
+  } | null>(null);
   const openImage = useCallback(
-    (file: FileMeta, gallery?: FileMeta[]) => setLightbox({ file, gallery }),
-    [],
+    (file: FileMeta, gallery?: FileMeta[]) => {
+      // Who shared it: the message here that holds it. A forwarded or linked
+      // card's picture belongs to a message elsewhere, and goes without.
+      const holder = timelineMessages(client.state, channelId).find((m) =>
+        m.files?.some((f) => f.id === file.id),
+      );
+      setLightbox({
+        file,
+        gallery,
+        ...(holder ? { from: { userId: holder.userId, at: holder.createdAt } } : {}),
+      });
+    },
+    [client, channelId],
   );
   const highlightRef = useRef<HTMLDivElement>(null);
   const lastScrollTop = useRef(0);
@@ -707,6 +722,7 @@ export const MessageTimeline = memo(function MessageTimeline({
         <Lightbox
           file={lightbox.file}
           gallery={lightbox.gallery}
+          from={lightbox.from}
           onClose={() => setLightbox(null)}
         />
       )}

@@ -58,7 +58,7 @@ export function FilesPanel({
   const [channelId, setChannelId] = useState(initialChannelId ?? "");
   const [typed, setTyped] = useState("");
   const [search, setSearch] = useState("");
-  const [viewing, setViewing] = useState<FileMeta | null>(null);
+  const [viewing, setViewing] = useState<SharedFile | null>(null);
   const scroller = useRef<HTMLDivElement>(null);
   const fromId = useId();
   const inId = useId();
@@ -234,7 +234,7 @@ export function FilesPanel({
               shared={shared}
               who={users[shared.userId]?.displayName ?? "someone"}
               where={channels[shared.channelId] ? name(shared.channelId) : "a conversation"}
-              onView={setViewing}
+              onView={() => setViewing(shared)}
               onJump={() => onJump(shared.channelId, shared.messageId)}
             />
           ))}
@@ -248,7 +248,14 @@ export function FilesPanel({
           scroller={scroller}
         />
       </div>
-      {viewing && <Lightbox file={viewing} onClose={() => setViewing(null)} />}
+      {viewing && (
+        <Lightbox
+          file={viewing.file}
+          from={{ userId: viewing.userId, at: viewing.sharedAt }}
+          onOpenMessage={() => onJump(viewing.channelId, viewing.messageId)}
+          onClose={() => setViewing(null)}
+        />
+      )}
     </aside>
   );
 }

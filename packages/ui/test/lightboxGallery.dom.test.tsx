@@ -3,7 +3,7 @@ import { cleanup, screen } from "@testing-library/react";
 import { render } from "./render.js";
 import userEvent from "@testing-library/user-event";
 import { WorkspaceClient } from "@ownbase/client-core";
-import type { FileMeta } from "@ownbase/protocol";
+import type { FileMeta, User } from "@ownbase/protocol";
 import { ClientContext } from "../src/context.js";
 import { Lightbox } from "../src/components/Attachments.js";
 
@@ -19,7 +19,25 @@ afterEach(() => {
   vi.restoreAllMocks();
 });
 
-function open(file: FileMeta, gallery?: FileMeta[]) {
+const priya = {
+  id: "U_PRIYA",
+  handle: "priya",
+  displayName: "Priya Natarajan",
+  role: "member",
+  canInvite: true,
+  statusText: "",
+  statusEmoji: "",
+  isBot: false,
+  deactivated: false,
+  dndUntil: null,
+  createdAt: 0,
+} as User;
+
+function open(
+  file: FileMeta,
+  gallery?: FileMeta[],
+  context: { from?: { userId: string; at: number }; onOpenMessage?: () => void } = {},
+) {
   const { createObjectURL, revokeObjectURL } = URL;
   onTestFinished(() => void Object.assign(URL, { createObjectURL, revokeObjectURL }));
   let made = 0;
@@ -27,11 +45,14 @@ function open(file: FileMeta, gallery?: FileMeta[]) {
   URL.revokeObjectURL = vi.fn();
   const client = new WorkspaceClient("http://127.0.0.1:9", "test-token-not-a-credential");
   vi.spyOn(client.api, "fetchFile").mockResolvedValue(new Blob(["png!"]));
+  client.store.setState({ users: { [priya.id]: priya } });
+  const onClose = vi.fn();
   render(
     <ClientContext.Provider value={client}>
-      <Lightbox file={file} gallery={gallery} onClose={() => {}} />
+      <Lightbox file={file} gallery={gallery} onClose={onClose} {...context} />
     </ClientContext.Provider>,
   );
+  return { onClose };
 }
 
 describe("the image viewer", () => {
@@ -94,6 +115,25 @@ describe("the image viewer", () => {
       { href: "blob:test/1", download: "after.png" },
       { href: "blob:test/1", download: "after.png" },
     ]);
+  });
+
+  it("says who shared it and when, and opens the message it came in", async () => {
+    const user = userEvent.setup();
+    const at = new Date(2026, 10, 24, 9, 30).getTime();
+    const onOpenMessage = vi.fn();
+    const { onClose } = open(first, undefined, { from: { userId: priya.id, at }, onOpenMessage });
+    const bar = (await screen.findByRole("button", { name: "Save" })).parentElement!;
+    expect(bar).toHaveTextContent("Priya Natarajan");
+    expect(bar).toHaveTextContent(/9:30/);
+    await user.click(screen.getByRole("button", { name: "Open in conversation" }));
+    expect(onClose).toHaveBeenCalledOnce();
+    expect(onOpenMessage).toHaveBeenCalledOnce();
+  });
+
+  it("offers no way to the message when it is opened from that message", async () => {
+    open(first, undefined, { from: { userId: priya.id, at: 0 } });
+    await screen.findByRole("button", { name: "Save" });
+    expect(screen.queryByRole("button", { name: "Open in conversation" })).toBeNull();
   });
 
   it("shows one picture alone, with no arrows", async () => {
