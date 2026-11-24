@@ -916,6 +916,18 @@ function ChannelIntro({
             ? "Your direct messages start here."
             : "This conversation is just between you. It starts here."}
       </p>
+      {/* The picture and the name open the profile too, but nothing says so. */}
+      {person && openPerson && (
+        <div className="mt-4 flex flex-wrap gap-2">
+          <button
+            onClick={openPerson}
+            className="flex h-8 items-center gap-2 rounded-full border border-edge px-3 text-[13px] font-medium text-ink-dim transition-colors hover:bg-ink/[0.04] hover:text-ink"
+          >
+            <Icon name="user" size={14} />
+            View profile
+          </button>
+        </div>
+      )}
       {empty && room && (onInvite || onDetails) && (
         <div className="mt-4 flex flex-wrap gap-2">
           {onInvite && (

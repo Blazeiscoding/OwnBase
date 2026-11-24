@@ -66,7 +66,7 @@ import { useMediaQuery } from "../lib/useMediaQuery.js";
 import { NARROW_QUERY, WIDE_QUERY } from "../lib/layout.js";
 import { useHistoryKeys } from "../lib/historyKeys.js";
 import { useIdleReport } from "../lib/idle.js";
-import { PartnerTime } from "../components/PartnerTime.js";
+import { PartnerFace, PartnerStatus, PartnerTime } from "../components/PartnerTime.js";
 import { draftPlace } from "@ownbase/client-core";
 import { PhoneNavigation } from "../components/PhoneNavigation.js";
 import { EmptyState } from "../components/EmptyState.js";
@@ -625,6 +625,7 @@ function WorkspaceLayout(props: { restore: boolean; banner?: ReactNode }) {
               onClick={() => channelId && details()}
               className="flex min-w-0 flex-1 items-center gap-3 rounded-lg px-2 py-1.5 text-left transition-colors hover:bg-ink/[0.04]"
             >
+              {activeChannel?.type === "dm" && <PartnerFace channelId={activeChannel.id} />}
               <h2 className="shrink-0 truncate text-[16px] font-semibold leading-tight">
                 {room ? (
                   <>
@@ -655,6 +656,7 @@ function WorkspaceLayout(props: { restore: boolean; banner?: ReactNode }) {
                   </p>
                 </>
               )}
+              {activeChannel?.type === "dm" && <PartnerStatus channelId={activeChannel.id} />}
               {activeChannel?.type === "dm" && <PartnerTime channelId={activeChannel.id} />}
             </button>
             {channelId && (
