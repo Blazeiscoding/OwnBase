@@ -7,7 +7,7 @@ import { MessageItem } from "./MessageItem.js";
 import { DeletedEditNote, placeDeletedEdits, useDeletedEdits } from "./DeletedEdit.js";
 import { ReplyQuote } from "./ReplyQuote.js";
 import { ForwardCard } from "./ForwardCard.js";
-import { PendingPoll } from "./PollCard.js";
+import { PendingPoll } from "./Polls.js";
 import { Avatar } from "./Avatar.js";
 import { ListStatus } from "./ListStatus.js";
 import { Lightbox, PendingAttachments } from "./Attachments.js";

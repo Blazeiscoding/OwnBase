@@ -15,7 +15,7 @@ import { useRovingMessages } from "../lib/useRovingMessages.js";
 import { MessageItem } from "./MessageItem.js";
 import { DeletedEditNote, placeDeletedEdits, useDeletedEdits } from "./DeletedEdit.js";
 import { ReplyQuote } from "./ReplyQuote.js";
-import { PendingPoll } from "./PollCard.js";
+import { PendingPoll } from "./Polls.js";
 import { Lightbox, PendingAttachments } from "./Attachments.js";
 import { Icon } from "./Icon.js";
 import { Tooltip } from "./Tooltip.js";

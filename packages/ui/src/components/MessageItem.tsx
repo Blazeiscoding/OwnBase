@@ -57,7 +57,7 @@ import { ForwardCard } from "./ForwardCard.js";
 import { useForward } from "./ForwardHost.js";
 import { LinkPreviews } from "./LinkPreviews.js";
 import { LinkedMessages } from "./LinkedMessages.js";
-import { PollCard } from "./PollCard.js";
+import { PollCard } from "./Polls.js";
 import { CallNote } from "./CallNote.js";
 import { LazyDialog } from "./LazyView.js";
 import { useConfirm } from "./Confirm.js";

@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from "vitest";
+import { beforeAll, describe, expect, it, vi } from "vitest";
 import { cleanup, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { ApiError, WorkspaceClient } from "@ownbase/client-core";
@@ -10,6 +10,7 @@ import {
   useWorkspace,
 } from "../src/context.js";
 import { MessageItem } from "../src/components/MessageItem.js";
+import { pollCards } from "../src/components/Polls.js";
 import { Composer } from "../src/components/Composer.js";
 import { ConfirmProvider } from "../src/components/Confirm.js";
 import { ToastProvider } from "../src/components/Toast.js";
@@ -121,6 +122,9 @@ function shown(message: Message, opts: { self?: User; told?: Record<string, numb
 
 const choice = (card: HTMLElement, name: string) =>
   within(card).getByRole("button", { name: new RegExp(`^${name},`) });
+
+// A workspace fetches polls as it opens; these draw them straight away.
+beforeAll(() => pollCards.load());
 
 describe("a poll in a message", () => {
   it("votes, shows the count at once, moves the vote, and takes it back", async () => {
