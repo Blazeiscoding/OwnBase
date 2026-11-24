@@ -781,6 +781,12 @@ summary:focus-visible {
   button {
     transition-duration: 120ms;
   }
+  /* A box beside words that wrap keeps its size: squeezed, it shrank and
+     pulled its words out of line with the rows above (the poll's Anonymous). */
+  input[type="checkbox"],
+  input[type="radio"] {
+    flex-shrink: 0;
+  }
 }
 input::placeholder,
 textarea::placeholder {
