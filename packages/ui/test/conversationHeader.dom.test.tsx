@@ -196,9 +196,9 @@ describe("the conversation's header", () => {
     expect(within(dialog).getByRole("textbox", { name: "Search messages" })).toHaveValue("lunch");
   });
 
-  it("offers pins, notification settings and details from its menu", async () => {
+  it("offers pins, muting, notification settings and details from its menu", async () => {
     const user = userEvent.setup();
-    const { header } = await workspace();
+    const { header, client } = await workspace();
     await user.click(within(header).getByRole("button", { name: "Conversation options" }));
     const menu = await screen.findByRole("menu", { name: "Conversation options" });
     expect(
@@ -209,11 +209,18 @@ describe("the conversation's header", () => {
       "Pinned messages",
       "Files",
       "Star channel",
+      "Mute channel",
       "Notification settings",
       "Channel details",
     ]);
+    const mute = vi.spyOn(client, "setChannelPrefs").mockResolvedValue(null);
+    await user.click(within(menu).getByRole("menuitem", { name: "Mute channel" }));
+    expect(mute).toHaveBeenCalledWith(general.id, { muted: true });
+    mute.mockRestore();
+    await user.click(within(header).getByRole("button", { name: "Conversation options" }));
 
-    await user.click(within(menu).getByRole("menuitem", { name: "Notification settings" }));
+    const again = await screen.findByRole("menu", { name: "Conversation options" });
+    await user.click(within(again).getByRole("menuitem", { name: "Notification settings" }));
     const details = await screen.findByRole("dialog", { name: "#general" });
     expect(within(details).getByRole("tab", { name: "Notifications" })).toHaveAttribute(
       "aria-selected",

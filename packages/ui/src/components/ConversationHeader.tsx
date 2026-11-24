@@ -7,7 +7,7 @@ import { Icon } from "./Icon.js";
 import { Menu, type MenuItem } from "./Menu.js";
 import { useToast } from "./Toast.js";
 import { Tooltip } from "./Tooltip.js";
-import { starItem } from "../lib/conversationChoices.js";
+import { muteItem, starItem } from "../lib/conversationChoices.js";
 
 /**
  * The last answer to each question the header asks, per client, so a
@@ -146,6 +146,7 @@ export function ConversationMenu(props: {
   // A star is kept with a membership.
   const canStar = useWorkspace((s) => props.channelId in s.memberships);
   const starred = useWorkspace((s) => s.prefs[props.channelId]?.starred === true);
+  const muted = useWorkspace((s) => s.prefs[props.channelId]?.muted === true);
   const conversation = {
     id: props.channelId,
     noun: props.isRoom ? ("channel" as const) : ("conversation" as const),
@@ -154,6 +155,9 @@ export function ConversationMenu(props: {
     { id: "pins", label: "Pinned messages", icon: "pin", onSelect: props.onPins },
     { id: "files", label: "Files", icon: "file", onSelect: props.onFiles },
     ...(canStar ? [starItem(client, toast, conversation, starred)] : []),
+    // Here as in the sidebar row's menu: the header is where a noisy
+    // conversation is being read when it is time to quiet it.
+    ...(canStar ? [muteItem(client, toast, conversation, muted)] : []),
     ...(props.onNotifications
       ? [
           {
