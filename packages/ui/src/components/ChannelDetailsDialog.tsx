@@ -1,4 +1,4 @@
-import { useEffect, useId, useRef, useState } from "react";
+import { useEffect, useId, useRef, useState, type ReactNode } from "react";
 import { UnsavedGuard } from "../lib/dismissGuard.js";
 import {
   CHANNEL_DESCRIPTION_MAX,
@@ -280,59 +280,53 @@ export function ChannelDetailsDialog(props: {
         ) : tab === "about" ? (
           room ? (
             <form onSubmit={(e) => void saveAbout(e)} noValidate className="space-y-3">
-              <TextField
-                ref={nameField}
-                label="Channel name"
-                error={nameProblem}
-                value={name}
-                required={permissions.manage}
-                maxLength={CHANNEL_NAME_MAX}
-                readOnly={!permissions.manage || busy}
-                onChange={(e) => {
-                  setName(e.target.value);
-                  setNameProblem(null);
-                  setAboutNote(null);
-                }}
-              />
-              {!permissions.manage && (
-                <p className="text-sm text-ink-faint">
-                  Only the person who made this channel, its managers and workspace admins can
-                  change these details.
-                </p>
+              {permissions.manage ? (
+                <>
+                  <TextField
+                    ref={nameField}
+                    label="Channel name"
+                    error={nameProblem}
+                    value={name}
+                    required
+                    maxLength={CHANNEL_NAME_MAX}
+                    readOnly={busy}
+                    onChange={(e) => {
+                      setName(e.target.value);
+                      setNameProblem(null);
+                      setAboutNote(null);
+                    }}
+                  />
+                  <AboutFields
+                    fieldId={fieldId}
+                    busy={busy}
+                    topic={topic}
+                    description={description}
+                    onTopic={(value) => {
+                      setTopic(value);
+                      setAboutNote(null);
+                    }}
+                    onDescription={(value) => {
+                      setDescription(value);
+                      setAboutNote(null);
+                    }}
+                  />
+                </>
+              ) : (
+                // Words to read rather than fields that look editable but are not.
+                <>
+                  <dl className="space-y-3 text-sm">
+                    <AboutLine term="Channel name">
+                      <bdi>#{channel.name}</bdi>
+                    </AboutLine>
+                    <AboutLine term="Topic">{channel.topic || null}</AboutLine>
+                    <AboutLine term="Description">{channel.description || null}</AboutLine>
+                  </dl>
+                  <p className="text-[13px] text-ink-faint">
+                    Only the person who made this channel, its managers and workspace admins can
+                    change these details.
+                  </p>
+                </>
               )}
-              <TextField
-                label="Topic"
-                maxLength={CHANNEL_TOPIC_MAX}
-                value={topic}
-                readOnly={!permissions.manage || busy}
-                onChange={(e) => {
-                  setTopic(e.target.value);
-                  setAboutNote(null);
-                }}
-                placeholder="What's this channel about right now?"
-              />
-              <div>
-                <label
-                  htmlFor={`${fieldId}-description`}
-                  className="mb-1.5 block text-[13px] font-medium text-ink-dim"
-                >
-                  Description
-                </label>
-                <textarea
-                  dir="auto"
-                  id={`${fieldId}-description`}
-                  maxLength={CHANNEL_DESCRIPTION_MAX}
-                  value={description}
-                  readOnly={!permissions.manage || busy}
-                  onChange={(e) => {
-                    setDescription(e.target.value);
-                    setAboutNote(null);
-                  }}
-                  rows={3}
-                  placeholder="The longer story, shown to anyone who opens the channel."
-                  className={inputClass("regular", "resize-none")}
-                />
-              </div>
               <div className="flex flex-wrap items-center gap-3">
                 {/* Never off until something changes: sent as it is, it says so. */}
                 {permissions.manage && (
@@ -373,71 +367,55 @@ export function ChannelDetailsDialog(props: {
                     Leave #{channel.name}? It is private, so you will not see its messages or join
                     its call until someone in it invites you back.
                   </p>
-                  <button
-                    type="button"
-                    disabled={busy}
-                    className="text-alert underline"
-                    onClick={() => void leave()}
-                  >
-                    Confirm leave
-                  </button>
-                  <button
-                    type="button"
-                    disabled={busy}
-                    className="ml-3"
-                    onClick={() => setConfirmLeave(false)}
-                  >
-                    Cancel
-                  </button>
+                  <ConfirmPair
+                    label="Confirm leave"
+                    busy={busy}
+                    onConfirm={() => void leave()}
+                    onCancel={() => setConfirmLeave(false)}
+                  />
                 </div>
               )}
-              <div className="rounded-lg border border-edge p-3 text-sm">
-                <p className="mb-2 text-ink-dim">
-                  {channel.archived
-                    ? "This channel is archived. You can still read it, but no one can post or reply until someone reopens it."
-                    : "Archiving stops new messages and keeps the history and drafts. Scheduled messages wait until someone reopens the channel."}
-                </p>
-                {permissions.manage &&
-                  (channel.archived ? (
-                    <button
-                      type="button"
-                      disabled={busy}
-                      className={buttonClass("primary")}
-                      onClick={() => void setArchived(false)}
-                    >
-                      Reopen channel
-                    </button>
-                  ) : confirmArchive ? (
-                    <div>
-                      <p className="mb-2">Archive #{channel.name} for everyone?</p>
+              {/* Only for someone who can archive, or once it is archived: an
+                explanation with nothing to press under it reads as broken. */}
+              {(permissions.manage || channel.archived) && (
+                <div className="rounded-lg border border-edge p-3 text-sm">
+                  <p className="mb-2 text-ink-dim">
+                    {channel.archived
+                      ? "This channel is archived. You can still read it, but no one can post or reply until someone reopens it."
+                      : "Archiving stops new messages and keeps the history and drafts. Scheduled messages wait until someone reopens the channel."}
+                  </p>
+                  {permissions.manage &&
+                    (channel.archived ? (
                       <button
                         type="button"
                         disabled={busy}
                         className={buttonClass("primary")}
-                        onClick={() => void setArchived(true)}
+                        onClick={() => void setArchived(false)}
                       >
-                        Confirm archive
+                        Reopen channel
                       </button>
+                    ) : confirmArchive ? (
+                      <div>
+                        <p className="mb-2">Archive #{channel.name} for everyone?</p>
+                        <ConfirmPair
+                          label="Confirm archive"
+                          busy={busy}
+                          onConfirm={() => void setArchived(true)}
+                          onCancel={() => setConfirmArchive(false)}
+                        />
+                      </div>
+                    ) : (
                       <button
                         type="button"
                         disabled={busy}
-                        className="ml-3"
-                        onClick={() => setConfirmArchive(false)}
+                        className="text-alert underline"
+                        onClick={() => setConfirmArchive(true)}
                       >
-                        Cancel
+                        Archive channel
                       </button>
-                    </div>
-                  ) : (
-                    <button
-                      type="button"
-                      disabled={busy}
-                      className="text-alert underline"
-                      onClick={() => setConfirmArchive(true)}
-                    >
-                      Archive channel
-                    </button>
-                  ))}
-              </div>
+                    ))}
+                </div>
+              )}
             </form>
           ) : (
             <p className="py-4 text-center text-sm text-ink-faint">
@@ -470,16 +448,12 @@ export function ChannelDetailsDialog(props: {
                       call. The others still can. Starting a new conversation with the same people
                       will not bring these messages back.
                     </p>
-                    <button
-                      disabled={busy}
-                      className="text-alert underline"
-                      onClick={() => void leave()}
-                    >
-                      Confirm leave
-                    </button>
-                    <button disabled={busy} className="ml-3" onClick={() => setConfirmLeave(false)}>
-                      Cancel
-                    </button>
+                    <ConfirmPair
+                      label="Confirm leave"
+                      busy={busy}
+                      onConfirm={() => void leave()}
+                      onCancel={() => setConfirmLeave(false)}
+                    />
                   </>
                 ) : (
                   <button
@@ -609,20 +583,14 @@ export function ChannelDetailsDialog(props: {
                             ? `Make ${u?.displayName} a manager of #${channel.name}? They can edit, rename and archive this channel and remove members. They cannot make anyone else a manager.`
                             : `Remove ${u?.displayName}'s manager role? They stay a member of this channel.`}
                         </p>
-                        <button
-                          disabled={busy || membersLoading || membersError}
-                          className="font-medium text-ink underline decoration-ink-faint/60 hover:decoration-ink"
-                          onClick={() => void changeManager(id, managerChange.manager)}
-                        >
-                          Confirm role change
-                        </button>
-                        <button
-                          disabled={busy}
-                          className="ml-3"
-                          onClick={() => setManagerChange(null)}
-                        >
-                          Cancel
-                        </button>
+                        <ConfirmPair
+                          label="Confirm role change"
+                          destructive={!managerChange.manager}
+                          busy={busy}
+                          disabled={membersLoading || membersError}
+                          onConfirm={() => void changeManager(id, managerChange.manager)}
+                          onCancel={() => setManagerChange(null)}
+                        />
                       </div>
                     )}
                     {removingId === id && (
@@ -634,20 +602,13 @@ export function ChannelDetailsDialog(props: {
                             : "They will not see this private channel or join its call until someone invites them back."}{" "}
                           Their messages stay.
                         </p>
-                        <button
-                          disabled={busy || membersLoading || membersError}
-                          onClick={() => void removeMember(id)}
-                          className="text-alert underline"
-                        >
-                          Confirm removal
-                        </button>
-                        <button
-                          disabled={busy}
-                          onClick={() => setRemovingId(null)}
-                          className="ml-3"
-                        >
-                          Cancel
-                        </button>
+                        <ConfirmPair
+                          label="Confirm removal"
+                          busy={busy}
+                          disabled={membersLoading || membersError}
+                          onConfirm={() => void removeMember(id)}
+                          onCancel={() => setRemovingId(null)}
+                        />
                       </div>
                     )}
                   </li>
@@ -771,6 +732,96 @@ function NotificationSettings({ channelId }: { channelId: ID }) {
           </span>
         </span>
       </label>
+    </div>
+  );
+}
+
+/** A channel's topic and description, as its managers edit them. */
+function AboutFields(props: {
+  fieldId: string;
+  busy: boolean;
+  topic: string;
+  description: string;
+  onTopic: (value: string) => void;
+  onDescription: (value: string) => void;
+}) {
+  return (
+    <>
+      <TextField
+        label="Topic"
+        maxLength={CHANNEL_TOPIC_MAX}
+        value={props.topic}
+        readOnly={props.busy}
+        onChange={(e) => props.onTopic(e.target.value)}
+        placeholder="What's this channel about right now?"
+      />
+      <div>
+        <label
+          htmlFor={`${props.fieldId}-description`}
+          className="mb-1.5 block text-[13px] font-medium text-ink-dim"
+        >
+          Description
+        </label>
+        <textarea
+          dir="auto"
+          id={`${props.fieldId}-description`}
+          maxLength={CHANNEL_DESCRIPTION_MAX}
+          value={props.description}
+          readOnly={props.busy}
+          onChange={(e) => props.onDescription(e.target.value)}
+          rows={3}
+          placeholder="The longer story, shown to anyone who opens the channel."
+          className={inputClass("regular", "resize-none")}
+        />
+      </div>
+    </>
+  );
+}
+
+/** One of a channel's details for someone who may read but not change them. */
+function AboutLine({ term, children }: { term: string; children: ReactNode }) {
+  return (
+    <div>
+      <dt className="mb-1 text-[13px] font-medium text-ink-dim">{term}</dt>
+      <dd dir="auto" className="whitespace-pre-wrap break-words text-ink">
+        {children ?? <span className="text-ink-faint">None yet</span>}
+      </dd>
+    </div>
+  );
+}
+
+/**
+ * The two buttons under an "Are you sure?" line: the action, red when it
+ * takes something away, and a quiet Cancel beside it.
+ */
+function ConfirmPair(props: {
+  label: string;
+  onConfirm: () => void;
+  onCancel: () => void;
+  busy: boolean;
+  /** Off for a change that takes nothing away, such as a new role. */
+  destructive?: boolean;
+  /** Also held off while what it acts on is still loading. */
+  disabled?: boolean;
+}) {
+  return (
+    <div className="flex flex-wrap gap-2">
+      <button
+        type="button"
+        disabled={props.busy || props.disabled}
+        className={buttonClass(props.destructive === false ? "primary" : "danger")}
+        onClick={props.onConfirm}
+      >
+        {props.label}
+      </button>
+      <button
+        type="button"
+        disabled={props.busy}
+        className={buttonClass("quiet")}
+        onClick={props.onCancel}
+      >
+        Cancel
+      </button>
     </div>
   );
 }

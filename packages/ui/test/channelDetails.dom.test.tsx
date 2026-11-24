@@ -51,10 +51,10 @@ const design: Channel = {
 
 afterEach(() => vi.restoreAllMocks());
 
-function details(channel: Channel = design, initialTab?: "members") {
+function details(channel: Channel = design, initialTab?: "members", self: User = sam) {
   const client = new WorkspaceClient("http://127.0.0.1:9", "test-token-not-a-credential");
   client.store.setState({
-    self: sam,
+    self,
     users: { [sam.id]: sam, [alex.id]: alex, [lee.id]: lee, [priya.id]: priya },
     channels: { [channel.id]: channel },
     memberships: { [channel.id]: 0 },
@@ -92,6 +92,26 @@ function details(channel: Channel = design, initialTab?: "members") {
 }
 
 describe("channel details", () => {
+  it("shows someone who may not change the details their words, not fields locked shut", async () => {
+    const { dialog } = details({ ...design, topic: "Mockups and reviews" }, undefined, alex);
+    expect(dialog.queryByRole("textbox")).toBeNull();
+    const about = within(dialog.getByRole("tabpanel"));
+    expect(about.getByText("#design")).toBeVisible();
+    expect(about.getByText("Mockups and reviews")).toBeVisible();
+    // No description yet: said so, rather than an empty gap.
+    expect(about.getByText("None yet")).toBeVisible();
+    // Archiving is not theirs to do, so it is not explained to them either.
+    expect(dialog.queryByText(/Archiving stops new messages/)).toBeNull();
+    expect(dialog.queryByRole("button", { name: "Archive channel" })).toBeNull();
+    expect(await accessibilityProblems(screen.getByRole("dialog"))).toEqual([]);
+  });
+
+  it("tells everyone a channel is archived, and only those who may reopen it how", async () => {
+    const { dialog } = details({ ...design, archived: true }, undefined, alex);
+    expect(dialog.getByText(/This channel is archived/)).toBeVisible();
+    expect(dialog.queryByRole("button", { name: "Reopen channel" })).toBeNull();
+  });
+
   it("says in words why a save was refused, or that the workspace could not be reached", async () => {
     const { api, dialog, user } = details();
     api.update.mockRejectedValueOnce(new ApiError(409, "name_taken", "name_taken"));
