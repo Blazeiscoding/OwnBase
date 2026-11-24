@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { MESSAGE_TEXT_MAX, isRoom, type Message } from "@ownbase/protocol";
 import { ApiError } from "@ownbase/client-core";
 import { useClient, useWorkspace } from "../context.js";
@@ -45,6 +45,12 @@ export function MessageEditor({ message, onClose }: { message: Message; onClose:
   // Changed to what this edit would save, as when a save whose answer was lost
   // went through, is no conflict.
   const changedElsewhere = message.text !== base && message.text !== draft.trim();
+  // autoFocus leaves the caret before the first word, so typing at once went in
+  // front of the message; an edit goes on from the end, as in Slack.
+  useLayoutEffect(() => {
+    const end = box.current?.value.length ?? 0;
+    box.current?.setSelectionRange(end, end);
+  }, []);
   useEffect(() => {
     alive.current = true;
     return () => {

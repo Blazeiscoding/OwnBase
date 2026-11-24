@@ -100,6 +100,19 @@ describe("editing a message", () => {
     expect(client.state.drafts).not.toHaveProperty([draftKey]);
   });
 
+  it("opens with the caret after the last word, so typing goes on from the end", async () => {
+    const user = userEvent.setup();
+    const { box } = renderEditor();
+    expect(box).toHaveFocus();
+    const end = "Ship it on Friday".length;
+    expect([
+      (box as HTMLTextAreaElement).selectionStart,
+      (box as HTMLTextAreaElement).selectionEnd,
+    ]).toEqual([end, end]);
+    await user.keyboard(", or Monday");
+    expect(box).toHaveValue("Ship it on Friday, or Monday");
+  });
+
   it("keeps nothing once the box is emptied, so the edit starts from the message again", async () => {
     const user = userEvent.setup();
     const { client, box } = renderEditor();
