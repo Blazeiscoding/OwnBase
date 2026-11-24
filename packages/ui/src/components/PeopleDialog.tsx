@@ -420,11 +420,12 @@ export function PeopleDialog({ onClose }: { onClose: () => void }) {
                   <div className="min-w-0 flex-1">
                     <div className="flex items-baseline gap-2">
                       <span className="truncate text-sm font-medium">{person.displayName}</span>
-                      <span className="truncate font-mono text-[11px] text-ink-faint">
+                      {/* The handle gives way first, so a long one never cuts the name short. */}
+                      <span className="min-w-0 shrink-[8] truncate font-mono text-[11px] text-ink-faint">
                         @{person.handle}
                       </span>
                       {person.isBot && (
-                        <span className="rounded-full bg-ink/[0.07] px-2 py-0.5 text-[11px] font-medium text-ink-dim">
+                        <span className="shrink-0 rounded-full bg-ink/[0.07] px-2 py-0.5 text-[11px] font-medium text-ink-dim">
                           app
                         </span>
                       )}
