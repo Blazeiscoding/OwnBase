@@ -543,12 +543,6 @@ function PersonMenu({
       onSelect: () => onChange(person, { canInvite: !person.canInvite }),
     });
   }
-  items.push({
-    id: "deactivated",
-    label: person.deactivated ? "Reactivate" : "Deactivate",
-    destructive: !person.deactivated,
-    onSelect: () => onChange(person, { deactivated: !person.deactivated }),
-  });
   if (!person.isBot && !person.deactivated && !guest) {
     items.push({
       id: "reset",
@@ -570,6 +564,14 @@ function PersonMenu({
       });
     }
   }
+  // Last and set apart, as Delete is in a message's menu, not between the rest.
+  items.push({
+    id: "deactivated",
+    label: person.deactivated ? "Reactivate" : "Deactivate",
+    destructive: !person.deactivated,
+    section: items.length > 0 && !person.deactivated ? true : undefined,
+    onSelect: () => onChange(person, { deactivated: !person.deactivated }),
+  });
   return <Menu label={`Actions for ${person.displayName}`} items={items} disabled={disabled} />;
 }
 
