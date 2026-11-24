@@ -419,9 +419,11 @@ export function PeopleDialog({ onClose }: { onClose: () => void }) {
                   <Avatar user={person} size={32} />
                   <div className="min-w-0 flex-1">
                     <div className="flex items-baseline gap-2">
-                      <span className="truncate text-sm font-medium">{person.displayName}</span>
+                      <span className="max-w-full shrink-0 truncate text-sm font-medium">
+                        {person.displayName}
+                      </span>
                       {/* The handle gives way first, so a long one never cuts the name short. */}
-                      <span className="min-w-0 shrink-[8] truncate font-mono text-[11px] text-ink-faint">
+                      <span className="min-w-0 truncate font-mono text-[11px] text-ink-faint">
                         @{person.handle}
                       </span>
                       {person.isBot && (
