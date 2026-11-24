@@ -3,14 +3,14 @@ import { UnsavedGuard } from "../lib/dismissGuard.js";
 import { ApiError } from "@ownbase/client-core";
 import { DISPLAY_NAME_MAX, STATUS_TEXT_MAX, currentZoneName, type ID } from "@ownbase/protocol";
 import { IconProblem, prepareIcon } from "../lib/iconImage.js";
-import { readerTimeZone, theirTime, useMinute, zoneLabel } from "../lib/localTime.js";
+import { readerTimeZone, theirTime, useMinute, zoneChoices, zoneLabel } from "../lib/localTime.js";
 import { useClient, useWorkspace } from "../context.js";
 import { Avatar } from "./Avatar.js";
 import { Modal } from "./Modal.js";
 import { Icon } from "./Icon.js";
 import { avatarColor } from "../lib/format.js";
 import { Dialog } from "./Dialog.js";
-import { inputCls } from "./TextField.js";
+import { inputClass, inputCls } from "./TextField.js";
 import { FriendActions } from "./FriendsDialog.js";
 import { buttonClass } from "./Button.js";
 import { useConfirm } from "./Confirm.js";
@@ -294,8 +294,17 @@ export function ProfileForm() {
       all = [];
     }
     const mine = self?.timeZone;
-    return mine && !all.includes(mine) ? [mine, ...all] : all;
+    return zoneChoices(mine && !all.includes(mine) ? [mine, ...all] : all);
   }, [self?.timeZone]);
+  // Hundreds of zones: a few letters of a city or a zone's name narrow them.
+  const [zoneFilter, setZoneFilter] = useState("");
+  const wanted = zoneFilter.trim().toLowerCase();
+  const matching = wanted ? zones.filter((choice) => choice.words.includes(wanted)) : zones;
+  // The zone set now stays in the list, so the box never shows another.
+  const shownZones =
+    wanted && !matching.some((choice) => choice.zone === self?.timeZone)
+      ? [...zones.filter((choice) => choice.zone === self?.timeZone), ...matching]
+      : matching;
   const detected = readerTimeZone(undefined);
   // Both by current names: the server keeps them so, and so is `detected`.
   const onThisDevice = self?.timeZone === detected;
@@ -442,6 +451,14 @@ export function ProfileForm() {
         >
           Time zone
         </label>
+        <input
+          type="search"
+          aria-label="Find a time zone"
+          placeholder="Find a city or time zone"
+          value={zoneFilter}
+          onChange={(e) => setZoneFilter(e.target.value)}
+          className={inputClass("regular", "mb-2")}
+        />
         <select
           id={`${id}-time-zone`}
           value={self?.timeZone ?? ""}
@@ -449,12 +466,17 @@ export function ProfileForm() {
           className={inputCls}
         >
           {!self?.timeZone && <option value="">Not set</option>}
-          {zones.map((zone) => (
-            <option key={zone} value={zone}>
-              {zoneLabel(zone)}
+          {shownZones.map((choice) => (
+            <option key={choice.zone} value={choice.zone}>
+              {choice.label}
             </option>
           ))}
         </select>
+        {wanted && matching.length === 0 && (
+          <p role="status" className="mt-1.5 text-[13px] text-ink-faint">
+            No time zone matches "{zoneFilter.trim()}".
+          </p>
+        )}
         <p className="mt-1.5 text-[13px] text-ink-faint">
           Others see your local time on your profile.
           {!onThisDevice && (

@@ -287,7 +287,30 @@ describe("your profile in settings", () => {
         .map((option) => option.getAttribute("value"));
       expect(offered.filter((name) => name === "Asia/Kolkata")).toHaveLength(1);
       expect(offered).not.toContain("Asia/Calcutta");
-      expect(within(zone).getByRole("option", { name: "America/New York" })).toBeInTheDocument();
+      // Each by its offset, city and name, in the order of the offset.
+      expect(
+        within(zone).getByRole("option", { name: /^\(UTC-0[45]:00\) New York · / }),
+      ).toBeInTheDocument();
+      expect(
+        within(zone).getByRole("option", { name: "(UTC+09:00) Tokyo · Japan Standard Time" }),
+      ).toBeInTheDocument();
+      const labels = within(zone)
+        .getAllByRole("option")
+        .map((option) => option.textContent ?? "");
+      expect(labels.findIndex((l) => l.includes("New York"))).toBeLessThan(
+        labels.findIndex((l) => l.includes("Tokyo")),
+      );
+
+      // A few letters of a city narrow the list; the zone it is set to stays.
+      await user.type(screen.getByRole("searchbox", { name: "Find a time zone" }), "toky");
+      expect(
+        within(zone)
+          .getAllByRole("option")
+          .map((option) => option.getAttribute("value")),
+      ).toEqual(["Asia/Kolkata", "Asia/Tokyo"]);
+      await user.clear(screen.getByRole("searchbox", { name: "Find a time zone" }));
+      await user.type(screen.getByRole("searchbox", { name: "Find a time zone" }), "zzzz");
+      expect(screen.getByText('No time zone matches "zzzz".')).toBeInTheDocument();
     } finally {
       process.env.TZ = original ?? before;
     }
