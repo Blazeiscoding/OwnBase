@@ -46,7 +46,7 @@ import { forgetCachedIcon, useCachedWorkspaceIcons } from "./lib/workspaceIcon.j
 import type { SignedOutFrom, SignedOutHow } from "./lib/signOut.js";
 import { railOrder } from "./lib/workspaceRail.js";
 import { useOtherWorkspacesUnread } from "./lib/otherUnread.js";
-import type { Navigation } from "./lib/navigation.js";
+import type { LinkTarget, Navigation } from "./lib/navigation.js";
 
 type Session =
   | { view: "loading" }
@@ -68,8 +68,8 @@ type Session =
       id: number;
       client: WorkspaceClient;
       server: SavedServer;
-      /** Set when a link to a message opened this workspace. */
-      target?: { channelId: string; messageId: string } | null;
+      /** Set when a link to a conversation or a message opened this workspace. */
+      target?: LinkTarget | null;
       /** This account just founded the workspace: open on inviting people. */
       welcome?: boolean;
     };
@@ -183,10 +183,8 @@ export function App({ platform }: { platform: Platform }) {
   const [forgetError, setForgetError] = useState(false);
   /** Which workspace is open, so a deep link to it can skip reconnecting. */
   const openServerUrl = useRef<string | null>(null);
-  /** A message a link asked for, kept while its workspace is signed in to. */
-  const pendingTarget = useRef<{ serverUrl: string; channelId: string; messageId: string } | null>(
-    null,
-  );
+  /** Where a link asked to go, kept while its workspace is signed in to. */
+  const pendingTarget = useRef<(LinkTarget & { serverUrl: string }) | null>(null);
 
   /**
    * One turn at the stored sign-ins: this window's turns one after another,
@@ -250,12 +248,7 @@ export function App({ platform }: { platform: Platform }) {
   );
 
   const openWorkspace = useCallback(
-    (
-      server: SavedServer,
-      list: SavedServer[],
-      target?: { channelId: string; messageId: string } | null,
-      welcome = false,
-    ) => {
+    (server: SavedServer, list: SavedServer[], target?: LinkTarget | null, welcome = false) => {
       navigation.current++;
       clientRef.current?.destroy();
       const client = new WorkspaceClient(server.url, server.token);
@@ -371,26 +364,23 @@ export function App({ platform }: { platform: Platform }) {
           }
           return;
         }
-        if (link.kind === "message") {
+        if (link.kind === "message" || link.kind === "conversation") {
+          const target: LinkTarget =
+            link.kind === "message"
+              ? { channelId: link.channelId, messageId: link.messageId }
+              : { channelId: link.channelId };
           // Already looking at this workspace: just move, don't reconnect.
           if (openServerUrl.current === link.serverUrl) {
-            setSession((prev) =>
-              prev.view === "workspace"
-                ? { ...prev, target: { channelId: link.channelId, messageId: link.messageId } }
-                : prev,
-            );
+            setSession((prev) => (prev.view === "workspace" ? { ...prev, target } : prev));
             return;
           }
           // Otherwise it needs credentials we already hold, or a sign-in first,
-          // after which the message still opens.
+          // after which the place still opens.
           if (known) {
-            openWorkspace(known, list, {
-              channelId: link.channelId,
-              messageId: link.messageId,
-            });
+            openWorkspace(known, list, target);
           } else {
             closeWorkspace();
-            pendingTarget.current = link;
+            pendingTarget.current = { ...target, serverUrl: link.serverUrl };
             setSession({ view: "join", autoProbe: link.serverUrl });
           }
           return;
@@ -670,9 +660,7 @@ export function App({ platform }: { platform: Platform }) {
                       openWorkspace(
                         server,
                         savedServers,
-                        pending?.serverUrl === server.url
-                          ? { channelId: pending.channelId, messageId: pending.messageId }
-                          : null,
+                        pending?.serverUrl === server.url ? pending : null,
                         how?.founded,
                       );
                     }}

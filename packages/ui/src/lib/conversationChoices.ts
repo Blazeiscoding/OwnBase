@@ -1,6 +1,7 @@
-import type { ChannelPrefs, ID, SidebarSection } from "@ownbase/protocol";
+import { pageLink, type ChannelPrefs, type ID, type SidebarSection } from "@ownbase/protocol";
 import type { WorkspaceClient } from "@ownbase/client-core";
 import { failureText } from "./failure.js";
+import { writeClipboard } from "./useCopy.js";
 import type { MenuItem } from "../components/Menu.js";
 import type { ToastRequest } from "../components/Toast.js";
 
@@ -180,5 +181,32 @@ export function muteItem(
     label: `${muted ? "Unmute" : "Mute"} ${conversation.noun}`,
     icon: muted ? "bell" : "bellOff",
     onSelect: () => setMuted(client, toast, conversation, !muted),
+  };
+}
+
+/**
+ * Copy link: an address that opens the conversation in a browser at the web
+ * client, and in place inside the app (K03). The menu has closed by the time
+ * the copy settles, so a notice says whether it worked.
+ */
+export function copyLinkItem(
+  toast: Toast,
+  serverUrl: string,
+  conversation: Conversation,
+): MenuItem {
+  return {
+    id: "copy-link",
+    label: "Copy link",
+    icon: "link",
+    onSelect: () =>
+      void writeClipboard(
+        pageLink(serverUrl, { kind: "conversation", channelId: conversation.id }),
+      ).then((ok) =>
+        toast(
+          ok
+            ? { message: "Link copied.", kind: "success" }
+            : { message: "Could not copy the link." },
+        ),
+      ),
   };
 }

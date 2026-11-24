@@ -562,6 +562,26 @@ describe("a link to a message, written in a message", () => {
     expect(fireEvent.click(screen.getByRole("link"))).toBe(false);
     expect(openMessage.mock.calls).toEqual([["C_PRIVATE", "M_2"]]);
   });
+
+  it("opens a link to a channel here too (K03)", async () => {
+    const openMessage = await renderText(
+      "Ask in http://192.168.1.20:8543/#/c/C_DESIGN, or https://restored.example.org/#/c/C_DESIGN",
+    );
+    const noWindows = (event: Event) => event.preventDefault();
+    document.addEventListener("click", noWindows);
+    try {
+      const [here, elsewhere] = screen.getAllByRole("link");
+      expect(fireEvent.click(here!)).toBe(false);
+      fireEvent.click(elsewhere!);
+      expect(openMessage.mock.calls).toEqual([["C_DESIGN", undefined]]);
+      // Read by its name, as Slack shows one; another server's stays an address.
+      expect(here).toHaveTextContent(/^#design$/);
+      expect(here).toHaveAttribute("title", "http://192.168.1.20:8543/#/c/C_DESIGN");
+      expect(elsewhere).toHaveTextContent("https://restored.example.org/#/c/C_DESIGN");
+    } finally {
+      document.removeEventListener("click", noWindows);
+    }
+  });
 });
 
 describe("a browser opened at a link", () => {
@@ -591,6 +611,13 @@ describe("a browser opened at a link", () => {
       await new Promise((resolve) => setTimeout(resolve, 20));
       expect(received).toHaveBeenCalledTimes(1);
       expect(location.hash).toBe("#notes");
+
+      // A conversation's link is the page's own address for it: its routing
+      // reads it, so it stays, and moving between conversations is no link.
+      location.hash = "#/c/C_DESIGN";
+      await new Promise((resolve) => setTimeout(resolve, 20));
+      expect(received).toHaveBeenCalledTimes(1);
+      expect(location.hash).toBe("#/c/C_DESIGN");
     } finally {
       unsubscribe();
     }

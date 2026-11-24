@@ -212,6 +212,12 @@ describe("which links show a message", () => {
     ).toEqual([]);
   });
 
+  it("reads a link that ends a sentence without the full stop", () => {
+    expect(linkedMessages(`See ${linkTo(plan)}. Then ${linkTo(plan)}?`, ours)).toEqual([
+      { channelId: "C_DESIGN", messageId: "M_PLAN" },
+    ]);
+  });
+
   it("shows at most three", () => {
     const text = ["A", "B", "C", "D"].map((id) => `${HERE}/#/c/C_GENERAL/m/M_${id}`).join(" ");
     expect(linkedMessages(text, ours).map((target) => target.messageId)).toEqual([

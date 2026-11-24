@@ -313,7 +313,10 @@ export function webPlatform(): Platform {
  */
 function takeLinkFromAddress(): string | null {
   const { href, pathname, search } = window.location;
-  if (!parseDeepLink(href)) return null;
+  const link = parseDeepLink(href);
+  // A conversation's link is this page's own address for it, which its
+  // routing reads; taken out, every move between conversations would be lost.
+  if (!link || link.kind === "conversation") return null;
   history.replaceState(history.state, "", pathname + search);
   return href;
 }

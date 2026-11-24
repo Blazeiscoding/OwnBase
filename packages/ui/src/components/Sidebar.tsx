@@ -44,6 +44,7 @@ import { CountBadge, Swap, useChanges } from "./Motion.js";
 import { WorkspaceIcon } from "./WorkspaceIcon.js";
 import { ErrorBoundary } from "./ErrorBoundary.js";
 import { useToast } from "./Toast.js";
+import { useShareableServer } from "./ShareableServer.js";
 import { failureText } from "../lib/failure.js";
 import { useConfirm } from "./Confirm.js";
 import { CLEAR_AFTER, STATUS_PRESETS, statusEnd, statusUntil } from "../lib/status.js";
@@ -55,6 +56,7 @@ import {
   moveItems,
   muteItem,
   starItem,
+  copyLinkItem,
   type Conversation,
 } from "../lib/conversationChoices.js";
 
@@ -286,6 +288,7 @@ export function Sidebar(props: {
 
   const client = useClient();
   const toast = useToast();
+  const shareable = useShareableServer();
   const confirm = useConfirm();
   const navRef = useRef<HTMLElement>(null);
   /** A section being named: a new one, which the conversation `moveId` goes into, or one renamed. */
@@ -316,7 +319,7 @@ export function Sidebar(props: {
     }
   });
 
-  /** A row's own menu: Mark as read, Star or Unstar, and Mute or Unmute, named by what they do now. */
+  /** A row's own menu: Mark as read, Star or Unstar, Mute or Unmute (named by what they do now), Copy link. */
   function rowMenu(ch: Channel, label: string): RowMenu {
     const conversation: Conversation = {
       id: ch.id,
@@ -357,6 +360,7 @@ export function Sidebar(props: {
       ...muteItem(client, toast, conversation, isMuted(ch.id)),
       section: true,
     });
+    items.push(copyLinkItem(toast, shareable.serverUrl, conversation));
     if (isDirect(ch.type) && prefs[ch.id])
       items.push(closeItem(client, toast, ch.id, channelLastSeq[ch.id] ?? 0, label));
     return { label, items };

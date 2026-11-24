@@ -73,6 +73,7 @@ import { EmptyState } from "../components/EmptyState.js";
 import type { SignedOutHow } from "../lib/signOut.js";
 import {
   Navigation,
+  type LinkTarget,
   NavigationContext,
   inView,
   reading,
@@ -156,7 +157,7 @@ interface Props {
   client: WorkspaceClient;
   platform: Platform;
   /** A message to open on arrival, from a link to it. */
-  initialTarget?: { channelId: ID; messageId: ID } | null;
+  initialTarget?: LinkTarget | null;
   /** This account just founded the workspace: open on inviting people (UX-42). */
   welcome?: boolean;
   onLeaveWorkspace: () => void;
@@ -242,7 +243,7 @@ export function WorkspaceScreen({ client, initialTarget, welcome, banner, ...res
 
 /** Where the workspace screen is, kept for its life and followed by the address. */
 function WorkspaceNavigation(props: {
-  initialTarget: { channelId: ID; messageId: ID } | null;
+  initialTarget: LinkTarget | null;
   welcome?: boolean;
   banner?: ReactNode;
   onNavigation?: (navigation: Navigation | null) => void;
@@ -257,16 +258,18 @@ function WorkspaceNavigation(props: {
     return () => onNavigation?.(null);
   }, [onNavigation, navigation]);
   useEffect(() => navigation.attach(), [navigation]);
-  // A link to a message, on arrival or later: the screen keeps its key across
-  // deep links, so it goes there without remounting.
-  useEffect(() => {
-    if (initialTarget) navigation.navigate({ to: "message", ...initialTarget });
-  }, [navigation, initialTarget]);
+  // A link to a conversation or a message, on arrival or later: the screen
+  // keeps its key across deep links, so it goes there without remounting.
   const openMessage = useMemo(
-    () => (channelId: ID, messageId: ID) =>
-      navigation.navigate({ to: "message", channelId, messageId }),
+    () => (channelId: ID, messageId?: ID) =>
+      navigation.navigate(
+        messageId ? { to: "message", channelId, messageId } : { to: "conversation", channelId },
+      ),
     [navigation],
   );
+  useEffect(() => {
+    if (initialTarget) openMessage(initialTarget.channelId, initialTarget.messageId);
+  }, [openMessage, initialTarget]);
   return (
     <NavigationContext.Provider value={navigation}>
       <OpenMessageContext.Provider value={openMessage}>

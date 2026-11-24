@@ -191,6 +191,7 @@ describe("moving a conversation", () => {
       "Move to Reading",
       "New section…",
       "Mute channel",
+      "Copy link",
     ]);
     expect(await accessibilityProblems(menu)).toEqual([]);
     // Tab passes a row and its More, not each of its buttons too.

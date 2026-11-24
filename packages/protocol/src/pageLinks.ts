@@ -26,7 +26,12 @@ export type PageLink =
   | { kind: "reset"; token: string }
   /** Mailed, to confirm an email address. */
   | { kind: "verifyEmail"; token: string }
-  | { kind: "message"; channelId: string; messageId: string };
+  | { kind: "message"; channelId: string; messageId: string }
+  /**
+   * A channel or conversation. Its address is the web client's own for it,
+   * so a browser opens it through the client's routing.
+   */
+  | { kind: "conversation"; channelId: string };
 
 const e = encodeURIComponent;
 
@@ -35,7 +40,7 @@ export function conversationHash(channelId: string): string {
   return `#/c/${e(channelId)}`;
 }
 
-/** The word each link but a message's has in its address. */
+/** The word each link but a message's or a conversation's has in its address. */
 const WORDS = {
   join: "join",
   claim: "claim",
@@ -46,6 +51,7 @@ const WORDS = {
 
 export function pageHash(link: PageLink): string {
   if (link.kind === "message") return `${conversationHash(link.channelId)}/m/${e(link.messageId)}`;
+  if (link.kind === "conversation") return conversationHash(link.channelId);
   return `#/${WORDS[link.kind]}/${e("code" in link ? link.code : link.token)}`;
 }
 
@@ -73,9 +79,12 @@ export function readPageHash(hash: string): PageLink | null {
   if (kind && parts.length === 2 && isPageId(id))
     return kind === "reset" || kind === "verifyEmail" ? { kind, token: id } : { kind, code: id };
   const conversation = readConversationHash(hash);
-  const [m, messageId] = conversation?.rest ?? [];
-  return conversation && conversation.rest.length === 2 && m === "m" && isPageId(messageId)
-    ? { kind: "message", channelId: conversation.channelId, messageId }
+  if (!conversation) return null;
+  const { channelId, rest } = conversation;
+  if (rest.length === 0) return { kind: "conversation", channelId };
+  const [m, messageId] = rest;
+  return rest.length === 2 && m === "m" && isPageId(messageId)
+    ? { kind: "message", channelId, messageId }
     : null;
 }
 
@@ -86,11 +95,12 @@ export function readPageHash(hash: string): PageLink | null {
  */
 export function desktopLink(
   host: string,
-  link: Extract<PageLink, { kind: "join" | "sso" | "message" }>,
+  link: Extract<PageLink, { kind: "join" | "sso" | "message" | "conversation" }>,
 ): string {
   const at = `host=${e(host).replaceAll("%3A", ":").replaceAll("%2F", "/")}`;
   const base = `${DEEP_LINK_PROTOCOL}://${link.kind}?${at}`;
-  return link.kind === "message"
-    ? `${base}&channel=${e(link.channelId)}&id=${e(link.messageId)}`
-    : `${base}&code=${e(link.code)}`;
+  if (link.kind === "message")
+    return `${base}&channel=${e(link.channelId)}&id=${e(link.messageId)}`;
+  if (link.kind === "conversation") return `${base}&channel=${e(link.channelId)}`;
+  return `${base}&code=${e(link.code)}`;
 }

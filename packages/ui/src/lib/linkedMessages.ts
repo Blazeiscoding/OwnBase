@@ -1,5 +1,5 @@
 import type { ID } from "@ownbase/protocol";
-import { parseDeepLink } from "./deeplink.js";
+import { bareUrl, parseDeepLink } from "./deeplink.js";
 
 /** A message a link points to, in a conversation of this workspace. */
 export interface LinkedMessage {
@@ -30,7 +30,7 @@ export function linkedMessages(
     .replace(/`[^`\n]+`/g, " ");
   const found: LinkedMessage[] = [];
   for (const m of prose.matchAll(LINK)) {
-    const link = parseDeepLink(m[1] ?? m[2]!);
+    const link = parseDeepLink(m[1] ?? bareUrl(m[2]!).url);
     if (link?.kind !== "message" || !ours(link.serverUrl)) continue;
     if (found.some((target) => target.messageId === link.messageId)) continue;
     found.push({ channelId: link.channelId, messageId: link.messageId });
