@@ -99,7 +99,11 @@ describe("people actions", () => {
     await user.click(actions);
     const menu = screen.getByRole("menu", { name: "Actions for Alex Chen" });
     // Deactivate comes last, apart from the harmless ones, as Delete does in a message's menu.
-    expect(within(menu).getAllByRole("menuitem").map((item) => item.textContent)).toEqual([
+    expect(
+      within(menu)
+        .getAllByRole("menuitem")
+        .map((item) => item.textContent),
+    ).toEqual([
       "Make admin",
       "Stop them inviting people",
       "Reset password",

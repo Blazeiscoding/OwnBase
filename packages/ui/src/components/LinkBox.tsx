@@ -14,6 +14,7 @@ export function LinkBox(props: {
   const fieldId = useId();
   const problemId = useId();
   return (
+    // eslint-disable-next-line jsx-a11y/no-noninteractive-element-interactions -- Escape from the field or either button closes the box
     <form
       aria-label="Add a link"
       noValidate
