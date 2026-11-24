@@ -31,6 +31,7 @@ afterEach(() => {
   vi.unstubAllGlobals();
   delete document.documentElement.dataset.theme;
   delete document.documentElement.dataset.density;
+  delete document.documentElement.dataset.textSize;
   localStorage.removeItem(FIRST_PAINT_KEY);
   for (const bar of document.head.querySelectorAll('meta[name="theme-color"]')) bar.remove();
 });
@@ -127,10 +128,43 @@ describe("how OwnBase looks on this device", () => {
     await waitFor(() => expect(within(panel).getByRole("radio", { name: /^Onyx/ })).toBeEnabled());
     await user.click(within(panel).getByRole("radio", { name: /^White/ }));
     expect(root().theme).toBe("light");
-    expect(set).toHaveBeenLastCalledWith("appearance", { theme: "light", density: "comfortable" });
+    expect(set).toHaveBeenLastCalledWith("appearance", {
+      theme: "light",
+      density: "comfortable",
+      textSize: "default",
+    });
     await user.click(within(panel).getByRole("radio", { name: /^Compact/ }));
     expect(root().density).toBe("compact");
-    expect(set).toHaveBeenLastCalledWith("appearance", { theme: "light", density: "compact" });
+    expect(set).toHaveBeenLastCalledWith("appearance", {
+      theme: "light",
+      density: "compact",
+      textSize: "default",
+    });
+  });
+
+  it("makes messages larger or smaller, and nothing else (K09)", async () => {
+    const { panel, set, user } = appearance({ theme: "dark", density: "comfortable" });
+    await waitFor(() => expect(root().textSize).toBe("default"));
+    const sizes = within(panel).getByRole("group", { name: "Text size" });
+    expect(
+      within(sizes)
+        .getAllByRole("radio")
+        .map((r) => r.parentElement?.textContent),
+    ).toEqual(["Smaller", "Default", "Larger", "Largest"]);
+    await user.click(within(sizes).getByRole("radio", { name: "Largest" }));
+    expect(root().textSize).toBe("largest");
+    expect(set).toHaveBeenLastCalledWith("appearance", {
+      theme: "dark",
+      density: "comfortable",
+      textSize: "largest",
+    });
+    expect(kept()).toEqual({ theme: "dark", density: "comfortable", textSize: "largest" });
+    expect(await accessibilityProblems(panel)).toEqual([]);
+  });
+
+  it("reads a saved text size, and the usual one for anything it does not know", async () => {
+    appearance({ theme: "dark", density: "comfortable", textSize: "smaller" });
+    await waitFor(() => expect(root().textSize).toBe("smaller"));
   });
 
   it("goes back and says so when the choice cannot be kept", async () => {
@@ -204,9 +238,11 @@ describe("following the device", () => {
 describe("the copy the next page is first painted with", () => {
   it("is kept once the choice is read, and follows each change", async () => {
     const { panel, user } = appearance({ theme: "light", density: "compact" });
-    await waitFor(() => expect(kept()).toEqual({ theme: "light", density: "compact" }));
+    await waitFor(() =>
+      expect(kept()).toEqual({ theme: "light", density: "compact", textSize: "default" }),
+    );
     await user.click(within(panel).getByRole("radio", { name: /^Onyx/ }));
-    expect(kept()).toEqual({ theme: "dark", density: "compact" });
+    expect(kept()).toEqual({ theme: "dark", density: "compact", textSize: "default" });
   });
 
   it("is what the app starts from, so it does not change the page before the choice is read", async () => {
@@ -218,7 +254,7 @@ describe("the copy the next page is first painted with", () => {
     expect(kept()).toEqual({ theme: "light", density: "compact" });
     read();
     await waitFor(() => expect(root().theme).toBe("dark"));
-    expect(kept()).toEqual({ theme: "dark", density: "comfortable" });
+    expect(kept()).toEqual({ theme: "dark", density: "comfortable", textSize: "default" });
   });
 
   it("goes back with a choice that could not be kept", async () => {
@@ -226,10 +262,11 @@ describe("the copy the next page is first painted with", () => {
       { theme: "dark", density: "comfortable" },
       { failSave: true },
     );
-    await waitFor(() => expect(kept()).toEqual({ theme: "dark", density: "comfortable" }));
+    const before = { theme: "dark", density: "comfortable", textSize: "default" };
+    await waitFor(() => expect(kept()).toEqual(before));
     await user.click(within(panel).getByRole("radio", { name: /^White/ }));
     await within(panel).findByRole("alert");
-    expect(kept()).toEqual({ theme: "dark", density: "comfortable" });
+    expect(kept()).toEqual(before);
   });
 
   it("colours the browser's own bars in the chosen theme", async () => {

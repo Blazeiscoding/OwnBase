@@ -326,6 +326,7 @@ describe("saying Saved", () => {
 describe("the settings index", () => {
   it("finds by a word's start, in a setting's name, its other words or its section", () => {
     expect(findSettings("dark").map((s) => s.label)).toEqual(["Theme"]);
+    expect(findSettings("font").map((s) => s.label)).toEqual(["Text size"]);
     expect(findSettings("pass").map((s) => s.label)).toEqual(["Change password"]);
     expect(findSettings("mic").map((s) => s.label)).toEqual([
       "Microphone",

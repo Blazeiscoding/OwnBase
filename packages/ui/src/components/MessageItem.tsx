@@ -495,7 +495,7 @@ const MessageRow = memo(function MessageRow({
             <div className="flex items-baseline gap-2">
               <button
                 onClick={() => onOpenProfile?.(message.userId)}
-                className="text-[16px] font-medium leading-snug hover:underline"
+                className="text-[length:calc(16px*var(--text-scale))] font-medium leading-snug hover:underline"
               >
                 {author?.displayName ?? "unknown"}
               </button>
@@ -550,7 +550,7 @@ const MessageRow = memo(function MessageRow({
           ) : (
             message.text && (
               <div
-                className={`message-text text-[16px] leading-[1.375] text-ink/90 ${
+                className={`message-text text-[length:calc(16px*var(--text-scale))] leading-[1.375] text-ink/90 ${
                   onlyEmoji(message.text, customEmoji) ? "message-jumbo" : ""
                 }`}
               >

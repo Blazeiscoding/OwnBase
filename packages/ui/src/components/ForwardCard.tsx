@@ -98,7 +98,7 @@ export function QuotedMessage(props: {
         </time>
       </div>
       {message.text && (
-        <div className="message-text mt-0.5 text-[15px] leading-[1.375] text-ink/90">
+        <div className="message-text mt-0.5 text-[length:calc(15px*var(--text-scale))] leading-[1.375] text-ink/90">
           <Mrkdwn
             text={message.text}
             users={props.users}

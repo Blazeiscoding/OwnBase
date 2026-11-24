@@ -22,7 +22,14 @@ import {
   type Setting,
 } from "../lib/settingsSearch.js";
 import { resumeTime, snoozeOptions } from "../lib/snooze.js";
-import { DENSITIES, THEMES, useAppearance, type Theme } from "../lib/appearance.js";
+import {
+  DENSITIES,
+  TEXT_SIZES,
+  type TextSize,
+  THEMES,
+  useAppearance,
+  type Theme,
+} from "../lib/appearance.js";
 import { inputCls } from "./TextField.js";
 import { Select } from "./Select.js";
 import { ListStatus } from "./ListStatus.js";
@@ -855,7 +862,7 @@ const THEME_LABELS: Record<Theme, { label: string; hint: string }> = {
   light: { label: "White", hint: "A light theme, for bright rooms" },
 };
 
-/** How OwnBase looks on this device: its theme, and how much it fits in. */
+/** How OwnBase looks on this device: its theme, how much it fits in, and how large messages read. */
 function AppearanceSettings() {
   const appearance = useAppearance();
   const saved = useSaved();
@@ -921,6 +928,40 @@ function AppearanceSettings() {
           ))}
         </div>
       </fieldset>
+      <fieldset
+        {...settingMark("text-size")}
+        disabled={!appearance.loaded}
+        className="mt-6 border-t border-edge pt-5"
+      >
+        <legend className="float-left w-full font-semibold">Text size</legend>
+        <p className="clear-both pt-1 text-sm text-ink-dim">
+          Messages, names and the message box. Menus and the sidebar stay as they are.
+        </p>
+        <div className="mt-3 flex flex-wrap gap-2">
+          {TEXT_SIZES.map((textSize) => (
+            <label
+              key={textSize}
+              className="flex cursor-pointer items-center gap-2 rounded-lg border border-edge px-3 py-1.5 text-sm has-[:checked]:border-copper"
+            >
+              <input
+                type="radio"
+                name="text-size"
+                className="accent-[var(--color-copper)]"
+                checked={appearance.textSize === textSize}
+                onChange={() => void appearance.set({ textSize }).then((kept) => kept && saved())}
+              />
+              {TEXT_SIZE_LABELS[textSize]}
+            </label>
+          ))}
+        </div>
+        {/* Drawn as a message is, so it changes as the choice does. */}
+        <p
+          aria-hidden="true"
+          className="message-text mt-3 rounded-lg bg-ink/[0.04] px-3 py-2 text-[length:calc(16px*var(--text-scale))] leading-[1.375] text-ink/90"
+        >
+          This is how messages read at this size.
+        </p>
+      </fieldset>
       {appearance.error && (
         <p role="alert" className="mt-3 text-sm text-alert">
           {appearance.error}
@@ -929,6 +970,13 @@ function AppearanceSettings() {
     </>
   );
 }
+
+const TEXT_SIZE_LABELS: Record<TextSize, string> = {
+  smaller: "Smaller",
+  default: "Default",
+  larger: "Larger",
+  largest: "Largest",
+};
 
 /** What the browser currently allows, or that it cannot ask at all. */
 function browserPermission(): NotificationPermission | "unsupported" {

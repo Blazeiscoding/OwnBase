@@ -1020,7 +1020,7 @@ export function Composer({ channelId, threadRootId, placeholder, autoFocus, onLe
             }}
             onKeyDown={onKeyDown}
             onBlur={suggestions.close}
-            className="relative block max-h-[220px] w-full resize-none bg-transparent px-4 pb-1 pt-3 text-[15px] leading-normal outline-none placeholder:text-ink-faint"
+            className="message-input relative block max-h-[220px] w-full resize-none bg-transparent px-4 pb-1 pt-3 text-[length:calc(15px*var(--text-scale))] leading-normal outline-none placeholder:text-ink-faint"
           />
         </div>
         {attachmentNote && (

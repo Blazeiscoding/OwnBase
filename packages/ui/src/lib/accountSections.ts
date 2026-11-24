@@ -26,6 +26,7 @@ export type SettingId =
   | "unread-on-icon"
   | "theme"
   | "density"
+  | "text-size"
   | "enter-key"
   | "microphone"
   | "speaker"

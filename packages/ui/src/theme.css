@@ -666,8 +666,30 @@ body:has(> .call-dock) > .settings-backdrop[data-ownbase-modal] {
   padding-block: 0;
 }
 :root[data-density="compact"] .message-text {
-  font-size: 14px;
+  font-size: calc(14px * var(--text-scale));
   line-height: 1.45;
+}
+
+/*
+ * Text size (K09): what people write, their names and the box they write in
+ * grow or shrink by it, as Discord's chat font scaling; the rest stays put,
+ * so the sidebar, menus and settings keep their places. Set from <head>
+ * (first-paint.js), so a page is never drawn at the wrong size first.
+ */
+:root {
+  --text-scale: 1;
+}
+:root[data-text-size="smaller"] {
+  --text-scale: 0.9;
+}
+:root[data-text-size="larger"] {
+  --text-scale: 1.125;
+}
+:root[data-text-size="largest"] {
+  --text-scale: 1.25;
+}
+.message-text :is(code, pre) {
+  font-size: calc(13px * var(--text-scale));
 }
 :root[data-density="compact"] .channel-row {
   margin-block: 0;
@@ -1304,6 +1326,9 @@ textarea::placeholder {
   textarea,
   input:not([type="checkbox"], [type="radio"], [type="range"], [type="color"], [type="file"]) {
     font-size: 16px;
+  }
+  textarea.message-input {
+    font-size: max(16px, calc(15px * var(--text-scale)));
   }
 }
 

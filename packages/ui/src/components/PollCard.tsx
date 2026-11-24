@@ -89,7 +89,10 @@ export function PollCard({
       aria-labelledby={questionId}
       className="poll-card mt-1 max-w-xl rounded-xl border border-edge bg-ink/[0.025] p-3"
     >
-      <div id={questionId} className="message-text text-[16px] font-semibold leading-snug text-ink">
+      <div
+        id={questionId}
+        className="message-text text-[length:calc(16px*var(--text-scale))] font-semibold leading-snug text-ink"
+      >
         <Mrkdwn
           text={message.text}
           users={users}
@@ -210,7 +213,7 @@ export function PendingPoll({
 }) {
   return (
     <div className="mt-1 max-w-xl rounded-xl border border-edge bg-ink/[0.025] p-3">
-      <div className="message-text text-[16px] font-semibold leading-snug text-ink">
+      <div className="message-text text-[length:calc(16px*var(--text-scale))] font-semibold leading-snug text-ink">
         <Mrkdwn text={text} users={users} channels={channels} />
       </div>
       <p className="mt-0.5 text-[13px] text-ink-faint">

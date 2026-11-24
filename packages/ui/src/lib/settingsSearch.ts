@@ -73,6 +73,12 @@ export const SETTINGS: readonly Setting[] = [
     words: "compact comfortable spacing size",
   },
   {
+    id: "text-size",
+    section: "appearance",
+    label: "Text size",
+    words: "font zoom bigger smaller larger scale read accessibility",
+  },
+  {
     id: "enter-key",
     section: "composing",
     label: "When I press Enter",
