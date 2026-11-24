@@ -58,8 +58,8 @@ export const PUSH_BLOCK_TEXT: Record<Exclude<PushBlock, null>, string> = {
   "home-screen":
     "On an iPhone or iPad, add OwnBase to your home screen first: tap Share, then Add to Home Screen, and open it from there.",
   unsupported: "This browser cannot show notifications while OwnBase is closed.",
-  denied:
-    "This browser blocks notifications from OwnBase. Allow them in the browser's site settings, then reload the page.",
+  // Shown just under "On this device", which already says how to allow them.
+  denied: "Works once this browser allows notifications from OwnBase.",
 };
 
 /** The server's key, as `pushManager.subscribe` takes it. */
