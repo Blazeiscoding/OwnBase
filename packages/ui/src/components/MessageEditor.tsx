@@ -17,8 +17,7 @@ import {
 } from "./FormattingToolbar.js";
 import { Mrkdwn } from "./Mrkdwn.js";
 import { MentionTags } from "./MentionTags.js";
-import { insideCodeBlock, isImeKey, linkOverSelection } from "../lib/textInput.js";
-import { pasteRich } from "../lib/richPaste.js";
+import { insideCodeBlock, isImeKey, linkOverSelection, pasteRich } from "../lib/textInput.js";
 import { useMentionField } from "../lib/useMentionField.js";
 import { SuggestionList, useSuggestions } from "./Suggestions.js";
 import { editDraftKey } from "@ownbase/client-core";

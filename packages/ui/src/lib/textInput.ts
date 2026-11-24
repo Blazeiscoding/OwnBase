@@ -1,3 +1,5 @@
+import { preloadable } from "./preloadable.js";
+
 /**
  * The two rules that decide when a text field may act on what it has been
  * given, both of which are easy to get wrong in ways nobody notices until
@@ -101,4 +103,23 @@ export function linkOverSelection(
   if (insideCodeBlock(stored, start)) return null;
   const link = `<${url}|${label}>`;
   return { text: stored.slice(0, start) + link + stored.slice(end), caret: start + link.length };
+}
+
+// Reading a formatted paste is wanted now and then, so it is kept out of the
+// first download and fetched as the workspace opens. A paste before it has
+// arrived is the browser's own, words without their marks.
+const richPaste = preloadable(() => import("./richPaste.js"));
+export const loadRichPaste = richPaste.load;
+
+/** A formatted paste written as the composer's markup; see `mrkdwnFromHtml`. */
+export function pasteRich(
+  text: string,
+  start: number,
+  end: number,
+  html: string,
+): { text: string; caret: number } | null {
+  const module = richPaste.loaded();
+  if (module) return module.pasteRich(text, start, end, html);
+  richPaste.load().catch(() => undefined);
+  return null;
 }

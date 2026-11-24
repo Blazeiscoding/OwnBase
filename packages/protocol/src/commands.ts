@@ -58,3 +58,17 @@ export type InAppCommandName = keyof typeof IN_APP_COMMANDS;
 
 export const isInAppCommand = (name: string): name is InAppCommandName =>
   Object.hasOwn(IN_APP_COMMANDS, name);
+
+/**
+ * The commands a `/` list offers here: in a direct message, not the app's own
+ * channel-only ones.
+ */
+export function offeredCommands<T extends { command: string; builtin: boolean }>(
+  listed: readonly T[],
+  room: boolean,
+): T[] {
+  return listed.filter(
+    (c) =>
+      room || !c.builtin || !(isInAppCommand(c.command) && IN_APP_COMMANDS[c.command].roomOnly),
+  );
+}

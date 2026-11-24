@@ -2,21 +2,13 @@ import {
   CHANNEL_TOPIC_MAX,
   STATUS_TEXT_MAX,
   IN_APP_COMMANDS,
-  isInAppCommand,
   userMentionsIn,
   isRoom,
   type ID,
   type InAppCommandName,
 } from "@ownbase/protocol";
-import type { CommandHint, WorkspaceClient } from "@ownbase/client-core";
+import type { WorkspaceClient } from "@ownbase/client-core";
 import { failureText } from "./failure.js";
-
-const roomOnly = (name: string) => isInAppCommand(name) && IN_APP_COMMANDS[name].roomOnly;
-
-/** The server's commands the hint list offers here: in a DM, not the built-in channel ones. */
-export function offeredCommands(fromServer: readonly CommandHint[], room: boolean) {
-  return fromServer.filter((c) => room || !c.builtin || !roomOnly(c.command));
-}
 
 /** What became of a command: done, with what to say; or not, with why. The box keeps its words when not. */
 export type CommandOutcome = { ok: true; said: string } | { ok: false; said: string };
@@ -41,7 +33,7 @@ export async function runAppCommand(
   const channel = state.channels[channelId];
   const room = isRoom(channel?.type);
   const where = channel && room ? `#${channel.name}` : "this conversation";
-  if (roomOnly(name) && !room)
+  if (IN_APP_COMMANDS[name].roomOnly && !room)
     return { ok: false, said: `/${name} works in channels, not in direct messages.` };
   const offline = "Check your connection and try again.";
   switch (name) {
