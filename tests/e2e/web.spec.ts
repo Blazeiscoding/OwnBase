@@ -1712,10 +1712,13 @@ test("OwnBase keeps a capped live timeline pinned and supports keyboard and narr
   ).toBeVisible();
   await searchBox.pressSequentially("zebracrossingquartz");
   // A search that finds nothing says so where the dialog says what it is
-  // doing, and says what to try instead.
-  await expect(search.getByRole("status").filter({ hasText: "Nothing matched" })).toHaveText(
-    "Nothing matched. Try different words.",
+  // doing, names the conversation it looked in, and offers to look everywhere.
+  await expect(search.getByRole("status").filter({ hasText: "matched" })).toHaveText(
+    "Nothing in #design-studio matched.",
   );
+  await expect(
+    search.getByRole("button", { name: "Search all conversations", exact: true }),
+  ).toBeVisible();
   // It follows further typing without being asked again, a word found from
   // its start.
   await searchBox.fill("welc");
