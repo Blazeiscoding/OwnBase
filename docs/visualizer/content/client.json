@@ -3290,9 +3290,18 @@
       "summary": "Asks once, before a first huddle, which microphone and camera to use.",
       "details": [
         "callPreferences.joinHuddle asks when this device has not been asked (devicesChecked), nothing is chosen, and the browser lists more than one microphone or camera; a browser that keeps names back lists none, so it is asked on the first join after it gives them. Choosing a microphone or camera in settings counts as an answer.",
-        "The dialog, loaded on first use from WorkspaceScreen, listens through MicrophoneCheck and shows the camera through CameraPreview at once. Join huddle keeps the choice and joins with it; Cancel, or the workspace closing, joins nothing and asks again next time. The workspace screen mounts useDeviceCheckEndsWithScreen, so its going calls the waiting join off."
+        "The dialog, loaded on first use from DeviceCheckHost, listens through MicrophoneCheck and shows the camera through CameraPreview at once. Join huddle keeps the choice and joins with it; Cancel, or the workspace closing, joins nothing and asks again next time. DeviceCheckHost mounts useDeviceCheckEndsWithScreen, so the workspace's going calls the waiting join off."
       ],
       "concepts": ["device settings", "first-call device check"]
+    },
+    {
+      "path": "packages/ui/src/components/DeviceCheckHost.tsx",
+      "plain": "Waits in the workspace for a huddle that needs the device question, and shows it then.",
+      "summary": "Shows DeviceCheckDialog while callPreferences.checkingDevices is set, and ends a waiting join when the workspace goes.",
+      "details": [
+        "WorkspaceScreen fetches it as the workspace opens, so the call preferences it reads stay out of the first download; useStartHuddle fetches them the same way when a huddle starts."
+      ],
+      "concepts": ["first-call device check", "lazy loading"]
     },
     {
       "path": "packages/ui/src/components/DiagnosticsDialog.tsx",
