@@ -388,7 +388,8 @@ export function ActivityPanel({
                       {fresh > 0 && mode !== "mentions" && (
                         <button
                           type="button"
-                          aria-label={`Mark ${title} read`}
+                          // The words shown come first in its name, which also says which conversation.
+                          aria-label={`Mark read: ${title}`}
                           onClick={(event) => {
                             const rows = event.currentTarget
                               .closest("section")

@@ -227,7 +227,7 @@ describe("reading and saving from Activity", () => {
     const user = userEvent.setup();
     const { panel, client, reply, generalNews } = hanasActivity();
     await within(panel).findByRole("region", { name: "#general, 2 new" });
-    await user.click(within(panel).getByRole("button", { name: "Mark #general read" }));
+    await user.click(within(panel).getByRole("button", { name: "Mark read: #general" }));
     expect(client.state.memberships.C_GENERAL).toBe(generalNews.seq);
     expect(client.state.threadFollows.M_ROOT!.lastReadSeq).toBe(reply.seq);
     await waitFor(() =>
