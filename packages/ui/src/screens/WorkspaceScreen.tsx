@@ -628,7 +628,19 @@ function WorkspaceLayout(props: { restore: boolean; banner?: ReactNode }) {
               <h2 className="shrink-0 truncate text-[16px] font-semibold leading-tight">
                 {room ? (
                   <>
-                    <span className="mr-1 font-normal text-ink-faint">#</span>
+                    {activeChannel?.type === "private" ? (
+                      // A lock, as the sidebar and the channel's intro draw it.
+                      <span
+                        role="img"
+                        aria-label="Private channel"
+                        title="Private channel"
+                        className="mr-1.5 inline-flex align-[-1px] text-ink-faint"
+                      >
+                        <Icon name="lock" size={14} />
+                      </span>
+                    ) : (
+                      <span className="mr-1 font-normal text-ink-faint">#</span>
+                    )}
                     {title}
                   </>
                 ) : (
