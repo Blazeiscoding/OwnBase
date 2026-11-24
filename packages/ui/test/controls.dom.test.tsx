@@ -359,6 +359,7 @@ describe("message actions", () => {
         .getAllByRole("menuitem")
         .map((item) => item.textContent),
     ).toEqual([
+      "Copy text",
       "Copy link to message",
       // Each with its key as a keycap after the name.
       "Forward…F",
