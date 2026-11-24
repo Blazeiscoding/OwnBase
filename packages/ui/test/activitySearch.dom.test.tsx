@@ -770,6 +770,28 @@ describe("the search dialog", () => {
       expect(dialog).toHaveTextContent("0 files · Newest first · “zebra”");
     });
 
+    it("offers to look everywhere when nothing in the conversation it opened in matched", async () => {
+      const user = userEvent.setup();
+      const { dialog, box, spy } = renderSearch(
+        async (_q, opts) =>
+          opts.channelId
+            ? { messages: [], nextCursor: null }
+            : { messages: [message("M2", "The checklist is pinned", 2)], nextCursor: null },
+        { inConversation: true, channelId: design.id },
+      );
+      await user.type(box, "checklist{Enter}");
+      expect(await within(dialog).findByText("Nothing in #design matched.")).toBeVisible();
+      await user.click(within(dialog).getByRole("button", { name: "Search all conversations" }));
+      expect(chips(dialog)).toEqual([]);
+      expect(await within(dialog).findByText(/is pinned/)).toBeVisible();
+      expect(spy).toHaveBeenLastCalledWith(
+        "checklist",
+        30,
+        expect.objectContaining({ channelId: undefined }),
+      );
+      expect(box).toHaveFocus();
+    });
+
     it("searches as it is typed, and keeps only what Enter settles on", async () => {
       const user = userEvent.setup();
       const { dialog, box, spy } = renderSearch(ready());
