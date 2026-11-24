@@ -211,6 +211,21 @@ export function ActivityPanel({
     else client.markRead(message.channelId, message.seq, { explicit: true });
   }
 
+  /**
+   * Reads all a group shows: its conversation through its newest message, and
+   * each thread in it through its newest reply. Pages come newest first, so a
+   * group's newest message is its conversation's newest unread one.
+   */
+  function markGroupRead(group: ActivityGroup) {
+    const done = new Set<string>();
+    for (const message of group.messages) {
+      const place = message.threadRootId && !message.broadcast ? message.threadRootId : "";
+      if (done.has(place)) continue;
+      done.add(place);
+      markRead(message);
+    }
+  }
+
   function markAllRead() {
     void markEverythingRead(client).then((error) => {
       if (error)
@@ -350,22 +365,43 @@ export function ActivityPanel({
                     ? "Direct message"
                     : channelTitle(channel, users, selfId);
                 const fresh = group.messages.filter(unread).length;
+                // Only what has loaded is counted: while older pages are still
+                // to come, there may be more, so it says "at least" (26+).
+                const count = `${fresh}${paged.nextCursor ? "+" : ""}`;
                 const title = group.threadRootId ? `Thread in ${where}` : where;
                 return (
                   <section key={group.key} aria-labelledby={`${groupId}-${group.key}`}>
-                    {/* Named outright: engines space the parts of a flex heading differently. */}
-                    <h3
-                      id={`${groupId}-${group.key}`}
-                      aria-label={fresh > 0 ? `${title}, ${fresh} new` : title}
-                      className="flex items-baseline gap-2 px-2 pb-0.5 text-[12px] font-semibold text-ink-dim"
-                    >
-                      <span className="truncate">{title}</span>
-                      {fresh > 0 && (
-                        <span className="ml-auto shrink-0 font-medium text-ink-faint">
-                          {fresh} new
-                        </span>
+                    <div className="flex items-baseline gap-2 px-2 pb-0.5">
+                      {/* Named outright: engines space the parts of a flex heading differently. */}
+                      <h3
+                        id={`${groupId}-${group.key}`}
+                        aria-label={fresh > 0 ? `${title}, ${count} new` : title}
+                        className="flex min-w-0 flex-1 items-baseline gap-2 text-[12px] font-semibold text-ink-dim"
+                      >
+                        <span className="truncate">{title}</span>
+                        {fresh > 0 && (
+                          <span className="ml-auto shrink-0 font-medium text-ink-faint">
+                            {count} new
+                          </span>
+                        )}
+                      </h3>
+                      {fresh > 0 && mode !== "mentions" && (
+                        <button
+                          type="button"
+                          aria-label={`Mark ${title} read`}
+                          onClick={(event) => {
+                            const rows = event.currentTarget
+                              .closest("section")
+                              ?.querySelectorAll<HTMLElement>("[data-activity-row]");
+                            keepFocusFrom(rows?.[rows.length - 1] ?? null);
+                            markGroupRead(group);
+                          }}
+                          className="touch-target shrink-0 rounded px-1 text-[12px] font-medium text-ink-faint transition-colors hover:bg-ink/[0.06] hover:text-ink"
+                        >
+                          Mark read
+                        </button>
                       )}
-                    </h3>
+                    </div>
                     <ul>
                       {group.messages.map((message) => (
                         <ActivityRow

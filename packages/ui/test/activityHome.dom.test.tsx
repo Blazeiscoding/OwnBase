@@ -89,7 +89,7 @@ afterEach(() => {
 });
 
 /** Hana's workspace: three new in #design, one in #general, a DM from Omar and a thread reply. */
-function hanasActivity(options: { threads?: boolean } = {}) {
+function hanasActivity(options: { threads?: boolean; more?: boolean } = {}) {
   made = 0;
   const designNews = [
     message(design.id, omar.id, "Mockups are up", 7),
@@ -121,7 +121,7 @@ function hanasActivity(options: { threads?: boolean } = {}) {
         : mode === "threads"
           ? [reply]
           : all.filter((m) => !isRead(client, m)),
-    nextCursor: null,
+    nextCursor: options.more ? "M_OLDER" : null,
   }));
   vi.spyOn(client.api, "markRead").mockImplementation(async (_channelId, seq) => ({
     ok: true,
@@ -221,6 +221,28 @@ describe("reading and saving from Activity", () => {
     await user.click(within(row).getByRole("button", { name: "Mark read" }));
     expect(client.state.threadFollows.M_ROOT!.lastReadSeq).toBe(reply.seq);
     await waitFor(() => expect(within(panel).queryByText("Friday works")).toBeNull());
+  });
+
+  it("reads all a group holds at once, its threads too, and focus goes on", async () => {
+    const user = userEvent.setup();
+    const { panel, client, reply, generalNews } = hanasActivity();
+    await within(panel).findByRole("region", { name: "#general, 2 new" });
+    await user.click(within(panel).getByRole("button", { name: "Mark #general read" }));
+    expect(client.state.memberships.C_GENERAL).toBe(generalNews.seq);
+    expect(client.state.threadFollows.M_ROOT!.lastReadSeq).toBe(reply.seq);
+    await waitFor(() =>
+      expect(within(panel).queryByRole("region", { name: /^#general/ })).toBeNull(),
+    );
+    // The others stay, and focus is on one of their rows, not the page.
+    expect(within(panel).getByRole("region", { name: "#design, 3 new" })).toBeVisible();
+    await waitFor(() => expect(document.activeElement).not.toBe(document.body));
+    expect(panel).toContainElement(document.activeElement as HTMLElement);
+  });
+
+  it("says at least how many are new while older ones are still to load", async () => {
+    const { panel } = hanasActivity({ more: true });
+    expect(await within(panel).findByRole("region", { name: "#design, 3+ new" })).toBeVisible();
+    expect(within(panel).getByText("3+ new")).toBeVisible();
   });
 
   it("saves a message, saying it is saved", async () => {
