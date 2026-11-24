@@ -259,25 +259,9 @@ export function AppsDialog({ onClose }: { onClose: () => void }) {
     return url;
   }
 
-  return (
-    <Dialog title="Apps and integrations" onClose={onClose} width={620}>
-      <OnceGuard shown={[...Object.values(secrets), ...Object.values(hookUrls)]} />
-      <p className="mb-4 text-sm text-ink-dim">
-        Connect your own scripts and tools to this workspace. Pick what you want to happen. Each app
-        you make posts messages under its own name, as a bot.
-      </p>
-
-      <AppTemplates
-        apps={apps ?? []}
-        rooms={rooms}
-        hookUrls={hookUrls}
-        makeApp={(appName) => makeApp(appName, [...DEFAULT_APP_SCOPES])}
-        makeWebhook={addWebhook}
-        onChanged={load}
-      />
-
-      <SlackDifferences />
-
+  const hasApps = (apps?.length ?? 0) > 0;
+  const yours = (
+    <>
       <h3 className="mb-2 mt-6 text-[13px] font-medium text-ink-dim">Your apps</h3>
       <form onSubmit={(e) => void create(e)} noValidate className="mb-2 flex gap-2">
         <input
@@ -444,6 +428,32 @@ export function AppsDialog({ onClose }: { onClose: () => void }) {
           </li>
         ))}
       </ul>
+    </>
+  );
+
+  return (
+    <Dialog title="Apps and integrations" onClose={onClose} width={620}>
+      <OnceGuard shown={[...Object.values(secrets), ...Object.values(hookUrls)]} />
+      <p className="mb-4 text-sm text-ink-dim">
+        Connect your own scripts and tools to this workspace. Pick what you want to happen. Each app
+        you make posts messages under its own name, as a bot.
+      </p>
+
+      {/* Someone with apps comes back to manage them: theirs come first, then ways to add more. */}
+      {hasApps && yours}
+
+      <AppTemplates
+        apps={apps ?? []}
+        rooms={rooms}
+        hookUrls={hookUrls}
+        makeApp={(appName) => makeApp(appName, [...DEFAULT_APP_SCOPES])}
+        makeWebhook={addWebhook}
+        onChanged={load}
+      />
+
+      <SlackDifferences />
+
+      {!hasApps && yours}
     </Dialog>
   );
 }
