@@ -71,9 +71,11 @@ export function registerAppManagement(
         .replaceAll(/[^a-z0-9]+/g, "-")
         .replaceAll(/^-|-$/g, "")
         .slice(0, 24) || "bot";
-    let handle = `${base}-bot`;
+    // "Deploy Bot" is @deploy-bot, not @deploy-bot-bot.
+    const stem = base === "bot" || base.endsWith("-bot") ? base : `${base}-bot`;
+    let handle = stem;
     let n = 2;
-    while (store.people.handleTaken(handle)) handle = `${base}-bot-${n++}`;
+    while (store.people.handleTaken(handle)) handle = `${stem}-${n++}`;
     return handle;
   };
 

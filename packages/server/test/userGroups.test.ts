@@ -252,6 +252,21 @@ describe("one name space for people and groups", () => {
     expect(made.status).toBe(201);
     expect(made.data.botUser.handle).toBe("helper-bot-2");
   });
+
+  it("does not say bot twice for an app whose name ends in Bot", async () => {
+    const first = await request("/api/apps", owner.token, {
+      name: "Deploy Bot",
+      scopes: APP_SCOPES,
+    });
+    expect(first.data.botUser.handle).toBe("deploy-bot");
+    const second = await request("/api/apps", owner.token, {
+      name: "Deploy bot",
+      scopes: APP_SCOPES,
+    });
+    expect(second.data.botUser.handle).toBe("deploy-bot-2");
+    const plain = await request("/api/apps", owner.token, { name: "Bot", scopes: APP_SCOPES });
+    expect(plain.data.botUser.handle).toBe("bot");
+  });
 });
 
 describe("mentioning a user group", () => {

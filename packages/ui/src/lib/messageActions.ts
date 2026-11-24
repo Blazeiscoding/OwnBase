@@ -207,6 +207,8 @@ export const TOOLBAR: readonly MessageActionId[] = ["react", "answer", "thread",
 
 /** What the toolbar keeps behind its last button: the less frequent half. */
 const MORE: readonly MessageActionId[] = [
+  // The whole message in one press, as the phone's menu has it.
+  "copy-text",
   "copy-link",
   "forward",
   "remind",

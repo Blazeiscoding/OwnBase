@@ -419,12 +419,15 @@ export function PeopleDialog({ onClose }: { onClose: () => void }) {
                   <Avatar user={person} size={32} />
                   <div className="min-w-0 flex-1">
                     <div className="flex items-baseline gap-2">
-                      <span className="truncate text-sm font-medium">{person.displayName}</span>
-                      <span className="truncate font-mono text-[11px] text-ink-faint">
+                      <span className="max-w-full shrink-0 truncate text-sm font-medium">
+                        {person.displayName}
+                      </span>
+                      {/* The handle gives way first, so a long one never cuts the name short. */}
+                      <span className="min-w-0 truncate font-mono text-[11px] text-ink-faint">
                         @{person.handle}
                       </span>
                       {person.isBot && (
-                        <span className="rounded-full bg-ink/[0.07] px-2 py-0.5 text-[11px] font-medium text-ink-dim">
+                        <span className="shrink-0 rounded-full bg-ink/[0.07] px-2 py-0.5 text-[11px] font-medium text-ink-dim">
                           app
                         </span>
                       )}
@@ -543,12 +546,6 @@ function PersonMenu({
       onSelect: () => onChange(person, { canInvite: !person.canInvite }),
     });
   }
-  items.push({
-    id: "deactivated",
-    label: person.deactivated ? "Reactivate" : "Deactivate",
-    destructive: !person.deactivated,
-    onSelect: () => onChange(person, { deactivated: !person.deactivated }),
-  });
   if (!person.isBot && !person.deactivated && !guest) {
     items.push({
       id: "reset",
@@ -570,6 +567,14 @@ function PersonMenu({
       });
     }
   }
+  // Last and set apart, as Delete is in a message's menu, not between the rest.
+  items.push({
+    id: "deactivated",
+    label: person.deactivated ? "Reactivate" : "Deactivate",
+    destructive: !person.deactivated,
+    section: items.length > 0 && !person.deactivated ? true : undefined,
+    onSelect: () => onChange(person, { deactivated: !person.deactivated }),
+  });
   return <Menu label={`Actions for ${person.displayName}`} items={items} disabled={disabled} />;
 }
 

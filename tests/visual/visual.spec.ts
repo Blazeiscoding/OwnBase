@@ -238,6 +238,11 @@ for (const theme of ["onyx", "white"] as const) {
     await go(page, `#/c/${workspace.channels.design}/t/${workspace.mockup}`);
     await expect(page.getByText("Good call, I'll try it 20% larger")).toBeVisible();
     await shot("thread");
+    // Seeing #design reads it. When that lands raced the next picture, so the
+    // sidebar and Activity below showed it read on one run and unread on another.
+    await expect(
+      page.locator(`[data-conversation="${workspace.channels.design}"]`),
+    ).not.toHaveAttribute("data-unread");
 
     await go(page, `#/c/${workspace.channels.dm}`);
     await expect(
@@ -246,7 +251,7 @@ for (const theme of ["onyx", "white"] as const) {
     await shot("direct-message");
 
     await go(page, `#/c/${workspace.channels.engineering}/p/activity`);
-    // What is unread elsewhere; #engineering was read on the way here.
+    // What is unread elsewhere; #engineering and #design were read on the way here.
     await expect(page.getByText("Anyone up for lunch on Friday?")).toBeVisible();
     await shot("activity");
 

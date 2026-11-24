@@ -727,10 +727,25 @@ export function SearchDialog(props: {
                 onRetry={() => results.retry()}
                 empty={
                   paged.items !== null && shown === 0 && !paged.nextCursor
-                    ? tab === "files"
-                      ? "No files matched. Try different words."
-                      : "Nothing matched. Try different words."
+                    ? scope
+                      ? // Opened from a conversation, search starts in it, so a
+                        // word said elsewhere would otherwise look said nowhere.
+                        `${tab === "files" ? "No files" : "Nothing"} in ${conversationName(scope)} matched.`
+                      : tab === "files"
+                        ? "No files matched. Try different words."
+                        : "Nothing matched. Try different words."
                     : null
+                }
+                emptyAction={
+                  scope
+                    ? {
+                        label: "Search all conversations",
+                        run: () => {
+                          setScope("");
+                          field.current?.focus();
+                        },
+                      }
+                    : undefined
                 }
                 emptyIcon={tab === "files" ? "file" : "search"}
               />

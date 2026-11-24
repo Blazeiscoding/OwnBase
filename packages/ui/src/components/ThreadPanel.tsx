@@ -15,7 +15,7 @@ import { useRovingMessages } from "../lib/useRovingMessages.js";
 import { MessageItem } from "./MessageItem.js";
 import { DeletedEditNote, placeDeletedEdits, useDeletedEdits } from "./DeletedEdit.js";
 import { ReplyQuote } from "./ReplyQuote.js";
-import { PendingPoll } from "./PollCard.js";
+import { PendingPoll } from "./Polls.js";
 import { Lightbox, PendingAttachments } from "./Attachments.js";
 import { Icon } from "./Icon.js";
 import { Tooltip } from "./Tooltip.js";
@@ -66,10 +66,26 @@ export function ThreadPanel({
     if (!channel) return "";
     return conversationName(channel, s.users, s.self?.id);
   });
-  const [lightbox, setLightbox] = useState<{ file: FileMeta; gallery?: FileMeta[] } | null>(null);
+  const [lightbox, setLightbox] = useState<{
+    file: FileMeta;
+    gallery?: FileMeta[];
+    from?: { userId: ID; at: number };
+  } | null>(null);
   const openImage = useCallback(
-    (file: FileMeta, gallery?: FileMeta[]) => setLightbox({ file, gallery }),
-    [],
+    (file: FileMeta, gallery?: FileMeta[]) => {
+      // Who shared it: the root or the reply that holds it.
+      const state = client.state;
+      const holder = [
+        threadRootMessage(state, rootId),
+        ...(threadReplies(state, rootId) ?? []),
+      ].find((m) => m?.files?.some((f) => f.id === file.id));
+      setLightbox({
+        file,
+        gallery,
+        ...(holder ? { from: { userId: holder.userId, at: holder.createdAt } } : {}),
+      });
+    },
+    [client, rootId],
   );
   const scroller = useRef<HTMLDivElement>(null);
   // The root and its replies are one Tab stop, as the channel's messages are.
@@ -418,6 +434,7 @@ export function ThreadPanel({
         <Lightbox
           file={lightbox.file}
           gallery={lightbox.gallery}
+          from={lightbox.from}
           onClose={() => setLightbox(null)}
         />
       )}

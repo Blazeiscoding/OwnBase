@@ -98,15 +98,18 @@ describe("people actions", () => {
     const actions = within(memberRow).getByRole("button", { name: "Actions for Alex Chen" });
     await user.click(actions);
     const menu = screen.getByRole("menu", { name: "Actions for Alex Chen" });
-    for (const item of [
+    // Deactivate comes last, apart from the harmless ones, as Delete does in a message's menu.
+    expect(
+      within(menu)
+        .getAllByRole("menuitem")
+        .map((item) => item.textContent),
+    ).toEqual([
       "Make admin",
       "Stop them inviting people",
-      "Deactivate",
       "Reset password",
       "Transfer ownership",
-    ]) {
-      expect(within(menu).getByRole("menuitem", { name: item })).toBeVisible();
-    }
+      "Deactivate",
+    ]);
     expect(await accessibilityProblems(root)).toEqual([]);
   });
 

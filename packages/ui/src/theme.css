@@ -781,6 +781,12 @@ summary:focus-visible {
   button {
     transition-duration: 120ms;
   }
+  /* A box beside words that wrap keeps its size: squeezed, it shrank and
+     pulled its words out of line with the rows above (the poll's Anonymous). */
+  input[type="checkbox"],
+  input[type="radio"] {
+    flex-shrink: 0;
+  }
 }
 input::placeholder,
 textarea::placeholder {
@@ -1158,6 +1164,30 @@ textarea::placeholder {
  */
 .formatting-buttons:not([data-expanded]) {
   display: none;
+}
+/*
+ * Open in the composer's row, the buttons take the room between + and Send:
+ * "Aa" and the emoji button on the first line, the buttons on the lines under
+ * them, wrapping as narrow as a phone or a thread needs, rather than each part
+ * dropping to a line of its own.
+ */
+.formatting-group[data-expanded] {
+  flex: 1 1 0;
+  min-width: 0;
+}
+.formatting-group[data-expanded] > .formatting-buttons {
+  flex-wrap: wrap;
+}
+/* A composer too narrow for them beside "Aa" puts them on a line of their own. */
+@container (max-width: 34rem) {
+  .formatting-group[data-expanded] > .formatting-buttons {
+    order: 1;
+    flex-basis: 100%;
+  }
+  /* + and Send stay level with "Aa", above the buttons, not halfway down them. */
+  :has(> .formatting-group[data-expanded]) {
+    align-items: flex-start;
+  }
 }
 
 /* The header's search field gives the conversation's name room in a narrow window. */

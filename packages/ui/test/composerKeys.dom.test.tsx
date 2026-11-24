@@ -128,6 +128,43 @@ describe("formatting in the composer", () => {
     expect(box).toHaveValue("milk\neggs\nbread");
   });
 
+  it("links the selected words from Ctrl+Shift+U, and quotes lines from Ctrl+Shift+9", async () => {
+    const user = userEvent.setup();
+    const { box } = await renderComposer();
+    await user.type(box, "read the docs");
+    box.setSelectionRange(9, 13);
+    await user.keyboard("{Control>}{Shift>}u{/Shift}{/Control}");
+    const form = await screen.findByRole("form", { name: "Add a link" });
+    await user.type(
+      within(form).getByRole("textbox", { name: "Link address" }),
+      "ownbase.site/docs{Enter}",
+    );
+    expect(box).toHaveValue("read the <https://ownbase.site/docs|docs>");
+    // Back in the words, the caret after the link, ready to go on.
+    expect(box).toHaveFocus();
+    expect(box.selectionStart).toBe(box.value.length);
+
+    box.setSelectionRange(0, 0);
+    await user.keyboard("{Control>}{Shift>}9{/Shift}{/Control}");
+    expect(box).toHaveValue("> read the <https://ownbase.site/docs|docs>");
+  });
+
+  it("sends a link typed as Markdown as Mrkdwn's own, and code as typed", async () => {
+    const user = userEvent.setup();
+    const { box, send } = await renderComposer();
+    await user.click(box);
+    // fireEvent: user-event reads [ and ( as key descriptors.
+    fireEvent.change(box, {
+      target: { value: "See [the docs](https://ownbase.site/docs) and `[x](https://a.dev)`" },
+    });
+    await user.keyboard("{Enter}");
+    expect(send).toHaveBeenCalledWith(
+      design.id,
+      "See <https://ownbase.site/docs|the docs> and `[x](https://a.dev)`",
+      expect.anything(),
+    );
+  });
+
   it("starts a list on an empty line, ready to type", async () => {
     const user = userEvent.setup();
     const { box } = await renderComposer();

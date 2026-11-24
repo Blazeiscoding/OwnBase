@@ -216,10 +216,16 @@ export function Sidebar(props: {
   const invite = action("invite");
   const drafts = useWorkspace((s) => s.drafts);
   const settled = useWorkspace((s) => s.status === "online");
-  const draftCount = useMemo(
-    () => listDrafts(drafts, {}, channels, settled).length,
-    [drafts, channels, settled],
-  );
+  const { draftCount, draftsElsewhere } = useMemo(() => {
+    const all = listDrafts(drafts, {}, channels, settled);
+    return {
+      draftCount: all.length,
+      // What is being written in the open conversation is in front of its
+      // writer; counted for the row's place, it slid every row below down
+      // on the first letter typed.
+      draftsElsewhere: all.filter((draft) => draft.place.channelId !== activeChannelId).length,
+    };
+  }, [drafts, channels, settled, activeChannelId]);
   const prefs = useWorkspace((s) => s.prefs);
   const sections = useWorkspace((s) => s.sidebarSections);
   const huddles = useWorkspace((s) => s.huddles);
@@ -673,10 +679,11 @@ export function Sidebar(props: {
                   />
                 </li>
               )}
-              {/* Shown while there are drafts, or while its panel is open: an
-                empty row would cost a channel's place beside Getting started
-                (UX-20). The palette and the address reach the panel always. */}
-              {(draftCount > 0 || openPanel === "drafts") && (
+              {/* Shown while there are drafts outside the open conversation, or
+                while its panel is open: an empty row would cost a channel's
+                place beside Getting started (UX-20). The palette and the
+                address reach the panel always. */}
+              {(draftsElsewhere > 0 || openPanel === "drafts") && (
                 <li>
                   <NavRow
                     icon="edit"
@@ -1066,6 +1073,9 @@ function WorkspaceMenu(props: {
       }`}
       items={items}
       align="start"
+      // Wider than the sidebar's 224: "Reported messages" and its "1 waiting" were
+      // cut to "Reported me…".
+      width={256}
       triggerClassName="group/ws flex h-9 w-full min-w-0 items-center gap-2 rounded-lg px-2 text-left transition-colors hover:bg-ink/[0.06]"
       triggerContent={
         <>

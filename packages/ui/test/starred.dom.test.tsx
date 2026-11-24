@@ -357,6 +357,7 @@ describe("the conversation's ⋯ menu", () => {
       "Pinned messages",
       "Files",
       "Star channel",
+      "Mute channel",
       "Notification settings",
       "Channel details",
     ]);

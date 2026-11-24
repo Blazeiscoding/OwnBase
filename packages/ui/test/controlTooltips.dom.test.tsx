@@ -76,9 +76,13 @@ async function tabTo(user: ReturnType<typeof userEvent.setup>, control: HTMLElem
   return screen.getByRole("tooltip");
 }
 
+/** The link and quote handlers every toolbar takes. */
+const linkHandlers = () => ({ onLink: vi.fn(), onQuote: vi.fn(), onLinkDone: vi.fn() });
+
 describe("compact controls explain themselves with the shared tooltip", () => {
   it("names each formatting button and its shortcut, and still formats", async () => {
     const user = userEvent.setup();
+    const { onLink, onQuote, onLinkDone } = linkHandlers();
     const onFormat = vi.fn();
     const onList = vi.fn();
     const { container } = render(
@@ -88,6 +92,9 @@ describe("compact controls explain themselves with the shared tooltip", () => {
         onInsert={() => {}}
         preview={false}
         onTogglePreview={() => {}}
+        onLink={onLink}
+        onQuote={onQuote}
+        onLinkDone={onLinkDone}
       />,
     );
     expect(container.querySelector("[title]")).toBeNull();
@@ -119,10 +126,63 @@ describe("compact controls explain themselves with the shared tooltip", () => {
     expect(await tabTo(user, numbers)).toHaveTextContent("Numbered list. Shortcut: Ctrl Shift 7");
     await user.click(numbers);
     expect(onList).toHaveBeenLastCalledWith("numbers");
+
+    const quote = screen.getByRole("button", { name: "Quote" });
+    expect(await tabTo(user, quote)).toHaveTextContent("Quote. Shortcut: Ctrl Shift 9");
+    await user.keyboard("{Enter}");
+    expect(onQuote).toHaveBeenCalledOnce();
+  });
+
+  it("asks for a link's address in the window, and refuses what is not one", async () => {
+    const user = userEvent.setup();
+    const { onLink, onQuote, onLinkDone } = linkHandlers();
+    const { container } = render(
+      <FormattingToolbar
+        onFormat={() => {}}
+        onList={() => {}}
+        onInsert={() => {}}
+        preview={false}
+        onTogglePreview={() => {}}
+        onLink={onLink}
+        onQuote={onQuote}
+        onLinkDone={onLinkDone}
+      />,
+    );
+    const link = screen.getByRole("button", { name: "Link" });
+    expect(await tabTo(user, link)).toHaveTextContent("Link. Shortcut: Ctrl Shift U");
+    await user.keyboard("{Enter}");
+    const box = await screen.findByRole("form", { name: "Add a link" });
+    const address = within(box).getByRole("textbox", { name: "Link address" });
+    expect(address).toHaveFocus();
+    expect(await accessibilityProblems(container)).toEqual([]);
+
+    await user.click(within(box).getByRole("button", { name: "Add link" }));
+    expect(within(box).getByRole("alert")).toHaveTextContent(
+      "Type or paste the address the link goes to.",
+    );
+    await user.type(address, "not an address");
+    await user.keyboard("{Enter}");
+    expect(within(box).getByRole("alert")).toHaveTextContent("That is not a web address.");
+    expect(onLink).not.toHaveBeenCalled();
+
+    await user.clear(address);
+    await user.type(address, "ownbase.site/docs{Enter}");
+    expect(onLink).toHaveBeenCalledWith("https://ownbase.site/docs");
+    expect(onLinkDone).toHaveBeenCalledOnce();
+    expect(screen.queryByRole("form", { name: "Add a link" })).toBeNull();
+
+    // Escape leaves the text as it was, and hands focus back too.
+    await user.click(link);
+    await screen.findByRole("form", { name: "Add a link" });
+    await user.keyboard("{Escape}");
+    expect(screen.queryByRole("form", { name: "Add a link" })).toBeNull();
+    expect(onLink).toHaveBeenCalledOnce();
+    expect(onLinkDone).toHaveBeenCalledTimes(2);
   });
 
   it("folds the formatting buttons behind one, which says what it shows and hides", async () => {
     const user = userEvent.setup();
+    const { onLink, onQuote, onLinkDone } = linkHandlers();
     const onFormat = vi.fn();
     render(
       <FormattingToolbar
@@ -131,6 +191,9 @@ describe("compact controls explain themselves with the shared tooltip", () => {
         onInsert={() => {}}
         preview={false}
         onTogglePreview={() => {}}
+        onLink={onLink}
+        onQuote={onQuote}
+        onLinkDone={onLinkDone}
       />,
     );
     const toggle = screen.getByRole("button", { name: "Formatting" });
@@ -153,6 +216,7 @@ describe("compact controls explain themselves with the shared tooltip", () => {
 
   it("keeps the emoji button's own focus return when its chooser closes", async () => {
     const user = userEvent.setup();
+    const { onLink, onQuote, onLinkDone } = linkHandlers();
     render(
       <FormattingToolbar
         onFormat={() => {}}
@@ -160,6 +224,9 @@ describe("compact controls explain themselves with the shared tooltip", () => {
         onInsert={() => {}}
         preview={false}
         onTogglePreview={() => {}}
+        onLink={onLink}
+        onQuote={onQuote}
+        onLinkDone={onLinkDone}
       />,
     );
     const emoji = screen.getByRole("button", { name: "Insert emoji" });

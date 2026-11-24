@@ -71,6 +71,26 @@ afterEach(() => {
 });
 
 describe("Apps list status", () => {
+  it("puts the workspace's own apps first once there are any, the ways to add one after", async () => {
+    const { client, renderDialog } = appsDialog();
+    vi.spyOn(client.api, "listApps").mockResolvedValue({ apps: [deployApp] });
+    const dialog = renderDialog();
+    await within(dialog).findAllByText("Deploy Bot");
+    const yours = within(dialog).getByRole("heading", { name: "Your apps" });
+    const adding = within(dialog).getByRole("tab", { name: "Incoming webhook" });
+    expect(yours.compareDocumentPosition(adding) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
+
+  it("starts with the ways to add an app while there are none", async () => {
+    const { client, renderDialog } = appsDialog();
+    vi.spyOn(client.api, "listApps").mockResolvedValue({ apps: [] });
+    const dialog = renderDialog();
+    await within(dialog).findByText(/No apps yet/);
+    const yours = within(dialog).getByRole("heading", { name: "Your apps" });
+    const adding = within(dialog).getByRole("tab", { name: "Incoming webhook" });
+    expect(adding.compareDocumentPosition(yours) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
+
   it("reports a failed first load without claiming there are no apps, then retries to an empty list", async () => {
     const { client, user, renderDialog } = appsDialog();
     const retryLoad = deferred<{ apps: AppDetail[] }>();

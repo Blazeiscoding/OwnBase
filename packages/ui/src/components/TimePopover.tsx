@@ -31,7 +31,9 @@ export function TimePopover(props: {
   // A time chosen here is the device's; a clock far off sends it at the wrong moment.
   const skewNote = clockSkewNote(useWorkspace((s) => s.clockSkewMs));
   return (
-    <Popover label={props.label} anchor={props.anchor} onClose={props.onClose} width={260}>
+    // Wide enough for a whole date beside the time: at 260 the date field cut
+    // its year short ("dd-mm-yy").
+    <Popover label={props.label} anchor={props.anchor} onClose={props.onClose} width={296}>
       <div className="px-3 pb-1 pt-2.5 text-[12px] font-medium text-ink-faint">{props.label}</div>
       {skewNote && (
         <p role="note" className="flex items-start gap-1.5 px-3 pb-1.5 text-[12px] text-alert">

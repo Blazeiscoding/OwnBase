@@ -1,5 +1,8 @@
 import { useEffect, useState } from "react";
-import type { FileMeta } from "@ownbase/protocol";
+import type { FileMeta, ID } from "@ownbase/protocol";
+import { useWorkspace } from "../context.js";
+import { Avatar } from "./Avatar.js";
+import { When } from "./When.js";
 import { formatBytes } from "../lib/format.js";
 import { saveUrl } from "../lib/download.js";
 import { useFileResource } from "./Attachments.js";
@@ -20,12 +23,19 @@ const NOTE = "rounded-lg bg-raised px-4 py-3 text-center text-ink";
 export function LightboxView({
   file: opened,
   gallery,
+  from,
+  onOpenMessage,
   onClose,
 }: {
   file: FileMeta;
   gallery?: FileMeta[];
+  /** Who shared the pictures and when, said under them as Slack and Discord do. */
+  from?: { userId: ID; at: number };
+  /** Opens the message they came in, offered where that is somewhere else. */
+  onOpenMessage?: () => void;
   onClose: () => void;
 }) {
+  const sharer = useWorkspace((s) => (from ? s.users[from.userId] : undefined));
   const pictures = gallery?.some((f) => f.id === opened.id) ? gallery : [opened];
   const [at, setAt] = useState(() => pictures.findIndex((f) => f.id === opened.id));
   const file = pictures[at] ?? opened;
@@ -105,7 +115,20 @@ export function LightboxView({
           </button>
         )}
       </div>
-      <div className="flex max-w-full items-center gap-3 rounded-xl border border-edge bg-raised py-1.5 pl-3.5 pr-1.5 text-sm text-ink-dim shadow-lg">
+      {/* Wraps onto a second line on a phone rather than pushing past the edge. */}
+      <div className="flex max-w-full flex-wrap items-center justify-center gap-x-3 gap-y-1.5 rounded-xl border border-edge bg-raised py-1.5 pl-3.5 pr-1.5 text-sm text-ink-dim shadow-lg">
+        {from && (
+          <span className="flex min-w-0 items-center gap-2">
+            <Avatar user={sharer} size={20} />
+            <span className="max-w-[200px] truncate font-medium text-ink">
+              {sharer?.displayName ?? "Someone"}
+            </span>
+            <span className="shrink-0 text-ink-faint">
+              <When at={from.at} />
+            </span>
+            <span aria-hidden="true" className="h-4 w-px bg-edge" />
+          </span>
+        )}
         {several && (
           <span className="shrink-0 tabular-nums text-ink-faint">
             {at + 1} of {pictures.length}
@@ -122,6 +145,17 @@ export function LightboxView({
         >
           Save
         </button>
+        {onOpenMessage && (
+          <button
+            onClick={() => {
+              onClose();
+              onOpenMessage();
+            }}
+            className="rounded-lg border border-edge px-3 py-1 transition-colors hover:border-ink-faint/50 hover:text-ink"
+          >
+            Open in conversation
+          </button>
+        )}
         <button
           onClick={onClose}
           className="rounded-lg border border-edge px-3 py-1 transition-colors hover:border-ink-faint/50 hover:text-ink"

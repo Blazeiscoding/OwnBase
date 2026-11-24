@@ -1,7 +1,13 @@
 import { useEffect, useId, useMemo, useRef, useState } from "react";
-import type { FileKind, FileMeta, ID, SharedFile } from "@ownbase/protocol";
+import { isRoom, type FileKind, type FileMeta, type ID, type SharedFile } from "@ownbase/protocol";
 import { useClient, useWorkspace } from "../context.js";
-import { channelTitle, formatBytes, formatFull, formatWhen } from "../lib/format.js";
+import {
+  channelTitle,
+  conversationName,
+  formatBytes,
+  formatFull,
+  formatWhen,
+} from "../lib/format.js";
 import { useOpenList } from "../lib/pagedList.js";
 import { usePanelFocus } from "../lib/usePanelFocus.js";
 import { useTabs } from "../lib/useTabs.js";
@@ -58,7 +64,7 @@ export function FilesPanel({
   const [channelId, setChannelId] = useState(initialChannelId ?? "");
   const [typed, setTyped] = useState("");
   const [search, setSearch] = useState("");
-  const [viewing, setViewing] = useState<FileMeta | null>(null);
+  const [viewing, setViewing] = useState<SharedFile | null>(null);
   const scroller = useRef<HTMLDivElement>(null);
   const fromId = useId();
   const inId = useId();
@@ -92,6 +98,16 @@ export function FilesPanel({
     [users, userId],
   );
   const name = (id: ID) => channelTitle(channels[id]!, users, selfId);
+  // A direct message's name is the other person, so "Sam Rivera in Sam Rivera"
+  // said nothing; it reads as Slack's does: "in a direct message", or "to Sam
+  // Rivera" for a file this person sent there.
+  const place = (shared: SharedFile) => {
+    const channel = channels[shared.channelId];
+    if (!channel) return "in a conversation";
+    if (isRoom(channel.type)) return `in ${conversationName(channel, users, selfId)}`;
+    if (shared.userId === selfId) return `to ${channelTitle(channel, users, selfId)}`;
+    return channel.type === "dm" ? "in a direct message" : "in a group message";
+  };
   const places = useMemo(
     () =>
       Object.values(channels)
@@ -233,8 +249,8 @@ export function FilesPanel({
               key={shared.id}
               shared={shared}
               who={users[shared.userId]?.displayName ?? "someone"}
-              where={channels[shared.channelId] ? name(shared.channelId) : "a conversation"}
-              onView={setViewing}
+              where={place(shared)}
+              onView={() => setViewing(shared)}
               onJump={() => onJump(shared.channelId, shared.messageId)}
             />
           ))}
@@ -248,7 +264,14 @@ export function FilesPanel({
           scroller={scroller}
         />
       </div>
-      {viewing && <Lightbox file={viewing} onClose={() => setViewing(null)} />}
+      {viewing && (
+        <Lightbox
+          file={viewing.file}
+          from={{ userId: viewing.userId, at: viewing.sharedAt }}
+          onOpenMessage={() => onJump(viewing.channelId, viewing.messageId)}
+          onClose={() => setViewing(null)}
+        />
+      )}
     </aside>
   );
 }
@@ -281,7 +304,7 @@ function FileRow({
         <button
           type="button"
           onClick={() => (picture ? onView(file) : void download.save())}
-          aria-label={`${picture ? "Open" : "Download"} ${file.name}, ${formatBytes(file.size)}, from ${who} in ${where}, ${formatWhen(shared.sharedAt)}`}
+          aria-label={`${picture ? "Open" : "Download"} ${file.name}, ${formatBytes(file.size)}, from ${who} ${where}, ${formatWhen(shared.sharedAt)}`}
           className="flex min-w-0 flex-1 items-center gap-3 rounded-lg px-2 py-2 text-left"
         >
           {file.mime.startsWith("image/") ? (
@@ -302,7 +325,7 @@ function FileRow({
                   ? download.native
                     ? "Preparing download…"
                     : "Downloading…"
-                  : `${formatBytes(file.size)} · ${who} in ${where}`}
+                  : `${formatBytes(file.size)} · ${who} ${where}`}
               </span>
               <time
                 dateTime={new Date(shared.sharedAt).toISOString()}

@@ -175,7 +175,10 @@ describe("the switch", () => {
     setUp();
     const toggle = screen.getByRole("switch", { name: "Notify me when OwnBase is closed" });
     await waitFor(() => expect(toggle).toBeEnabled());
-    expect(screen.getByText(/blocks notifications from OwnBase/)).toBeVisible();
+    // How to allow them is said once, under "On this device" just above.
+    expect(
+      screen.getByText("Works once this browser allows notifications from OwnBase."),
+    ).toBeVisible();
   });
 
   it("cannot be turned on over plain HTTP, and says why", async () => {

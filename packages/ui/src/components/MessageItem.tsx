@@ -57,7 +57,7 @@ import { ForwardCard } from "./ForwardCard.js";
 import { useForward } from "./ForwardHost.js";
 import { LinkPreviews } from "./LinkPreviews.js";
 import { LinkedMessages } from "./LinkedMessages.js";
-import { PollCard } from "./PollCard.js";
+import { PollCard } from "./Polls.js";
 import { CallNote } from "./CallNote.js";
 import { LazyDialog } from "./LazyView.js";
 import { useConfirm } from "./Confirm.js";
@@ -702,8 +702,9 @@ const MessageRow = memo(function MessageRow({
             triggerContent={<Icon name="dots" size={18} strokeWidth={2} />}
             tooltip="More actions"
             items={moreItems(actions)}
-            // Wide enough that "Mark unread from this message" stays on one line.
-            width={272}
+            // Wide enough that "Mark unread from this message" stays whole on one
+            // line with its U keycap beside it (272 cut it to "…this me…").
+            width={300}
             onOpenChange={(open) => {
               setMoreOpen(open);
               // Kept while the menu takes the pointer and focus away, and for

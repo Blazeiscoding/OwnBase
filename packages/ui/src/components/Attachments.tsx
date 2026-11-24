@@ -362,7 +362,13 @@ const LightboxView = lazy(() =>
  * Full-size image viewer. Opening a picture is now and then, so the viewer
  * loads on first use; the moment that takes shows nothing new.
  */
-export function Lightbox(props: { file: FileMeta; gallery?: FileMeta[]; onClose: () => void }) {
+export function Lightbox(props: {
+  file: FileMeta;
+  gallery?: FileMeta[];
+  from?: { userId: ID; at: number };
+  onOpenMessage?: () => void;
+  onClose: () => void;
+}) {
   return (
     <ErrorBoundary
       fallback={

@@ -7,7 +7,7 @@ import { MessageItem } from "./MessageItem.js";
 import { DeletedEditNote, placeDeletedEdits, useDeletedEdits } from "./DeletedEdit.js";
 import { ReplyQuote } from "./ReplyQuote.js";
 import { ForwardCard } from "./ForwardCard.js";
-import { PendingPoll } from "./PollCard.js";
+import { PendingPoll } from "./Polls.js";
 import { Avatar } from "./Avatar.js";
 import { ListStatus } from "./ListStatus.js";
 import { Lightbox, PendingAttachments } from "./Attachments.js";
@@ -109,10 +109,25 @@ export const MessageTimeline = memo(function MessageTimeline({
   const status = useWorkspace((s) => s.timelineStatus[channelId]);
   const loadingHistory = status?.loading === "latest" ? null : (status?.loading ?? null);
   const historyError = status?.error === "latest" ? null : (status?.error ?? null);
-  const [lightbox, setLightbox] = useState<{ file: FileMeta; gallery?: FileMeta[] } | null>(null);
+  const [lightbox, setLightbox] = useState<{
+    file: FileMeta;
+    gallery?: FileMeta[];
+    from?: { userId: ID; at: number };
+  } | null>(null);
   const openImage = useCallback(
-    (file: FileMeta, gallery?: FileMeta[]) => setLightbox({ file, gallery }),
-    [],
+    (file: FileMeta, gallery?: FileMeta[]) => {
+      // Who shared it: the message here that holds it. A forwarded or linked
+      // card's picture belongs to a message elsewhere, and goes without.
+      const holder = timelineMessages(client.state, channelId).find((m) =>
+        m.files?.some((f) => f.id === file.id),
+      );
+      setLightbox({
+        file,
+        gallery,
+        ...(holder ? { from: { userId: holder.userId, at: holder.createdAt } } : {}),
+      });
+    },
+    [client, channelId],
   );
   const highlightRef = useRef<HTMLDivElement>(null);
   const lastScrollTop = useRef(0);
@@ -707,6 +722,7 @@ export const MessageTimeline = memo(function MessageTimeline({
         <Lightbox
           file={lightbox.file}
           gallery={lightbox.gallery}
+          from={lightbox.from}
           onClose={() => setLightbox(null)}
         />
       )}
@@ -916,6 +932,18 @@ function ChannelIntro({
             ? "Your direct messages start here."
             : "This conversation is just between you. It starts here."}
       </p>
+      {/* The picture and the name open the profile too, but nothing says so. */}
+      {person && openPerson && (
+        <div className="mt-4 flex flex-wrap gap-2">
+          <button
+            onClick={openPerson}
+            className="flex h-8 items-center gap-2 rounded-full border border-edge px-3 text-[13px] font-medium text-ink-dim transition-colors hover:bg-ink/[0.04] hover:text-ink"
+          >
+            <Icon name="user" size={14} />
+            View profile
+          </button>
+        </div>
+      )}
       {empty && room && (onInvite || onDetails) && (
         <div className="mt-4 flex flex-wrap gap-2">
           {onInvite && (
