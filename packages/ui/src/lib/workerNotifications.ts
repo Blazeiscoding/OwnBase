@@ -39,7 +39,13 @@ const KEPT_CLICKS = 50;
 
 export interface WorkerNotifications {
   /** Shows a notification through the worker, registering it on first use. */
-  show: (title: string, body: string, onClick?: () => void, tag?: string) => Promise<void>;
+  show: (
+    title: string,
+    body: string,
+    onClick?: () => void,
+    tag?: string,
+    silent?: boolean,
+  ) => Promise<void>;
 }
 
 export function workerNotifications(container: ServiceWorkerContainer): WorkerNotifications {
@@ -63,7 +69,7 @@ export function workerNotifications(container: ServiceWorkerContainer): WorkerNo
     return registration;
   };
   return {
-    show: async (title, body, onClick, tag) => {
+    show: async (title, body, onClick, tag, silent) => {
       // Every page of this site hears every click, so each names its own.
       const click = crypto.randomUUID();
       if (onClick) {
@@ -71,7 +77,7 @@ export function workerNotifications(container: ServiceWorkerContainer): WorkerNo
         if (clicks.size > KEPT_CLICKS) clicks.delete(clicks.keys().next().value!);
       }
       try {
-        await (await registered()).showNotification(title, { body, tag, data: { click } });
+        await (await registered()).showNotification(title, { body, tag, silent, data: { click } });
       } catch {
         clicks.delete(click);
       }

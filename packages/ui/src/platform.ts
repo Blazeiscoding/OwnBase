@@ -97,7 +97,16 @@ export interface Platform {
    * show the same tag show one notification, so each window of an account
    * can tell about the same message without it appearing twice (IMP-03).
    */
-  notify: (title: string, body: string, onClick?: () => void, options?: { tag?: string }) => void;
+  /**
+   * `silent` when the app sounds the notification itself (K10), so the
+   * system's sound does not play over it.
+   */
+  notify: (
+    title: string,
+    body: string,
+    onClick?: () => void,
+    options?: { tag?: string; silent?: boolean },
+  ) => void;
   /** Hand a scoped download URL to the browser/OS; completion is managed there. */
   downloadFile?: (url: string) => Promise<void>;
   /**
@@ -263,12 +272,12 @@ export function webPlatform(): Platform {
       if (typeof Notification === "undefined" || Notification.permission !== "granted") return;
       let note: Notification;
       try {
-        note = new Notification(title, { body, tag: options?.tag });
+        note = new Notification(title, { body, tag: options?.tag, silent: options?.silent });
       } catch {
         // Android's Chrome shows only what a service worker asks for.
         if (navigator.serviceWorker) {
           workers ??= workerNotifications(navigator.serviceWorker);
-          void workers.show(title, body, onClick, options?.tag);
+          void workers.show(title, body, onClick, options?.tag, options?.silent);
         }
         return;
       }

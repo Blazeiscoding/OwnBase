@@ -221,7 +221,7 @@ describe("notifying about a message in the conversation on screen", () => {
     it("tags a message's notification the same in every window of the account", async () => {
       const { arrive, notify } = await lookingAtGeneral();
       arrive(reply());
-      expect(notify.mock.calls[0]![3]).toEqual({ tag: `${account} M_REPLY` });
+      expect(notify.mock.calls[0]![3]).toMatchObject({ tag: `${account} M_REPLY` });
     });
   });
 
@@ -248,7 +248,7 @@ describe("notifying about a message in the conversation on screen", () => {
       expect(notify).toHaveBeenCalledTimes(1);
       const [title, body, open, options] = notify.mock.calls[0]!;
       expect([title, body]).toEqual(["100 new messages in #general", "From Alex Chen"]);
-      expect(options).toEqual({ tag: `${account} catch-up M_MISSED_0` });
+      expect(options).toMatchObject({ tag: `${account} catch-up M_MISSED_0` });
       expect(open).toBeTypeOf("function");
     });
 
@@ -272,7 +272,7 @@ describe("notifying about a message in the conversation on screen", () => {
         "Alex Chen in #general",
         "@Sam Rivera can you look at this?",
       ]);
-      expect(notify.mock.calls[0]![3]).toEqual({ tag: `${account} M_MISSED_2` });
+      expect(notify.mock.calls[0]![3]).toMatchObject({ tag: `${account} M_MISSED_2` });
     });
 
     it("says nothing once the channel was muted before the summary", async () => {
@@ -299,7 +299,7 @@ describe("notifying about a message in the conversation on screen", () => {
       const { arrive, notify } = await caughtUp(4);
       arrive(mention({ id: "M_LIVE", threadRootId: "M_ROOT", seq: 99 }));
       expect(notify).toHaveBeenCalledTimes(1);
-      expect(notify.mock.calls[0]![3]).toEqual({ tag: `${account} M_LIVE` });
+      expect(notify.mock.calls[0]![3]).toMatchObject({ tag: `${account} M_LIVE` });
       settle();
       expect(notify).toHaveBeenCalledTimes(2);
       expect(notify.mock.calls[1]![0]).toBe("4 new messages in #general");

@@ -61,6 +61,12 @@ export const SETTINGS: readonly Setting[] = [
     words: "badge count number dot taskbar dock tray tab title",
   },
   {
+    id: "sounds",
+    section: "notifications",
+    label: "Sounds",
+    words: "sound ding chime tone audio noise quiet mute call join leave",
+  },
+  {
     id: "theme",
     section: "appearance",
     label: "Theme",

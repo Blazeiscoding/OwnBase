@@ -30,6 +30,14 @@ import {
   useAppearance,
   type Theme,
 } from "../lib/appearance.js";
+import {
+  playTone,
+  TONE_LABELS,
+  TONE_NAMES,
+  useSounds,
+  type SoundChoice,
+  type ToneName,
+} from "../lib/sounds.js";
 import { inputCls } from "./TextField.js";
 import { Select } from "./Select.js";
 import { ListStatus } from "./ListStatus.js";
@@ -754,7 +762,78 @@ function NotificationSettings() {
       </section>
       <DefaultLevelSettings />
       <PreviewSettings />
+      <SoundSettings />
     </>
+  );
+}
+
+const SOUND_CHOICES: SoundChoice[] = [...TONE_NAMES, "none"];
+
+/** The app's own notification sounds on this device (K10), one for direct messages apart. */
+function SoundSettings() {
+  const sounds = useSounds();
+  const saved = useSaved();
+  const choice = (which: "messages" | "directMessages", label: string, noun: string) => (
+    <div className="flex items-end gap-2">
+      <Select
+        label={label}
+        className="min-w-0 flex-1"
+        value={sounds[which]}
+        onChange={(event) => {
+          const picked = event.target.value as SoundChoice;
+          if (picked !== "none") playTone(picked);
+          void sounds.set({ [which]: picked }).then((kept) => kept && saved());
+        }}
+      >
+        {SOUND_CHOICES.map((name) => (
+          <option key={name} value={name}>
+            {TONE_LABELS[name]}
+          </option>
+        ))}
+      </Select>
+      {sounds[which] !== "none" && (
+        <button
+          type="button"
+          className={buttonClass("secondary")}
+          aria-label={`Play the sound for ${noun}`}
+          onClick={() => playTone(sounds[which] as ToneName)}
+        >
+          Play
+        </button>
+      )}
+    </div>
+  );
+  return (
+    <fieldset
+      {...settingMark("sounds")}
+      className="mt-6 border-t border-edge pt-5"
+      disabled={!sounds.loaded}
+    >
+      <legend className="float-left w-full font-semibold">Sounds</legend>
+      <p className="clear-both pt-1 text-sm text-ink-dim">
+        On this device, in every workspace. Paused notifications make no sound.
+      </p>
+      <div className="mt-3 space-y-3">
+        {choice("messages", "Messages and mentions", "messages")}
+        {choice("directMessages", "Direct messages", "direct messages")}
+        <label className="flex items-center gap-2 text-sm">
+          <input
+            type="checkbox"
+            className="accent-[var(--color-copper)]"
+            checked={sounds.calls}
+            onChange={(event) =>
+              void sounds.set({ calls: event.target.checked }).then((kept) => kept && saved())
+            }
+          />
+          A sound when someone joins or leaves your call
+        </label>
+      </div>
+      {sounds.error && (
+        <p role="alert" className="mt-2 text-sm text-alert">
+          {sounds.error}
+        </p>
+      )}
+    </fieldset>
   );
 }
 

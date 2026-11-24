@@ -234,7 +234,7 @@ export function electronPlatform(bridge: OwnBaseBridge): Platform {
     },
     notify: (title, body, onClick, options) => {
       const tag = options?.tag === undefined ? undefined : windowsTag(options.tag);
-      const note = new Notification(title, { body, silent: false, tag });
+      const note = new Notification(title, { body, silent: options?.silent ?? false, tag });
       if (onClick) {
         note.onclick = (event) => {
           event.preventDefault();

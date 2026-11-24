@@ -24,6 +24,7 @@ export type SettingId =
   | "pause-notifications"
   | "notification-previews"
   | "unread-on-icon"
+  | "sounds"
   | "theme"
   | "density"
   | "text-size"

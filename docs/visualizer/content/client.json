@@ -1327,6 +1327,16 @@
       "concepts": ["ringing", "Web Audio"]
     },
     {
+      "path": "packages/ui/src/lib/sounds.ts",
+      "plain": "The app's own notification sounds, and the settings that choose them.",
+      "summary": "Four short Web Audio tones for messages and direct messages, and a step up or down as someone joins or leaves a call (K10).",
+      "details": [
+        "The choices are kept per device. soundNotification plays the chosen tone in one of the account's windows, through inOneWindow, and says whether it did, so the system notification goes out silent and there are never two sounds.",
+        "Until the choices are read, or before the page may play audio (navigator.userActivation), it plays nothing and the system's own sound is used. It loads as the workspace opens, outside the first download."
+      ],
+      "concepts": ["notifications", "Web Audio"]
+    },
+    {
       "path": "packages/ui/src/lib/build.ts",
       "plain": "Reads which version of the code this app was built from, so the diagnostics report can show it.",
       "summary": "Exposes source identity embedded by web and desktop builds.",
