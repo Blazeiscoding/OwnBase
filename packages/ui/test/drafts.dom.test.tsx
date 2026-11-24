@@ -310,13 +310,21 @@ describe("opening a draft from the Drafts panel", () => {
     return screen.findByRole("complementary", { name: "Drafts" });
   }
 
-  it("has a sidebar row only while there are drafts, or while the panel is open", async () => {
+  it("has a sidebar row only while there are drafts elsewhere, or while the panel is open", async () => {
     const { client, user } = screenWith();
     act(() => client.store.setState({ drafts: {}, draftTimes: {} }));
     await screen.findByRole("button", { name: /^Jump to…/ });
     expect(screen.queryByRole("button", { name: /^Drafts/ })).toBeNull();
+    // Typing in the open conversation (#general) adds no row, which slid every
+    // row under it down on the first letter.
+    act(() => client.setDraft(general.id, "Half a thought"));
+    await act(async () => {});
+    expect(screen.queryByRole("button", { name: /^Drafts/ })).toBeNull();
     act(() => client.setDraft(design.id, "Back to it"));
     const row = await screen.findByRole("button", { name: /^Drafts/ });
+    // Once it is there, it counts every draft, the open conversation's too.
+    expect(drawnText(within(row).getByRole("img", { name: "Unsent drafts" }))).toBe("2");
+    act(() => client.setDraft(general.id, ""));
     await user.click(row);
     const panel = await screen.findByRole("complementary", { name: "Drafts" });
     // Deleting the last keeps the row, marked open, until the panel closes.
