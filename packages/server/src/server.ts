@@ -368,7 +368,7 @@ async function startWorkspaceServer(
   const saved = registerSaved(ctx);
   const emoji = registerEmoji(ctx);
   const groups = registerGroups(ctx);
-  registerSearch(ctx);
+  const search = registerSearch(ctx);
   const push = registerPush(ctx);
   const reminders = registerReminders(ctx, { reminderDue: push.reminderDue });
 
@@ -382,6 +382,7 @@ async function startWorkspaceServer(
     ...workspace.snapshot(user),
     ...emoji.snapshot(),
     ...groups.snapshot(user),
+    ...search.snapshot(user),
   }));
 
   await registerExtensions(ctx, { accounts });

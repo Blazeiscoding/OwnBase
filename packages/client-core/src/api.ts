@@ -924,6 +924,20 @@ export class Api {
     return this.http.json(endpoints.revokeInvite, { params: { code } });
   }
 
+  /** A page of Activity's Reactions tab: others' reactions to this account's messages (K13). */
+  reactionActivity(opts: { cursor?: string; signal?: AbortSignal } = {}) {
+    return this.http.json(
+      endpoints.reactionActivity,
+      { query: { cursor: opts.cursor } },
+      { signal: opts.signal },
+    );
+  }
+
+  /** Marks the reactions to this account's messages seen up to `upTo`, or up to now. */
+  seeReactions(upTo?: number) {
+    return this.http.json(endpoints.seeReactions, { body: upTo === undefined ? {} : { upTo } });
+  }
+
   activity(
     mode: "unread" | "mentions" | "threads",
     opts: { cursor?: ID; signal?: AbortSignal } = {},

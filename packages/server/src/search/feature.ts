@@ -1,9 +1,15 @@
-import { endpoints, hasSearchCriteria, isTimeZone, parseSearchQuery } from "@ownbase/protocol";
+import {
+  endpoints,
+  hasSearchCriteria,
+  isTimeZone,
+  parseSearchQuery,
+  type User,
+} from "@ownbase/protocol";
 import { requireChannelAccess, type ServerContext } from "../core/context.js";
 import { HttpError } from "../httpError.js";
-import { readRankCursor } from "./store.js";
+import { parseReactionCursor, reactionCursor, readRankCursor } from "./store.js";
 
-/** Search and the Activity list: finding messages the caller can read. */
+/** Search and the Activity lists: finding messages the caller can read, and reactions to theirs. */
 export function registerSearch(ctx: ServerContext) {
   const { store, route } = ctx;
 
@@ -11,6 +17,25 @@ export function registerSearch(ctx: ServerContext) {
     const matches = store.search.activity(me.id, { ...query, limit: query.limit + 1 });
     const messages = matches.slice(0, query.limit);
     return { messages, nextCursor: matches.length > query.limit ? messages.at(-1)!.id : null };
+  });
+
+  route(endpoints.reactionActivity, async ({ user: me, query }) => {
+    const after = query.cursor ? parseReactionCursor(query.cursor) : null;
+    if (query.cursor && !after)
+      throw new HttpError(400, "invalid_request", "That page of reactions does not exist.");
+    const found = store.search.reactions(me.id, { after, limit: query.limit + 1 });
+    const reactions = found.slice(0, query.limit);
+    return {
+      reactions,
+      nextCursor: found.length > query.limit ? reactionCursor(reactions.at(-1)!) : null,
+      seenAt: store.search.reactionsSeenAt(me.id),
+      unseen: store.search.unseenReactions(me.id),
+    };
+  });
+
+  route(endpoints.seeReactions, async ({ user: me, body }) => {
+    const seenAt = store.search.seeReactions(me.id, body.upTo);
+    return { seenAt, unseen: store.search.unseenReactions(me.id) };
   });
 
   route(endpoints.search, async ({ user: me, query: q }) => {
@@ -51,4 +76,11 @@ export function registerSearch(ctx: ServerContext) {
     const messages = matches.slice(0, q.limit);
     return { messages, nextCursor: matches.length > q.limit ? messages.at(-1)!.id : null };
   });
+
+  return {
+    snapshot: (user: User) => ({
+      reactionsSeenAt: store.search.reactionsSeenAt(user.id),
+      unseenReactions: store.search.unseenReactions(user.id),
+    }),
+  };
 }

@@ -6068,6 +6068,90 @@
         }
       }
     },
+    "/api/activity/reactions": {
+      "get": {
+        "operationId": "getActivityReactions",
+        "tags": [
+          "activity"
+        ],
+        "summary": "Other people's reactions to the caller's messages, newest first, one entry per message and emoji (K13).",
+        "description": "Other people's reactions to the caller's messages, newest first, one entry per message and emoji (K13). Only messages in conversations the caller is in, and only the newest few thousand reactions, so a busy channel cannot fill it. `seenAt` and `unseen` say which entries are new.\n\nNeeds a signed-in account. Guests may call it too.",
+        "x-access": "member",
+        "x-guests": true,
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "cursor",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "default": 30,
+              "type": "integer",
+              "minimum": 0,
+              "exclusiveMinimum": true,
+              "maximum": 50
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Done."
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    },
+    "/api/activity/reactions/seen": {
+      "post": {
+        "operationId": "postActivityReactionsSeen",
+        "tags": [
+          "activity"
+        ],
+        "summary": "Marks the reactions to the caller's messages seen up to `upTo`, or up to now, on every device of theirs.",
+        "description": "Marks the reactions to the caller's messages seen up to `upTo`, or up to now, on every device of theirs. A mark never moves back.\n\nNeeds a signed-in account. Guests may call it too.",
+        "x-access": "member",
+        "x-guests": true,
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SeeReactionsBody"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Done."
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    },
     "/api/activity/removals/read": {
       "post": {
         "operationId": "postActivityRemovalsRead",
@@ -7522,6 +7606,16 @@
         "required": [
           "email"
         ]
+      },
+      "SeeReactionsBody": {
+        "type": "object",
+        "properties": {
+          "upTo": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991
+          }
+        }
       },
       "ReadRemovalsBody": {
         "type": "object",

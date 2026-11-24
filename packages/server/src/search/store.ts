@@ -1,5 +1,5 @@
-import type { ID, Message, ParsedSearch } from "@ownbase/protocol";
-import { FILE_TYPE_MATCH } from "@ownbase/protocol";
+import type { ID, Message, ParsedSearch, ReactionActivity } from "@ownbase/protocol";
+import { FILE_TYPE_MATCH, REACTION_ACTIVITY_NAMES, UNSEEN_REACTIONS_MAX } from "@ownbase/protocol";
 import type { DatabaseSync } from "node:sqlite";
 import { NAMES_ME, NOT_BLOCKED, UNREAD } from "../core/sqlRules.js";
 import { countOf, shape } from "../core/rows.js";
@@ -9,6 +9,9 @@ import { searchText } from "./words.js";
 
 const windowRow = shape({ edge: "text?", bound: "number?", n: "number" });
 const rankedRow = messageRow.with({ score: "number" });
+const reactionGroupRow = shape({ message_id: "text", emoji: "text", at: "number" });
+const reactorRow = shape({ message_id: "text", emoji: "text", user_id: "text" });
+const seenRow = shape({ seen: "number" });
 type MessageRow = ReturnType<typeof messageRow.read>;
 
 type Filter = [sql: string, ...values: (string | number)[]];
@@ -121,7 +124,45 @@ function namesOf(terms: readonly string[]): Filter | null {
   ];
 }
 
-/** Finding messages: search by words and filters, and the Activity list of mentions. */
+/**
+ * Other people's reactions to the messages of the account `?` names, as the
+ * Reactions tab shows them: only in conversations it is still in, not on
+ * removed messages or in removed threads, and none from someone it blocked.
+ */
+export const REACTIONS_SHOWN = `reactions r
+  JOIN messages m ON m.id = r.message_id AND m.user_id = r.author_id
+  JOIN channel_members cm ON cm.channel_id = m.channel_id AND cm.user_id = r.author_id
+  WHERE r.author_id = ? AND r.user_id != r.author_id AND m.deleted_at IS NULL
+    AND NOT EXISTS (SELECT 1 FROM user_blocks ub WHERE ub.user_id = r.author_id AND ub.blocked_id = r.user_id)
+    AND (m.thread_root_id IS NULL OR EXISTS (
+      SELECT 1 FROM messages root WHERE root.id = m.thread_root_id AND root.deleted_at IS NULL))`;
+
+/** Beside `reactions r`: not from someone the account `?` names blocked. */
+const REACTOR_NOT_BLOCKED =
+  "NOT EXISTS (SELECT 1 FROM user_blocks ub WHERE ub.user_id = ? AND ub.blocked_id = r.user_id)";
+
+/** Where the next page of Reactions starts: after this entry. */
+export function reactionCursor(entry: Pick<ReactionActivity, "at" | "message" | "emoji">): string {
+  return `${entry.at}.${entry.message.id}.${entry.emoji}`;
+}
+
+export interface ReactionCursor {
+  at: number;
+  messageId: ID;
+  emoji: string;
+}
+
+/** A cursor `reactionCursor` made, or null for anything else. */
+export function parseReactionCursor(cursor: string): ReactionCursor | null {
+  const [at, messageId, ...emoji] = cursor.split(".");
+  if (!at || !/^\d+$/.test(at) || !messageId || emoji.length === 0) return null;
+  return { at: Number(at), messageId, emoji: emoji.join(".") };
+}
+
+/**
+ * Finding messages: search by words and filters, and the Activity lists of
+ * mentions and of reactions to one's messages.
+ */
 export class SearchStore {
   constructor(
     private readonly db: DatabaseSync,
@@ -180,6 +221,137 @@ export class SearchStore {
            WHERE ${conditions.join(" AND ")} GROUP BY m.id ORDER BY m.id DESC LIMIT ?`;
     return this.store.messages.hydrate(
       messageRow.all(this.db.prepare(query), ...params, opts.limit),
+    );
+  }
+
+  /**
+   * How many of the newest reactions to one account's messages the Reactions
+   * tab reads at most, so a busy channel costs and shows a bounded amount.
+   */
+  static REACTIONS_WINDOW = 2000;
+
+  /**
+   * Other people's reactions to one account's messages, newest first, one
+   * entry per message and emoji, `limit` entries after `cursor`.
+   */
+  reactions(userId: ID, opts: { after: ReactionCursor | null; limit: number }): ReactionActivity[] {
+    const { after } = opts;
+    const groups = reactionGroupRow.all(
+      this.db.prepare(
+        `WITH recent AS (
+           SELECT r.message_id, r.emoji, r.created_at FROM ${REACTIONS_SHOWN}
+           ORDER BY r.created_at DESC LIMIT ?
+         )
+         SELECT message_id, emoji, MAX(created_at) AS at FROM recent
+         GROUP BY message_id, emoji
+         ${after ? "HAVING (at, message_id, emoji) < (?, ?, ?)" : ""}
+         ORDER BY at DESC, message_id DESC, emoji DESC LIMIT ?`,
+      ),
+      userId,
+      SearchStore.REACTIONS_WINDOW,
+      ...(after ? [after.at, after.messageId, after.emoji] : []),
+      opts.limit,
+    );
+    if (groups.length === 0) return [];
+    const ids = [...new Set(groups.map((g) => g.message_id))];
+    const marks = ids.map(() => "?").join(",");
+    const messages = new Map(
+      this.store.messages
+        .hydrate(
+          messageRow.all(this.db.prepare(`SELECT * FROM messages WHERE id IN (${marks})`), ...ids),
+        )
+        .map((message) => [message.id, message]),
+    );
+    const reactors = new Map<string, ID[]>();
+    for (const row of reactorRow.all(
+      this.db.prepare(
+        `SELECT r.message_id, r.emoji, r.user_id FROM reactions r
+         WHERE r.message_id IN (${marks}) AND r.user_id != ? AND ${REACTOR_NOT_BLOCKED}
+         ORDER BY r.created_at DESC`,
+      ),
+      ...ids,
+      userId,
+      userId,
+    )) {
+      const key = `${row.message_id}\n${row.emoji}`;
+      const who = reactors.get(key);
+      if (who) who.push(row.user_id);
+      else reactors.set(key, [row.user_id]);
+    }
+    return groups.flatMap((group) => {
+      const message = messages.get(group.message_id);
+      const who = reactors.get(`${group.message_id}\n${group.emoji}`) ?? [];
+      if (!message || who.length === 0) return [];
+      return [
+        {
+          message,
+          emoji: group.emoji,
+          userIds: who.slice(0, REACTION_ACTIVITY_NAMES),
+          count: who.length,
+          at: group.at,
+        },
+      ];
+    });
+  }
+
+  /** How many Reactions entries are newer than one account's mark, up to `UNSEEN_REACTIONS_MAX`. */
+  unseenReactions(userId: ID): number {
+    return countOf(
+      this.db.prepare(
+        `SELECT COUNT(*) AS n FROM (
+           SELECT 1 FROM ${REACTIONS_SHOWN} AND r.created_at > ?
+           GROUP BY r.message_id, r.emoji LIMIT ?
+         )`,
+      ),
+      userId,
+      this.reactionsSeenAt(userId),
+      UNSEEN_REACTIONS_MAX,
+    );
+  }
+
+  /**
+   * How far one account has seen the reactions to its messages. An account
+   * has seen everything from before it was made, such as reactions a Slack
+   * import brought in with their old times.
+   */
+  reactionsSeenAt(userId: ID): number {
+    return (
+      seenRow.get(
+        this.db.prepare(
+          "SELECT MAX(reactions_seen_at, created_at) AS seen FROM users WHERE id = ?",
+        ),
+        userId,
+      )?.seen ?? 0
+    );
+  }
+
+  /**
+   * Moves one account's mark to `upTo`, never back and never past now, and
+   * tells its devices. Gives back where the mark is.
+   */
+  seeReactions(userId: ID, upTo?: number): number {
+    const at = Math.min(upTo ?? Date.now(), Date.now());
+    this.db
+      .prepare("UPDATE users SET reactions_seen_at = MAX(reactions_seen_at, ?) WHERE id = ?")
+      .run(at, userId);
+    this.store.outbox.person(
+      userId,
+      () => ({
+        type: "reactions.seen",
+        seenAt: this.reactionsSeenAt(userId),
+        unseen: this.unseenReactions(userId),
+      }),
+      { key: "reactions.seen" },
+    );
+    return this.reactionsSeenAt(userId);
+  }
+
+  /** Someone reacted to one of this account's messages, or took a reaction back. */
+  reactionsChanged(authorId: ID): void {
+    this.store.outbox.person(
+      authorId,
+      () => ({ type: "reactions.changed", unseen: this.unseenReactions(authorId) }),
+      { key: "reactions.changed" },
     );
   }
 

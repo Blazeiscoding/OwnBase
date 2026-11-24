@@ -75,6 +75,7 @@ function state(over: Partial<WorkspaceState> = {}): WorkspaceState {
     notifyDefault: "mentions",
     reminders: {},
     channelRemovals: {},
+    reactionActivity: { seenAt: 0, unseen: 0, revision: 0 },
     pollChoices: {},
     pollPicks: {},
     accessPolicy: "account_required",

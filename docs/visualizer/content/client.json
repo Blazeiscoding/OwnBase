@@ -2234,6 +2234,17 @@
       "concepts": ["reminders", "Activity", "E4"]
     },
     {
+      "path": "packages/ui/src/components/ReactionsList.tsx",
+      "plain": "Activity's list of who reacted to your messages and with what, newest first, with a dot on the ones you have not seen yet.",
+      "summary": "Lists other people's reactions to this account's messages, one entry per message and emoji, and marks them seen.",
+      "details": [
+        "Reads GET /api/activity/reactions a page at a time through client.lists.reactionActivity, and reads it again whenever the server says the reactions to this account's messages changed.",
+        "Each entry says who reacted (one name, two, or the newest and how many others), the emoji, and the start of the message, and opens that message.",
+        "Opening the tab marks everything shown as seen, on every device, so the tab's count goes. Entries that were new when it opened keep their dot while it stays open. The sidebar's Activity badge never counts reactions."
+      ],
+      "concepts": ["reactions", "Activity", "K13"]
+    },
+    {
       "path": "packages/ui/src/components/Mrkdwn.tsx",
       "plain": "Turns message formatting like bold, code, quotes, lists, mentions and links into what you see, and reveals where a link really goes.",
       "summary": "Renders the supported Slack-style message syntax into React elements.",

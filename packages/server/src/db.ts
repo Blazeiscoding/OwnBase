@@ -886,6 +886,17 @@ const MIGRATIONS: string[] = [
   `
   ALTER TABLE invites ADD COLUMN email TEXT;
   `,
+  // Reactions to your messages in Activity (K13). Each reaction keeps who
+  // wrote the message it is on, so one account's are read from an index
+  // rather than by walking its messages, and each account keeps how far it
+  // has seen them. Reactions from before this count as seen.
+  `
+  ALTER TABLE reactions ADD COLUMN author_id TEXT;
+  UPDATE reactions SET author_id = (SELECT m.user_id FROM messages m WHERE m.id = reactions.message_id);
+  CREATE INDEX idx_reactions_author ON reactions(author_id, created_at);
+  ALTER TABLE users ADD COLUMN reactions_seen_at INTEGER NOT NULL DEFAULT 0;
+  UPDATE users SET reactions_seen_at = CAST(unixepoch('subsec') * 1000 AS INTEGER);
+  `,
 ];
 
 /** The schema this build understands. A workspace above it cannot be opened. */

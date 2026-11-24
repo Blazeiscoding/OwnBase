@@ -138,6 +138,14 @@ export type EphemeralEvent =
   /** Notes of removals this user read, gone from every device of theirs. */
   | { type: "channel.removals.read"; ids: ID[] }
   /**
+   * Someone else reacted to one of this user's messages, or took a reaction
+   * back (K13), so Activity's Reactions tab reads its list again. `unseen` is
+   * how many of its entries are new now. Private to their own sockets.
+   */
+  | { type: "reactions.changed"; unseen: number }
+  /** This user saw their reactions up to `seenAt`, on one of their devices. */
+  | { type: "reactions.seen"; seenAt: number; unseen: number }
+  /**
    * What this user chose in an anonymous poll, which no message says (E6):
    * option places, empty once they take their vote back. Private to their own
    * sockets.
@@ -254,6 +262,10 @@ export interface ReadySnapshot {
   reminders: Reminder[];
   /** Notes that someone removed this account from channels, not yet read, newest first. */
   channelRemovals: ChannelRemoval[];
+  /** When this account last saw the reactions to its messages (K13). */
+  reactionsSeenAt: number;
+  /** How many of Activity's Reactions entries are newer, up to `UNSEEN_REACTIONS_MAX`. */
+  unseenReactions: number;
   /** What this account chose in each anonymous poll it voted in and can still read (E6). */
   pollChoices: Record<ID, number[]>;
   /** This account's sidebar sections, in their order (E8). */

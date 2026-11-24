@@ -133,4 +133,6 @@ export const messageDurable = {
 
 export const messageEphemeral = {
   mentions: "person",
+  "reactions.changed": "person",
+  "reactions.seen": "person",
 } as const satisfies Partial<EphemeralRegistry>;

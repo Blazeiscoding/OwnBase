@@ -621,6 +621,20 @@ export const activityQuery = z.object({
   limit: z.coerce.number().int().positive().max(100).default(30),
 });
 
+/**
+ * A page of Activity's Reactions tab. The cursor is the last entry's
+ * `at.messageId.emoji`, as the server gave it.
+ */
+export const reactionActivityQuery = z.object({
+  cursor: z.string().min(1).max(200).optional(),
+  limit: z.coerce.number().int().positive().max(50).default(30),
+});
+
+/** How far this account has seen the reactions to its messages: `upTo`, or now. */
+export const seeReactionsBody = z.object({
+  upTo: z.number().int().nonnegative().optional(),
+});
+
 /** The notes that someone removed this account from channels, read and cleared. */
 export const readRemovalsBody = z.object({
   ids: z.array(z.string().min(1).max(100)).min(1).max(200),

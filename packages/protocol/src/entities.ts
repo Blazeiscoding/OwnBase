@@ -866,6 +866,27 @@ export interface ChannelRemoval {
   createdAt: number;
 }
 
+/**
+ * Other people's reactions with one emoji to one of this account's messages,
+ * as Activity's Reactions tab shows them (K13).
+ */
+export interface ReactionActivity {
+  message: Message;
+  emoji: string;
+  /** Who reacted, newest first, at most `REACTION_ACTIVITY_NAMES` of them. */
+  userIds: ID[];
+  /** How many people reacted with it, this account aside. */
+  count: number;
+  /** When the newest of them reacted. Unseen while after `reactionsSeenAt`. */
+  at: number;
+}
+
+/** How many of the people who reacted a Reactions entry names. */
+export const REACTION_ACTIVITY_NAMES = 3;
+
+/** Unseen Reactions entries are counted up to this many; the tab says "99+" past it. */
+export const UNSEEN_REACTIONS_MAX = 100;
+
 /** A reminder with the message it is about, as the Reminders list shows it. */
 export interface ReminderItem {
   reminder: Reminder;

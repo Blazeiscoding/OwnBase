@@ -4,6 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { DatabaseSync } from "node:sqlite";
 import { openDb, openDbAtVersion } from "../src/db.js";
+import { REACTIONS_SHOWN } from "../src/search/store.js";
 
 /**
  * Which index SQLite reads a query through, checked on a database with the
@@ -170,5 +171,23 @@ describe("app events waiting to be delivered", () => {
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }
+  });
+});
+
+describe("Activity's reactions", () => {
+  it("walks one account's reactions newest first through its index, not every reaction", () => {
+    const window = plan(
+      `SELECT r.message_id, r.emoji, r.created_at FROM ${REACTIONS_SHOWN}
+       ORDER BY r.created_at DESC LIMIT 2000`,
+      "U1",
+    );
+    expect(window).toContain("idx_reactions_author");
+    expect(window).not.toContain("TEMP B-TREE");
+    const unseen = plan(
+      `SELECT 1 FROM ${REACTIONS_SHOWN} AND r.created_at > ? GROUP BY r.message_id, r.emoji`,
+      "U1",
+      0,
+    );
+    expect(unseen).toContain("idx_reactions_author");
   });
 });

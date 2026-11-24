@@ -15,6 +15,7 @@ import type {
   Invite,
   Message,
   NotifyLevel,
+  ReactionActivity,
   ReminderItem,
   Reminder,
   ReportedMessage,
@@ -1931,6 +1932,37 @@ export const endpoints = {
     access: "guest",
     query: "activityQuery",
     answer: json<{ messages: Message[]; nextCursor: ID | null }>(),
+  }),
+
+  /**
+   * Other people's reactions to the caller's messages, newest first, one
+   * entry per message and emoji (K13). Only messages in conversations the
+   * caller is in, and only the newest few thousand reactions, so a busy
+   * channel cannot fill it. `seenAt` and `unseen` say which entries are new.
+   */
+  reactionActivity: endpoint({
+    method: "GET",
+    path: "/api/activity/reactions",
+    access: "guest",
+    query: "reactionActivityQuery",
+    answer: json<{
+      reactions: ReactionActivity[];
+      nextCursor: string | null;
+      seenAt: number;
+      unseen: number;
+    }>(),
+  }),
+
+  /**
+   * Marks the reactions to the caller's messages seen up to `upTo`, or up to
+   * now, on every device of theirs. A mark never moves back.
+   */
+  seeReactions: endpoint({
+    method: "POST",
+    path: "/api/activity/reactions/seen",
+    access: "guest",
+    body: "seeReactionsBody",
+    answer: json<{ seenAt: number; unseen: number }>(),
   }),
 
   // Reads notes that someone removed this account from channels, which clears

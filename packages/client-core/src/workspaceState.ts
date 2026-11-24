@@ -117,6 +117,13 @@ export interface WorkspaceState extends MessageCache {
    */
   channelRemovals: Record<ID, ChannelRemoval>;
   /**
+   * Reactions to this account's messages (K13): how far it has seen them,
+   * how many of the Reactions tab's entries are newer, and a count that
+   * moves each time the server says the list changed, for the open list to
+   * read it again.
+   */
+  reactionActivity: { seenAt: number; unseen: number; revision: number };
+  /**
    * What this account chose in each anonymous poll it voted in, by message id,
    * which no message says (E6).
    */
@@ -253,6 +260,7 @@ export const initialState: WorkspaceState = {
   notifyDefault: "mentions",
   reminders: {},
   channelRemovals: {},
+  reactionActivity: { seenAt: 0, unseen: 0, revision: 0 },
   pollChoices: {},
   pollPicks: {},
   accessPolicy: null,

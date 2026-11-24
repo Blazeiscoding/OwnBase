@@ -104,7 +104,8 @@ describe("Alt+Up and Alt+Down", () => {
 });
 
 describe("what Mark all read says", () => {
-  const unread = (channels: number, threads: number, removals = 0) => ({
+  const unread = (channels: number, threads: number, removals = 0, reactions = 0) => ({
+    reactions,
     channels: Array.from({ length: channels }, (_, i) => `C${i}`),
     threads: Array.from({ length: threads }, () => ({}) as never),
     removals: Array.from({ length: removals }, (_, i) => `R${i}`),
@@ -115,5 +116,6 @@ describe("what Mark all read says", () => {
     expect(unreadSummary(unread(3, 1))).toBe("3 conversations and 1 thread");
     expect(unreadSummary(unread(0, 2))).toBe("2 threads");
     expect(unreadSummary(unread(2, 1, 1))).toBe("2 conversations, 1 thread and 1 removal note");
+    expect(unreadSummary(unread(1, 0, 0, 3))).toBe("1 conversation and 3 reactions");
   });
 });
