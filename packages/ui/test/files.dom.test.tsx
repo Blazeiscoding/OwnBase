@@ -127,11 +127,29 @@ describe("the file browser", () => {
     await waitFor(() => expect(rows()).toHaveLength(2));
     expect(list).toHaveBeenCalledWith({}, undefined, expect.any(AbortSignal));
     expect(rows()).toEqual([
-      expect.stringMatching(/^Open mockup\.png, 2\.0 KB, from Priya Shah in design, /),
-      expect.stringMatching(/^Download brief\.pdf, 2\.0 KB, from Sam Rivera in general, /),
+      expect.stringMatching(/^Open mockup\.png, 2\.0 KB, from Priya Shah in #design, /),
+      expect.stringMatching(/^Download brief\.pdf, 2\.0 KB, from Sam Rivera in #general, /),
     ]);
-    expect(panel()).toHaveTextContent("Priya Shah in design");
+    expect(panel()).toHaveTextContent("Priya Shah in #design");
     expect(await accessibilityProblems(panel())).toEqual([]);
+  });
+
+  it("says a direct message's file came in a direct message, or went to the person", async () => {
+    const dm: Channel = { ...room("C_DM", ""), type: "dm", memberIds: ["U_SAM", "U_PRIYA"] };
+    const theirs = shared("F_THEIRS", "theirs.pdf", "application/pdf", { channelId: "C_DM" });
+    const mine = shared("F_MINE", "mine.pdf", "application/pdf", {
+      channelId: "C_DM",
+      userId: "U_SAM",
+    });
+    const { client } = opened([{ files: [theirs, mine], nextCursor: null }]);
+    client.store.setState((s) => ({ channels: { ...s.channels, C_DM: dm } }));
+    await waitFor(() => expect(rows()).toHaveLength(2));
+    expect(rows()).toEqual([
+      expect.stringMatching(
+        /^Download theirs\.pdf, 2\.0 KB, from Priya Shah in a direct message, /,
+      ),
+      expect.stringMatching(/^Download mine\.pdf, 2\.0 KB, from Sam Rivera to Priya Shah, /),
+    ]);
   });
 
   it("narrows by kind, person, conversation and name, and clears back", async () => {
