@@ -4,6 +4,7 @@ import {
   type Message,
   type NotificationPreview,
 } from "@ownbase/protocol";
+import { isDirect } from "@ownbase/protocol";
 import {
   decideNotification,
   decideReminderNotification,
@@ -17,6 +18,10 @@ import { CatchUpSummary, namesList } from "./catchUp.js";
 import { onScreenElsewhere } from "./focusedView.js";
 import type { Navigation } from "./navigation.js";
 import { catchUpContent } from "./notificationPreview.js";
+import { preloadable } from "./preloadable.js";
+
+// The app's notification sounds, fetched as the workspace opens (K10).
+const sounds = preloadable(() => import("./sounds.js"));
 
 export interface NotificationOptions {
   client: WorkspaceClient;
@@ -49,6 +54,24 @@ export function startNotifications(options: NotificationOptions): () => void {
   // results, pins and links use.
   const open = (msg: Message) => () =>
     navigation.navigate({ to: "message", channelId: msg.channelId, messageId: msg.id });
+  /**
+   * Sounds a notification about `msg` as this device chose, and says whether
+   * the app did, so the system's own sound stays quiet. Until the sounds have
+   * arrived, the system's plays.
+   */
+  sounds.load().then(
+    (loaded) => loaded.readSounds(platform),
+    () => {},
+  );
+  const sound = (msg: Message, id: string): boolean => {
+    const loaded = sounds.loaded();
+    if (!loaded) {
+      sounds.load().catch(() => undefined);
+      return false;
+    }
+    const direct = isDirect(client.state.channels[msg.channelId]?.type);
+    return loaded.soundNotification(platform, direct ? "direct" : "message", options.account(), id);
+  };
 
   const tell = (msg: Message) => {
     const state = client.state;
@@ -57,7 +80,10 @@ export function startNotifications(options: NotificationOptions): () => void {
       channelName: state.channels[msg.channelId]?.name,
       body: notificationBody(state, msg),
     });
-    platform.notify(title, body, open(msg), { tag: `${options.account()} ${msg.id}` });
+    platform.notify(title, body, open(msg), {
+      tag: `${options.account()} ${msg.id}`,
+      silent: sound(msg, msg.id),
+    });
   };
 
   const catchUp = new CatchUpSummary({
@@ -82,6 +108,7 @@ export function startNotifications(options: NotificationOptions): () => void {
       // same in every window that caught up on the same messages.
       platform.notify(title, body, open(first), {
         tag: `${options.account()} catch-up ${first.id}`,
+        silent: sound(first, `catch-up ${first.id}`),
       });
     },
   });
@@ -116,7 +143,26 @@ export function startNotifications(options: NotificationOptions): () => void {
       });
       platform.notify(title, body, open(message), {
         tag: `${options.account()} reminder ${reminder.id}`,
+        silent: sound(message, `reminder ${reminder.id}`),
       });
+    }),
+    // Someone coming into or leaving the call this window is in.
+    client.store.subscribe((state, before) => {
+      const now = state.huddle;
+      const was = before.huddle;
+      if (!now || !was || now.channelId !== was.channelId || now.peers === was.peers) return;
+      const ids = (peers: typeof now.peers) => new Set(peers.map((peer) => peer.userId));
+      const [present, earlier] = [ids(now.peers), ids(was.peers)];
+      const change = [...present].some((id) => !earlier.has(id))
+        ? "join"
+        : [...earlier].some((id) => !present.has(id))
+          ? "leave"
+          : null;
+      if (change)
+        void sounds.load().then(
+          (loaded) => loaded.soundCall(platform, change),
+          () => {},
+        );
     }),
   ];
   return () => {

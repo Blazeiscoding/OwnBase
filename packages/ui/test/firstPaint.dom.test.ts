@@ -25,6 +25,7 @@ afterEach(() => {
   localStorage.removeItem(FIRST_PAINT_KEY);
   document.documentElement.removeAttribute("data-theme");
   document.documentElement.removeAttribute("data-density");
+  document.documentElement.removeAttribute("data-text-size");
   for (const bar of document.head.querySelectorAll('meta[name="theme-color"]')) bar.remove();
 });
 
@@ -41,6 +42,7 @@ function firstPaint(kept?: string) {
   return {
     theme: root.getAttribute("data-theme"),
     density: root.getAttribute("data-density"),
+    textSize: root.getAttribute("data-text-size"),
     bar: bar.content,
   };
 }
@@ -62,9 +64,12 @@ describe("the page's first paint", () => {
   });
 
   it("puts the kept theme and density on the page", () => {
-    expect(firstPaint(JSON.stringify({ theme: "light", density: "compact" }))).toEqual({
+    expect(
+      firstPaint(JSON.stringify({ theme: "light", density: "compact", textSize: "largest" })),
+    ).toEqual({
       theme: "light",
       density: "compact",
+      textSize: "largest",
       bar: "#e9e9ec",
     });
   });
@@ -73,6 +78,7 @@ describe("the page's first paint", () => {
     expect(firstPaint(JSON.stringify({ theme: "dark", density: "comfortable" }))).toEqual({
       theme: "dark",
       density: "comfortable",
+      textSize: "default",
       bar: "#111115",
     });
   });
@@ -88,9 +94,12 @@ describe("the page's first paint", () => {
 
   it("follows the device, without throwing, when what is kept cannot be read", () => {
     expect(firstPaint("{not json")).toMatchObject({ theme: "system", density: "comfortable" });
-    expect(firstPaint(JSON.stringify({ theme: "sepia", density: 3 }))).toMatchObject({
+    expect(
+      firstPaint(JSON.stringify({ theme: "sepia", density: 3, textSize: "huge" })),
+    ).toMatchObject({
       theme: "system",
       density: "comfortable",
+      textSize: "default",
     });
     vi.spyOn(Storage.prototype, "getItem").mockImplementation(() => {
       throw new DOMException("denied", "SecurityError");

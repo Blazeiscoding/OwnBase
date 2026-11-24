@@ -23,7 +23,15 @@ import {
   useActionContext,
   type ActionContext,
 } from "../lib/actions.js";
-import { rowShown, sidebarGroups, toggleCollapsed, useCollapsed } from "../lib/sidebarLayout.js";
+import {
+  rowShown,
+  rowWaits,
+  setUnreadOnly,
+  sidebarGroups,
+  toggleCollapsed,
+  useCollapsed,
+  useUnreadOnly,
+} from "../lib/sidebarLayout.js";
 import { protocolMismatch } from "../lib/connection.js";
 import { useClient, useWorkspace } from "../context.js";
 import { dueReminderCount, unreadRemovalCount, unreadThreadCount } from "@ownbase/client-core";
@@ -44,6 +52,7 @@ import { CountBadge, Swap, useChanges } from "./Motion.js";
 import { WorkspaceIcon } from "./WorkspaceIcon.js";
 import { ErrorBoundary } from "./ErrorBoundary.js";
 import { useToast } from "./Toast.js";
+import { useShareableServer } from "./ShareableServer.js";
 import { failureText } from "../lib/failure.js";
 import { useConfirm } from "./Confirm.js";
 import { CLEAR_AFTER, STATUS_PRESETS, statusEnd, statusUntil } from "../lib/status.js";
@@ -55,6 +64,7 @@ import {
   moveItems,
   muteItem,
   starItem,
+  copyLinkItem,
   type Conversation,
 } from "../lib/conversationChoices.js";
 
@@ -280,12 +290,17 @@ export function Sidebar(props: {
     toggleCollapsed(section);
   };
   const rowsIn = (section: string) => (reopened[section] ? "rows-in" : "");
+  const unreadOnly = useUnreadOnly();
   // A collapsed category still shows where you are and what is waiting, as Discord's do.
   const shown = (section: string, id: ID) =>
-    rowShown(layout, collapsed, section, id, activeChannelId);
+    rowShown(layout, collapsed, section, id, activeChannelId, unreadOnly);
+  // Showing unread only, a section with nothing to show goes, header and all.
+  const anyShown = (section: string, list: Channel[]) =>
+    !unreadOnly || list.some((ch) => shown(section, ch.id));
 
   const client = useClient();
   const toast = useToast();
+  const shareable = useShareableServer();
   const confirm = useConfirm();
   const navRef = useRef<HTMLElement>(null);
   /** A section being named: a new one, which the conversation `moveId` goes into, or one renamed. */
@@ -316,7 +331,7 @@ export function Sidebar(props: {
     }
   });
 
-  /** A row's own menu: Mark as read, Star or Unstar, and Mute or Unmute, named by what they do now. */
+  /** A row's own menu: Mark as read, Star or Unstar, Mute or Unmute (named by what they do now), Copy link. */
   function rowMenu(ch: Channel, label: string): RowMenu {
     const conversation: Conversation = {
       id: ch.id,
@@ -357,6 +372,7 @@ export function Sidebar(props: {
       ...muteItem(client, toast, conversation, isMuted(ch.id)),
       section: true,
     });
+    items.push(copyLinkItem(toast, shareable.serverUrl, conversation));
     if (isDirect(ch.type) && prefs[ch.id])
       items.push(closeItem(client, toast, ch.id, channelLastSeq[ch.id] ?? 0, label));
     return { label, items };
@@ -606,7 +622,7 @@ export function Sidebar(props: {
           )}
           {shell.hosting && <HostingStatus hosting={shell.hosting} className="mx-2 mt-2" />}
 
-          <div className="px-2 pb-1 pt-2.5">
+          <div className="flex gap-1 px-2 pb-1 pt-2.5">
             {/* Its words and shortcut are on the button already, so it needs no
               hint. A tooltip would also open when the phone drawer puts focus
               here, and take the Escape meant to close the drawer. */}
@@ -614,7 +630,7 @@ export function Sidebar(props: {
               onClick={() => nav.navigate({ to: "dialog", dialog: { kind: "switcher" } })}
               data-drawer-focus
               aria-keyshortcuts="Control+K Meta+K"
-              className="flex h-8 w-full items-center gap-2 rounded-lg bg-ink/[0.06] px-2.5 text-[13px] text-ink-faint transition-colors hover:bg-ink/[0.09] hover:text-ink-dim"
+              className="flex h-8 min-w-0 flex-1 items-center gap-2 rounded-lg bg-ink/[0.06] px-2.5 text-[13px] text-ink-faint transition-colors hover:bg-ink/[0.09] hover:text-ink-dim"
             >
               <Icon name="search" size={14} />
               <span className="flex-1 text-left">Jump to…</span>
@@ -622,6 +638,17 @@ export function Sidebar(props: {
                 {shortcutLabel("Mod+K")}
               </kbd>
             </button>
+            <Tooltip label="Unread only" keys={shortcutLabel("Mod+Shift+A")}>
+              <button
+                aria-label="Unread only"
+                aria-pressed={unreadOnly}
+                aria-keyshortcuts="Control+Shift+A Meta+Shift+A"
+                onClick={() => setUnreadOnly(!unreadOnly)}
+                className="touch-target flex size-8 shrink-0 items-center justify-center rounded-lg bg-ink/[0.06] text-ink-faint transition-colors hover:bg-ink/[0.09] hover:text-ink-dim aria-pressed:bg-copper/15 aria-pressed:text-copper"
+              >
+                <Icon name="filter" size={15} />
+              </button>
+            </Tooltip>
           </div>
 
           <div className="sidebar-scroll flex-1 overflow-y-auto px-2 pb-3 pt-1.5">
@@ -697,8 +724,26 @@ export function Sidebar(props: {
               )}
             </ul>
 
+            {unreadOnly && (
+              <p className="mb-3 flex items-center gap-2 px-2 text-[13px] text-ink-faint">
+                <span className="min-w-0 flex-1">
+                  {[...starred, ...[...sectioned.values()].flat(), ...rooms, ...dms].some((ch) =>
+                    rowWaits(layout, ch.id),
+                  )
+                    ? "Showing unread only."
+                    : "All caught up."}
+                </span>
+                <button
+                  onClick={() => setUnreadOnly(false)}
+                  className="shrink-0 rounded font-medium text-copper hover:underline"
+                >
+                  Show all
+                </button>
+              </p>
+            )}
+
             {/* Shown while it holds something, or while a row is dragged that it could take. */}
-            {(starred.length > 0 || dropOn !== null) && (
+            {(starred.length > 0 || dropOn !== null) && anyShown("starred", starred) && (
               <div {...dropZone("starred")}>
                 <SectionHeader
                   label="Starred"
@@ -718,6 +763,7 @@ export function Sidebar(props: {
             {sections.map((section, index) => {
               const place = `section:${section.id}`;
               const inIt = sectioned.get(section.id) ?? [];
+              if (!anyShown(place, inIt)) return null;
               return (
                 <div key={section.id} {...dropZone(place)}>
                   <SectionHeader
@@ -745,62 +791,67 @@ export function Sidebar(props: {
               );
             })}
 
-            <div {...dropZone("channels")}>
-              <SectionHeader
-                label="Channels"
-                section="channels"
-                collapsed={collapsed.has("channels")}
-                onToggle={() => toggleSection("channels")}
-                actions={[
-                  {
-                    label: "Browse channels",
-                    icon: "compass",
-                    onClick: () => runAction(actions, "browse"),
-                  },
-                  ...(offered(actions, "new-channel")
-                    ? [
-                        {
-                          label: "New channel",
-                          icon: "plus" as const,
-                          onClick: () => runAction(actions, "new-channel"),
-                        },
-                      ]
-                    : []),
-                ]}
-              />
-              <ul key={reopened.channels} className={`mb-4 space-y-px ${rowsIn("channels")}`}>
-                {rooms.filter((ch) => shown("channels", ch.id)).map(roomRow)}
-              </ul>
-            </div>
-
-            <div {...dropZone("dms")}>
-              {offered(actions, "new-message") && (
+            {anyShown("channels", rooms) && (
+              <div {...dropZone("channels")}>
                 <SectionHeader
-                  label="Direct messages"
-                  section="dms"
-                  collapsed={collapsed.has("dms")}
-                  onToggle={() => toggleSection("dms")}
+                  label="Channels"
+                  section="channels"
+                  collapsed={collapsed.has("channels")}
+                  onToggle={() => toggleSection("channels")}
                   actions={[
                     {
-                      label: "Friends",
-                      icon: "friends",
-                      onClick: () => nav.navigate({ to: "dialog", dialog: { kind: "friends" } }),
-                      badge: friendRequests,
+                      label: "Browse channels",
+                      icon: "compass",
+                      onClick: () => runAction(actions, "browse"),
                     },
-                    {
-                      label: "New message",
-                      icon: "plus",
-                      onClick: () => runAction(actions, "new-message"),
-                    },
+                    ...(offered(actions, "new-channel")
+                      ? [
+                          {
+                            label: "New channel",
+                            icon: "plus" as const,
+                            onClick: () => runAction(actions, "new-channel"),
+                          },
+                        ]
+                      : []),
                   ]}
                 />
-              )}
-              <ul key={reopened.dms} className={`space-y-px ${rowsIn("dms")}`}>
-                {dms.filter((ch) => shown("dms", ch.id)).map(dmRow)}
-              </ul>
-            </div>
+                <ul key={reopened.channels} className={`mb-4 space-y-px ${rowsIn("channels")}`}>
+                  {rooms.filter((ch) => shown("channels", ch.id)).map(roomRow)}
+                </ul>
+              </div>
+            )}
+
+            {anyShown("dms", dms) && (
+              <div {...dropZone("dms")}>
+                {offered(actions, "new-message") && (
+                  <SectionHeader
+                    label="Direct messages"
+                    section="dms"
+                    collapsed={collapsed.has("dms")}
+                    onToggle={() => toggleSection("dms")}
+                    actions={[
+                      {
+                        label: "Friends",
+                        icon: "friends",
+                        onClick: () => nav.navigate({ to: "dialog", dialog: { kind: "friends" } }),
+                        badge: friendRequests,
+                      },
+                      {
+                        label: "New message",
+                        icon: "plus",
+                        onClick: () => runAction(actions, "new-message"),
+                      },
+                    ]}
+                  />
+                )}
+                <ul key={reopened.dms} className={`space-y-px ${rowsIn("dms")}`}>
+                  {dms.filter((ch) => shown("dms", ch.id)).map(dmRow)}
+                </ul>
+              </div>
+            )}
             {/* For someone with nobody to talk to yet; starred ones still count. */}
-            {dms.length === 0 &&
+            {!unreadOnly &&
+              dms.length === 0 &&
               !starred.some((ch) => isDirect(ch.type)) &&
               offered(actions, "new-message") && (
                 <button

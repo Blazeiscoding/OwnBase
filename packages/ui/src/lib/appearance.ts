@@ -15,15 +15,22 @@ export const THEMES = ["system", "dark", "light"] as const;
 export type Theme = (typeof THEMES)[number];
 export const DENSITIES = ["comfortable", "compact"] as const;
 export type Density = (typeof DENSITIES)[number];
+/** How large what people write reads (K09): theme.css scales messages and the composer by it. */
+export const TEXT_SIZES = ["smaller", "default", "larger", "largest"] as const;
+export type TextSize = (typeof TEXT_SIZES)[number];
 
 interface Appearance {
   theme: Theme;
   density: Density;
+  textSize: TextSize;
   loaded: boolean;
   error: string | null;
   /** Resolves true once the choice is kept, false when it could not be and was put back. */
-  set: (change: Partial<Pick<Appearance, "theme" | "density">>) => Promise<boolean>;
+  set: (change: Partial<Pick<Appearance, "theme" | "density" | "textSize">>) => Promise<boolean>;
 }
+
+const textSizeOf = (value: unknown): TextSize =>
+  (TEXT_SIZES as readonly unknown[]).includes(value) ? (value as TextSize) : "default";
 
 const KEY = "appearance";
 
@@ -39,11 +46,12 @@ const KEY = "appearance";
  */
 export const FIRST_PAINT_KEY = "ownbase-first-paint";
 
-function firstPaintCopy(): { theme: Theme; density: Density } | null {
+function firstPaintCopy(): { theme: Theme; density: Density; textSize: TextSize } | null {
   try {
     const saved = JSON.parse(localStorage.getItem(FIRST_PAINT_KEY) ?? "null") as {
       theme?: unknown;
       density?: unknown;
+      textSize?: unknown;
     } | null;
     if (!saved) return null;
     return {
@@ -53,15 +61,16 @@ function firstPaintCopy(): { theme: Theme; density: Density } | null {
       density: (DENSITIES as readonly unknown[]).includes(saved.density)
         ? (saved.density as Density)
         : "comfortable",
+      textSize: textSizeOf(saved.textSize),
     };
   } catch {
     return null;
   }
 }
 
-function keepFirstPaintCopy(theme: Theme, density: Density): void {
+function keepFirstPaintCopy(theme: Theme, density: Density, textSize: TextSize): void {
   try {
-    localStorage.setItem(FIRST_PAINT_KEY, JSON.stringify({ theme, density }));
+    localStorage.setItem(FIRST_PAINT_KEY, JSON.stringify({ theme, density, textSize }));
   } catch {
     // Without it the next page paints the device's theme first, as before.
   }
@@ -74,6 +83,7 @@ function createAppearance(platform: Platform) {
     // the page was first painted with, until the saved choice is read.
     theme: copy?.theme ?? "system",
     density: copy?.density ?? "comfortable",
+    textSize: copy?.textSize ?? "default",
     loaded: false,
     error: null,
     set: async (change) => {
@@ -81,6 +91,7 @@ function createAppearance(platform: Platform) {
       const next = {
         theme: change.theme ?? before.theme,
         density: change.density ?? before.density,
+        textSize: change.textSize ?? before.textSize,
       };
       // Shown at once, so choosing feels like choosing; put back if it cannot be kept.
       store.setState({ ...next, error: null });
@@ -91,6 +102,7 @@ function createAppearance(platform: Platform) {
         store.setState({
           theme: before.theme,
           density: before.density,
+          textSize: before.textSize,
           error: "Could not save how OwnBase looks on this device. Please try again.",
         });
         return false;
@@ -98,7 +110,7 @@ function createAppearance(platform: Platform) {
     },
   }));
   void platform.storage
-    .get<{ theme?: unknown; density?: unknown }>(KEY)
+    .get<{ theme?: unknown; density?: unknown; textSize?: unknown }>(KEY)
     .then((saved) => {
       store.setState({
         theme: (THEMES as readonly unknown[]).includes(saved?.theme)
@@ -111,6 +123,7 @@ function createAppearance(platform: Platform) {
         density: (DENSITIES as readonly unknown[]).includes(saved?.density)
           ? (saved!.density as Density)
           : "comfortable",
+        textSize: textSizeOf(saved?.textSize),
         loaded: true,
       });
     })
@@ -135,14 +148,15 @@ const BAR_COLOURS = { dark: "#111115", light: "#e9e9ec" } as const;
  */
 export function useApplyAppearance(): void {
   const platform = usePlatform();
-  const { theme, density, loaded } = useAppearance();
+  const { theme, density, textSize, loaded } = useAppearance();
   useEffect(() => {
     const root = document.documentElement;
     root.dataset.theme = theme;
     root.dataset.density = density;
+    root.dataset.textSize = textSize;
     // Only what was read or chosen: before that, the store holds the copy itself.
-    if (loaded) keepFirstPaintCopy(theme, density);
-  }, [theme, density, loaded]);
+    if (loaded) keepFirstPaintCopy(theme, density, textSize);
+  }, [theme, density, textSize, loaded]);
   // The desktop window's own frame and title bar, painted before the page is.
   useEffect(() => {
     if (loaded) platform.setWindowTheme?.(theme);

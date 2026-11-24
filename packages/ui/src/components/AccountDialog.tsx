@@ -22,7 +22,22 @@ import {
   type Setting,
 } from "../lib/settingsSearch.js";
 import { resumeTime, snoozeOptions } from "../lib/snooze.js";
-import { DENSITIES, THEMES, useAppearance, type Theme } from "../lib/appearance.js";
+import {
+  DENSITIES,
+  TEXT_SIZES,
+  type TextSize,
+  THEMES,
+  useAppearance,
+  type Theme,
+} from "../lib/appearance.js";
+import {
+  playTone,
+  TONE_LABELS,
+  TONE_NAMES,
+  useSounds,
+  type SoundChoice,
+  type ToneName,
+} from "../lib/sounds.js";
 import { inputCls } from "./TextField.js";
 import { Select } from "./Select.js";
 import { ListStatus } from "./ListStatus.js";
@@ -747,7 +762,78 @@ function NotificationSettings() {
       </section>
       <DefaultLevelSettings />
       <PreviewSettings />
+      <SoundSettings />
     </>
+  );
+}
+
+const SOUND_CHOICES: SoundChoice[] = [...TONE_NAMES, "none"];
+
+/** The app's own notification sounds on this device (K10), one for direct messages apart. */
+function SoundSettings() {
+  const sounds = useSounds();
+  const saved = useSaved();
+  const choice = (which: "messages" | "directMessages", label: string, noun: string) => (
+    <div className="flex items-end gap-2">
+      <Select
+        label={label}
+        className="min-w-0 flex-1"
+        value={sounds[which]}
+        onChange={(event) => {
+          const picked = event.target.value as SoundChoice;
+          if (picked !== "none") playTone(picked);
+          void sounds.set({ [which]: picked }).then((kept) => kept && saved());
+        }}
+      >
+        {SOUND_CHOICES.map((name) => (
+          <option key={name} value={name}>
+            {TONE_LABELS[name]}
+          </option>
+        ))}
+      </Select>
+      {sounds[which] !== "none" && (
+        <button
+          type="button"
+          className={buttonClass("secondary")}
+          aria-label={`Play the sound for ${noun}`}
+          onClick={() => playTone(sounds[which] as ToneName)}
+        >
+          Play
+        </button>
+      )}
+    </div>
+  );
+  return (
+    <fieldset
+      {...settingMark("sounds")}
+      className="mt-6 border-t border-edge pt-5"
+      disabled={!sounds.loaded}
+    >
+      <legend className="float-left w-full font-semibold">Sounds</legend>
+      <p className="clear-both pt-1 text-sm text-ink-dim">
+        On this device, in every workspace. Paused notifications make no sound.
+      </p>
+      <div className="mt-3 space-y-3">
+        {choice("messages", "Messages and mentions", "messages")}
+        {choice("directMessages", "Direct messages", "direct messages")}
+        <label className="flex items-center gap-2 text-sm">
+          <input
+            type="checkbox"
+            className="accent-[var(--color-copper)]"
+            checked={sounds.calls}
+            onChange={(event) =>
+              void sounds.set({ calls: event.target.checked }).then((kept) => kept && saved())
+            }
+          />
+          A sound when someone joins or leaves your call
+        </label>
+      </div>
+      {sounds.error && (
+        <p role="alert" className="mt-2 text-sm text-alert">
+          {sounds.error}
+        </p>
+      )}
+    </fieldset>
   );
 }
 
@@ -855,7 +941,7 @@ const THEME_LABELS: Record<Theme, { label: string; hint: string }> = {
   light: { label: "White", hint: "A light theme, for bright rooms" },
 };
 
-/** How OwnBase looks on this device: its theme, and how much it fits in. */
+/** How OwnBase looks on this device: its theme, how much it fits in, and how large messages read. */
 function AppearanceSettings() {
   const appearance = useAppearance();
   const saved = useSaved();
@@ -921,6 +1007,40 @@ function AppearanceSettings() {
           ))}
         </div>
       </fieldset>
+      <fieldset
+        {...settingMark("text-size")}
+        disabled={!appearance.loaded}
+        className="mt-6 border-t border-edge pt-5"
+      >
+        <legend className="float-left w-full font-semibold">Text size</legend>
+        <p className="clear-both pt-1 text-sm text-ink-dim">
+          Messages, names and the message box. Menus and the sidebar stay as they are.
+        </p>
+        <div className="mt-3 flex flex-wrap gap-2">
+          {TEXT_SIZES.map((textSize) => (
+            <label
+              key={textSize}
+              className="flex cursor-pointer items-center gap-2 rounded-lg border border-edge px-3 py-1.5 text-sm has-[:checked]:border-copper"
+            >
+              <input
+                type="radio"
+                name="text-size"
+                className="accent-[var(--color-copper)]"
+                checked={appearance.textSize === textSize}
+                onChange={() => void appearance.set({ textSize }).then((kept) => kept && saved())}
+              />
+              {TEXT_SIZE_LABELS[textSize]}
+            </label>
+          ))}
+        </div>
+        {/* Drawn as a message is, so it changes as the choice does. */}
+        <p
+          aria-hidden="true"
+          className="message-text mt-3 rounded-lg bg-ink/[0.04] px-3 py-2 text-[length:calc(16px*var(--text-scale))] leading-[1.375] text-ink/90"
+        >
+          This is how messages read at this size.
+        </p>
+      </fieldset>
       {appearance.error && (
         <p role="alert" className="mt-3 text-sm text-alert">
           {appearance.error}
@@ -929,6 +1049,13 @@ function AppearanceSettings() {
     </>
   );
 }
+
+const TEXT_SIZE_LABELS: Record<TextSize, string> = {
+  smaller: "Smaller",
+  default: "Default",
+  larger: "Larger",
+  largest: "Largest",
+};
 
 /** What the browser currently allows, or that it cannot ask at all. */
 function browserPermission(): NotificationPermission | "unsupported" {

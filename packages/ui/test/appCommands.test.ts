@@ -1,7 +1,8 @@
 import { ApiError, WorkspaceClient } from "@ownbase/client-core";
 import type { Channel, User } from "@ownbase/protocol";
 import { describe, expect, it, vi } from "vitest";
-import { offeredCommands, runAppCommand } from "../src/lib/appCommands.js";
+import { offeredCommands } from "@ownbase/protocol";
+import { runAppCommand } from "../src/lib/appCommands.js";
 
 const person = (id: string, displayName: string) => ({ id, displayName }) as unknown as User;
 const channel = (id: string, type: Channel["type"], name: string) =>

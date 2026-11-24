@@ -144,6 +144,12 @@ export function reading(state: NavigationState): { channel: boolean; thread: boo
   return { channel: view.channel && open, thread: view.thread && open };
 }
 
+/** Where a link opened from outside goes: a conversation, or one message in it. */
+export interface LinkTarget {
+  channelId: ID;
+  messageId?: ID;
+}
+
 const NOT_OPENED =
   "Could not open this message. Someone may have deleted it, or you may no longer have access to it. If you are offline, try again once you reconnect.";
 
@@ -193,7 +199,7 @@ export class Navigation {
    */
   static open(
     client: WorkspaceClient,
-    opts: { target: { channelId: ID; messageId: ID } | null; welcome?: boolean },
+    opts: { target: LinkTarget | null; welcome?: boolean },
   ): { navigation: Navigation; fromRoute: boolean } {
     const route = opts.target ? null : currentRoute(client.baseUrl);
     const navigation = new Navigation(client, client.baseUrl, {

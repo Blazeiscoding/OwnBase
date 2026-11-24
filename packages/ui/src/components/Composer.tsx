@@ -11,6 +11,7 @@ import {
 import {
   isRoom,
   MESSAGE_TEXT_MAX,
+  offeredCommands,
   parseCommand,
   type ID,
   type InAppCommandName,
@@ -35,8 +36,7 @@ import { Mrkdwn } from "./Mrkdwn.js";
 import { Tooltip } from "./Tooltip.js";
 import { ErrorBoundary } from "./ErrorBoundary.js";
 import { MentionTags } from "./MentionTags.js";
-import { insideCodeBlock, isImeKey, linkOverSelection } from "../lib/textInput.js";
-import { pasteRich } from "../lib/richPaste.js";
+import { insideCodeBlock, isImeKey, linkOverSelection, pasteRich } from "../lib/textInput.js";
 import { lastEditable, requestEdit } from "../lib/editRequest.js";
 import { shortcutLabel } from "../lib/shortcuts.js";
 import { useMaxFileBytes, withinLimit } from "../lib/fileLimit.js";
@@ -44,9 +44,9 @@ import { useConnectionDown } from "../lib/online.js";
 import { useMentionField } from "../lib/useMentionField.js";
 import { useListbox } from "../lib/useListbox.js";
 import { SuggestionList, useSuggestions } from "./Suggestions.js";
-import { offeredCommands, runAppCommand } from "../lib/appCommands.js";
 import { markdownLinks } from "../lib/markdownLinks.js";
 import { useToast } from "./Toast.js";
+import { preloadable } from "../lib/preloadable.js";
 import { ScheduledSends, type ScheduleAnswer } from "@ownbase/client-core";
 import {
   FormattingToolbar,
@@ -70,6 +70,8 @@ const TimePopover = lazy(() =>
 const PollDialog = lazy(() =>
   import("./PollDialog.js").then((module) => ({ default: module.PollDialog })),
 );
+// And running a command the app answers itself; fetched as the workspace opens.
+const appCommands = preloadable(() => import("../lib/appCommands.js"));
 
 interface Props {
   channelId: ID;
@@ -527,7 +529,13 @@ export function Composer({ channelId, threadRootId, placeholder, autoFocus, onLe
     if (name === "poll") return setPollQuestion(args);
     runningCommand.current = true;
     const key = draftKey;
-    void runAppCommand(name, args, { client, channelId })
+    void appCommands
+      .load()
+      .then(({ runAppCommand }) => runAppCommand(name, args, { client, channelId }))
+      .catch(() => ({
+        ok: false,
+        said: `/${name} could not start. Check your connection and try again.`,
+      }))
       .then((outcome) => {
         if (!outcome.ok) {
           setSendRefusal(outcome.said);
@@ -1012,7 +1020,7 @@ export function Composer({ channelId, threadRootId, placeholder, autoFocus, onLe
             }}
             onKeyDown={onKeyDown}
             onBlur={suggestions.close}
-            className="relative block max-h-[220px] w-full resize-none bg-transparent px-4 pb-1 pt-3 text-[15px] leading-normal outline-none placeholder:text-ink-faint"
+            className="message-input relative block max-h-[220px] w-full resize-none bg-transparent px-4 pb-1 pt-3 text-[length:calc(15px*var(--text-scale))] leading-normal outline-none placeholder:text-ink-faint"
           />
         </div>
         {attachmentNote && (

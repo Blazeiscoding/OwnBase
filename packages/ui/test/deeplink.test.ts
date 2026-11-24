@@ -109,7 +109,9 @@ describe("parseDeepLink", () => {
     expect(parseDeepLink("https://chat.team.dev/#/join/")).toBeNull();
     expect(parseDeepLink("https://chat.team.dev/#/join/AB%2FCD")).toBeNull();
     expect(parseDeepLink("https://chat.team.dev/#/c/C1/m/M1/extra")).toBeNull();
-    expect(parseDeepLink("https://chat.team.dev/#/c/C1")).toBeNull();
+    expect(parseDeepLink("https://chat.team.dev/#/c/")).toBeNull();
+    expect(parseDeepLink("ownbase://conversation?host=h")).toBeNull();
+    expect(parseDeepLink("ownbase://conversation?host=h&channel=C%2F1")).toBeNull();
     // Some other site's hash-routed page, rather than a workspace's root.
     expect(parseDeepLink("https://example.com/docs/#/c/C1/m/M1")).toBeNull();
     expect(parseDeepLink("https://example.com/?page=2#/join/ABCD1234")).toBeNull();
@@ -129,11 +131,16 @@ describe("links", () => {
   it.each(servers)("lead back to %s in both forms", (serverUrl) => {
     const join = { kind: "join", code: "ABCD1234" } as const;
     const message = { kind: "message", channelId: "C123", messageId: "M456" } as const;
-    const desktop = (url: string, link: typeof join | typeof message) =>
+    const conversation = { kind: "conversation", channelId: "C123" } as const;
+    const desktop = (url: string, link: typeof join | typeof message | typeof conversation) =>
       desktopLink(serverAddress(url), link);
     for (const build of [pageLink, desktop]) {
       expect(parseDeepLink(build(serverUrl, join))).toEqual({ ...join, serverUrl });
       expect(parseDeepLink(build(serverUrl, message))).toEqual({ ...message, serverUrl });
+      expect(parseDeepLink(build(serverUrl, conversation))).toEqual({
+        ...conversation,
+        serverUrl,
+      });
     }
   });
 

@@ -52,7 +52,7 @@ afterEach(() => {
 });
 
 function openAt(
-  target: { channelId: string; messageId: string },
+  target: { channelId: string; messageId?: string },
   answer: () => Promise<string | null | undefined | ApiError>,
 ) {
   vi.stubGlobal("matchMedia", () => ({
@@ -126,5 +126,24 @@ describe("a link to a message, opened as the workspace starts", () => {
       engineering.id,
       expect.objectContaining({ older: false }),
     );
+  });
+});
+
+describe("a link to a conversation (K03)", () => {
+  it("opens the channel at its newest, with no jump", async () => {
+    const { load, jump } = openAt({ channelId: engineering.id }, () => Promise.resolve(null));
+    await screen.findByRole("textbox", { name: "Message #engineering" });
+    await waitFor(() => expect(load).toHaveBeenCalledWith(engineering.id, expect.anything()));
+    expect(jump).not.toHaveBeenCalled();
+  });
+
+  it("says so when it leads to a conversation this account cannot see", async () => {
+    openAt({ channelId: "C_PRIVATE" }, () => Promise.resolve(null));
+    expect(
+      await screen.findByText(/^That conversation is not available\./, undefined, {
+        timeout: 3_000,
+      }),
+    ).toBeTruthy();
+    expect(screen.getByRole("textbox", { name: "Message #general" })).toBeTruthy();
   });
 });

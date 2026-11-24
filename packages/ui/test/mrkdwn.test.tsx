@@ -49,6 +49,23 @@ describe("Mrkdwn", () => {
     expect(html).toContain(">code<");
   });
 
+  it("leaves what ends a sentence out of an address typed into it", () => {
+    const hrefs = (text: string) => [...render(text).matchAll(/href="([^"]+)"/g)].map((m) => m[1]);
+    expect(hrefs("See https://example.com/docs. Or https://example.com/a, then")).toEqual([
+      "https://example.com/docs",
+      "https://example.com/a",
+    ]);
+    expect(render("Is it https://example.com/q?")).toContain(">https://example.com/q</a>?");
+    // A bracket the address opened is its own; one around it is not.
+    expect(hrefs("(https://en.wikipedia.org/wiki/Tea_(drink))")).toEqual([
+      "https://en.wikipedia.org/wiki/Tea_(drink)",
+    ]);
+    expect(hrefs("(see https://example.com/x)")).toEqual(["https://example.com/x"]);
+    expect(hrefs("https://example.com/search?q=a&b=c")).toEqual([
+      "https://example.com/search?q=a&amp;b=c",
+    ]);
+  });
+
   it("renders escaped text back exactly as it was written", () => {
     // The other half of what the server's /shrug does. Unescaped, the
     // underscores pair up and the arms vanish into an <em>.

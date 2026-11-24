@@ -7,7 +7,8 @@ import { Icon } from "./Icon.js";
 import { Menu, type MenuItem } from "./Menu.js";
 import { useToast } from "./Toast.js";
 import { Tooltip } from "./Tooltip.js";
-import { muteItem, starItem } from "../lib/conversationChoices.js";
+import { copyLinkItem, muteItem, starItem } from "../lib/conversationChoices.js";
+import { useShareableServer } from "./ShareableServer.js";
 
 /**
  * The last answer to each question the header asks, per client, so a
@@ -147,6 +148,7 @@ export function ConversationMenu(props: {
   const canStar = useWorkspace((s) => props.channelId in s.memberships);
   const starred = useWorkspace((s) => s.prefs[props.channelId]?.starred === true);
   const muted = useWorkspace((s) => s.prefs[props.channelId]?.muted === true);
+  const shareable = useShareableServer();
   const conversation = {
     id: props.channelId,
     noun: props.isRoom ? ("channel" as const) : ("conversation" as const),
@@ -168,6 +170,7 @@ export function ConversationMenu(props: {
           },
         ]
       : []),
+    copyLinkItem(toast, shareable.serverUrl, conversation),
     {
       id: "details",
       label: props.isRoom ? "Channel details" : "Conversation details",

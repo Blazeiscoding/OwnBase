@@ -17,8 +17,7 @@ import {
 } from "./FormattingToolbar.js";
 import { Mrkdwn } from "./Mrkdwn.js";
 import { MentionTags } from "./MentionTags.js";
-import { insideCodeBlock, isImeKey, linkOverSelection } from "../lib/textInput.js";
-import { pasteRich } from "../lib/richPaste.js";
+import { insideCodeBlock, isImeKey, linkOverSelection, pasteRich } from "../lib/textInput.js";
 import { useMentionField } from "../lib/useMentionField.js";
 import { SuggestionList, useSuggestions } from "./Suggestions.js";
 import { editDraftKey } from "@ownbase/client-core";
@@ -305,7 +304,7 @@ export function MessageEditor({ message, onClose }: { message: Message; onClose:
                 }
               }}
               rows={Math.min(8, Math.max(2, draft.split("\n").length))}
-              className="relative block max-h-64 w-full resize-y bg-transparent px-3 py-2 text-[15px] outline-none"
+              className="message-input relative block max-h-64 w-full resize-y bg-transparent px-3 py-2 text-[length:calc(15px*var(--text-scale))] outline-none"
             />
           </div>
           <div className="flex items-center justify-between gap-2 px-3 pb-2 text-xs">

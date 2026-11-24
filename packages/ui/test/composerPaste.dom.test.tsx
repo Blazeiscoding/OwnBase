@@ -2,10 +2,11 @@ import { fireEvent, screen, waitFor } from "@testing-library/react";
 import { render } from "./render.js";
 import { WorkspaceClient } from "@ownbase/client-core";
 import type { Channel, User } from "@ownbase/protocol";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { Composer } from "../src/components/Composer.js";
 import { ClientContext, PlatformContext } from "../src/context.js";
 import type { Platform } from "../src/platform.js";
+import { loadRichPaste } from "../src/lib/textInput.js";
 
 /**
  * Pasting into the composer (UX-04). A clipboard holding a file is pasted as
@@ -76,6 +77,15 @@ function clipboard(opts: { files?: File[]; items?: File[]; text?: string; html?:
 }
 
 describe("pasting into the composer", () => {
+  it("leaves a formatted paste to the browser until its reader has arrived", async () => {
+    vi.resetModules();
+    const fresh = await import("../src/lib/textInput.js");
+    // A fresh copy, as on first load: nothing fetched yet, so the browser pastes.
+    expect(fresh.pasteRich("", 0, 0, "<b>bold</b>")).toBeNull();
+    await fresh.loadRichPaste();
+    expect(fresh.pasteRich("", 0, 0, "<b>bold</b>")).toEqual({ text: "*bold*", caret: 6 });
+  });
+
   it("attaches the picture an office copy carries, says its text was left out, and pastes none of it", async () => {
     const box = await composer();
     const pasted = fireEvent.paste(box, {
@@ -130,6 +140,7 @@ describe("pasting into the composer", () => {
 
   it("keeps the links and marks of formatted text, where the browser would paste only words", async () => {
     const box = await composer();
+    await loadRichPaste();
     fireEvent.change(box, { target: { value: "Before: X after" } });
     box.setSelectionRange(8, 9);
     const pasted = fireEvent.paste(box, {

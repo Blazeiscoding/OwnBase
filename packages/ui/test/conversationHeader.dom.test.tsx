@@ -211,6 +211,7 @@ describe("the conversation's header", () => {
       "Star channel",
       "Mute channel",
       "Notification settings",
+      "Copy link",
       "Channel details",
     ]);
     const mute = vi.spyOn(client, "setChannelPrefs").mockResolvedValue(null);
@@ -226,6 +227,16 @@ describe("the conversation's header", () => {
       "aria-selected",
       "true",
     );
+  });
+
+  it("copies a link that opens the channel", async () => {
+    const user = userEvent.setup();
+    const { header, client } = await workspace();
+    await user.click(within(header).getByRole("button", { name: "Conversation options" }));
+    const menu = await screen.findByRole("menu", { name: "Conversation options" });
+    await user.click(within(menu).getByRole("menuitem", { name: "Copy link" }));
+    expect(await screen.findByText("Link copied.")).toBeInTheDocument();
+    expect(await navigator.clipboard.readText()).toBe(`${client.baseUrl}/#/c/${general.id}`);
   });
 
   it("has no notification settings in a channel only looked into", async () => {

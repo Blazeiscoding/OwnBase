@@ -7,10 +7,11 @@ import type { Platform } from "./platform.js";
 export const PlatformContext = createContext<Platform | null>(null);
 export const ClientContext = createContext<WorkspaceClient | null>(null);
 /**
- * Opens a message in the workspace on screen, so a link to one written in a
- * message opens it there rather than in another window of the app.
+ * Opens a message, or with no message the conversation, in the workspace on
+ * screen, so a link to one written in a message opens it there rather than
+ * in another window of the app.
  */
-export const OpenMessageContext = createContext<((channelId: ID, messageId: ID) => void) | null>(
+export const OpenMessageContext = createContext<((channelId: ID, messageId?: ID) => void) | null>(
   null,
 );
 

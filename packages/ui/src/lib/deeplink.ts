@@ -12,7 +12,9 @@ export type DeepLink =
   | { kind: "reset"; serverUrl: string; token: string }
   /** A link mailed to confirm an email address (G10). */
   | { kind: "verifyEmail"; serverUrl: string; token: string }
-  | { kind: "message"; serverUrl: string; channelId: string; messageId: string };
+  | { kind: "message"; serverUrl: string; channelId: string; messageId: string }
+  /** A channel or conversation (K03). */
+  | { kind: "conversation"; serverUrl: string; channelId: string };
 
 /**
  * Parses the links the app hands out, in either form: protocol's
@@ -49,7 +51,27 @@ export function parseDeepLink(raw: string): DeepLink | null {
     if (!channelId || !messageId) return null;
     return { kind: "message", serverUrl, channelId, messageId };
   }
+  if (action === "conversation") {
+    const channelId = url.searchParams.get("channel");
+    return isPageId(channelId) ? { kind: "conversation", serverUrl, channelId } : null;
+  }
   return null;
+}
+
+/**
+ * An address typed into a sentence, without what ends the sentence: "see
+ * https://example.com/docs." links to /docs, as Slack and Discord read it. A
+ * closing bracket stays when the address opened one, as a Wikipedia page's.
+ */
+export function bareUrl(typed: string): { url: string; after: string } {
+  let url = typed;
+  for (;;) {
+    const last = url.at(-1)!;
+    const unopened = last === ")" && url.split("(").length <= url.split(")").length - 1;
+    if (!/[.,;:!?'"]/.test(last) && !unopened) break;
+    url = url.slice(0, -1);
+  }
+  return { url, after: typed.slice(url.length) };
 }
 
 /** The browser form is the workspace's own root, with where to go in the fragment. */

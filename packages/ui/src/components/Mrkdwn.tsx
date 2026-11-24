@@ -13,6 +13,7 @@ import {
   CHANNEL_MENTION,
   CUSTOM_EMOJI_TOKEN,
   GROUP_MENTION,
+  isRoom,
   USER_MENTION,
   type ID,
   type User,
@@ -22,7 +23,7 @@ import { OpenMessageContext } from "../context.js";
 import { CustomEmojiImage, customEmojiFor, useCustomEmoji } from "./CustomEmoji.js";
 import { GroupMention } from "./GroupMention.js";
 import { codeLanguage, useHighlighter } from "../lib/codeColours.js";
-import { parseDeepLink } from "../lib/deeplink.js";
+import { bareUrl, parseDeepLink } from "../lib/deeplink.js";
 import { channelMentionLabel, userMentionLabel } from "../lib/mentionDocument.js";
 import { useOwnAddress } from "./ShareableServer.js";
 import { useUserGroups } from "../lib/userGroups.js";
@@ -313,7 +314,7 @@ const INLINE_RE = new RegExp(
 function renderInline(
   text: string,
   ctx: Pick<Props, "users" | "channels" | "selfId" | "onChannelClick"> & {
-    openMessage?: ((channelId: ID, messageId: ID) => void) | null;
+    openMessage?: ((channelId: ID, messageId?: ID) => void) | null;
     /** Whether an address is this workspace's; only its links open here. */
     ours?: (serverUrl: string) => boolean;
     highlight: (value: string) => ReactNode;
@@ -387,10 +388,13 @@ function renderInline(
           {broadcastLabel(tok.slice(2, -1))}
         </span>,
       );
-    } else if (named.url || named.link) {
-      const url = named.url ?? named.link!;
+    } else if (named.url) {
+      const { url, after } = bareUrl(named.url);
+      out.push(renderLink(url, null, key++, ctx));
+      if (after) out.push(ctx.highlight(after));
+    } else if (named.link) {
       const label = named.label?.trim();
-      out.push(renderLink(url, label && label !== url ? label : null, key++, ctx));
+      out.push(renderLink(named.link, label && label !== named.link ? label : null, key++, ctx));
     } else if (named.emoji) {
       const emoji = customEmojiFor(ctx.customEmoji, tok);
       out.push(emoji ? <CustomEmojiImage key={key++} emoji={emoji} /> : ctx.highlight(tok));
@@ -412,7 +416,7 @@ function renderInline(
 }
 
 /**
- * A web link. One to a message in this workspace opens it here, instead of in
+ * A web link. One to a message or a conversation in this workspace opens it here, instead of in
  * a new window of the app; a click asking for a new tab or window still gets
  * one. That includes a conversation this account cannot see, where opening it
  * here says why, rather than a new window (the desktop app's is a browser that
@@ -430,14 +434,22 @@ function renderLink(
 ): ReactNode {
   const link = parseDeepLink(url);
   const { openMessage } = ctx;
+  const place = link?.kind === "message" || link?.kind === "conversation" ? link : null;
   const openHere =
-    openMessage && link?.kind === "message" && !!ctx.ours?.(link.serverUrl)
+    openMessage && place && !!ctx.ours?.(place.serverUrl)
       ? (event: React.MouseEvent) => {
           if (event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey) return;
           event.preventDefault();
-          openMessage(link.channelId, link.messageId);
+          openMessage(place.channelId, place.kind === "message" ? place.messageId : undefined);
         }
       : undefined;
+  // A bare link to a channel the reader can see reads as its name, as Slack
+  // shows one; the address stays in the title.
+  const room =
+    !label && openHere && place?.kind === "conversation"
+      ? ctx.channels[place.channelId]
+      : undefined;
+  const shown = label ?? (room && isRoom(room.type) ? `#${room.name}` : null);
   const realHost = label ? disguisedHost(url, label) : null;
   return (
     <Fragment key={key}>
@@ -445,11 +457,11 @@ function renderLink(
         href={url}
         target="_blank"
         rel="noreferrer"
-        title={label ? url : undefined}
+        title={shown ? url : undefined}
         onClick={openHere}
         className="text-copper underline decoration-copper/40 hover:decoration-copper"
       >
-        {ctx.highlight(label ?? url)}
+        {ctx.highlight(shown ?? url)}
       </a>
       {realHost && <span className="text-ink-faint"> ({realHost})</span>}
     </Fragment>
