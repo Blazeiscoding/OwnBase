@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { screen, waitFor } from "@testing-library/react";
+import { cleanup, screen, waitFor } from "@testing-library/react";
 import { render } from "./render.js";
 import userEvent from "@testing-library/user-event";
 import { Api } from "@ownbase/client-core";
@@ -34,16 +34,18 @@ const web: Platform = {
 
 function joinScreen(info: ServerInfo, claimCode?: string) {
   vi.spyOn(Api.prototype, "serverInfo").mockResolvedValue(info);
+  const onConnected = vi.fn();
   render(
     <JoinScreen
       platform={web}
       savedServers={[]}
       autoProbe="https://acme.ownbase.chat"
       claimCode={claimCode}
-      onConnected={() => {}}
+      onConnected={onConnected}
       onForget={() => {}}
     />,
   );
+  return { onConnected };
 }
 
 afterEach(() => vi.restoreAllMocks());
@@ -69,6 +71,72 @@ describe("a link to claim a workspace", () => {
       handle: "ada",
       claimCode: "claim-0123456789abcdef",
     });
+  });
+
+  it("names the workspace as its first account makes it, before the first invite", async () => {
+    const order: string[] = [];
+    const register = vi.spyOn(Api.prototype, "register").mockImplementation(async () => {
+      order.push("register");
+      return { token: "made-now", user: { handle: "riley", role: "owner" } } as never;
+    });
+    const rename = vi.spyOn(Api.prototype, "renameWorkspace").mockImplementation(async (name) => {
+      order.push("rename");
+      return { workspaceName: name };
+    });
+    const { onConnected } = joinScreen(
+      { ...unclaimed, workspaceName: "My Workspace" },
+      "claim-0123456789abcdef",
+    );
+    await screen.findByRole("heading", { name: "My Workspace" });
+    const name = screen.getByLabelText(/^Workspace name/);
+    // The default name is not offered as theirs, and the box comes first.
+    expect(name).toHaveValue("");
+    expect(name).toHaveFocus();
+    expect(await accessibilityProblems()).toEqual([]);
+
+    const user = userEvent.setup();
+    await user.type(name, "Riley Studio");
+    await user.type(screen.getByLabelText("Username"), "riley");
+    await user.type(screen.getByLabelText("Password"), "password123");
+    await user.click(screen.getByRole("button", { name: "Create workspace" }));
+    await waitFor(() => expect(onConnected).toHaveBeenCalled());
+    expect(order).toEqual(["register", "rename"]);
+    expect(rename).toHaveBeenCalledWith("Riley Studio");
+    expect(register.mock.calls[0]![0]).not.toHaveProperty("workspaceName");
+    expect(onConnected.mock.calls[0]![0]).toMatchObject({ workspaceName: "Riley Studio" });
+  });
+
+  it("keeps a name the host already gave, and goes in even if renaming fails", async () => {
+    vi.spyOn(Api.prototype, "register").mockResolvedValue({
+      token: "made-now",
+      user: { handle: "ada", role: "owner" },
+    } as never);
+    const rename = vi.spyOn(Api.prototype, "renameWorkspace").mockRejectedValue(new Error("down"));
+    const { onConnected } = joinScreen(unclaimed, "claim-0123456789abcdef");
+    await screen.findByRole("heading", { name: "Acme" });
+    expect(screen.getByLabelText(/^Workspace name/)).toHaveValue("Acme");
+
+    const user = userEvent.setup();
+    // Left as it was: nothing to rename.
+    await user.type(screen.getByLabelText("Username"), "ada");
+    await user.type(screen.getByLabelText("Password"), "password123");
+    await user.click(screen.getByRole("button", { name: "Create workspace" }));
+    await waitFor(() => expect(onConnected).toHaveBeenCalled());
+    expect(rename).not.toHaveBeenCalled();
+
+    // Changed, and refused: the account is made and opened all the same.
+    cleanup();
+    onConnected.mockClear();
+    const second = joinScreen(unclaimed, "claim-0123456789abcdef");
+    await screen.findByRole("heading", { name: "Acme" });
+    await user.clear(screen.getByLabelText(/^Workspace name/));
+    await user.type(screen.getByLabelText(/^Workspace name/), "Acme Labs");
+    await user.type(screen.getByLabelText("Username"), "ada");
+    await user.type(screen.getByLabelText("Password"), "password123");
+    await user.click(screen.getByRole("button", { name: "Create workspace" }));
+    await waitFor(() => expect(second.onConnected).toHaveBeenCalled());
+    expect(rename).toHaveBeenCalledWith("Acme Labs");
+    expect(second.onConnected.mock.calls[0]![0]).toMatchObject({ workspaceName: "Acme" });
   });
 
   it("brings nothing to a workspace someone already owns", async () => {

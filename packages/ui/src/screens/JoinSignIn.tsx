@@ -6,7 +6,12 @@ import {
   isHandle,
   PASSWORD_MIN,
 } from "@ownbase/protocol";
-import type { ServerInfo, SignInMethod } from "@ownbase/protocol";
+import {
+  DEFAULT_WORKSPACE_NAME,
+  WORKSPACE_NAME_MAX,
+  type ServerInfo,
+  type SignInMethod,
+} from "@ownbase/protocol";
 import { Api, ApiError } from "@ownbase/client-core";
 import type { Platform, SavedServer } from "../platform.js";
 import { Icon } from "../components/Icon.js";
@@ -76,6 +81,13 @@ export function AuthCard(props: {
   // A claim link brings its code: kept for an empty workspace only, where
   // it is asked for, and shown so the person sees what they are using.
   const [claimCode, setClaimCode] = useState(isFirstUser ? (props.presetClaimCode ?? "") : "");
+  // Asked first of the workspace's first account, as Slack and Discord ask it,
+  // so the invite sent next already says what it is called.
+  const [newName, setNewName] = useState(
+    isFirstUser && props.info.workspaceName !== DEFAULT_WORKSPACE_NAME
+      ? props.info.workspaceName
+      : "",
+  );
   const [requiresClaim, setRequiresClaim] = useState(!!props.info.requiresClaim);
   // An admin can make the workspace invite-only while this page is open: the
   // refusal then brings the code's field, which the page did not show.
@@ -267,11 +279,28 @@ export function AuthCard(props: {
         setBusy(false);
         return;
       }
+      // Named as it was made. Refused, it keeps its name, and Getting
+      // started still offers the step.
+      let workspaceName = props.info.workspaceName;
+      const wanted = newName.trim();
+      if (
+        mode === "register" &&
+        result.user.role === "owner" &&
+        wanted &&
+        wanted !== props.info.workspaceName
+      ) {
+        try {
+          ({ workspaceName } = await new Api(props.url, result.token).renameWorkspace(wanted));
+        } catch {
+          // The workspace exists and is theirs: going in matters more than its name.
+        }
+        if (ticket !== attempt.current) return;
+      }
       props.onConnected(
         {
           url: props.url,
           token: result.token,
-          workspaceName: props.info.workspaceName,
+          workspaceName,
           handle: result.user.handle,
           lastUsedAt: Date.now(),
         },
@@ -667,13 +696,34 @@ export function AuthCard(props: {
               </form>
             ) : (
               <form onSubmit={(e) => void submit(e)} noValidate className={`space-y-4 ${shake}`}>
+                {isFirstUser && mode === "register" && (
+                  <div>
+                    <label className={labelCls} htmlFor={`${id}-workspace-name`}>
+                      Workspace name <span className="font-normal text-ink-faint">(optional)</span>
+                    </label>
+                    <input
+                      id={`${id}-workspace-name`}
+                      ref={firstField}
+                      value={newName}
+                      onChange={(e) => setNewName(e.target.value)}
+                      maxLength={WORKSPACE_NAME_MAX}
+                      autoComplete="organization"
+                      placeholder="Riley Studio"
+                      aria-describedby={`${id}-workspace-name-hint`}
+                      className={fieldCls}
+                    />
+                    <p id={`${id}-workspace-name-hint`} className={hintCls}>
+                      What everyone sees, and what invites say. You can change it later.
+                    </p>
+                  </div>
+                )}
                 <div>
                   <label className={labelCls} htmlFor={`${id}-handle`}>
                     Username
                   </label>
                   <input
                     id={`${id}-handle`}
-                    ref={firstField}
+                    ref={isFirstUser && mode === "register" ? undefined : firstField}
                     value={handle}
                     onChange={(e) => setHandle(e.target.value)}
                     autoComplete="username"
