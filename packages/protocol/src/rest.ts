@@ -15,7 +15,7 @@ import {
   POLL_OPTIONS_MIN,
   POLL_QUESTION_MAX,
 } from "./entities.js";
-import { FILE_KINDS, currentZoneName, isTimeZone } from "./search.js";
+import { FILE_KINDS, SEARCH_SORTS, currentZoneName, isTimeZone } from "./search.js";
 import { idSchema } from "./socket.js";
 import { appEventType } from "./appEvents.js";
 import { COMMAND_NAME } from "./commands.js";
@@ -603,8 +603,14 @@ export const messageHistoryQuery = z.object({
 export const searchQuery = z.object({
   q: z.string().max(SEARCH_WORDS_MAX).default(""),
   limit: z.coerce.number().int().positive().max(100).default(30),
-  cursor: z.string().min(1).max(100).optional(),
+  /** The last page's `nextCursor`. By relevance it holds the last result's score as well. */
+  cursor: z.string().min(1).max(300).optional(),
   channelId: z.string().min(1).max(100).optional(),
+  /**
+   * `relevant` puts messages with every word first, best match first, then
+   * those with some of the words. Without words to match it is `newest`.
+   */
+  sort: z.enum(SEARCH_SORTS).default("newest"),
   /** The reader's IANA time zone, whose calendar days `before:` and `after:` name. */
   tz: z.string().min(1).max(64),
 });

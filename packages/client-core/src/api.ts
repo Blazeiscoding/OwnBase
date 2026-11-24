@@ -20,6 +20,7 @@ import {
   type ReportReason,
   type ReportResolution,
   type ScheduleMessageBody,
+  type SearchSort,
   type SendMessageBody,
   type UpdateChannelBody,
   type UpdateMeBody,
@@ -934,12 +935,16 @@ export class Api {
     );
   }
 
-  search(q: string, limit = 30, opts: { cursor?: ID; channelId?: ID; signal?: AbortSignal } = {}) {
+  search(
+    q: string,
+    limit = 30,
+    opts: { cursor?: string; channelId?: ID; sort?: SearchSort; signal?: AbortSignal } = {},
+  ) {
     // Dates in the query name days on the reader's calendar, not the server's.
     const tz = Intl.DateTimeFormat().resolvedOptions().timeZone;
     return this.http.json(
       endpoints.search,
-      { query: { q, limit, cursor: opts.cursor, channelId: opts.channelId, tz } },
+      { query: { q, limit, cursor: opts.cursor, channelId: opts.channelId, sort: opts.sort, tz } },
       { signal: opts.signal },
     );
   }

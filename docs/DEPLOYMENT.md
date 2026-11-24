@@ -2920,7 +2920,13 @@ What OwnBase does not do today:
   Chinese, Japanese, Korean and Thai, which do not separate words with spaces,
   it finds the characters typed anywhere in a message, next to each other and
   in that order, so it can also find them across the boundary between two
-  words. Nothing is ranked: results are newest first.
+  words. Results start with the messages that have every word, then those
+  with only some. Within each, a closer match comes first, and a newer
+  message or one in a conversation you are in gets a boost. Newest first and
+  Oldest first are one choice away, and a search with filters but no words is
+  newest first. When a word is in more than 5,000 messages, only the newest
+  20,000 messages are ranked. Older ones with every word follow, newest
+  first, and older ones with only some of the words are left out.
 - **No SFU.** Calls are a mesh, which suits small groups. See
   [How many people a call holds](#how-many-people-a-call-holds).
 - **SQLite and a local folder.** A workspace is one SQLite database and its

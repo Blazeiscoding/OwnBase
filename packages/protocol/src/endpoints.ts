@@ -1944,16 +1944,17 @@ export const endpoints = {
   }),
 
   /**
-   * Searches the messages the caller can read, newest first, by words and
-   * modifiers such as `from:`, `in:`, `has:` and `before:`. `tz` says which
-   * calendar the dates are in.
+   * Searches the messages the caller can read, by words and modifiers such as
+   * `from:`, `in:`, `has:` and `before:`. `sort` puts them newest first (the
+   * default), oldest first or best match first. `tz` says which calendar the
+   * dates are in.
    */
   search: endpoint({
     method: "GET",
     path: "/api/search",
     access: "guest",
     query: "searchQuery",
-    answer: json<{ messages: Message[]; nextCursor: ID | null }>(),
+    answer: json<{ messages: Message[]; nextCursor: string | null }>(),
   }),
 
   // ---------- push to a closed browser (G09) ----------

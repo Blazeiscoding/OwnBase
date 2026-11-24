@@ -93,6 +93,7 @@ export const ERROR_CODES = [
   "empty_message",
   "forward_unavailable",
   "invalid_attachments",
+  "invalid_search_cursor",
   "invalid_search_date",
   "message_changed",
   "message_deleted",

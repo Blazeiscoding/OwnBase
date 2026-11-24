@@ -6109,8 +6109,8 @@
         "tags": [
           "search"
         ],
-        "summary": "Searches the messages the caller can read, newest first, by words and modifiers such as `from:`, `in:`, `has:` and `before:`.",
-        "description": "Searches the messages the caller can read, newest first, by words and modifiers such as `from:`, `in:`, `has:` and `before:`. `tz` says which calendar the dates are in.\n\nNeeds a signed-in account. Guests may call it too.",
+        "summary": "Searches the messages the caller can read, by words and modifiers such as `from:`, `in:`, `has:` and `before:`.",
+        "description": "Searches the messages the caller can read, by words and modifiers such as `from:`, `in:`, `has:` and `before:`. `sort` puts them newest first (the default), oldest first or best match first. `tz` says which calendar the dates are in.\n\nNeeds a signed-in account. Guests may call it too.",
         "x-access": "member",
         "x-guests": true,
         "security": [
@@ -6148,7 +6148,7 @@
             "schema": {
               "type": "string",
               "minLength": 1,
-              "maxLength": 100
+              "maxLength": 300
             }
           },
           {
@@ -6159,6 +6159,20 @@
               "type": "string",
               "minLength": 1,
               "maxLength": 100
+            }
+          },
+          {
+            "name": "sort",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "default": "newest",
+              "type": "string",
+              "enum": [
+                "relevant",
+                "newest",
+                "oldest"
+              ]
             }
           },
           {

@@ -20,6 +20,7 @@ import {
   type ReplyReference,
   type CreateChannelBody,
   type ReportReason,
+  type SearchSort,
   type ServerToClient,
   type UpdateChannelBody,
   type UpdateMeBody,
@@ -1644,7 +1645,11 @@ export class WorkspaceClient {
     return this.fileLimit;
   }
 
-  search(q: string, limit?: number, opts?: { cursor?: ID; channelId?: ID; signal?: AbortSignal }) {
+  search(
+    q: string,
+    limit?: number,
+    opts?: { cursor?: string; channelId?: ID; sort?: SearchSort; signal?: AbortSignal },
+  ) {
     return answerOf(() => this.api.search(q, limit, opts));
   }
 

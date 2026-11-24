@@ -1,6 +1,7 @@
 import { endpoints, hasSearchCriteria, isTimeZone, parseSearchQuery } from "@ownbase/protocol";
 import { requireChannelAccess, type ServerContext } from "../core/context.js";
 import { HttpError } from "../httpError.js";
+import { readRankCursor } from "./store.js";
 
 /** Search and the Activity list: finding messages the caller can read. */
 export function registerSearch(ctx: ServerContext) {
@@ -31,7 +32,22 @@ export function registerSearch(ctx: ServerContext) {
       );
     // A query of nothing but stray punctuation should return nothing, not everything.
     if (!hasSearchCriteria(parsed) && !q.channelId) return { messages: [], nextCursor: null };
-    const matches = store.search.search(me.id, parsed, q.limit + 1, q);
+    // With no words there is nothing to rank by, so newest first it is.
+    if (q.sort === "relevant" && parsed.terms.length > 0) {
+      const cursor = q.cursor === undefined ? undefined : readRankCursor(q.cursor);
+      if (cursor === null)
+        throw new HttpError(
+          400,
+          "invalid_search_cursor",
+          "This page of results came from another search. Search again from the top.",
+        );
+      return store.search.relevant(me.id, parsed, q.limit, { cursor, channelId: q.channelId });
+    }
+    const matches = store.search.search(me.id, parsed, q.limit + 1, {
+      cursor: q.cursor,
+      channelId: q.channelId,
+      order: q.sort === "oldest" ? "oldest" : "newest",
+    });
     const messages = matches.slice(0, q.limit);
     return { messages, nextCursor: matches.length > q.limit ? messages.at(-1)!.id : null };
   });

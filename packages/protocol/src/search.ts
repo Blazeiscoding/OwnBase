@@ -104,6 +104,14 @@ export function fileKind(mime: string, name: string): FileKind {
 
 const isFileTypeName = (value: string): value is FileType =>
   (FILE_TYPES as readonly string[]).includes(value);
+
+/**
+ * The orders search results come in (K15): best match first, by how many of
+ * the words a message has, how well and how recently, or by time.
+ */
+export const SEARCH_SORTS = ["relevant", "newest", "oldest"] as const;
+export type SearchSort = (typeof SEARCH_SORTS)[number];
+
 export interface ParsedSearch {
   /** Words left over after modifiers are removed. */
   terms: string[];
