@@ -136,6 +136,7 @@ describe("starring from a row's More menu", () => {
       "Star channel",
       "New section…",
       "Mute channel",
+      "Copy link",
     ]);
     expect(await accessibilityProblems(menu)).toEqual([]);
     await user.click(within(menu).getByRole("menuitem", { name: "Star channel" }));
@@ -359,6 +360,7 @@ describe("the conversation's ⋯ menu", () => {
       "Star channel",
       "Mute channel",
       "Notification settings",
+      "Copy link",
       "Channel details",
     ]);
     await user.click(screen.getByRole("menuitem", { name: "Star channel" }));
