@@ -43,6 +43,36 @@ export function useCollapsed(): Set<string> {
   return useStore(collapsedSections, (s) => s.collapsed);
 }
 
+/** Where "Unread only" is kept on this device (K07), beside the collapsed sections. */
+export const UNREAD_ONLY_KEY = "ownbase-sidebar-unread-only";
+
+function readUnreadOnly(): boolean {
+  try {
+    return localStorage.getItem(UNREAD_ONLY_KEY) === "1";
+  } catch {
+    return false;
+  }
+}
+
+/** Whether the sidebar shows only conversations with something waiting, as Slack's Unreads only. */
+export const sidebarFilter = createStore<{ unreadOnly: boolean }>(() => ({
+  unreadOnly: readUnreadOnly(),
+}));
+
+export function setUnreadOnly(unreadOnly: boolean): void {
+  try {
+    if (unreadOnly) localStorage.setItem(UNREAD_ONLY_KEY, "1");
+    else localStorage.removeItem(UNREAD_ONLY_KEY);
+  } catch {
+    // Kept for this session only.
+  }
+  sidebarFilter.setState({ unreadOnly });
+}
+
+export function useUnreadOnly(): boolean {
+  return useStore(sidebarFilter, (s) => s.unreadOnly);
+}
+
 export interface SidebarGroups {
   starred: Channel[];
   /** Each of this account's sections (E8), by id, in the sections' order. */
@@ -109,7 +139,9 @@ export function rowWaits(s: LayoutState, id: ID): boolean {
 
 /**
  * Whether a row shows in its section: a collapsed category still shows where
- * you are and what is waiting, as Discord's do.
+ * you are and what is waiting, as Discord's do, and so does every section
+ * while the sidebar shows unread only. The open conversation stays as it is
+ * read, so its row does not vanish under the reader; it goes once they leave.
  */
 export function rowShown(
   s: LayoutState,
@@ -117,15 +149,21 @@ export function rowShown(
   section: string,
   id: ID,
   activeId: ID | null,
+  unreadOnly = false,
 ): boolean {
-  return !collapsed.has(section) || id === activeId || rowWaits(s, id);
+  return (!unreadOnly && !collapsed.has(section)) || id === activeId || rowWaits(s, id);
 }
 
 /** Every row the sidebar shows, top to bottom: starred, sections, channels, then direct messages. */
-export function sidebarRows(s: LayoutState, collapsed: Set<string>, activeId: ID | null): ID[] {
+export function sidebarRows(
+  s: LayoutState,
+  collapsed: Set<string>,
+  activeId: ID | null,
+  unreadOnly = false,
+): ID[] {
   const groups = sidebarGroups(s, activeId);
   const shown = (section: string) => (ch: Channel) =>
-    rowShown(s, collapsed, section, ch.id, activeId);
+    rowShown(s, collapsed, section, ch.id, activeId, unreadOnly);
   return [
     ...groups.starred.filter(shown("starred")),
     ...s.sidebarSections.flatMap((section) =>
@@ -146,8 +184,10 @@ export function neighbourConversation(
   active: ID | null,
   step: -1 | 1,
   unreadOnly: boolean,
+  /** The sidebar shows unread only (K07): the walk goes over what it shows. */
+  filtered = false,
 ): ID | null {
-  const ids = sidebarRows(s, collapsed, active);
+  const ids = sidebarRows(s, collapsed, active, filtered);
   const at = active ? ids.indexOf(active) : -1;
   // Nothing open, or the open one not listed: start from the end it walks away from.
   let i = at === -1 ? (step === 1 ? -1 : ids.length) : at;

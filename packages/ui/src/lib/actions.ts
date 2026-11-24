@@ -15,7 +15,12 @@ import { useConfirm, type ConfirmRequest } from "../components/Confirm.js";
 import { useAppearance, useShownTheme } from "./appearance.js";
 import { failureText } from "./failure.js";
 import { unreadSummary } from "./readAll.js";
-import { collapsedSections, neighbourConversation } from "./sidebarLayout.js";
+import {
+  collapsedSections,
+  neighbourConversation,
+  setUnreadOnly,
+  sidebarFilter,
+} from "./sidebarLayout.js";
 import { railTarget } from "./workspaceRail.js";
 import { isApple, modKey, shortcutLabel } from "./shortcuts.js";
 import { useNavigation, type Navigation, type Panel } from "./navigation.js";
@@ -188,6 +193,17 @@ export const ACTIONS = [
     keywords: "theme appearance dark light mode colour color",
     available: always,
     run: (ctx) => ctx.theme.set(ctx.theme.dark ? "light" : "dark"),
+  },
+  {
+    id: "unread-only",
+    label: () =>
+      sidebarFilter.getState().unreadOnly
+        ? "Show all conversations in the sidebar"
+        : "Show only unread conversations in the sidebar",
+    icon: "filter",
+    keywords: "unreads filter sidebar hide read",
+    available: always,
+    run: () => setUnreadOnly(!sidebarFilter.getState().unreadOnly),
   },
   {
     id: "account-settings",
@@ -443,6 +459,7 @@ function walk(step: -1 | 1, unreadOnly: boolean) {
       ctx.nav.state.channelId,
       step,
       unreadOnly,
+      sidebarFilter.getState().unreadOnly,
     );
     if (next) ctx.nav.navigate({ to: "conversation", channelId: next });
     return !!next;
@@ -515,6 +532,20 @@ export const KEY_BINDINGS: readonly KeyBinding[] = [
     describe: "Next unread conversation",
     match: altArrow("ArrowDown", true),
     run: walk(1, true),
+  },
+  // Slack's All unreads key; here the sidebar shows only them (K07).
+  {
+    id: "unread-only",
+    action: "unread-only",
+    group: "Getting around",
+    keys: [modKey(), "Shift", "A"],
+    combo: "Mod+Shift+A",
+    describe: "Show only unread conversations in the sidebar, or all of them again",
+    match: (e) => mod(e) && e.shiftKey && !e.altKey && e.key.toLowerCase() === "a",
+    run: () => {
+      setUnreadOnly(!sidebarFilter.getState().unreadOnly);
+      return true;
+    },
   },
   // Ctrl/Cmd+1–9 open the workspace at that place on the rail, as in Slack's
   // app. A browser keeps those keys for its own tabs.
