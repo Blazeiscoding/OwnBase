@@ -118,20 +118,24 @@ export function registerCommands(
   });
 
   route(endpoints.listCommands, async () => {
-    const builtins = [...BUILTIN_COMMANDS.entries(), ...Object.entries(IN_APP_COMMANDS)].map(
-      ([command, b]) => ({
-        command,
-        description: b.description,
-        usageHint: b.usageHint,
-        builtin: true,
-      }),
-    );
     const fromApps = store.apps.listAllCommands().map((c) => ({
       command: c.command,
       description: c.description,
       usageHint: c.usageHint,
       builtin: false,
     }));
+    // An app that had a name before the app took it for its own (/remind came
+    // in K14) keeps it, so an installed integration does not stop working:
+    // listed as the app's, the name goes to the app as before.
+    const appNames = new Set(fromApps.map((c) => c.command));
+    const builtins = [...BUILTIN_COMMANDS.entries(), ...Object.entries(IN_APP_COMMANDS)]
+      .filter(([command]) => !(isInAppCommand(command) && appNames.has(command)))
+      .map(([command, b]) => ({
+        command,
+        description: b.description,
+        usageHint: b.usageHint,
+        builtin: true,
+      }));
     return { commands: [...builtins, ...fromApps] };
   });
 
@@ -143,7 +147,7 @@ export function registerCommands(
     const parsed = parseCommand(body.text);
     if (!parsed) throw new HttpError(400, "not_a_command");
     const { name, args } = parsed;
-    if (isInAppCommand(name))
+    if (isInAppCommand(name) && !store.apps.commandByName(name))
       throw new HttpError(400, "in_app_command", `/${name} is run by the app, not the server.`);
 
     const builtin = BUILTIN_COMMANDS.get(name);

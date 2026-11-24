@@ -469,6 +469,7 @@ describe("commands the app runs itself", () => {
       "leave",
       "mute",
       "unmute",
+      "remind",
     ])
       expect(listed).toContainEqual(expect.objectContaining({ command, builtin: true }));
     const sent = await request(`/api/channels/${channelId}/commands`, { text: "/away" });

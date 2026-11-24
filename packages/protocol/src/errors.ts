@@ -112,6 +112,8 @@ export const ERROR_CODES = [
   "reminder_in_past",
   "reminder_limit",
   "reminder_too_far",
+  "repeat_ends_before_start",
+  "repeat_with_files",
   "report_not_found",
   "scheduled_changed",
   "scheduled_limit",

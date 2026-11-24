@@ -897,6 +897,13 @@ const MIGRATIONS: string[] = [
   ALTER TABLE users ADD COLUMN reactions_seen_at INTEGER NOT NULL DEFAULT 0;
   UPDATE users SET reactions_seen_at = CAST(unixepoch('subsec') * 1000 AS INTEGER);
   `,
+  // K14 — repeating scheduled messages: the rule as JSON, and the time the
+  // waiting send stands for. Moving or sending that one early leaves the
+  // slot, so the next send still follows the rule.
+  `
+  ALTER TABLE scheduled_messages ADD COLUMN repeat TEXT;
+  ALTER TABLE scheduled_messages ADD COLUMN repeat_slot INTEGER;
+  `,
 ];
 
 /** The schema this build understands. A workspace above it cannot be opened. */

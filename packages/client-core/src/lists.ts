@@ -360,6 +360,14 @@ export class ScheduledList {
     });
   }
 
+  /** Makes a repeating one send once more, at its time, and then no more. */
+  stopRepeating(id: ID): Promise<ApiError | null> {
+    return this.change(async () => {
+      const { scheduled } = await this.api.stopRepeating(id);
+      return this.state.items?.map((item) => (item.id === id ? scheduled : item)) ?? null;
+    });
+  }
+
   /** With `expectedText`, refused as `scheduled_changed` if the words are no longer those. */
   edit(id: ID, body: EditScheduledBody): Promise<ApiError | null> {
     return this.change(async () => {

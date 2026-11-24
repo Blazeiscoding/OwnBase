@@ -1649,6 +1649,28 @@
       "concepts": ["scheduling", "local calendar", "date formatting"]
     },
     {
+      "path": "packages/ui/src/lib/repeat.ts",
+      "plain": "Puts a repeating message's rule into words, such as Every weekday at 9:00, for Send later and the Scheduled list.",
+      "summary": "Words repeat rules and Repeat choices (K14).",
+      "details": [
+        "repeatEveryText names how often (Every day, Every weekday, Every week on Monday, Every month on the 5th); describeRepeat adds the time on the reader's clock, the zone when it is not this device's, and the last day when there is one.",
+        "deviceZone is this device's IANA zone under its current name, which is what a rule made here is in.",
+        "Weekday names and ordinals are English, as the rest of the app's words are."
+      ],
+      "concepts": ["recurrence", "date formatting"]
+    },
+    {
+      "path": "packages/ui/src/lib/remind.ts",
+      "plain": "Reads a /remind command, such as /remind #team Standup notes every weekday at 9am, in plain words.",
+      "summary": "Parses /remind into a channel, a message and a repeat rule, or says which part it could not read (K14).",
+      "details": [
+        "The channel comes first, as #name or a picked mention; left out, it is this conversation. me or a person is refused with a pointer to Remind me on a message.",
+        "The message is everything up to the last ' every ', quotes taken off. The rule is day, weekday, a weekday name or week on one, or month on the 15th; the time is 9, 9am, 9:30 pm, 17:00, noon or midnight; until takes an ISO date or one in words, the next such day when the year is left out.",
+        "appCommands.ts shows what it will post and asks before it schedules."
+      ],
+      "concepts": ["command parsing", "recurrence"]
+    },
+    {
       "path": "packages/ui/src/lib/snooze.ts",
       "plain": "Offers how long to pause notifications and shows, in your local time, when they will come back.",
       "summary": "Supplies notification pause durations and readable resume times.",

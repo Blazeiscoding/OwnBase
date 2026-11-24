@@ -1,4 +1,4 @@
-import type { ID, ScheduleMessageBody, ScheduledMessage } from "@ownbase/protocol";
+import type { ID, RepeatRule, ScheduleMessageBody, ScheduledMessage } from "@ownbase/protocol";
 import { failureOf, fileRefusal } from "./answers.js";
 import {
   readWorkspaceStorage,
@@ -25,6 +25,8 @@ export interface ScheduleDraft {
   sendAt: number;
   /** A reply that is also to be shown in the channel. */
   alsoToChannel?: boolean;
+  /** Sends it again after each send (K14). */
+  repeat?: RepeatRule;
 }
 
 /**
@@ -111,6 +113,7 @@ export class ScheduledSends {
       // The choice travels with the request, so the reply lands where it said.
       ...(threadRootId && draft.alsoToChannel ? { alsoSendToChannel: true } : {}),
       ...(fileIds.length > 0 ? { fileIds } : {}),
+      ...(draft.repeat ? { repeat: draft.repeat } : {}),
     };
     // The exact request, uploaded files and time included, is kept before it
     // can reach the server, so asking again never makes a second one.
@@ -167,6 +170,32 @@ export class ScheduledSends {
               ? `${error.message} Your message is still saved here.`
               : "Could not check if the message was scheduled. Your message is still saved here. Try again when you're back online.",
     };
+  }
+
+  /**
+   * Schedules a repeating message typed as a command (/remind), which has no
+   * draft to keep: a lost answer is said, and Scheduled shows whether it went.
+   */
+  async repeat(
+    channelId: ID,
+    message: { text: string; sendAt: number; repeat: RepeatRule },
+  ): Promise<{ ok: true; scheduled: ScheduledMessage } | { ok: false; reason: string }> {
+    try {
+      const { scheduled } = await this.client.api.scheduleMessage(channelId, {
+        nonce: newNonce(),
+        ...message,
+      });
+      return { ok: true, scheduled };
+    } catch (error) {
+      const failure = failureOf(error);
+      return {
+        ok: false,
+        reason:
+          failure.status >= 400 && failure.status < 500 && failure.code !== "http_error"
+            ? failure.message
+            : "Could not tell if it was scheduled. Look in Scheduled before you try again.",
+      };
+    }
   }
 
   /** Stops keeping this place's request; false when the device could not let it go. */

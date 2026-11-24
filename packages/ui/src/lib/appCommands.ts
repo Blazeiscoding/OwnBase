@@ -6,16 +6,30 @@ import {
   isRoom,
   type ID,
   type InAppCommandName,
+  type RepeatRule,
+  nextRepeat,
 } from "@ownbase/protocol";
-import type { WorkspaceClient } from "@ownbase/client-core";
+import type { ScheduledSends, WorkspaceClient } from "@ownbase/client-core";
 import { failureText } from "./failure.js";
+import { parseRemind } from "./remind.js";
+import { deviceZone, describeRepeat } from "./repeat.js";
+import { formatReminderTime } from "./schedule.js";
 
-/** What became of a command: done, with what to say; or not, with why. The box keeps its words when not. */
-export type CommandOutcome = { ok: true; said: string } | { ok: false; said: string };
+/**
+ * What became of a command: done, with what to say; or not, with why. The box
+ * keeps its words when not. One that asks first says what it will do, and
+ * `go` does it once the person agrees.
+ */
+export type CommandOutcome =
+  | { ok: true; said: string }
+  | { ok: false; said: string }
+  | { ok: "ask"; said: string; go: () => Promise<CommandOutcome> };
 
 interface Context {
   client: WorkspaceClient;
   channelId: ID;
+  /** Schedules what /remind asks for. */
+  schedules?: ScheduledSends;
 }
 
 const firstGrapheme = (text: string) => {
@@ -27,7 +41,7 @@ const firstGrapheme = (text: string) => {
 export async function runAppCommand(
   name: Exclude<InAppCommandName, "poll">,
   args: string,
-  { client, channelId }: Context,
+  { client, channelId, schedules }: Context,
 ): Promise<CommandOutcome> {
   const state = client.state;
   const channel = state.channels[channelId];
@@ -102,6 +116,44 @@ export async function runAppCommand(
       if (await client.leaveChannel(channelId))
         return { ok: false, said: `You are still in ${where}. ${offline}` };
       return { ok: true, said: `You left ${where}.` };
+    }
+    case "remind": {
+      if (!schedules) return { ok: false, said: `/remind could not start. ${offline}` };
+      const timeZone = deviceZone();
+      const parsed = parseRemind(args, { channelId, channels: state.channels, timeZone });
+      if (!parsed.ok) return parsed;
+      const rule: RepeatRule = { ...parsed.rule, timeZone };
+      const firstFrom = (now: number) => nextRepeat(rule, now);
+      const first = firstFrom(Date.now());
+      if (first === null)
+        return {
+          ok: false,
+          said: "That end date is before the first time it would post. Choose a later one.",
+        };
+      const target = state.channels[parsed.channelId];
+      const place = target && isRoom(target.type) ? `#${target.name}` : "this conversation";
+      const how = describeRepeat(rule);
+      const shown = parsed.text.length > 80 ? `${parsed.text.slice(0, 79)}…` : parsed.text;
+      return {
+        ok: "ask",
+        said: `Post "${shown}" in ${place} ${how.charAt(0).toLowerCase()}${how.slice(1)}, starting ${formatReminderTime(first)}?`,
+        go: async () => {
+          // Asked again from now: the first time may have passed while they read.
+          const sendAt = firstFrom(Date.now());
+          if (sendAt === null)
+            return { ok: false, said: "That end date has passed. Choose a later one." };
+          const answer = await schedules.repeat(parsed.channelId, {
+            text: parsed.text,
+            sendAt,
+            repeat: rule,
+          });
+          if (!answer.ok) return { ok: false, said: answer.reason };
+          return {
+            ok: true,
+            said: `Scheduled for ${place}, starting ${formatReminderTime(answer.scheduled.sendAt)}. Change or stop it in Scheduled.`,
+          };
+        },
+      };
     }
     case "mute":
     case "unmute": {

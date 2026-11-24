@@ -579,6 +579,11 @@ export class Api {
     return this.http.json(endpoints.editScheduledMessage, { params: { id }, body });
   }
 
+  /** The send already waiting still goes, once. */
+  stopRepeating(id: ID) {
+    return this.http.json(endpoints.stopRepeating, { params: { id } });
+  }
+
   setChannelPrefs(channelId: ID, body: ChannelPrefsBody) {
     return this.http.json(endpoints.setChannelPrefs, { params: { id: channelId }, body });
   }

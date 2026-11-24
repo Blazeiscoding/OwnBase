@@ -2,6 +2,7 @@ import { endpoints, type ErrorCode, type ScheduledMessage } from "@ownbase/proto
 import { requireChannelAccess, type ServerContext } from "../core/context.js";
 import { HttpError } from "../httpError.js";
 import { type Posting } from "../messages/posting.js";
+import { REPEAT_STOPPED } from "./store.js";
 
 /** How many times an unexplained delivery error is retried before giving up. */
 const SCHEDULED_ATTEMPTS = 3;
@@ -41,6 +42,7 @@ export function registerScheduled(ctx: ServerContext, { posting }: { posting: Po
         // Only a reply can also be shown in the channel, as with an ordinary send.
         broadcast: !!body.threadRootId && body.alsoSendToChannel === true,
         nonce: body.nonce ?? null,
+        repeat: body.repeat ?? null,
       },
       SCHEDULED_LIMITS,
     );
@@ -67,6 +69,16 @@ export function registerScheduled(ctx: ServerContext, { posting }: { posting: Po
     }
     requireChannelAccess(store, scheduled.channelId, me);
     store.scheduled.reschedule(scheduled.id, body.sendAt);
+    return { scheduled: store.scheduled.get(scheduled.id)! };
+  });
+
+  route(endpoints.stopRepeating, async ({ user: me, params }) => {
+    const scheduled = store.scheduled.get(params.id);
+    if (!scheduled || scheduled.userId !== me.id || scheduled.status === "sent") {
+      throw new HttpError(404, "not_found");
+    }
+    // Asked twice, the second finds it already stopped: the same answer.
+    store.scheduled.stopRepeating(scheduled.id);
     return { scheduled: store.scheduled.get(scheduled.id)! };
   });
 
@@ -157,6 +169,20 @@ export function registerScheduled(ctx: ServerContext, { posting }: { posting: Po
       });
     } catch (err) {
       const code = err instanceof HttpError ? err.code : null;
+      // Leaving or deactivation stops a repeat as it happens; this catches
+      // any way out of a conversation that did not pass through there.
+      const stopped =
+        !item.repeat || !store.channels.get(item.channelId)
+          ? null
+          : code === "channel_not_found"
+            ? REPEAT_STOPPED.left
+            : code === "account_deactivated"
+              ? REPEAT_STOPPED.deactivated
+              : null;
+      if (stopped) {
+        store.scheduled.stopRepeatsOf({ userId: item.userId, channelId: item.channelId }, stopped);
+        return;
+      }
       const held = heldBecause(item, code);
       const failed = failedBecause(code);
       if (held) hold(held);

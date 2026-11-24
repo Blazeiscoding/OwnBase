@@ -1527,6 +1527,18 @@
       "concepts": ["search syntax", "time zones", "bounded cache"]
     },
     {
+      "path": "packages/protocol/src/repeat.ts",
+      "plain": "Works out when a repeating scheduled message goes next, such as every weekday at 9:00, on the author's own clock.",
+      "summary": "Computes a repeat rule's next send in its IANA zone, the same in the app and on the server (K14).",
+      "details": [
+        "nextRepeat walks calendar days in the rule's zone from the given instant and returns the first send after it, or null once the rule's end date has passed. firstRepeat is the first at or after a chosen time, so every weekday chosen for a Saturday starts on the Monday.",
+        "instantOfWallClock turns a wall-clock time into an instant using the offsets a day either side: a time the clocks skip reads on the earlier clock (01:30 becomes 02:30), and a time shown twice is the first. So 9:00 stays 9:00 across daylight-saving changes.",
+        "A monthly rule on the 31st goes on a shorter month's last day and back on the 31st after. repeatAnchors reads a chosen first send as the rule's time, weekday and date, as Send later's Repeat choices offer them.",
+        "Formatters are kept for at most 32 zones, as in search.ts."
+      ],
+      "concepts": ["recurrence", "time zones", "daylight saving"]
+    },
+    {
       "path": "packages/server/src/cli/run.ts",
       "plain": "Starts the server on its own and runs the host's backup, restore and account recovery commands.",
       "summary": "runServerCli: parses flags, runs operator commands, or starts the standalone server.",

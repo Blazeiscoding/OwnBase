@@ -32,6 +32,7 @@ const queued = (text: string): ScheduledMessage => ({
   failureReason: null,
   attempts: 0,
   messageId: null,
+  repeat: null,
 });
 
 const clients: WorkspaceClient[] = [];

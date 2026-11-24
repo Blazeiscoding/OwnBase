@@ -1651,6 +1651,17 @@ export const endpoints = {
     answer: json<{ scheduled: ScheduledMessage }>(),
   }),
 
+  /**
+   * Stops a scheduled message repeating. The send already waiting still goes,
+   * once; cancel it to send nothing more.
+   */
+  stopRepeating: endpoint({
+    method: "DELETE",
+    path: "/api/scheduled/:id/repeat",
+    access: "member",
+    answer: json<{ scheduled: ScheduledMessage }>(),
+  }),
+
   /** Pins a message to its conversation, for everyone in it to see. */
   pinMessage: endpoint({
     method: "PUT",

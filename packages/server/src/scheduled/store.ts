@@ -1,4 +1,10 @@
-import type { ID, ScheduledMessage, ScheduledStatus } from "@ownbase/protocol";
+import {
+  nextRepeat,
+  type ID,
+  type RepeatRule,
+  type ScheduledMessage,
+  type ScheduledStatus,
+} from "@ownbase/protocol";
 import type { DatabaseSync } from "node:sqlite";
 import { countOf, oneOf, shape, type RowOf } from "../core/rows.js";
 import { ulid } from "../ids.js";
@@ -24,15 +30,25 @@ const scheduledRow = shape({
   attempts: "number",
   message_id: "text?",
   broadcast: "number",
+  /** A RepeatRule as JSON, for one that repeats. */
+  repeat: "text?",
+  repeat_slot: "number?",
 });
 /** Every column, with the files the message holds in the order they were chosen. */
 const SELECTED = `SELECT s.*, (
     SELECT json_group_array(file_id ORDER BY position) FROM scheduled_files WHERE scheduled_id = s.id
   ) AS file_ids FROM scheduled_messages s`;
 const authorRow = scheduledRow.pick("user_id");
+const repeatRow = scheduledRow.pick("user_id", "send_at", "repeat", "repeat_slot");
 const heldRow = scheduledRow.pick("user_id", "status", "failure_reason");
 const attemptsRow = scheduledRow.pick("attempts");
 const sendKeyRow = shape({ scheduledId: "text", requestHash: "text" });
+
+/** Why a repeat ended without its author stopping it, as their list says. */
+export const REPEAT_STOPPED = {
+  left: "It stopped repeating because you are no longer in that channel.",
+  deactivated: "It stopped repeating because your account was deactivated.",
+};
 
 /** The queue of messages to post later: waiting, held, sent or failed, each with why. */
 export class ScheduledStore {
@@ -69,14 +85,18 @@ export class ScheduledStore {
     fileIds: ID[];
     sendAt: number;
     broadcast?: boolean;
+    /** With a rule, `sendAt` is its first time. */
+    repeat?: RepeatRule | null;
   }): ScheduledMessage {
     const id = ulid();
     const now = Date.now();
+    const repeat = input.repeat ?? null;
     this.db
       .prepare(
         `INSERT INTO scheduled_messages
-           (id, channel_id, user_id, text, thread_root_id, send_at, created_at, broadcast)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+           (id, channel_id, user_id, text, thread_root_id, send_at, created_at, broadcast,
+            repeat, repeat_slot)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       )
       .run(
         id,
@@ -87,6 +107,8 @@ export class ScheduledStore {
         input.sendAt,
         now,
         input.threadRootId && input.broadcast ? 1 : 0,
+        repeat ? JSON.stringify(repeat) : null,
+        repeat ? input.sendAt : null,
       );
     // The key refuses a file some other scheduled message already holds, so
     // the caller's checks and this row cannot disagree.
@@ -122,6 +144,7 @@ export class ScheduledStore {
       failureReason: r.failure_reason,
       attempts: r.attempts,
       messageId: r.message_id,
+      repeat: r.repeat ? (JSON.parse(r.repeat) as RepeatRule) : null,
     };
   }
 
@@ -202,8 +225,36 @@ export class ScheduledStore {
   /**
    * Delivery, written inside the posting transaction so neither can happen
    * alone. Its files are the message's now, so the schedule lets go of them.
+   *
+   * One that repeats is queued again instead, for the rule's next time after
+   * both now and the time this send stood for: sent early by hand, today's
+   * send is not made twice; sent late, after the server was down for days,
+   * the sends missed meanwhile are not all made at once. Being in the same
+   * transaction, a restart can neither lose the next send nor make two.
    */
-  markSent(id: ID, messageId: ID): void {
+  markSent(id: ID, messageId: ID, now = Date.now()): void {
+    const repeating = repeatRow.get(
+      this.db.prepare(
+        "SELECT user_id, send_at, repeat, repeat_slot FROM scheduled_messages WHERE id = ?",
+      ),
+      id,
+    );
+    if (repeating?.repeat) {
+      const rule = JSON.parse(repeating.repeat) as RepeatRule;
+      const next = nextRepeat(rule, Math.max(now, repeating.repeat_slot ?? repeating.send_at));
+      if (next !== null) {
+        this.db
+          .prepare(
+            `UPDATE scheduled_messages
+             SET send_at = ?, repeat_slot = ?, status = 'queued', failure_reason = NULL,
+               attempts = 0, next_attempt_at = 0, message_id = ?
+             WHERE id = ?`,
+          )
+          .run(next, next, messageId, id);
+        this.tell(repeating.user_id);
+        return;
+      }
+    }
     const row = authorRow.get(
       this.db.prepare(
         `UPDATE scheduled_messages SET status = 'sent', message_id = ?, failure_reason = NULL,
@@ -287,6 +338,45 @@ export class ScheduledStore {
     );
     if (row) this.tell(row.user_id);
     return !!row;
+  }
+
+  /**
+   * Makes a repeating message an ordinary one: the send waiting still goes,
+   * at its time. False when there is no such message not yet sent.
+   */
+  stopRepeating(id: ID): boolean {
+    const row = authorRow.get(
+      this.db.prepare(
+        `UPDATE scheduled_messages SET repeat = NULL, repeat_slot = NULL
+         WHERE id = ? AND status != 'sent' AND repeat IS NOT NULL RETURNING user_id`,
+      ),
+      id,
+    );
+    if (row) this.tell(row.user_id);
+    return !!row;
+  }
+
+  /**
+   * Ends what an author has repeating, in one channel or everywhere, once
+   * they can no longer post there: they left it, or their account was
+   * deactivated. The waiting send is not made either, and `reason` tells them
+   * why in their list. Unlike a hold, getting back in does not start it
+   * again: a message nobody is there to stop should not come back by itself.
+   */
+  stopRepeatsOf(scope: { userId: ID; channelId?: ID }, reason: string): void {
+    const rows = authorRow.all(
+      this.db.prepare(
+        `UPDATE scheduled_messages
+         SET repeat = NULL, repeat_slot = NULL, status = 'failed', failure_reason = ?
+         WHERE user_id = ? AND repeat IS NOT NULL AND status != 'sent'
+           ${scope.channelId ? "AND channel_id = ?" : ""}
+         RETURNING user_id`,
+      ),
+      reason,
+      scope.userId,
+      ...(scope.channelId ? [scope.channelId] : []),
+    );
+    if (rows.length > 0) this.tell(scope.userId);
   }
 
   /** Delivered rows are kept as proof of completion, then aged out. */

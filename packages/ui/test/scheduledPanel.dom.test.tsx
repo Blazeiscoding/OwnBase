@@ -52,6 +52,7 @@ const queued = (id: string, text: string, hours = 2): ScheduledMessage =>
     failureReason: null,
     attempts: 0,
     messageId: null,
+    repeat: null,
   }) as unknown as ScheduledMessage;
 
 function renderPanel(list: () => Promise<{ scheduled: ScheduledMessage[] }>) {

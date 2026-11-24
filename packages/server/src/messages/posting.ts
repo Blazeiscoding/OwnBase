@@ -1,4 +1,5 @@
 import {
+  firstRepeat,
   MESSAGE_TEXT_MAX,
   type App,
   type AppScope,
@@ -8,6 +9,7 @@ import {
   type ID,
   type Message,
   type MessageAction,
+  type RepeatRule,
   type ScheduledMessage,
   type WorkspaceEvent,
 } from "@ownbase/protocol";
@@ -62,6 +64,8 @@ export interface ScheduleInput {
   sendAt: number;
   broadcast: boolean;
   nonce: string | null;
+  /** Sends it again after each send, by this rule. */
+  repeat?: RepeatRule | null;
 }
 
 /** A refusal that names the scope the app's token would need, as Slack's does. */
@@ -317,6 +321,7 @@ export function createPosting({ store, mutate, ration, queuePreviews }: PostingD
         input.sendAt,
         // Absent when false, so a request recorded before this existed still matches.
         ...(input.broadcast ? [true] : []),
+        ...(input.repeat ? [{ repeat: input.repeat }] : []),
       ]),
     );
     return mutate(() => {
@@ -342,6 +347,23 @@ export function createPosting({ store, mutate, ration, queuePreviews }: PostingD
       // queue for hours only to be rejected when it comes due.
       requireText(input.text, input.fileIds.length > 0);
       requireThreadRoot(channel, input.threadRootId);
+      const repeat = input.repeat ?? null;
+      // A file belongs to the one message it is posted in.
+      if (repeat && input.fileIds.length > 0)
+        throw new HttpError(
+          400,
+          "repeat_with_files",
+          "A repeating message cannot carry files. Remove them, or send it once.",
+        );
+      // A repeating message starts on the rule's first time from the one chosen:
+      // every weekday, chosen for a Saturday, starts on the Monday.
+      const sendAt = repeat ? firstRepeat(repeat, input.sendAt) : input.sendAt;
+      if (sendAt === null)
+        throw new HttpError(
+          400,
+          "repeat_ends_before_start",
+          "The end date is before the first time it would send. Choose a later end date.",
+        );
       if (
         new Set(input.fileIds).size !== input.fileIds.length ||
         !store.files.unattached(input.fileIds, channel.id, input.userId)
@@ -377,8 +399,9 @@ export function createPosting({ store, mutate, ration, queuePreviews }: PostingD
         text: input.text,
         threadRootId: input.threadRootId,
         fileIds: input.fileIds,
-        sendAt: input.sendAt,
+        sendAt,
         broadcast: input.broadcast,
+        repeat,
       });
       if (input.nonce)
         store.scheduled.recordRequest(input.userId, input.nonce, scheduled.id, requestHash);

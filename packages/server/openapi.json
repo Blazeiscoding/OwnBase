@@ -5025,6 +5025,40 @@
         }
       }
     },
+    "/api/scheduled/{id}/repeat": {
+      "delete": {
+        "operationId": "deleteScheduledByIdRepeat",
+        "tags": [
+          "scheduled"
+        ],
+        "summary": "Stops a scheduled message repeating.",
+        "description": "Stops a scheduled message repeating. The send already waiting still goes, once; cancel it to send nothing more.\n\nNeeds a signed-in account.",
+        "x-access": "member",
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Done."
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    },
     "/api/messages/{id}/pin": {
       "put": {
         "operationId": "putMessagesByIdPin",
@@ -7413,6 +7447,49 @@
             "items": {
               "type": "string"
             }
+          },
+          "repeat": {
+            "type": "object",
+            "properties": {
+              "every": {
+                "type": "string",
+                "enum": [
+                  "day",
+                  "weekday",
+                  "week",
+                  "month"
+                ]
+              },
+              "weekday": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 6
+              },
+              "monthDay": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 31
+              },
+              "time": {
+                "type": "string",
+                "pattern": "^([01]\\d|2[0-3]):[0-5]\\d$"
+              },
+              "timeZone": {
+                "type": "string",
+                "maxLength": 64
+              },
+              "until": {
+                "nullable": true,
+                "type": "string",
+                "pattern": "^\\d{4}-(0[1-9]|1[0-2])-(0[1-9]|[12]\\d|3[01])$"
+              }
+            },
+            "required": [
+              "every",
+              "time",
+              "timeZone",
+              "until"
+            ]
           }
         },
         "required": [

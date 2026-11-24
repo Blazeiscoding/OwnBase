@@ -355,17 +355,43 @@ export const sendMessageBody = z
     { message: `a poll needs a question of up to ${POLL_QUESTION_MAX} characters` },
   );
 
+/** A calendar day as "YYYY-MM-DD". */
+const calendarDay = z.string().regex(/^\d{4}-(0[1-9]|1[0-2])-(0[1-9]|[12]\d|3[01])$/);
+
+/** How a scheduled message repeats (K14): each kind with the one part it needs. */
+export const repeatRule = z
+  .object({
+    every: z.enum(["day", "weekday", "week", "month"]),
+    weekday: z.number().int().min(0).max(6).optional(),
+    monthDay: z.number().int().min(1).max(31).optional(),
+    time: z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/),
+    timeZone: z
+      .string()
+      .max(64)
+      .refine((zone) => isTimeZone(zone), "an IANA time zone")
+      .transform((zone) => currentZoneName(zone)),
+    until: calendarDay.nullable(),
+  })
+  .refine((r) => (r.every === "week") === (r.weekday !== undefined), {
+    message: "a weekly repeat names its weekday, and no other does",
+  })
+  .refine((r) => (r.every === "month") === (r.monthDay !== undefined), {
+    message: "a monthly repeat names its date, and no other does",
+  });
+
 export const scheduleMessageBody = z
   .object({
     text: z.string().max(MESSAGE_TEXT_MAX),
     /** Stable identity for retrying this exact scheduling request. */
     nonce: z.string().min(1).max(64).optional(),
-    /** Epoch ms; must be in the future. */
+    /** Epoch ms; must be in the future. With `repeat`, the first send is the rule's first time from here. */
     sendAt: z.number().int().positive(),
     threadRootId: z.string().optional(),
     /** A reply that is also to be shown in the channel. Ignored without a thread. */
     alsoSendToChannel: z.boolean().optional(),
     fileIds: z.array(z.string()).max(10).optional(),
+    /** Sends it again after each send, by this rule (K14). Text only: files go with one message. */
+    repeat: repeatRule.optional(),
   })
   .refine((b) => b.text.trim().length > 0 || (b.fileIds?.length ?? 0) > 0, {
     message: "message must have text or files",

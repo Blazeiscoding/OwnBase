@@ -80,6 +80,7 @@ const queued = {
   failureReason: null,
   attempts: 0,
   messageId: null,
+  repeat: null,
 } as unknown as ScheduledMessage;
 
 const platform: Platform = {

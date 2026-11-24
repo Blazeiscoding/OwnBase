@@ -15,6 +15,7 @@ import {
   parseCommand,
   type ID,
   type InAppCommandName,
+  type RepeatRule,
   type ScheduleMessageBody,
 } from "@ownbase/protocol";
 import {
@@ -47,6 +48,7 @@ import { SuggestionList, useSuggestions } from "./Suggestions.js";
 import { markdownLinks } from "../lib/markdownLinks.js";
 import { useToast } from "./Toast.js";
 import { preloadable } from "../lib/preloadable.js";
+import type { CommandOutcome } from "../lib/appCommands.js";
 import { ScheduledSends, type ScheduleAnswer } from "@ownbase/client-core";
 import {
   FormattingToolbar,
@@ -133,6 +135,15 @@ export function Composer({ channelId, threadRootId, placeholder, autoFocus, onLe
   const [attachmentNote, setAttachmentNote] = useState<string | null>(null);
   /** Why the last send was not taken, while the draft waits in the box. */
   const [sendRefusal, setSendRefusal] = useState<string | null>(null);
+  /** A command that says what it will do before it does it (/remind), for the words it was asked with. */
+  const [commandCheck, setCommandCheck] = useState<
+    | (Extract<CommandOutcome, { ok: "ask" }> & {
+        name: InAppCommandName;
+        key: string;
+        text: string;
+      })
+    | null
+  >(null);
   /**
    * A send whose words this box keeps until the device has them (GL-02):
    * its draft key, so a send from another conversation is never cleared here.
@@ -529,18 +540,25 @@ export function Composer({ channelId, threadRootId, placeholder, autoFocus, onLe
     if (name === "poll") return setPollQuestion(args);
     runningCommand.current = true;
     const key = draftKey;
-    void appCommands
-      .load()
-      .then(({ runAppCommand }) => runAppCommand(name, args, { client, channelId }))
-      .catch(() => ({
+    void finishCommand(
+      name,
+      key,
+      appCommands
+        .load()
+        .then(({ runAppCommand }) => runAppCommand(name, args, { client, channelId, schedules })),
+    );
+  }
+
+  function finishCommand(name: InAppCommandName, key: string, running: Promise<CommandOutcome>) {
+    setCommandCheck(null);
+    return running
+      .catch((): CommandOutcome => ({
         ok: false,
         said: `/${name} could not start. Check your connection and try again.`,
       }))
       .then((outcome) => {
-        if (!outcome.ok) {
-          setSendRefusal(outcome.said);
-          return;
-        }
+        if (outcome.ok === "ask") return setCommandCheck({ ...outcome, name, key, text });
+        if (!outcome.ok) return setSendRefusal(outcome.said);
         toast({ message: outcome.said, kind: "success" });
         if (key === currentDraftKey.current) {
           suggestions.close();
@@ -559,7 +577,7 @@ export function Composer({ channelId, threadRootId, placeholder, autoFocus, onLe
     if (box.current) box.current.style.height = "auto";
   }
 
-  async function schedule(at: Date) {
+  async function schedule(at: Date, repeat?: RepeatRule) {
     if (archived) return;
     if (!Number.isFinite(at.getTime()) || at.getTime() <= Date.now()) {
       setScheduleError("Choose a date and time in the future.");
@@ -583,7 +601,7 @@ export function Composer({ channelId, threadRootId, placeholder, autoFocus, onLe
     client.setDraft(draftKey, text);
     const answer = await schedules.schedule(
       { channelId, threadRootId },
-      { text, files: attached, sendAt: at.getTime(), alsoToChannel },
+      { text, files: attached, sendAt: at.getTime(), alsoToChannel, ...(repeat ? { repeat } : {}) },
       controller.signal,
     );
     if (scheduleContext.current !== context) return;
@@ -644,7 +662,9 @@ export function Composer({ channelId, threadRootId, placeholder, autoFocus, onLe
     setScheduleNote(
       scheduled.status === "sent"
         ? "This message was already sent."
-        : `Scheduled for ${formatScheduleTime(scheduled.sendAt)}. Change or remove it in Scheduled.`,
+        : scheduled.repeat
+          ? `Scheduled to repeat, starting ${formatScheduleTime(scheduled.sendAt)}. Change or stop it in Scheduled.`
+          : `Scheduled for ${formatScheduleTime(scheduled.sendAt)}. Change or remove it in Scheduled.`,
     );
   }
 
@@ -806,6 +826,37 @@ export function Composer({ channelId, threadRootId, placeholder, autoFocus, onLe
         <p role="alert" className="mb-2 text-sm text-ink-dim">
           {sendRefusal}
         </p>
+      )}
+      {/* Gone once the words it was asked with change. */}
+      {commandCheck?.key === draftKey && commandCheck.text === text && (
+        <div
+          role="group"
+          aria-label={`Check /${commandCheck.name}`}
+          className="mb-2 space-y-2 rounded-lg border border-edge p-3 text-sm text-ink-dim"
+        >
+          <p>{commandCheck.said}</p>
+          <div className="flex gap-2">
+            <button
+              className="btn-shape h-8 bg-copper px-3 text-[13px] font-semibold text-ground hover:bg-copper-deep"
+              onClick={() => {
+                if (runningCommand.current) return;
+                runningCommand.current = true;
+                void finishCommand(commandCheck.name, commandCheck.key, commandCheck.go());
+              }}
+            >
+              Schedule
+            </button>
+            <button
+              className="btn-shape h-8 border border-edge px-3 text-[13px] hover:text-ink"
+              onClick={() => {
+                setCommandCheck(null);
+                box.current?.focus();
+              }}
+            >
+              Keep editing
+            </button>
+          </div>
+        </div>
       )}
       {pendingSchedule && (
         <div className="mb-2 space-y-2 rounded-lg border border-edge p-3 text-sm text-ink-dim">
@@ -1149,7 +1200,8 @@ export function Composer({ channelId, threadRootId, placeholder, autoFocus, onLe
                   }
                   anchor={scheduleButton}
                   onClose={() => setScheduleOpen(false)}
-                  onPick={(at) => void schedule(at)}
+                  onPick={(at, repeat) => void schedule(at, repeat)}
+                  repeatable={attached.length === 0 ? true : "A message with files cannot repeat."}
                 />
               </Suspense>
             </ErrorBoundary>
