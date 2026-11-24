@@ -45,10 +45,16 @@ import { useMentionField } from "../lib/useMentionField.js";
 import { useListbox } from "../lib/useListbox.js";
 import { SuggestionList, useSuggestions } from "./Suggestions.js";
 import { offeredCommands, runAppCommand } from "../lib/appCommands.js";
+import { markdownLinks } from "../lib/markdownLinks.js";
 import { useToast } from "./Toast.js";
 import { ScheduledSends, type ScheduleAnswer } from "@ownbase/client-core";
 import {
   FormattingToolbar,
+  formatLink,
+  formatQuote,
+  linkShortcut,
+  quoteShortcut,
+  type FormattingToolbarHandle,
   formatList,
   formatText,
   formattingShortcut,
@@ -380,6 +386,21 @@ export function Composer({ channelId, threadRootId, placeholder, autoFocus, onLe
     rewrite(next.text, next.selectionStart, next.selectionEnd);
   }
 
+  function quote() {
+    if (!box.current) return;
+    const { start, end } = field.selection();
+    const next = formatQuote(text, start, end);
+    rewrite(next.text, next.selectionStart, next.selectionEnd);
+  }
+
+  function link(url: string) {
+    if (!box.current) return;
+    const { start, end } = field.selection();
+    const next = formatLink(text, start, end, url);
+    rewrite(next.text, next.selectionStart, next.selectionEnd);
+  }
+  const toolbar = useRef<FormattingToolbarHandle>(null);
+
   function insertEmoji(emoji: string) {
     const next = field.replaceSelection(emoji);
     rewrite(next.stored, next.caret);
@@ -446,7 +467,8 @@ export function Composer({ channelId, threadRootId, placeholder, autoFocus, onLe
     const trimmed = text.trim();
     if ((!trimmed && attached.length === 0) || text.length > MESSAGE_TEXT_MAX) return;
     if (runningCommand.current) return;
-    const answer = client.send(channelId, trimmed, {
+    // "[words](address)", as Discord and Markdown write a link, goes as Mrkdwn's own.
+    const answer = client.send(channelId, markdownLinks(trimmed), {
       threadRootId,
       files: attached,
       alsoSendToChannel: alsoToChannel,
@@ -633,6 +655,16 @@ export function Composer({ channelId, threadRootId, placeholder, autoFocus, onLe
       if (listed) {
         e.preventDefault();
         list(listed);
+        return;
+      }
+      if (quoteShortcut(e)) {
+        e.preventDefault();
+        quote();
+        return;
+      }
+      if (linkShortcut(e)) {
+        e.preventDefault();
+        toolbar.current?.openLink();
         return;
       }
       if (e.key === "Enter") {
@@ -1038,8 +1070,12 @@ export function Composer({ channelId, threadRootId, placeholder, autoFocus, onLe
           )}
           <FormattingToolbar
             key={draftKey}
+            ref={toolbar}
             placement="inline"
             onFormat={format}
+            onLink={link}
+            onQuote={quote}
+            onLinkDone={() => box.current?.focus()}
             onList={list}
             onInsert={insertEmoji}
             preview={preview}

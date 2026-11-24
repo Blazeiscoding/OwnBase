@@ -1,9 +1,22 @@
-import { Suspense, lazy, useEffect, useId, useRef, useState } from "react";
+import {
+  Suspense,
+  lazy,
+  useEffect,
+  useId,
+  useImperativeHandle,
+  useRef,
+  useState,
+  type Ref,
+} from "react";
 import { ErrorBoundary } from "./ErrorBoundary.js";
 import { Icon } from "./Icon.js";
 import { Tooltip } from "./Tooltip.js";
 import { shortcutLabel } from "../lib/shortcuts.js";
 import { preloadable } from "../lib/preloadable.js";
+
+// The box asking for a link's address, fetched as the workspace opens.
+const linkBox = preloadable(() => import("./LinkBox.js"));
+const LazyLinkBox = lazy(() => linkBox.load().then((module) => ({ default: module.LinkBox })));
 
 // Every emoji is far too much for the first download; the workspace fetches it as it opens.
 const emojiPicker = preloadable(() => import("./EmojiPicker.js"));
@@ -154,8 +167,108 @@ export function formatText(
   };
 }
 
+/** Ctrl/Cmd+Shift+U adds a link, and Ctrl/Cmd+Shift+9 a quote, as in Slack. */
+export const LINK_FORMAT = { label: "Link", combo: "Mod+Shift+U", sheet: "Add a link" } as const;
+export const QUOTE_FORMAT = {
+  label: "Quote",
+  combo: "Mod+Shift+9",
+  code: "Digit9",
+  sheet: "Quote selected lines",
+} as const;
+
+export function linkShortcut(event: { key: string; shiftKey: boolean }): boolean {
+  return event.shiftKey && event.key.toLowerCase() === "u";
+}
+
+export function quoteShortcut(event: { code: string; shiftKey: boolean }): boolean {
+  return event.shiftKey && event.code === QUOTE_FORMAT.code;
+}
+
+/**
+ * What was typed as a link's address, as a link can hold it: a bare
+ * "ownbase.site" gets https://, and anything that is not a web or mail
+ * address is refused (null).
+ */
+export function linkAddress(typed: string): string | null {
+  const text = typed.trim();
+  if (!text || /\s/.test(text)) return null;
+  const withScheme = /^[a-z][a-z\d+.-]*:/i.test(text) ? text : `https://${text}`;
+  let url: URL;
+  try {
+    url = new URL(withScheme);
+  } catch {
+    return null;
+  }
+  if (url.protocol === "mailto:") return withScheme;
+  if (url.protocol !== "http:" && url.protocol !== "https:") return null;
+  // "https://notes" is a word, not a site.
+  if (!url.hostname.includes(".") && url.hostname !== "localhost") return null;
+  return withScheme;
+}
+
+/**
+ * Makes the selection a link to `url`, written as Mrkdwn's `<url|words>`, with
+ * the caret after it. Without a selection the address goes in by itself.
+ * Words that cannot sit inside a link's brackets keep their place, the
+ * address after them.
+ */
+export function formatLink(text: string, start: number, end: number, url: string) {
+  const words = text.slice(start, end);
+  const inserted = !words
+    ? `<${url}>`
+    : /[<>|\n]/.test(words)
+      ? `${words} <${url}>`
+      : `<${url}|${words}>`;
+  const caret = start + inserted.length;
+  return {
+    text: text.slice(0, start) + inserted + text.slice(end),
+    selectionStart: caret,
+    selectionEnd: caret,
+  };
+}
+
+/** A quoted line's start, as Mrkdwn reads it. */
+const QUOTED = /^>[ \t]?/;
+
+/**
+ * Quotes each line the selection touches, or, when every written one already
+ * is quoted, takes the quote away again, as the list buttons do.
+ */
+export function formatQuote(text: string, start: number, end: number) {
+  const last = end > start && text[end - 1] === "\n" ? end - 1 : end;
+  const from = text.lastIndexOf("\n", start - 1) + 1;
+  const next = text.indexOf("\n", last);
+  const to = next === -1 ? text.length : next;
+  const lines = text.slice(from, to).split("\n");
+  const written = lines.filter((line) => line.trim());
+  const undo = written.length > 0 && written.every((line) => QUOTED.test(line));
+  const changed = lines.map((line) => {
+    if (undo) return line.replace(QUOTED, "");
+    if (!line.trim() && lines.length > 1) return line;
+    return `> ${line}`;
+  });
+  const block = changed.join("\n");
+  const result = text.slice(0, from) + block + text.slice(to);
+  if (start !== end || lines.length !== 1)
+    return { text: result, selectionStart: from, selectionEnd: from + block.length };
+  const caret = Math.max(from, start + (block.length - (to - from)));
+  return { text: result, selectionStart: caret, selectionEnd: caret };
+}
+
+/** What the composer and the editor can ask of their toolbar. */
+export interface FormattingToolbarHandle {
+  /** Opens the box that asks for a link's address, as Ctrl/Cmd+Shift+U does. */
+  openLink: () => void;
+}
+
 interface Props {
   onFormat: (marker: string, placeholder: string, block?: boolean) => void;
+  /** Makes the text box's selection a link to this address. */
+  onLink: (url: string) => void;
+  onQuote: () => void;
+  /** The link box closed, added or not: the text box takes focus back. */
+  onLinkDone: () => void;
+  ref?: Ref<FormattingToolbarHandle>;
   onList: (kind: ListKind) => void;
   onInsert: (text: string) => void;
   preview: boolean;
@@ -173,14 +286,20 @@ const tool =
 
 export function FormattingToolbar({
   onFormat,
+  onLink,
+  onQuote,
+  onLinkDone,
   onList,
   onInsert,
   preview,
   onTogglePreview,
   placement = "row",
+  ref,
 }: Props) {
   const inline = placement === "inline";
   const [open, setOpen] = useState(false);
+  const [linking, setLinking] = useState(false);
+  useImperativeHandle(ref, () => ({ openLink: () => setLinking(true) }), []);
   // The formatting buttons fold away behind one, so the composer leaves room
   // for what is being written. theme.css does the folding.
   const [expanded, setExpanded] = useState(false);
@@ -208,10 +327,11 @@ export function FormattingToolbar({
       <div
         role="group"
         aria-label="Message formatting"
+        data-expanded={expanded || undefined}
         className={
           inline
             ? // Never narrower than its own buttons: squeezed, "Aa" and the emoji button stacked.
-              "flex max-w-full shrink-0 flex-wrap items-center gap-0.5 text-sm text-ink-dim"
+              "formatting-group flex max-w-full shrink-0 flex-wrap items-center gap-0.5 text-sm text-ink-dim"
             : "flex flex-wrap items-center gap-0.5 border-b border-edge/60 px-2 py-1 text-sm text-ink-dim"
         }
       >
@@ -259,6 +379,18 @@ export function FormattingToolbar({
               {"{ }"}
             </button>
           </Tooltip>
+          <Tooltip label={LINK_FORMAT.label} keys={shortcutLabel(LINK_FORMAT.combo)}>
+            <button
+              type="button"
+              aria-label={LINK_FORMAT.label}
+              aria-expanded={linking}
+              onMouseDown={(e) => e.preventDefault()}
+              onClick={() => setLinking((v) => !v)}
+              className={`${tool} ${linking ? "bg-ink/[0.08] text-ink" : ""}`}
+            >
+              <Icon name="link" size={16} />
+            </button>
+          </Tooltip>
           {LIST_FORMATS.map((item) => (
             <Tooltip key={item.kind} label={item.label} keys={shortcutLabel(item.combo)}>
               <button
@@ -272,6 +404,17 @@ export function FormattingToolbar({
               </button>
             </Tooltip>
           ))}
+          <Tooltip label={QUOTE_FORMAT.label} keys={shortcutLabel(QUOTE_FORMAT.combo)}>
+            <button
+              type="button"
+              aria-label={QUOTE_FORMAT.label}
+              onMouseDown={(e) => e.preventDefault()}
+              onClick={onQuote}
+              className={`${tool} text-[15px] font-semibold`}
+            >
+              {"\u201D"}
+            </button>
+          </Tooltip>
           <button
             type="button"
             aria-pressed={preview}
@@ -296,6 +439,22 @@ export function FormattingToolbar({
           </button>
         </Tooltip>
       </div>
+      {linking && (
+        <Suspense fallback={null}>
+          <LazyLinkBox
+            inline={inline}
+            onAdd={(url) => {
+              setLinking(false);
+              onLink(url);
+              onLinkDone();
+            }}
+            onCancel={() => {
+              setLinking(false);
+              onLinkDone();
+            }}
+          />
+        </Suspense>
+      )}
       {open && (
         // eslint-disable-next-line jsx-a11y/no-noninteractive-element-interactions -- Escape from the chooser's search or buttons closes it
         <div

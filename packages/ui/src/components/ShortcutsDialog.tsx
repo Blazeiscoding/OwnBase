@@ -8,7 +8,7 @@ import { KEY_BINDINGS, type KeyBinding } from "../lib/actions.js";
 import { messageKeys } from "../lib/messageActions.js";
 import { HISTORY_KEYS } from "../lib/historyKeys.js";
 import { MESSAGE_LIST_KEYS } from "../lib/useRovingMessages.js";
-import { LIST_FORMATS, TEXT_FORMATS } from "./FormattingToolbar.js";
+import { LINK_FORMAT, LIST_FORMATS, QUOTE_FORMAT, TEXT_FORMATS } from "./FormattingToolbar.js";
 
 const MOD = modKey();
 
@@ -54,6 +54,8 @@ const groups = (
       ...writingKeys(enterSends),
       ...TEXT_FORMATS.map((f): [string, string] => [sheetKeys(f.combo), f.sheet]),
       ...LIST_FORMATS.map((l): [string, string] => [sheetKeys(l.combo), l.label]),
+      [sheetKeys(QUOTE_FORMAT.combo), QUOTE_FORMAT.sheet],
+      [sheetKeys(LINK_FORMAT.combo), LINK_FORMAT.sheet],
       ["↑", "Edit your last message, when the message box is empty"],
       ["@", "Mention someone"],
       [":", "Add an emoji by name, as :rocket"],

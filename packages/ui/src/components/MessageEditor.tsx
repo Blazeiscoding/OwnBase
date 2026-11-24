@@ -4,6 +4,11 @@ import { ApiError } from "@ownbase/client-core";
 import { useClient, useWorkspace } from "../context.js";
 import {
   FormattingToolbar,
+  formatLink,
+  formatQuote,
+  linkShortcut,
+  quoteShortcut,
+  type FormattingToolbarHandle,
   formatList,
   formatText,
   formattingShortcut,
@@ -18,6 +23,7 @@ import { useMentionField } from "../lib/useMentionField.js";
 import { SuggestionList, useSuggestions } from "./Suggestions.js";
 import { editDraftKey } from "@ownbase/client-core";
 import { readEditDraft, type EditDraft } from "../lib/drafts.js";
+import { markdownLinks } from "../lib/markdownLinks.js";
 
 export function MessageEditor({ message, onClose }: { message: Message; onClose: () => void }) {
   const client = useClient();
@@ -95,6 +101,21 @@ export function MessageEditor({ message, onClose }: { message: Message; onClose:
     field.edit(next.text, next.selectionStart, next.selectionEnd);
   }
 
+  function quote() {
+    if (!box.current || saving.current) return;
+    const { start, end } = field.selection();
+    const next = formatQuote(draft, start, end);
+    field.edit(next.text, next.selectionStart, next.selectionEnd);
+  }
+
+  function link(url: string) {
+    if (!box.current || saving.current) return;
+    const { start, end } = field.selection();
+    const next = formatLink(draft, start, end, url);
+    field.edit(next.text, next.selectionStart, next.selectionEnd);
+  }
+  const toolbar = useRef<FormattingToolbarHandle>(null);
+
   function cancel() {
     if (saving.current) return;
     client.setDraft(draftKey, "");
@@ -114,7 +135,7 @@ export function MessageEditor({ message, onClose }: { message: Message; onClose:
     // What this window has of the message: the words the edit started from,
     // or, once the author has seen they changed and chosen to save anyway,
     // the words they chose to replace. Anything newer is refused.
-    const failure = await client.editMessage(message.id, draft.trim(), message.text);
+    const failure = await client.editMessage(message.id, markdownLinks(draft.trim()), message.text);
     saving.current = false;
     if (!alive.current) return;
     setBusy(false);
@@ -175,7 +196,11 @@ export function MessageEditor({ message, onClose }: { message: Message; onClose:
           className="min-w-0 overflow-hidden rounded-lg border border-copper/60 bg-ground"
         >
           <FormattingToolbar
+            ref={toolbar}
             onFormat={format}
+            onLink={link}
+            onQuote={quote}
+            onLinkDone={() => box.current?.focus()}
             onList={list}
             onInsert={(emoji) => {
               const next = field.replaceSelection(emoji);
@@ -239,6 +264,16 @@ export function MessageEditor({ message, onClose }: { message: Message; onClose:
                   if (listed) {
                     e.preventDefault();
                     list(listed);
+                    return;
+                  }
+                  if (quoteShortcut(e)) {
+                    e.preventDefault();
+                    quote();
+                    return;
+                  }
+                  if (linkShortcut(e)) {
+                    e.preventDefault();
+                    toolbar.current?.openLink();
                     return;
                   }
                   // Saves from anywhere, a code block included, as it sends in the composer.
