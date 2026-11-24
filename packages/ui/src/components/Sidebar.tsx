@@ -1073,6 +1073,9 @@ function WorkspaceMenu(props: {
       }`}
       items={items}
       align="start"
+      // Wider than the sidebar's 224: "Reported messages" and its "1 waiting" were
+      // cut to "Reported me…".
+      width={256}
       triggerClassName="group/ws flex h-9 w-full min-w-0 items-center gap-2 rounded-lg px-2 text-left transition-colors hover:bg-ink/[0.06]"
       triggerContent={
         <>
