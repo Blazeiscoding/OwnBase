@@ -5328,6 +5328,41 @@
         }
       }
     },
+    "/api/me/notify-schedule": {
+      "put": {
+        "operationId": "putMeNotifySchedule",
+        "tags": [
+          "me"
+        ],
+        "summary": "The hours this account allows notifications (K12); null allows them always.",
+        "description": "The hours this account allows notifications (K12); null allows them always.\n\nNeeds a signed-in account. Guests may call it too.",
+        "x-access": "member",
+        "x-guests": true,
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/NotifyScheduleBody"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Done."
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    },
     "/api/me/unread": {
       "get": {
         "operationId": "getMeUnread",
@@ -7576,6 +7611,61 @@
         },
         "required": [
           "level"
+        ]
+      },
+      "NotifyScheduleBody": {
+        "type": "object",
+        "properties": {
+          "schedule": {
+            "nullable": true,
+            "type": "object",
+            "properties": {
+              "kind": {
+                "type": "string",
+                "enum": [
+                  "every-day",
+                  "weekdays",
+                  "custom"
+                ]
+              },
+              "days": {
+                "minItems": 7,
+                "maxItems": 7,
+                "type": "array",
+                "items": {
+                  "nullable": true,
+                  "type": "object",
+                  "properties": {
+                    "from": {
+                      "type": "string",
+                      "pattern": "^([01]\\d|2[0-3]):[0-5]\\d$"
+                    },
+                    "to": {
+                      "type": "string",
+                      "pattern": "^([01]\\d|2[0-3]):[0-5]\\d$"
+                    }
+                  },
+                  "required": [
+                    "from",
+                    "to"
+                  ]
+                }
+              },
+              "onUntil": {
+                "nullable": true,
+                "type": "integer",
+                "minimum": -9007199254740991,
+                "maximum": 9007199254740991
+              }
+            },
+            "required": [
+              "kind",
+              "days"
+            ]
+          }
+        },
+        "required": [
+          "schedule"
         ]
       },
       "SidebarSectionBody": {

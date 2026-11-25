@@ -18,6 +18,7 @@ import type {
 } from "./entities.js";
 import type { HuddleRing, HuddleSignal } from "./huddle.js";
 import type { MemberNotice } from "./plan.js";
+import type { NotifySchedule } from "./notifySchedule.js";
 
 /**
  * Durable workspace events. Every mutation appends one to the event log and
@@ -161,6 +162,8 @@ export type EphemeralEvent =
    * own, after a change (v53). Private to their own sockets.
    */
   | { type: "notify.default"; level: NotifyLevel }
+  /** The hours this account allows notifications, after a change (K12). Private to their own sockets. */
+  | { type: "notify.schedule"; schedule: NotifySchedule | null }
   /**
    * This user's queue of messages to send later changed: one was queued,
    * edited, moved, cancelled, sent, held for a new reason or given up on. Read
@@ -272,6 +275,8 @@ export interface ReadySnapshot {
   sidebarSections: SidebarSection[];
   /** What this account's conversations notify about unless one was set on its own (v53). */
   notifyDefault: NotifyLevel;
+  /** The hours this account allows notifications (K12), or null for always. */
+  notifySchedule: NotifySchedule | null;
   accessPolicy: AccessPolicy;
   /** The workspace icon's version, which changes with its image, or null when there is none. */
   iconVersion: string | null;

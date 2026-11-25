@@ -904,6 +904,10 @@ const MIGRATIONS: string[] = [
   ALTER TABLE scheduled_messages ADD COLUMN repeat TEXT;
   ALTER TABLE scheduled_messages ADD COLUMN repeat_slot INTEGER;
   `,
+  // K12 — the hours an account allows notifications, as JSON; null for always.
+  `
+  ALTER TABLE users ADD COLUMN notify_schedule TEXT;
+  `,
 ];
 
 /** The schema this build understands. A workspace above it cannot be opened. */

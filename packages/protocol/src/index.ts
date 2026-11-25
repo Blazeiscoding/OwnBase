@@ -7,6 +7,8 @@ export * from "./search.js";
 export * from "./repeat.js";
 export * from "./format.js";
 export * from "./notify.js";
+export * from "./notifySchedule.js";
+export * from "./scheduleResume.js";
 export * from "./commands.js";
 export * from "./huddle.js";
 export * from "./socket.js";

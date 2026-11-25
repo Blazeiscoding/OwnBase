@@ -1,4 +1,4 @@
-import type { Friendship, ID, Role, User } from "@ownbase/protocol";
+import type { Friendship, ID, NotifySchedule, Role, User } from "@ownbase/protocol";
 import { isAdministrator, RESERVED_HANDLES } from "@ownbase/protocol";
 import type { DatabaseSync, SQLInputValue } from "node:sqlite";
 import { countOf, oneOf, shape, type RowOf } from "../core/rows.js";
@@ -48,6 +48,7 @@ const friendshipRow = shape({
   created_at: "number",
 });
 const blockedRow = shape({ blocked_id: "text" });
+const notifyScheduleRow = shape({ notify_schedule: "text?" });
 const nextExpiryRow = shape({ next: "number?" });
 const avatarRow = shape({ type: "text", bytes: "bytes", avatar_version: "text?" });
 const lastSeenRow = shape({ user_id: "text", seen: "number" });
@@ -139,6 +140,23 @@ export class PeopleStore {
       this.store.outbox.person(id, () => ({ type: "friends", friends: this.friends(id) }), {
         key: "friends",
       });
+  }
+
+  /** The hours this account allows notifications (K12), or null for always. */
+  notifySchedule(userId: ID): NotifySchedule | null {
+    const json = notifyScheduleRow.get(
+      this.db.prepare("SELECT notify_schedule FROM users WHERE id = ?"),
+      userId,
+    )?.notify_schedule;
+    return json ? (JSON.parse(json) as NotifySchedule) : null;
+  }
+
+  /** Only this account's own devices hear of a change. */
+  setNotifySchedule(userId: ID, schedule: NotifySchedule | null): void {
+    this.db
+      .prepare("UPDATE users SET notify_schedule = ? WHERE id = ?")
+      .run(schedule ? JSON.stringify(schedule) : null, userId);
+    this.store.outbox.person(userId, { type: "notify.schedule", schedule });
   }
 
   /** The people this account blocked, oldest first. */

@@ -22,6 +22,7 @@ import { COMMAND_NAME } from "./commands.js";
 import { EMAIL_MAX, isEmailAddress } from "./email.js";
 import { PAGE_ID_CHARS } from "./pageLinks.js";
 import { NOTIFICATION_PREVIEWS } from "./notify.js";
+import type { NotifyScheduleKind } from "./notifySchedule.js";
 import {
   CHANNEL_DESCRIPTION_MAX,
   CHANNEL_NAME_MAX,
@@ -195,6 +196,26 @@ export const pushSubscriptionBody = z.object({
 /** `PUT /api/me/notify-default`: what conversations notify about unless set on their own (v53). */
 export const notifyDefaultBody = z.object({
   level: z.enum(NOTIFY_LEVELS),
+});
+
+/** A time of day, "HH:MM" on a 24-hour clock. */
+const clockTime = z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/);
+
+/**
+ * `PUT /api/me/notify-schedule`: the hours this account allows notifications
+ * (K12), seven days from Sunday, or null for always.
+ */
+export const notifyScheduleBody = z.object({
+  schedule: z
+    .object({
+      kind: z.enum(["every-day", "weekdays", "custom"] satisfies NotifyScheduleKind[]),
+      days: z.array(z.object({ from: clockTime, to: clockTime }).nullable()).length(7),
+      onUntil: z.number().int().nullable().optional(),
+    })
+    .refine((s) => s.days.some((day) => day !== null), {
+      message: "a schedule allows notifications on at least one day",
+    })
+    .nullable(),
 });
 
 /**

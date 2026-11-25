@@ -38,6 +38,7 @@ import type {
 } from "./entities.js";
 import type { CallLogEntry } from "./huddle.js";
 import type { UnreadSummary } from "./rest.js";
+import type { NotifySchedule } from "./notifySchedule.js";
 
 export interface SignedIn {
   token: string;
@@ -1724,6 +1725,15 @@ export const endpoints = {
     body: "notifyDefaultBody",
     bodyOptional: true,
     answer: json<{ level: NotifyLevel }>(),
+  }),
+
+  /** The hours this account allows notifications (K12); null allows them always. */
+  setNotifySchedule: endpoint({
+    method: "PUT",
+    path: "/api/me/notify-schedule",
+    access: "guest",
+    body: "notifyScheduleBody",
+    answer: json<{ schedule: NotifySchedule | null }>(),
   }),
 
   /** What waits here, for a device of this account that has another workspace open. */
