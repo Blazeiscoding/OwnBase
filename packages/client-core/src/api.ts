@@ -15,6 +15,7 @@ import {
   type FileKind,
   type ID,
   type NotifyLevel,
+  type NotifySchedule,
   type PushSubscriptionBody,
   type RegisterBody,
   type ReportReason,
@@ -590,6 +591,10 @@ export class Api {
 
   setNotifyDefault(level: NotifyLevel) {
     return this.http.json(endpoints.setNotifyDefault, { body: { level } });
+  }
+
+  setNotifySchedule(schedule: NotifySchedule | null) {
+    return this.http.json(endpoints.setNotifySchedule, { body: { schedule } });
   }
 
   pushKey() {

@@ -10,6 +10,7 @@ import type {
   MemberNotice,
   ModalView,
   NotifyLevel,
+  NotifySchedule,
   Presence,
   Reminder,
   ServerNotice,
@@ -109,6 +110,8 @@ export interface WorkspaceState extends MessageCache {
   sidebarSections: SidebarSection[];
   /** What this account's conversations notify about unless one was set on its own (v53). */
   notifyDefault: NotifyLevel;
+  /** The hours this account allows notifications (K12), or null for always. */
+  notifySchedule: NotifySchedule | null;
   /** This account's reminders by message id, waiting and due (E4). */
   reminders: Record<ID, Reminder>;
   /**
@@ -258,6 +261,7 @@ export const initialState: WorkspaceState = {
   clockSkewMs: null,
   sidebarSections: [],
   notifyDefault: "mentions",
+  notifySchedule: null,
   reminders: {},
   channelRemovals: {},
   reactionActivity: { seenAt: 0, unseen: 0, revision: 0 },

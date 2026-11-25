@@ -11,6 +11,7 @@ import {
   type UpdateUserGroupBody,
   type UserGroup,
   type NotifyLevel,
+  type NotifySchedule,
   type EphemeralEvent,
   type EventEnvelope,
   type ID,
@@ -424,6 +425,7 @@ export class WorkspaceClient {
       clockSkewMs: snap.serverTime - Date.now(),
       sidebarSections: snap.sidebarSections,
       notifyDefault: snap.notifyDefault,
+      notifySchedule: snap.notifySchedule,
       reminders: Object.fromEntries(
         snap.reminders.map((reminder) => [reminder.messageId, reminder]),
       ),
@@ -933,6 +935,10 @@ export class WorkspaceClient {
       case "notify.default":
         if (!this.writes.heard({ kind: "notifyDefault" }, event.level))
           this.store.setState({ notifyDefault: event.level });
+        break;
+      case "notify.schedule":
+        if (!this.writes.heard({ kind: "notifySchedule" }, event.schedule))
+          this.store.setState({ notifySchedule: event.schedule });
         break;
       case "sidebar.sections":
         // A reorder of this device's still on its way is not undone by an older word.
@@ -1588,6 +1594,14 @@ export class WorkspaceClient {
    */
   setNotifyDefault(level: NotifyLevel): Promise<ApiError | null> {
     return this.preferences.setNotifyDefault(level);
+  }
+
+  /**
+   * The hours this account allows notifications (K12), or null for always,
+   * shown at once; put back when the server refused, resolving with why.
+   */
+  setNotifySchedule(schedule: NotifySchedule | null): Promise<ApiError | null> {
+    return this.preferences.setNotifySchedule(schedule);
   }
 
   private changeSelf(request: () => Promise<{ user: User }>): Promise<ApiError | null> {
