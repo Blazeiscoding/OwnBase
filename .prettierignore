@@ -32,3 +32,6 @@ test-results/
 # Another agent's worktree is its own to format: checking it fails on work
 # in progress there, and --write would change files someone else is editing.
 .claude/worktrees/
+
+# Third-party scripts copied unchanged; see THIRD-PARTY-NOTICES.md.
+apps/site/vendor/

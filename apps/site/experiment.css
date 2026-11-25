@@ -1,0 +1,16 @@
+/* The hero headline A/B test (see experiment-boot.js). Kept out of site.css,
+   which the docs pages also load and name by a hash of its contents. */
+
+.headline > span > span {
+  display: block;
+}
+.headline > .headline-plain,
+.exp-plain .headline > .headline-control {
+  display: none;
+}
+.exp-plain .headline > .headline-plain {
+  display: block;
+}
+.exp-wait .headline {
+  visibility: hidden;
+}
