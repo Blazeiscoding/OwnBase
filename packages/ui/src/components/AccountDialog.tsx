@@ -57,6 +57,7 @@ import { runAction, useActionContext } from "../lib/actions.js";
 import { UpdateSettings } from "./Updates.js";
 import { PushSettings } from "./PushSettings.js";
 import { UnreadOnIconSetting } from "./UnreadOnIconSetting.js";
+import { NotifyScheduleSettings } from "./NotifyScheduleSettings.js";
 
 type Confirmation = { kind: "device"; session: SessionInfo } | { kind: "others" };
 
@@ -760,6 +761,7 @@ function NotificationSettings() {
           )}
         </div>
       </section>
+      <NotifyScheduleSettings />
       <DefaultLevelSettings />
       <PreviewSettings />
       <SoundSettings />
