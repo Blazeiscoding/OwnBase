@@ -54,8 +54,12 @@
     -->
     <link rel="icon" href="ownbase.svg?v=2" type="image/svg+xml" />
     <link rel="stylesheet" href="site.css?v=7" />
+    <link rel="stylesheet" href="experiment.css?v=1" />
+    <script src="experiment-boot.js?v=1"></script>
     <script src="scene.js?v=3" defer></script>
     <script src="download.js?v=5" defer></script>
+    <script src="vendor/flagsmith-12.6.0.js" defer></script>
+    <script src="experiment.js?v=1" defer></script>
   </head>
   <body>
     <a class="skip" href="#main">Skip to content</a>
@@ -83,10 +87,18 @@
       </nav>
 
       <div class="hero-copy wrap" data-scene-clear>
+        <!-- Two headlines for the A/B test in experiment-boot.js; one is shown. -->
         <h1 class="headline">
-          <span>Your people<i class="stop">.</i></span>
-          <span>Your place<i class="stop">.</i></span>
-          <span>Your server<i class="stop stop-host">.</i></span>
+          <span class="headline-control">
+            <span>Your people<i class="stop">.</i></span>
+            <span>Your place<i class="stop">.</i></span>
+            <span>Your server<i class="stop stop-host">.</i></span>
+          </span>
+          <span class="headline-plain">
+            <span>Team chat</span>
+            <span>on a computer</span>
+            <span>you own<i class="stop stop-host">.</i></span>
+          </span>
         </h1>
         <p class="lede">
           OwnBase is open-source team chat that you host. Run it on the computer under your desk or

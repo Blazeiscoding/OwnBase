@@ -16,11 +16,15 @@
 # download.js also reads https://dl.ownbase.site/latest.json, the copy of the
 # newest release on Cloudflare R2 (the ownbase-downloads bucket), and the demo
 # video on the home page plays from media/ in the same bucket.
+#
+# The home page's headline A/B test (experiment.js) reads its flag from
+# edge.api.flagsmith.com and sends exposures and conversions to
+# events.api.flagsmith.com. The Flagsmith script itself is served from vendor/.
 /*
   X-Content-Type-Options: nosniff
   Referrer-Policy: strict-origin-when-cross-origin
   Permissions-Policy: camera=(), microphone=(), geolocation=()
-  Content-Security-Policy: default-src 'self'; img-src 'self' data:; style-src 'self'; script-src 'self' https://static.cloudflareinsights.com; font-src 'self'; media-src 'self' https://dl.ownbase.site; connect-src 'self' https://api.github.com https://dl.ownbase.site; base-uri 'none'; form-action 'none'; frame-ancestors 'none'
+  Content-Security-Policy: default-src 'self'; img-src 'self' data:; style-src 'self'; script-src 'self' https://static.cloudflareinsights.com; font-src 'self'; media-src 'self' https://dl.ownbase.site; connect-src 'self' https://api.github.com https://dl.ownbase.site https://edge.api.flagsmith.com https://events.api.flagsmith.com; base-uri 'none'; form-action 'none'; frame-ancestors 'none'
 
 /fonts/*
   Cache-Control: public, max-age=604800
