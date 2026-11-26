@@ -297,8 +297,14 @@ export function HuddleControls({
       <div
         role="group"
         aria-label="Huddle controls"
-        className={`flex shrink-0 flex-wrap items-center justify-center gap-2 ${
-          overlay ? "rounded-2xl bg-black/50 p-1.5 backdrop-blur" : stage ? "" : "ml-auto"
+        // As wide as the room it has, and no wider: on a phone the buttons wrap
+        // onto a second row rather than running off the screen.
+        className={`flex max-w-full shrink-0 flex-wrap items-center gap-2 ${
+          overlay
+            ? "justify-center rounded-2xl bg-black/50 p-1.5 backdrop-blur"
+            : stage
+              ? "justify-center"
+              : "ml-auto justify-end"
         }`}
       >
         <Tooltip label={huddle.micMuted ? "Unmute" : "Mute"} keys={keyOf(calls.keys.mute)}>
