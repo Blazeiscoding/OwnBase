@@ -6,29 +6,14 @@
  * app turns it into an Electron accelerator for keys that work in any app.
  */
 
-export type CallKeyAction = "mute" | "deafen" | "talk";
-
-export type CallKeys = Record<CallKeyAction, string>;
-
-/** The keys the desktop app holds for a call: push to talk's only while it is chosen. */
-export type HeldCallKeys = Omit<CallKeys, "talk"> & { talk: string | null };
-
-export const CALL_KEY_ACTIONS: readonly CallKeyAction[] = ["mute", "deafen", "talk"];
-
-/**
- * Mute keeps Slack's key, deafen takes Discord's, and push to talk is two
- * modifiers and the space bar, which no common Windows app uses and a hand
- * can hold down while it talks.
- */
-export const DEFAULT_CALL_KEYS: CallKeys = {
-  mute: "Mod+Shift+Space",
-  deafen: "Mod+Shift+KeyD",
-  talk: "Mod+Alt+Space",
-};
-
-/** How long the microphone stays on after the push-to-talk key is let go, unless chosen. */
-export const DEFAULT_RELEASE_MS = 200;
-export const RELEASE_DELAYS_MS = [0, 100, 200, 500, 1000] as const;
+export {
+  CALL_KEY_ACTIONS,
+  DEFAULT_CALL_KEYS,
+  DEFAULT_RELEASE_MS,
+  RELEASE_DELAYS_MS,
+  callKeysOf,
+} from "./callKeyChoices.js";
+export type { CallKeyAction, CallKeys, HeldCallKeys } from "./callKeyChoices.js";
 
 /** Keys other than letters and digits, by code, as people and Electron name them. */
 const NAMED: Record<string, { label: string; accelerator: string }> = {
@@ -167,15 +152,4 @@ export function callKeyAccelerator(combo: unknown): string | null {
   ]
     .filter(Boolean)
     .join("+");
-}
-
-/** Each of the keys, a missing or unreadable one as its default. */
-export function callKeysOf(saved: unknown): CallKeys {
-  const record = saved && typeof saved === "object" ? (saved as Record<string, unknown>) : {};
-  const keys = { ...DEFAULT_CALL_KEYS };
-  for (const action of CALL_KEY_ACTIONS) {
-    const value = record[action];
-    if (typeof value === "string" && parseCallKey(value)) keys[action] = value;
-  }
-  return keys;
 }

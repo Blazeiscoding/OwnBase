@@ -1,9 +1,8 @@
 import { useEffect, useEffectEvent, useId, useRef, useState } from "react";
 import { useStore } from "zustand";
+import { callKeyCombo, callKeyFromEvent } from "@ownbase/client-core/callKeys";
 import {
   RELEASE_DELAYS_MS,
-  callKeyCombo,
-  callKeyFromEvent,
   cameraConstraints,
   canChooseSpeaker,
   captureFailure,

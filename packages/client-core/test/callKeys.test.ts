@@ -78,7 +78,7 @@ describe("call keys (K16)", () => {
 
   it("keeps a saved key and puts back the default for one missing or unreadable", () => {
     expect(callKeysOf(null)).toEqual(DEFAULT_CALL_KEYS);
-    expect(callKeysOf({ mute: "F9", deafen: "KeyD", talk: 3 })).toEqual({
+    expect(callKeysOf({ mute: "F9", deafen: "Ctrl D!", talk: 3 })).toEqual({
       ...DEFAULT_CALL_KEYS,
       mute: "F9",
     });

@@ -330,9 +330,19 @@
       "summary": "The three call keys (K16): how they are written, matched against key presses, named for people, and turned into Electron accelerators.",
       "details": [
         "A key is written as modifiers then the browser's KeyboardEvent.code, as Mod+Shift+KeyD, so it names the same place on every keyboard layout. parseCallKey takes only a function key alone or a key with Ctrl, Cmd or Alt held, so a call key never types into a message instead.",
-        "The window matches presses with matchesCallKey and releasesCallKey; settings record one with callKeyFromEvent; the desktop app's main process turns it into a globalShortcut accelerator with callKeyAccelerator, imported through the @ownbase/client-core/callKeys entry."
+        "The window matches presses with matchesCallKey and releasesCallKey; settings record one with callKeyFromEvent; the desktop app's main process turns it into a globalShortcut accelerator with callKeyAccelerator, imported through the @ownbase/client-core/callKeys entry, as the UI does, so it stays out of the first screen; the defaults it re-exports live in callKeyChoices.ts."
       ],
       "concepts": ["K16", "push to talk", "deafen", "global shortcuts"]
+    },
+    {
+      "path": "packages/client-core/src/callKeyChoices.ts",
+      "plain": "The default keys for mute, deafen and push to talk, and push to talk's release delays, as settings keep them.",
+      "summary": "The call keys' types, defaults and release delays, and callKeysOf, which reads kept keys (K16).",
+      "details": [
+        "Apart from callKeys.ts because call preferences read these on the first screen, and a module the first screen uses ships whole with it: callKeys.ts and its table of keys load with the call and with settings instead. The UI imports callKeys.ts by its own entry, @ownbase/client-core/callKeys, for the same reason.",
+        "callKeysOf checks a kept key only for its shape; one that is not a call key never matches a press, and settings offer to change it."
+      ],
+      "concepts": ["K16", "first-load budget"]
     },
     {
       "path": "packages/client-core/src/screenShare.ts",

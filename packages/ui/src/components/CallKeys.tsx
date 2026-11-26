@@ -1,6 +1,6 @@
 import { useEffect } from "react";
 import { createStore } from "zustand/vanilla";
-import { matchesCallKey, releasesCallKey } from "@ownbase/client-core";
+import { matchesCallKey, releasesCallKey } from "@ownbase/client-core/callKeys";
 import { useClient, usePlatform, useWorkspace } from "../context.js";
 import { useCallPreferences } from "../lib/callPreferences.js";
 

@@ -1,8 +1,8 @@
 import { useEffect, useState } from "react";
 import { useStore } from "zustand";
 import { createStore } from "zustand/vanilla";
+import { callKeyCombo } from "@ownbase/client-core/callKeys";
 import {
-  callKeyCombo,
   canChooseSpeaker,
   captureFailure,
   type MediaDeviceOption,

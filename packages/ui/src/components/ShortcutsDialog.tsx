@@ -1,4 +1,4 @@
-import { callKeyCombo, type CallKeys } from "@ownbase/client-core";
+import { callKeyCombo, type CallKeys } from "@ownbase/client-core/callKeys";
 import { useComposerPreferences } from "../lib/composerPreferences.js";
 import { useCallPreferences } from "../lib/callPreferences.js";
 import { useState } from "react";

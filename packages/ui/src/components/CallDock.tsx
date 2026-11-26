@@ -1,5 +1,6 @@
 import { createPortal } from "react-dom";
-import { callKeyCombo, captureFailure } from "@ownbase/client-core";
+import { captureFailure } from "@ownbase/client-core";
+import { callKeyCombo } from "@ownbase/client-core/callKeys";
 import { useClient, useWorkspace } from "../context.js";
 import { shortcutLabel } from "../lib/shortcuts.js";
 import { useCallPreferences } from "../lib/callPreferences.js";

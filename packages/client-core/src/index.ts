@@ -57,13 +57,9 @@ export {
   DEFAULT_CALL_KEYS,
   DEFAULT_RELEASE_MS,
   RELEASE_DELAYS_MS,
-  callKeyCombo,
-  callKeyFromEvent,
   callKeysOf,
-  matchesCallKey,
-  releasesCallKey,
-} from "./callKeys.js";
-export type { CallKeyAction, CallKeys, HeldCallKeys } from "./callKeys.js";
+} from "./callKeyChoices.js";
+export type { CallKeyAction, CallKeys, HeldCallKeys } from "./callKeyChoices.js";
 export { captureFailure } from "./capture.js";
 export type { CaptureKind } from "./capture.js";
 export { applyOutboxChanges, readStoredOutbox, unwrapStoredOutbox } from "./outbox.js";
