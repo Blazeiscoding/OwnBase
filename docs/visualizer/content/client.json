@@ -3830,10 +3830,22 @@
       "plain": "Offers people after @, channels after # and emoji after : while you type a message or edit one.",
       "summary": "useSuggestions and SuggestionList, shared by the Composer and the MessageEditor.",
       "details": [
-        "People and channels rank with switcherRank's matchTier: whole name, start, word start; yourself after others, joined channels before the rest. DMs and archived channels are never offered.",
-        "A choice goes in as the stored token (<@id>, <#id>, <!here>) through useMentionField, so the box shows the name. A finished :shortcode: becomes its emoji. Not inside code."
+        "Finds the word being typed after @, # or : and keeps the keys: arrows, Enter or Tab to choose, Esc to close.",
+        "A choice goes in as the stored token (<@id>, <#id>, <!here>) through useMentionField, so the box shows the name. A finished :shortcode: becomes its emoji. Not inside code.",
+        "The ranking and the list are in SuggestionChoices, a preloadable part fetched as the workspace opens. Until it arrives nothing is offered, and the list opens when it does."
       ],
-      "concepts": ["autocomplete", "ARIA listbox", "mentions"]
+      "concepts": ["autocomplete", "ARIA listbox", "mentions", "code splitting"]
+    },
+    {
+      "path": "packages/ui/src/components/SuggestionChoices.tsx",
+      "plain": "Ranks the people, channels and emoji a word typed after @, # or : could be, and draws the list of them above the message box.",
+      "summary": "suggestionsFor, the rank functions and SuggestionChoices, the list SuggestionList draws once this part has arrived.",
+      "details": [
+        "People and channels rank with switcherRank's matchTier: whole name, start, word start; yourself after others, joined channels before the rest. DMs and archived channels are never offered.",
+        "A person whose name or handle is exactly what was typed comes before any user group, so naming one person never reaches a team by a slip. @channel and @here are offered only in a channel.",
+        "Kept out of the first download: it only matters while a word is being typed, and the workspace fetches it as it opens."
+      ],
+      "concepts": ["autocomplete", "mentions", "code splitting"]
     },
     {
       "path": "packages/ui/src/components/When.tsx",

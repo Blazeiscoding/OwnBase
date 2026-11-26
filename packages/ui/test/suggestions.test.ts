@@ -5,7 +5,7 @@ import {
   mentionChoices,
   rankChannels,
   rankPeople,
-} from "../src/components/Suggestions.js";
+} from "../src/components/SuggestionChoices.js";
 
 const person = (id: string, handle: string, displayName: string, deactivated = false) =>
   ({ id, handle, displayName, deactivated }) as unknown as User;
