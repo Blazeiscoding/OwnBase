@@ -8,6 +8,7 @@ import { Icon } from "./Icon.js";
 import { useDialogOpen } from "./Modal.js";
 import { useTryNotice } from "./Toast.js";
 import { Tooltip } from "./Tooltip.js";
+import { ReactionTicker } from "./CallReactions.js";
 
 /**
  * The call's own buttons while a dialog covers the huddle bar: microphone,
@@ -21,6 +22,7 @@ export function CallDock({ where }: { where: string }) {
   const notice = useTryNotice();
   const open = useDialogOpen();
   const huddle = useWorkspace((s) => s.huddle);
+  const users = useWorkspace((s) => s.users);
   const { keys } = useCallPreferences();
   if (!open || !huddle) return null;
   const deafened = !!huddle.deafened;
@@ -46,6 +48,7 @@ export function CallDock({ where }: { where: string }) {
         >
           {where}
         </span>
+        <ReactionTicker reactions={huddle.reactions} users={users} />
         <Tooltip
           label={huddle.micMuted ? "Unmute" : "Mute"}
           keys={shortcutLabel(callKeyCombo(keys.mute))}

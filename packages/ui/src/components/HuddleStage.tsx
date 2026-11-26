@@ -9,13 +9,14 @@ import {
   type KeyboardEvent,
   type ReactNode,
 } from "react";
-import type { CallView, HuddleState } from "@ownbase/client-core";
+import type { CallReaction, CallView, HuddleState } from "@ownbase/client-core";
 import type { ID, User } from "@ownbase/protocol";
 import { useClient, useWorkspace } from "../context.js";
 import { avatarColor, channelTitle } from "../lib/format.js";
 import { aloneLine, ringingLine } from "../lib/huddleView.js";
 import { Avatar, usePicture } from "./Avatar.js";
 import { HuddleControls } from "./HuddleControls.js";
+import { TileReactions } from "./CallReactions.js";
 import { Icon, type IconName } from "./Icon.js";
 import { Tooltip } from "./Tooltip.js";
 import { screenSoundKey, useCallVolumes, type PersonVolume as Volume } from "../lib/callVolumes.js";
@@ -111,6 +112,10 @@ interface StageItem {
   stuck?: boolean;
   /** Was connected, dropped, and is being connected again. */
   reconnecting?: boolean;
+  /** Their hand is raised (K17). */
+  hand?: boolean;
+  /** Their reactions still showing (K17). */
+  reactions?: CallReaction[];
 }
 
 /** Shares first, since they are what people came to look at, then everyone, you first. */
@@ -122,6 +127,11 @@ function stageItems(
 ): StageItem[] {
   const nameOf = (id: ID) => users[id]?.displayName ?? "Someone";
   const me = selfId ? users[selfId] : undefined;
+  // What is shown over someone's tile besides the picture (K17).
+  const over = (id: ID | undefined) => ({
+    hand: !!id && !!huddle.hands?.includes(id),
+    reactions: huddle.reactions?.filter((r) => r.userId === id) ?? [],
+  });
   const items: StageItem[] = [];
   for (const p of huddle.peers)
     if (p.screenStream)
@@ -166,6 +176,7 @@ function stageItems(
     muted: huddle.micMuted,
     deafened: !!huddle.deafened,
     connecting: false,
+    ...over(selfId),
   });
   for (const p of huddle.peers)
     items.push({
@@ -183,6 +194,7 @@ function stageItems(
       connecting: !p.connected,
       stuck: !p.connected && !!p.trouble,
       reconnecting: !p.connected && !!p.reconnecting,
+      ...over(p.userId),
     });
   return items;
 }
@@ -190,6 +202,7 @@ function stageItems(
 /** What a tile is called for a screen reader: who, and what is off. */
 function describe(item: StageItem): string {
   const parts = [item.name];
+  if (item.hand) parts.push("hand raised");
   if (item.kind === "screen") {
     if (item.sound) parts.push(item.mutedForYou ? "sound muted for you" : "with sound");
     if (item.connecting) parts.push(item.reconnecting ? "reconnecting" : "connecting");
@@ -411,6 +424,17 @@ function TileBody({
               ? "Reconnecting…"
               : "Connecting…"}
         </span>
+      )}
+      {item.hand && (
+        <span
+          data-hand=""
+          className="call-dark pointer-events-none absolute left-2 top-2 flex animate-badge-in items-center rounded-lg bg-black/65 p-1.5 text-copper"
+        >
+          <Icon name="hand" size={18} />
+        </span>
+      )}
+      {item.reactions && (
+        <TileReactions reactions={item.reactions} rise={Math.round(height * 0.55)} />
       )}
       {/* Dark on any picture and in either theme, so its red is Onyx's, which reads on it.
           Not blurred: a blur over a video is drawn again at every frame of it, for

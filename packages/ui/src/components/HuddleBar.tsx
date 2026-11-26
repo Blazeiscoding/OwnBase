@@ -16,6 +16,7 @@ import { useCallPreferences } from "../lib/callPreferences.js";
 import { useCallVolumes } from "../lib/callVolumes.js";
 import { PersonVolume } from "./PersonVolume.js";
 import { CallAnnouncer } from "./CallAnnouncer.js";
+import { ReactionTicker } from "./CallReactions.js";
 import { CallDock } from "./CallDock.js";
 import { CallKeys } from "./CallKeys.js";
 
@@ -40,7 +41,13 @@ interface Person {
   reconnecting?: boolean;
   /** Sharing a screen with its sound, whose volume is yours to set as well. */
   screenSound?: boolean;
+  /** Their hand is raised (K17). */
+  hand?: boolean;
 }
+
+/** Their name, with a raised hand and what else is true of them, for a label. */
+const labelOf = (p: Person, state: string | null) =>
+  [p.name, p.hand && "hand raised", state].filter(Boolean).join(", ");
 
 /** How many faces the bar shows before the rest are counted. */
 const FACES = 4;
@@ -65,12 +72,17 @@ function HuddleFace({ person, size = 24 }: { person: Person; size?: number }) {
   const state = stateOf(person);
   return (
     <span
-      title={state ? `${person.name} (${state})` : person.name}
+      title={labelOf(person, state)}
       className={`relative flex shrink-0 rounded-full ring-2 transition-colors ${
         person.speaking ? "ring-online" : "ring-transparent"
       } ${person.connecting ? "opacity-40" : ""}`}
     >
       <Avatar user={person.user} size={size} />
+      {person.hand && (
+        <span className="absolute -right-1 -top-1 animate-badge-in rounded-full bg-raised p-0.5 text-copper">
+          <Icon name="hand" size={9} />
+        </span>
+      )}
       {person.mutedForYou ? (
         <span className="absolute -bottom-0.5 -right-0.5 rounded-full bg-raised p-0.5 text-alert">
           <Icon name="volumeOff" size={9} />
@@ -131,11 +143,7 @@ function HuddlePeople({ people }: { people: Person[] }) {
             {people.map((p) => {
               const state = stateOf(p);
               return (
-                <li
-                  key={p.key}
-                  aria-label={state ? `${p.name}, ${state}` : p.name}
-                  className="rounded-lg px-2 py-1.5"
-                >
+                <li key={p.key} aria-label={labelOf(p, state)} className="rounded-lg px-2 py-1.5">
                   <div className="flex items-center gap-2.5">
                     <HuddleFace person={p} size={28} />
                     <span className="min-w-0 flex-1 truncate text-sm">{p.name}</span>
@@ -233,7 +241,8 @@ export function HuddleBar({
         : " · Connecting…";
   // Someone who has taken too long to connect: say so, and offer the reason.
   const stuck = huddle.peers.filter((p) => !p.connected && p.trouble);
-  const people: Person[] = [
+  const hands = huddle.hands ?? [];
+  const everyone: Person[] = [
     {
       key: "self",
       user: selfId ? users[selfId] : undefined,
@@ -259,6 +268,11 @@ export function HuddleBar({
       screenSound: !!p.screenSoundStream,
     })),
   ];
+  // Raised hands first, first raised first (K17); everyone else as they were.
+  const handOf = (p: Person) => hands.indexOf(p.peerId ?? selfId ?? "");
+  const people = everyone
+    .map((p) => ({ ...p, hand: handOf(p) >= 0 }))
+    .sort((a, b) => (a.hand && b.hand ? handOf(a) - handOf(b) : +b.hand - +a.hand));
   const sharer = huddle.peers.find((p) => p.screenStream);
   const sharing = sharer
     ? ` · ${users[sharer.userId]?.displayName ?? "Someone"} is sharing their screen`
@@ -292,7 +306,13 @@ export function HuddleBar({
         deafened={!!huddle.deafened}
       />
       <CallKeys />
-      <CallAnnouncer peerIds={huddle.peers.map((p) => p.userId)} users={users} />
+      <CallAnnouncer
+        peerIds={huddle.peers.map((p) => p.userId)}
+        users={users}
+        selfId={selfId}
+        hands={hands}
+        reactions={huddle.reactions}
+      />
       <BigCallNotice huddle={huddle} />
       <CallDock where={where} />
       {!calling && (
@@ -319,6 +339,7 @@ export function HuddleBar({
             </div>
           </div>
 
+          <ReactionTicker reactions={huddle.reactions} users={users} />
           <HuddlePeople people={people} />
 
           {onViewChange && (

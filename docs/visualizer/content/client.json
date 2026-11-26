@@ -3829,6 +3829,17 @@
       "concepts": ["K16", "push to talk", "deafen", "global shortcuts"]
     },
     {
+      "path": "packages/ui/src/components/CallReactions.tsx",
+      "plain": "Lets people in a call send a quick emoji reaction, and shows reactions floating up from whoever sent them.",
+      "summary": "CallReactions (K17): the row of six quick reactions and the full picker under the call's buttons, the emoji that rise over a sender's tile, and the newest one beside the bar's faces and in the dock.",
+      "details": [
+        "ReactionBar stays open after a press, so a reaction can be sent again and again; the client sends at most one every 400 ms and the server drops any more. In full screen it leaves out the picker, since a dialog opens out of sight there.",
+        "TileReactions floats each reaction up from near the tile's foot for the two seconds it is kept. With reduced motion asked for, theme.css cuts every animation short, so it shows the newest one still in the tile's corner for as long instead.",
+        "ReactionTicker is the bar's and the dock's small form: the sender's face and the emoji, where no tile shows. The call announcer reads reactions aloud, so all three are hidden from screen readers."
+      ],
+      "concepts": ["K17", "reactions", "reduced motion", "huddles"]
+    },
+    {
       "path": "packages/ui/src/components/JoinPolicyChoice.tsx",
       "plain": "The three choices for who can join, used by Workspace settings and Manage hosting.",
       "summary": "JoinPolicyChoice: radio cards over JOIN_POLICIES; compact in the hosting dialog.",

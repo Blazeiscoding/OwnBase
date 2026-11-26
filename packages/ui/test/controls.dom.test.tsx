@@ -198,6 +198,9 @@ describe("the huddle bar", () => {
       "Share screen",
       // While sharing, its resolution and frame rate, as Discord's stream quality.
       "Screen share options",
+      // Reactions and a raised hand (K17).
+      "Reactions",
+      "Raise hand",
       "Leave",
     ]);
   });

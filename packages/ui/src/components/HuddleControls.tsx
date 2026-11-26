@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useStore } from "zustand";
 import { createStore } from "zustand/vanilla";
 import { callKeyCombo } from "@ownbase/client-core/callKeys";
@@ -15,6 +15,7 @@ import { FRAME_RATES, RESOLUTIONS } from "../lib/screenShareQuality.js";
 import { Icon } from "./Icon.js";
 import { Menu, type MenuItem } from "./Menu.js";
 import { Swap } from "./Motion.js";
+import { ReactionBar } from "./CallReactions.js";
 import { ScreenShareDialog } from "./ScreenShareDialog.js";
 import { Tooltip } from "./Tooltip.js";
 import { shortcutLabel } from "../lib/shortcuts.js";
@@ -122,9 +123,12 @@ export function HuddleControls({
   const away = useWorkspace((s) => s.status === "reconnecting" || s.status === "connecting");
   const calls = useCallPreferences();
   const devices = useMediaDevices();
+  const selfId = useWorkspace((s) => s.self?.id);
+  const [reacting, setReacting] = useState(false);
   const [busy, setBusy] = useState<"screen" | "camera" | "microphone" | null>(null);
   const [failure, setFailure] = useState<string | null>(null);
   const choosingScreen = useStore(picker, (s) => s.open);
+  const reactButton = useRef<HTMLButtonElement>(null);
   const savedQuality = calls.screenShare.quality;
   // The picker goes with the huddle, and does not open again with the next
   // one. Moving between the bar and the call keeps it open.
@@ -199,6 +203,7 @@ export function HuddleControls({
   const keyOf = (combo: string) => shortcutLabel(callKeyCombo(combo));
   const deafened = !!huddle.deafened;
   const holdingTalk = !!huddle.holdingTalk;
+  const handRaised = !!selfId && !!huddle.hands?.includes(selfId);
   // Full screen shows only what is inside the stage, and menus open on the
   // page beneath it, so devices are changed from the bar.
   const micMenu = !overlay && (
@@ -402,6 +407,29 @@ export function HuddleControls({
           </Tooltip>
         )}
         {shareMenu}
+        <Tooltip label={reacting ? "Hide reactions" : "Send a reaction"}>
+          <button
+            ref={reactButton}
+            type="button"
+            aria-label="Reactions"
+            aria-expanded={reacting}
+            onClick={() => setReacting((on) => !on)}
+            className={toggleCls(reacting, lit)}
+          >
+            <Icon name="smile" />
+          </button>
+        </Tooltip>
+        <Tooltip label={handRaised ? "Lower your hand" : "Raise your hand"}>
+          <button
+            type="button"
+            aria-label="Raise hand"
+            aria-pressed={handRaised}
+            onClick={() => client.toggleHand()}
+            className={toggleCls(handRaised, lit)}
+          >
+            <Icon name="hand" />
+          </button>
+        </Tooltip>
         {/* Leave keeps its word: an arrow out of a door reads as signing out just as easily. */}
         <button
           onClick={() => client.leaveHuddle()}
@@ -415,6 +443,16 @@ export function HuddleControls({
           Leave
         </button>
       </div>
+      {reacting && (
+        <ReactionBar
+          inCall={inCall}
+          overlay={overlay}
+          onClose={() => {
+            setReacting(false);
+            reactButton.current?.focus();
+          }}
+        />
+      )}
       {away && (
         <p
           role="status"

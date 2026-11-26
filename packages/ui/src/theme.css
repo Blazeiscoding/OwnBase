@@ -137,6 +137,30 @@
   --animate-press: press var(--duration-medium) var(--ease-spring);
   --animate-shake: shake 280ms linear;
   --animate-shake-again: shake-again 280ms linear;
+  /* As long as a reaction is kept (REACTION_SHOWN_MS), and gone by its end. */
+  --animate-call-react: call-react 2s ease-out both;
+
+  /* A reaction in a call rises from its sender's tile by --rise, and fades. */
+  @keyframes call-react {
+    from {
+      opacity: 0;
+      scale: 0.5;
+    }
+    12% {
+      opacity: 1;
+      scale: 1.15;
+    }
+    20% {
+      scale: 1;
+    }
+    70% {
+      opacity: 1;
+    }
+    to {
+      opacity: 0;
+      translate: 0 calc(-1 * var(--rise, 120px));
+    }
+  }
 
   /* A dialog grows from just under its size. */
   @keyframes pop-in {

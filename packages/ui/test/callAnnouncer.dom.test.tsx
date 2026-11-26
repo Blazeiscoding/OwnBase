@@ -15,7 +15,7 @@ describe("who joins and leaves a huddle, for a screen reader", () => {
   it("says who joins and, after a moment, who leaves; not who was there already", () => {
     vi.useFakeTimers();
     const { rerender } = render(<CallAnnouncer peerIds={["U_MAYA"]} users={users} />);
-    const log = screen.getByRole("log", { name: "Huddle arrivals" });
+    const log = screen.getByRole("log", { name: "Huddle updates" });
     // On the body, outside the workspace a dialog makes inert.
     expect(log.parentElement).toBe(document.body);
     expect(log).toBeEmptyDOMElement();
@@ -32,7 +32,7 @@ describe("who joins and leaves a huddle, for a screen reader", () => {
   it("says nothing for a connection made again within the moment", () => {
     vi.useFakeTimers();
     const { rerender } = render(<CallAnnouncer peerIds={["U_MAYA"]} users={users} />);
-    const log = screen.getByRole("log", { name: "Huddle arrivals" });
+    const log = screen.getByRole("log", { name: "Huddle updates" });
     rerender(<CallAnnouncer peerIds={[]} users={users} />);
     rerender(<CallAnnouncer peerIds={["U_MAYA"]} users={users} />);
     act(() => void vi.advanceTimersByTime(LEAVE_GRACE_MS * 2));
