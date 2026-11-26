@@ -63,7 +63,7 @@ export {
   matchesCallKey,
   releasesCallKey,
 } from "./callKeys.js";
-export type { CallKeyAction, CallKeys } from "./callKeys.js";
+export type { CallKeyAction, CallKeys, HeldCallKeys } from "./callKeys.js";
 export { captureFailure } from "./capture.js";
 export type { CaptureKind } from "./capture.js";
 export { applyOutboxChanges, readStoredOutbox, unwrapStoredOutbox } from "./outbox.js";

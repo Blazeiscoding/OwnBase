@@ -4,6 +4,7 @@ import {
   clipboard,
   desktopCapturer,
   dialog,
+  globalShortcut,
   ipcMain,
   type IpcMainInvokeEvent,
   Menu,
@@ -54,6 +55,7 @@ import type { BackupJob, BackupReply } from "./backupWorker.js";
 import { createSettingsStorage, ownSettings as movedOut } from "./settings.js";
 import type { CredentialProtector } from "./credentials.js";
 import { ClosePreparation } from "./closePreparation.js";
+import { CallKeyHolder } from "./callKeys.js";
 import {
   answering,
   appRecipients,
@@ -620,6 +622,13 @@ const capabilities: Omit<DesktopCapabilities, "readerLocale"> = {
   updates: updateMode,
 };
 
+/** The call keys while another app is in front (K16). */
+const callKeys = new CallKeyHolder(
+  globalShortcut,
+  (action) => push("callKeys:pressed", action),
+  (taken) => push("callKeys:taken", taken),
+);
+
 /** Files saved in this run, for the window to say where each went. */
 const savedDownloads = new SavedDownloads((path) => shell.showItemInFolder(path));
 /** Sessions already followed, since a window made again shares the one before. */
@@ -758,6 +767,7 @@ const handlers: Handlers<IpcMainInvokeEvent> = {
   },
   "window:questionShown": (_event, id) => windowQuestions.shown(id),
   "window:answerQuestion": (_event, id, index) => windowQuestions.answer(id, index),
+  "callKeys:set": (_event, keys) => callKeys.set(keys, mainWindow?.isFocused() ?? false),
   "updates:openDownloadPage": async () => {
     await shell.openExternal(DOWNLOAD_PAGE);
   },
@@ -1070,12 +1080,17 @@ function createWindow(): void {
       rendererReady = false;
       microphones.closeOwner(contentsId);
       windowQuestions.windowGone();
+      callKeys.set(null, win.isFocused());
     }
   });
   win.webContents.on("render-process-gone", () => {
     microphones.closeOwner(contentsId);
     windowQuestions.windowGone();
+    callKeys.set(null, false);
   });
+  // In front, the window hears the call keys itself; behind, they are held for it.
+  win.on("focus", () => callKeys.focus());
+  win.on("blur", () => callKeys.blur());
   win.on("close", (event) => {
     if (placeTimer) savePlace();
     if (quitReady || closeAllowed) return;
@@ -1107,6 +1122,7 @@ function createWindow(): void {
     if (saveWindowPlaceNow === savePlace) saveWindowPlaceNow = null;
     microphones.closeOwner(contentsId);
     windowQuestions.windowGone();
+    callKeys.set(null, false);
     if (mainWindow === win) {
       mainWindow = null;
       rendererReady = false;
@@ -1364,6 +1380,7 @@ app.on("window-all-closed", () => {
 
 app.on("will-quit", () => {
   unread.clear();
+  callKeys.set(null, false);
   microphones.closeAll();
   hosting.cancelInstall();
 });

@@ -10,6 +10,9 @@ export type CallKeyAction = "mute" | "deafen" | "talk";
 
 export type CallKeys = Record<CallKeyAction, string>;
 
+/** The keys the desktop app holds for a call: push to talk's only while it is chosen. */
+export type HeldCallKeys = Omit<CallKeys, "talk"> & { talk: string | null };
+
 export const CALL_KEY_ACTIONS: readonly CallKeyAction[] = ["mute", "deafen", "talk"];
 
 /**
@@ -45,8 +48,8 @@ const NAMED: Record<string, { label: string; accelerator: string }> = {
   Delete: { label: "Delete", accelerator: "Delete" },
   Home: { label: "Home", accelerator: "Home" },
   End: { label: "End", accelerator: "End" },
-  PageUp: { label: "Page Up", accelerator: "PageUp" },
-  PageDown: { label: "Page Down", accelerator: "PageDown" },
+  PageUp: { label: "PgUp", accelerator: "PageUp" },
+  PageDown: { label: "PgDn", accelerator: "PageDown" },
   ArrowUp: { label: "↑", accelerator: "Up" },
   ArrowDown: { label: "↓", accelerator: "Down" },
   ArrowLeft: { label: "←", accelerator: "Left" },

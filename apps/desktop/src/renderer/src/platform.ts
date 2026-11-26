@@ -257,6 +257,11 @@ export function electronPlatform(bridge: OwnBaseBridge): Platform {
           },
         }),
     ...(capabilities.systemMicrophone ? { systemMicrophone: systemMicrophone(call) } : {}),
+    callKeys: {
+      set: (keys) => call("callKeys:set", keys),
+      onPress: (cb) => bridge.on("callKeys:pressed", cb),
+      onTaken: (cb) => bridge.on("callKeys:taken", cb),
+    },
     discoverLan: (cb) => {
       void call("lan:snapshot").then(cb, () => {});
       return bridge.on("lan:servers", cb);
