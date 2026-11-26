@@ -1,7 +1,8 @@
 import { createPortal } from "react-dom";
-import { captureFailure } from "@ownbase/client-core";
+import { callKeyCombo, captureFailure } from "@ownbase/client-core";
 import { useClient, useWorkspace } from "../context.js";
 import { shortcutLabel } from "../lib/shortcuts.js";
+import { useCallPreferences } from "../lib/callPreferences.js";
 import { Icon } from "./Icon.js";
 import { useDialogOpen } from "./Modal.js";
 import { useTryNotice } from "./Toast.js";
@@ -9,7 +10,7 @@ import { Tooltip } from "./Tooltip.js";
 
 /**
  * The call's own buttons while a dialog covers the huddle bar: microphone,
- * camera and Leave, at the foot of the window, which dialogs leave clear for it. On the
+ * deafen, camera and Leave, at the foot of the window, which dialogs leave clear for it. On the
  * body and marked as part of the call, so the dialog leaves it usable and Tab
  * comes to it after the dialog's own controls (Modal.tsx).
  */
@@ -19,7 +20,9 @@ export function CallDock({ where }: { where: string }) {
   const notice = useTryNotice();
   const open = useDialogOpen();
   const huddle = useWorkspace((s) => s.huddle);
+  const { keys } = useCallPreferences();
   if (!open || !huddle) return null;
+  const deafened = !!huddle.deafened;
   const toggle = (on: boolean, onCls: string) =>
     `flex size-9 shrink-0 items-center justify-center rounded-full transition-colors ${
       on ? onCls : "text-ink-dim hover:bg-ink/[0.08] hover:text-ink"
@@ -44,7 +47,7 @@ export function CallDock({ where }: { where: string }) {
         </span>
         <Tooltip
           label={huddle.micMuted ? "Unmute" : "Mute"}
-          keys={shortcutLabel("Mod+Shift+Space")}
+          keys={shortcutLabel(callKeyCombo(keys.mute))}
         >
           <button
             type="button"
@@ -54,6 +57,20 @@ export function CallDock({ where }: { where: string }) {
             className={toggle(huddle.micMuted, "bg-alert/15 text-alert hover:bg-alert/25")}
           >
             <Icon name={huddle.micMuted ? "micOff" : "mic"} size={18} />
+          </button>
+        </Tooltip>
+        <Tooltip
+          label={deafened ? "Undeafen" : "Deafen: hear nobody and mute your microphone"}
+          keys={shortcutLabel(callKeyCombo(keys.deafen))}
+        >
+          <button
+            type="button"
+            aria-label="Deafen"
+            aria-pressed={deafened}
+            onClick={() => client.toggleDeafen()}
+            className={toggle(deafened, "bg-alert/15 text-alert hover:bg-alert/25")}
+          >
+            <Icon name={deafened ? "headphonesOff" : "headphones"} size={18} />
           </button>
         </Tooltip>
         <Tooltip label={huddle.cameraOn ? "Turn your camera off" : "Turn your camera on"}>

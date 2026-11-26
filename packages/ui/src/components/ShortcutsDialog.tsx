@@ -1,4 +1,6 @@
+import { callKeyCombo, type CallKeys } from "@ownbase/client-core";
 import { useComposerPreferences } from "../lib/composerPreferences.js";
+import { useCallPreferences } from "../lib/callPreferences.js";
 import { useState } from "react";
 import { Dialog, DialogScroll } from "./Dialog.js";
 import { inputCls } from "./TextField.js";
@@ -39,6 +41,7 @@ function bindings(group: KeyBinding["group"]): [string, string][] {
 
 const groups = (
   enterSends: boolean,
+  calls: CallKeys,
 ): { title: string; items: [string, string][]; note?: string }[] => [
   {
     title: "Getting around",
@@ -62,7 +65,15 @@ const groups = (
       [`${MOD} V`, "Paste an image straight in"],
     ],
   },
-  { title: "Huddles", items: bindings("Huddles") },
+  {
+    title: "Huddles",
+    note: "Change these keys in Voice & video settings.",
+    items: [
+      [sheetKeys(callKeyCombo(calls.mute)), "Mute or unmute your microphone"],
+      [sheetKeys(callKeyCombo(calls.deafen)), "Deafen or undeafen"],
+      [sheetKeys(callKeyCombo(calls.talk)), "Hold to talk, when push to talk is on"],
+    ],
+  },
   {
     title: "Messages",
     note: "These keys work once the list of messages is selected. Press Tab to reach it.",
@@ -83,8 +94,9 @@ function matches(query: string, keys: string, what: string): boolean {
 
 export function ShortcutsDialog({ onClose }: { onClose: () => void }) {
   const { enterSends } = useComposerPreferences();
+  const { keys } = useCallPreferences();
   const [query, setQuery] = useState("");
-  const shown = groups(enterSends)
+  const shown = groups(enterSends, keys)
     .map((group) => ({
       ...group,
       items: group.items.filter(([keys, what]) => matches(query, keys, what)),

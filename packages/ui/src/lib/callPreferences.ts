@@ -2,8 +2,13 @@ import { useEffect } from "react";
 import { useStore } from "zustand";
 import { createStore, type StoreApi } from "zustand/vanilla";
 import {
+  callKeysOf,
+  DEFAULT_CALL_KEYS,
+  DEFAULT_RELEASE_MS,
   isSignedOut,
+  RELEASE_DELAYS_MS,
   SCREEN_SHARE_QUALITY,
+  type CallKeys,
   type MicrophoneSettings,
   type ScreenShareQuality,
   type WorkspaceClient,
@@ -39,6 +44,28 @@ export interface ScreenShareChoice {
 
 const SHARE_AS_SENT: ScreenShareChoice = { quality: SCREEN_SHARE_QUALITY, sound: true };
 
+/**
+ * How the microphone goes on in a call (K16): whenever you talk, or only
+ * while the push-to-talk key is held, and for `releaseMs` after.
+ */
+export interface TalkChoice {
+  mode: "voice" | "push";
+  releaseMs: number;
+}
+
+const VOICE_ACTIVITY: TalkChoice = { mode: "voice", releaseMs: DEFAULT_RELEASE_MS };
+
+function talkOf(saved: unknown): TalkChoice {
+  if (!saved || typeof saved !== "object") return VOICE_ACTIVITY;
+  const { mode, releaseMs } = saved as Record<string, unknown>;
+  return {
+    mode: mode === "push" ? "push" : "voice",
+    releaseMs: (RELEASE_DELAYS_MS as readonly unknown[]).includes(releaseMs)
+      ? (releaseMs as number)
+      : DEFAULT_RELEASE_MS,
+  };
+}
+
 /** What is kept on this device, all under one key. */
 interface Kept {
   /** Join huddles with the microphone off (CALL-01). */
@@ -51,10 +78,15 @@ interface Kept {
   devicesChecked: boolean;
   /** Absent until a share is set up here: the defaults. */
   screenShare?: ScreenShareChoice;
+  /** Absent until chosen here: voice activity, and the default keys. */
+  talk?: TalkChoice;
+  keys?: CallKeys;
 }
 
-interface Preferences extends Omit<Kept, "screenShare"> {
+interface Preferences extends Omit<Kept, "screenShare" | "talk" | "keys"> {
   screenShare: ScreenShareChoice;
+  talk: TalkChoice;
+  keys: CallKeys;
   /** A join is waiting for that answer; the workspace shows the question. */
   checkingDevices: boolean;
   loaded: boolean;
@@ -88,6 +120,10 @@ interface Preferences extends Omit<Kept, "screenShare"> {
    * if it could not be kept.
    */
   setScreenShare: (patch: Partial<ScreenShareChoice>) => void;
+  /** As `setScreenShare`, for push to talk; resolves true once kept. */
+  setTalk: (patch: Partial<TalkChoice>) => Promise<boolean>;
+  /** As `setScreenShare`, for the call keys; resolves true once kept. */
+  setKeys: (patch: Partial<CallKeys>) => Promise<boolean>;
 }
 
 const KEY = "call-preferences";
@@ -119,11 +155,13 @@ function shareOf(saved: unknown): ScreenShareChoice | undefined {
   return { quality: qualityOf(quality), sound: sound !== false };
 }
 
-const recordOf = ({ joinMuted, devices, devicesChecked, screenShare }: Kept) => ({
+const recordOf = ({ joinMuted, devices, devicesChecked, screenShare, talk, keys }: Kept) => ({
   joinMuted,
   ...devices,
   ...(devicesChecked ? { devicesChecked } : {}),
   ...(screenShare ? { screenShare } : {}),
+  ...(talk ? { talk } : {}),
+  ...(keys ? { keys } : {}),
 });
 
 /** The microphone a huddle opens, as the session takes it. */
@@ -179,6 +217,13 @@ function createPreferences(platform: Platform) {
     initialization = writing.then(() => {});
     return writing;
   };
+  /** Applies at once and is kept once read, not over what could not be read. */
+  const keepChoice = (patch: Pick<Kept, "talk"> | Pick<Kept, "keys">): Promise<boolean> => {
+    store.setState(patch as Partial<Preferences>);
+    return initialization
+      .then(() => (store.getState().unreadable ? false : keep(patch).then(() => true)))
+      .catch(() => false);
+  };
   /**
    * Whether to ask which microphone and camera to use before this join: once
    * per device, while nothing is chosen, and only where the browser lists
@@ -206,6 +251,8 @@ function createPreferences(platform: Platform) {
     devices: {},
     devicesChecked: false,
     screenShare: SHARE_AS_SENT,
+    talk: VOICE_ACTIVITY,
+    keys: DEFAULT_CALL_KEYS,
     checkingDevices: false,
     loaded: false,
     saving: false,
@@ -242,12 +289,13 @@ function createPreferences(platform: Platform) {
       const choice = (await needsDeviceCheck()) ? await askForDevices() : {};
       // Listing the devices and the answer both take a while.
       if (!choice || gone()) return;
-      const { joinMuted, devices: saved } = store.getState();
+      const { joinMuted, devices: saved, talk } = store.getState();
       // Joins with the answer even if keeping it failed.
       const devices = devicesOf({ ...saved, ...choice });
       const microphone = microphoneOf(devices);
       await client.joinHuddle(channelId, {
         muted: joinMuted,
+        ...(talk.mode === "push" ? { pushToTalk: { releaseMs: talk.releaseMs } } : {}),
         ...(Object.keys(microphone).length > 0 ? { microphone } : {}),
         ...(devices.cameraId ? { cameraId: devices.cameraId } : {}),
         noiseFilter,
@@ -277,6 +325,8 @@ function createPreferences(platform: Platform) {
         .then(() => (store.getState().unreadable ? undefined : keep({ screenShare })))
         .catch(() => {});
     },
+    setTalk: (patch) => keepChoice({ talk: { ...store.getState().talk, ...patch } }),
+    setKeys: (patch) => keepChoice({ keys: { ...store.getState().keys, ...patch } }),
   }));
   function load(): Promise<void> {
     const version = ++loadVersion;
@@ -304,10 +354,14 @@ function createPreferences(platform: Platform) {
           devices: devicesOf(record),
           devicesChecked: record.devicesChecked === true,
           screenShare: shareOf(record.screenShare),
+          ...(record.talk ? { talk: talkOf(record.talk) } : {}),
+          ...(record.keys ? { keys: callKeysOf(record.keys) } : {}),
         };
         store.setState({
           ...kept,
           screenShare: kept.screenShare ?? store.getState().screenShare,
+          talk: kept.talk ?? VOICE_ACTIVITY,
+          keys: kept.keys ?? DEFAULT_CALL_KEYS,
           loaded: true,
           unreadable: false,
         });

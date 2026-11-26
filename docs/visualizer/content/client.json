@@ -3801,12 +3801,22 @@
     },
     {
       "path": "packages/ui/src/components/CallDock.tsx",
-      "plain": "Mute, camera and Leave at the foot of the window while a dialog covers the huddle bar.",
+      "plain": "Mute, deafen, camera and Leave at the foot of the window while a dialog covers the huddle bar.",
       "summary": "CallDock, portalled to the body with data-ownbase-call while useDialogOpen is true.",
       "details": [
         "useDialogOpen (Modal.tsx) counts only layers drawn on .dialog-backdrop: menus and popovers are Modal layers too and do not bring it up. Settings stops short of it (theme.css .call-dock)."
       ],
       "concepts": ["calls", "accessibility"]
+    },
+    {
+      "path": "packages/ui/src/components/CallKeys.tsx",
+      "plain": "Makes the mute, deafen and push-to-talk keys work in a call, and in the desktop app from other apps too.",
+      "summary": "CallKeys, mounted in the huddle bar for the whole call (K16): the keys in the window, the desktop app's keys from any app, and push to talk chosen mid-call.",
+      "details": [
+        "In the window it listens in the capture phase, so the keys work in a dialog and in the message box. Push to talk's key starts talking on the first keydown and stops when it, or a modifier it needs, comes up, or when the window loses focus, since the key-up then goes elsewhere.",
+        "In the desktop app it hands the keys to Platform.callKeys for the call, push to talk's only while push to talk is chosen, and lets them go on leaving. A press from another app toggles mute or deafen; push to talk toggles talking there, since globalShortcut reports no key-up. takenCallKeys keeps the keys another app held, as written, for Voice & video settings to name."
+      ],
+      "concepts": ["K16", "push to talk", "deafen", "global shortcuts"]
     },
     {
       "path": "packages/ui/src/components/JoinPolicyChoice.tsx",

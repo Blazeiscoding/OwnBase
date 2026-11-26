@@ -635,7 +635,7 @@ export class HuddleSession {
       micMuted: this.micMuted,
       deafened: this.deafened,
       pushToTalk: this.pushToTalk !== null,
-      holdingTalk: this.pushToTalk !== null && this.talkHeld,
+      holdingTalk: this.pushToTalk !== null && this.talkHeld && !this.muted,
       cameraOn: this.cameraOn,
       sharingScreen: this.sharingScreen,
       sharingScreenSound: this.screenSoundTrack !== null,

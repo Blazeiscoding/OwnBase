@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { useStore } from "zustand";
 import { createStore } from "zustand/vanilla";
 import {
+  callKeyCombo,
   canChooseSpeaker,
   captureFailure,
   type MediaDeviceOption,
@@ -195,6 +196,9 @@ export function HuddleControls({
     onSelect: onOpenSettings,
   };
   const pickerDisabled = busy !== null || !calls.loaded || calls.saving;
+  const keyOf = (combo: string) => shortcutLabel(callKeyCombo(combo));
+  const deafened = !!huddle.deafened;
+  const holdingTalk = !!huddle.holdingTalk;
   // Full screen shows only what is inside the stage, and menus open on the
   // page beneath it, so devices are changed from the bar.
   const micMenu = !overlay && (
@@ -293,14 +297,11 @@ export function HuddleControls({
       <div
         role="group"
         aria-label="Huddle controls"
-        className={`flex shrink-0 items-center gap-2 ${
+        className={`flex shrink-0 flex-wrap items-center justify-center gap-2 ${
           overlay ? "rounded-2xl bg-black/50 p-1.5 backdrop-blur" : stage ? "" : "ml-auto"
         }`}
       >
-        <Tooltip
-          label={huddle.micMuted ? "Unmute" : "Mute"}
-          keys={shortcutLabel("Mod+Shift+Space")}
-        >
+        <Tooltip label={huddle.micMuted ? "Unmute" : "Mute"} keys={keyOf(calls.keys.mute)}>
           <button
             aria-label="Mute microphone"
             aria-pressed={huddle.micMuted}
@@ -316,6 +317,58 @@ export function HuddleControls({
           </button>
         </Tooltip>
         {micMenu}
+        <Tooltip
+          label={deafened ? "Undeafen" : "Deafen: hear nobody and mute your microphone"}
+          keys={keyOf(calls.keys.deafen)}
+        >
+          <button
+            aria-label="Deafen"
+            aria-pressed={deafened}
+            onClick={() => client.toggleDeafen()}
+            className={toggleCls(
+              deafened,
+              inCall ? "bg-alert/20 text-alert hover:bg-alert/30" : "border-alert text-alert",
+            )}
+          >
+            <Swap on={deafened}>
+              <Icon name={deafened ? "headphonesOff" : "headphones"} />
+            </Swap>
+          </button>
+        </Tooltip>
+        {huddle.pushToTalk && (
+          <Tooltip label={`Hold this button, or ${keyOf(calls.keys.talk)}, to talk`}>
+            <button
+              type="button"
+              aria-label="Hold to talk"
+              aria-pressed={holdingTalk}
+              // Held, not clicked: down starts talking and up stops it, and a
+              // long press on a touchscreen opens no menu.
+              onPointerDown={(event) => {
+                event.currentTarget.setPointerCapture?.(event.pointerId);
+                client.pressTalk();
+              }}
+              onPointerUp={() => client.releaseTalk()}
+              onPointerCancel={() => client.releaseTalk()}
+              onLostPointerCapture={() => client.releaseTalk()}
+              onContextMenu={(event) => event.preventDefault()}
+              onKeyDown={(event) => {
+                if (event.key !== " " && event.key !== "Enter") return;
+                event.preventDefault();
+                if (!event.repeat) client.pressTalk();
+              }}
+              onKeyUp={(event) => {
+                if (event.key === " " || event.key === "Enter") client.releaseTalk();
+              }}
+              onBlur={() => client.releaseTalk()}
+              className={`flex shrink-0 touch-none select-none items-center gap-1.5 px-3 text-sm font-medium transition-colors ${
+                inCall ? "h-11 rounded-xl" : "h-10 rounded-full border"
+              } ${holdingTalk ? (inCall ? "bg-online text-ground" : "border-transparent bg-online text-ground") : off}`}
+            >
+              <Icon name="mic" size={16} />
+              {holdingTalk ? "Talking" : "Hold to talk"}
+            </button>
+          </Tooltip>
+        )}
         <Tooltip label={huddle.cameraOn ? "Turn your camera off" : "Turn your camera on"}>
           <button
             aria-label="Camera"
@@ -384,7 +437,7 @@ export function HuddleControls({
             className="shrink-0 rounded-lg border border-current px-2 py-1 font-medium"
           >
             Unmute
-            <span className="ml-1.5 opacity-70">{shortcutLabel("Mod+Shift+Space")}</span>
+            <span className="ml-1.5 opacity-70">{keyOf(calls.keys.mute)}</span>
           </button>
         </p>
       )}

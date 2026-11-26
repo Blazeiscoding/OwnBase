@@ -17,6 +17,7 @@ import { useCallVolumes } from "../lib/callVolumes.js";
 import { PersonVolume } from "./PersonVolume.js";
 import { CallAnnouncer } from "./CallAnnouncer.js";
 import { CallDock } from "./CallDock.js";
+import { CallKeys } from "./CallKeys.js";
 
 /** Someone in the call, as the bar and its roster need them. */
 interface Person {
@@ -28,6 +29,8 @@ interface Person {
   name: string;
   speaking: boolean;
   muted: boolean;
+  /** Hears nobody, their microphone off with it (K16). */
+  deafened?: boolean;
   /** Muted by you, for you alone. */
   mutedForYou?: boolean;
   connecting: boolean;
@@ -49,6 +52,7 @@ function stateOf(p: Person): string | null {
   // Before talking: it is why you cannot hear them.
   if (p.mutedForYou) return "muted for you";
   if (p.speaking) return "talking";
+  if (p.deafened) return "deafened";
   if (p.muted) return "muted";
   return null;
 }
@@ -74,7 +78,7 @@ function HuddleFace({ person, size = 24 }: { person: Person; size?: number }) {
       ) : (
         person.muted && (
           <span className="absolute -bottom-0.5 -right-0.5 rounded-full bg-raised p-0.5 text-ink-dim">
-            <Icon name="micOff" size={9} />
+            <Icon name={person.deafened ? "headphonesOff" : "micOff"} size={9} />
           </span>
         )
       )}
@@ -236,6 +240,7 @@ export function HuddleBar({
       name: "You",
       speaking: huddle.speaking,
       muted: huddle.micMuted,
+      deafened: !!huddle.deafened,
       connecting: false,
       stuck: false,
     },
@@ -246,6 +251,7 @@ export function HuddleBar({
       name: users[p.userId]?.displayName ?? "Someone",
       speaking: p.connected && p.speaking,
       muted: p.connected && p.micMuted,
+      deafened: p.connected && !!p.deafened,
       mutedForYou: volumes[p.userId]?.muted ?? false,
       connecting: !p.connected,
       stuck: !p.connected && !!p.trouble,
@@ -279,7 +285,13 @@ export function HuddleBar({
       hidden={calling}
       className="huddle-live mx-4 mb-2 flex flex-wrap items-center gap-3 rounded-xl border px-4 py-2.5"
     >
-      <HuddleAudio peers={huddle.peers} speakerId={speakerId} volumes={volumes} />
+      <HuddleAudio
+        peers={huddle.peers}
+        speakerId={speakerId}
+        volumes={volumes}
+        deafened={!!huddle.deafened}
+      />
+      <CallKeys />
       <CallAnnouncer peerIds={huddle.peers.map((p) => p.userId)} users={users} />
       <BigCallNotice huddle={huddle} />
       <CallDock where={where} />

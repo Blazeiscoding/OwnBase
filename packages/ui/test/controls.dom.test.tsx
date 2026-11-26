@@ -156,7 +156,7 @@ describe("the huddle bar", () => {
   it("names each control for what it controls, and says whether it is on without renaming it", () => {
     const { client } = huddleBar();
     const controls = screen.getByRole("group", { name: "Huddle controls" });
-    const toggles = ["Mute microphone", "Camera", "Share screen"];
+    const toggles = ["Mute microphone", "Deafen", "Camera", "Share screen"];
     for (const name of toggles)
       expect(within(controls).getByRole("button", { name, pressed: false })).toBeInTheDocument();
     const mute = within(controls).getByRole("button", { name: "Mute microphone" });
@@ -170,7 +170,13 @@ describe("the huddle bar", () => {
 
     act(() =>
       client.store.setState((s) => ({
-        huddle: { ...s.huddle!, micMuted: true, cameraOn: true, sharingScreen: true },
+        huddle: {
+          ...s.huddle!,
+          micMuted: true,
+          deafened: true,
+          cameraOn: true,
+          sharingScreen: true,
+        },
       })),
     );
     // A screen reader hears the same control, now pressed, not a different one.
@@ -186,6 +192,7 @@ describe("the huddle bar", () => {
     ).toEqual([
       "Mute microphone",
       "Microphone and speaker",
+      "Deafen",
       "Camera",
       "Camera options",
       "Share screen",

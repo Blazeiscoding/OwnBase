@@ -77,6 +77,7 @@ function PeerAudio({
   stream,
   speakerId,
   gain,
+  deafened,
   register,
   report,
 }: {
@@ -84,6 +85,7 @@ function PeerAudio({
   stream: MediaStream | null;
   speakerId: string;
   gain: number;
+  deafened: boolean;
 } & PlaybackCallbacks) {
   const ref = useRef<HTMLAudioElement>(null);
   const keeper = useRef<HTMLAudioElement>(null);
@@ -94,6 +96,10 @@ function PeerAudio({
     // Up to as loud as they arrive, the element's own volume does it.
     if (ref.current) ref.current.volume = boost ? 1 : Math.min(1, Math.max(0, gain));
   }, [boost, gain]);
+  useEffect(() => {
+    // Others send nothing to someone deafened; this silences one that still does.
+    if (ref.current) ref.current.muted = deafened;
+  }, [deafened]);
   useEffect(() => {
     // Chromium gives an audio graph silence from a call's stream unless an
     // element is playing that stream too: this one, muted.
@@ -153,6 +159,7 @@ export function HuddleAudio({
   peers,
   speakerId = "",
   volumes = {},
+  deafened = false,
 }: {
   peers: HuddlePeer[];
   /** The speaker chosen in Voice & video settings; "" for the system's default. */
@@ -162,6 +169,8 @@ export function HuddleAudio({
    * anything missing is as it arrives.
    */
   volumes?: Record<string, PersonVolume>;
+  /** You hear nobody (K16): every voice and share's sound is silent. */
+  deafened?: boolean;
 }) {
   const retries = useRef(new Map<string, () => void>());
   const [blocked, setBlocked] = useState<Map<string, PlaybackFailure>>(() => new Map());
@@ -211,6 +220,7 @@ export function HuddleAudio({
             stream={peer.audioStream}
             speakerId={speakerId}
             gain={gainOf(volumes[peer.userId])}
+            deafened={deafened}
             register={register}
             report={report}
           />,
@@ -223,6 +233,7 @@ export function HuddleAudio({
               stream={peer.screenSoundStream}
               speakerId={speakerId}
               gain={gainOf(volumes[screen])}
+              deafened={deafened}
               register={register}
               report={report}
             />

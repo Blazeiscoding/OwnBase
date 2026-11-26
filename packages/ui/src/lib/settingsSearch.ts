@@ -123,6 +123,18 @@ export const SETTINGS: readonly Setting[] = [
     label: "Join huddles with my microphone off",
     words: "muted mute huddle call joining",
   },
+  {
+    id: "push-to-talk",
+    section: "calls",
+    label: "Push to talk",
+    words: "voice activity ptt hold key release delay talking",
+  },
+  {
+    id: "call-keys",
+    section: "calls",
+    label: "Call keys",
+    words: "keyboard shortcut hotkey keybind mute deafen global other apps game",
+  },
   { id: "password", section: "security", label: "Change password", words: "password" },
   {
     id: "email",

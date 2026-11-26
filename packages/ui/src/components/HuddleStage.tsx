@@ -100,6 +100,8 @@ interface StageItem {
   self: boolean;
   speaking: boolean;
   muted: boolean;
+  /** Hears nobody, their microphone off with it (K16). */
+  deafened?: boolean;
   /** Muted by you, for you alone: their voice, or a shared screen's sound. */
   mutedForYou?: boolean;
   /** A shared screen that sends its sound too. */
@@ -162,6 +164,7 @@ function stageItems(
     self: true,
     speaking: huddle.speaking,
     muted: huddle.micMuted,
+    deafened: !!huddle.deafened,
     connecting: false,
   });
   for (const p of huddle.peers)
@@ -175,6 +178,7 @@ function stageItems(
       self: false,
       speaking: p.speaking,
       muted: p.micMuted,
+      deafened: !!p.deafened,
       mutedForYou: volumes[p.userId]?.muted ?? false,
       connecting: !p.connected,
       stuck: !p.connected && !!p.trouble,
@@ -192,7 +196,8 @@ function describe(item: StageItem): string {
     return parts.join(", ");
   }
   if (!item.stream) parts.push("camera off");
-  if (item.muted) parts.push("muted");
+  if (item.deafened) parts.push("deafened");
+  else if (item.muted) parts.push("muted");
   if (item.mutedForYou) parts.push("muted for you");
   if (item.connecting)
     parts.push(item.stuck ? "can't connect" : item.reconnecting ? "reconnecting" : "connecting");
@@ -416,7 +421,13 @@ function TileBody({
       >
         {item.kind === "screen" && <Icon name="screen" size={13} />}
         {item.sound && !item.mutedForYou && <Icon name="volume" size={13} />}
-        {item.muted && <Icon name="micOff" size={13} className="text-alert" />}
+        {item.muted && (
+          <Icon
+            name={item.deafened ? "headphonesOff" : "micOff"}
+            size={13}
+            className="text-alert"
+          />
+        )}
         {item.mutedForYou && <Icon name="volumeOff" size={13} className="text-alert" />}
         <span className="truncate">{item.name}</span>
       </span>

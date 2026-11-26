@@ -436,7 +436,7 @@ export interface KeyBinding {
   id: string;
   /** The action it runs, whose menu item and Ctrl+K row then show this key. */
   action?: ActionId;
-  group: "Getting around" | "Huddles";
+  group: "Getting around";
   /** The keys as the list shows them, one keycap each. */
   keys: string[];
   /** Written for code, as `shortcutLabel` reads it, where Ctrl+K shows the key. */
@@ -603,20 +603,6 @@ export const KEY_BINDINGS: readonly KeyBinding[] = [
     match: (e) => mod(e) && e.key === "/",
     run: (ctx) => {
       ctx.nav.navigate({ to: "toggle-dialog", kind: "shortcuts" });
-      return true;
-    },
-  },
-  // Mute in a huddle, as Slack's Ctrl/Cmd+Shift+Space: from anywhere, a dialog
-  // included, since the call goes on behind it.
-  {
-    id: "toggle-mic",
-    group: "Huddles",
-    keys: [modKey(), "Shift", "Space"],
-    describe: "Mute or unmute your microphone",
-    anywhere: true,
-    match: (e, ctx) => mod(e) && e.shiftKey && e.code === "Space" && !!ctx.client.state.huddle,
-    run: (ctx) => {
-      ctx.client.toggleMic();
       return true;
     },
   },
