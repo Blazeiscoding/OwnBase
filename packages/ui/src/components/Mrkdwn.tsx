@@ -5,6 +5,7 @@ import {
   useMemo,
   useRef,
   useState,
+  useSyncExternalStore,
   type ReactNode,
 } from "react";
 import {
@@ -14,12 +15,13 @@ import {
   CUSTOM_EMOJI_TOKEN,
   GROUP_MENTION,
   isRoom,
+  keywordMatches,
   USER_MENTION,
   type ID,
   type User,
 } from "@ownbase/protocol";
 import type { Channel, CustomEmoji, UserGroup } from "@ownbase/protocol";
-import { OpenMessageContext } from "../context.js";
+import { ClientContext, OpenMessageContext } from "../context.js";
 import { CustomEmojiImage, customEmojiFor, useCustomEmoji } from "./CustomEmoji.js";
 import { GroupMention } from "./GroupMention.js";
 import { codeLanguage, useHighlighter } from "../lib/codeColours.js";
@@ -63,6 +65,7 @@ export function Mrkdwn({
   const ours = useOwnAddress();
   const customEmoji = useCustomEmoji();
   const groups = useUserGroups();
+  const keywords = useKeywords();
   const blocks = text.split(/```/);
   const terms = [...new Set(highlightTerms.filter((term) => term.trim().length > 0))].sort(
     (a, b) => b.length - a.length,
@@ -70,22 +73,17 @@ export function Mrkdwn({
   const pattern = terms.length
     ? new RegExp(terms.map((term) => term.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")).join("|"), "giu")
     : null;
-  const highlight = (value: string): ReactNode => {
-    if (!pattern) return value;
-    const parts: ReactNode[] = [];
-    let previous = 0;
-    for (const match of value.matchAll(pattern)) {
-      if (match.index > previous) parts.push(value.slice(previous, match.index));
-      parts.push(
-        <mark key={match.index} className="rounded bg-copper/25 text-ink">
-          {match[0]}
-        </mark>,
-      );
-      previous = match.index + match[0].length;
-    }
-    if (previous < value.length) parts.push(value.slice(previous));
-    return parts;
-  };
+  // Search terms where a search shows the message, else this account's keywords (K11).
+  const highlight = (value: string): ReactNode =>
+    marked(
+      value,
+      pattern
+        ? Array.from(value.matchAll(pattern), (m) => ({
+            start: m.index,
+            end: m.index + m[0].length,
+          }))
+        : keywordMatches(value, keywords),
+    );
   return (
     <span className="whitespace-pre-wrap break-words leading-[1.45]">
       {blocks.map((block, i) =>
@@ -414,6 +412,42 @@ function renderInline(
   if (last < text.length) out.push(ctx.highlight(text.slice(last)));
   return out;
 }
+
+const NO_KEYWORDS: string[] = [];
+const unsubscribed = () => undefined;
+
+/** This account's keywords (K11), or none outside a workspace. */
+function useKeywords(): string[] {
+  const client = useContext(ClientContext);
+  const read = () => client?.store.getState().keywords ?? NO_KEYWORDS;
+  return useSyncExternalStore(
+    (changed) => client?.store.subscribe(changed) ?? unsubscribed,
+    read,
+    read,
+  );
+}
+
+/** Text with the given stretches of it marked. */
+function marked(value: string, found: readonly { start: number; end: number }[]): ReactNode {
+  if (found.length === 0) return value;
+  const parts: ReactNode[] = [];
+  let at = 0;
+  for (const { start, end } of found) {
+    if (start > at) parts.push(value.slice(at, start));
+    parts.push(
+      <mark key={start} className="rounded bg-copper/25 text-ink">
+        {value.slice(start, end)}
+      </mark>,
+    );
+    at = end;
+  }
+  if (at < value.length) parts.push(value.slice(at));
+  return parts;
+}
+
+/** Text with this account's keywords marked (K11). */
+export const markKeywords = (value: string, keywords: readonly string[]) =>
+  marked(value, keywordMatches(value, keywords));
 
 /**
  * A web link. One to a message or a conversation in this workspace opens it here, instead of in

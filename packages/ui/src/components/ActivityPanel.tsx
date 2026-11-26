@@ -1,4 +1,4 @@
-import { useEffect, useId, useRef, useState } from "react";
+import { useEffect, useId, useRef, useState, type ReactNode } from "react";
 import {
   anythingUnread,
   dueReminderCount,
@@ -31,6 +31,7 @@ import { dropRepeatClick } from "../lib/repeatClick.js";
 import { ReactionsList } from "./ReactionsList.js";
 import { RemindersList } from "./RemindersList.js";
 import { When } from "./When.js";
+import { markKeywords } from "./Mrkdwn.js";
 
 /**
  * Activity's tabs (UX-52), and what each asks the server for. Reactions
@@ -50,7 +51,8 @@ const NAMES: Record<ActivityMode, string> = {
 };
 const ABOUT: Record<ActivityMode, string> = {
   all: "Unread messages in conversations you joined.",
-  mentions: "Messages that mention you or everyone, in conversations you joined.",
+  mentions:
+    "Messages that mention you, everyone, or one of your keywords, in conversations you joined.",
   threads: "Unread replies in threads you follow.",
   reactions: "Reactions to your messages, in conversations you joined.",
   reminders: "Messages you asked to be reminded about.",
@@ -134,6 +136,7 @@ export function ActivityPanel({
   const removals = useWorkspace((s) => s.channelRemovals);
   const channels = useWorkspace((s) => s.channels);
   const users = useWorkspace((s) => s.users);
+  const keywords = useWorkspace((s) => s.keywords);
   const selfId = useWorkspace((s) => s.self?.id);
   const memberships = useWorkspace((s) => s.memberships);
   const threadFollows = useWorkspace((s) => s.threadFollows);
@@ -443,7 +446,7 @@ export function ActivityPanel({
                           message={message}
                           author={users[message.userId]?.displayName}
                           avatarUser={users[message.userId]}
-                          preview={notificationBody(client.state, message)}
+                          preview={markKeywords(notificationBody(client.state, message), keywords)}
                           // Threads groups by thread already.
                           inThread={!!message.threadRootId && mode !== "threads"}
                           unread={unread(message)}
@@ -485,7 +488,7 @@ function ActivityRow(props: {
   message: Message;
   author: string | undefined;
   avatarUser: Parameters<typeof Avatar>[0]["user"];
-  preview: string;
+  preview: ReactNode;
   inThread: boolean;
   unread: boolean;
   saved: boolean;

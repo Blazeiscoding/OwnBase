@@ -893,6 +893,16 @@
       "concepts": ["web push", "service worker", "G09"]
     },
     {
+      "path": "packages/ui/src/components/KeywordSettings.tsx",
+      "plain": "The list of words in Account settings that notify you as a mention does.",
+      "summary": "My keywords, under Account settings, Notifications (K11): add, remove and save this account's keywords.",
+      "details": [
+        "Several keywords typed with commas between are added together; one with no letters or numbers, one already listed or one past the limit of 20 is refused with a line under the field, before anything is sent.",
+        "Each change saves at once through client-core's setKeywords and reaches the account's other devices by the keywords event."
+      ],
+      "concepts": ["keyword alerts", "settings"]
+    },
+    {
       "path": "packages/ui/src/components/PushSettings.tsx",
       "plain": "The switch in Account settings that turns on notifications while OwnBase is closed.",
       "summary": "Notify me when OwnBase is closed, under Account settings, Notifications, in a browser.",

@@ -238,7 +238,7 @@ describe("views that were pressed buttons", () => {
     expect(mentions).toHaveFocus();
     expect(mentions).toHaveAttribute("aria-selected", "true");
     expect(within(panel).getByRole("tabpanel", { name: "Mentions" })).toHaveTextContent(
-      "Messages that mention you or everyone, in conversations you joined.",
+      "Messages that mention you, everyone, or one of your keywords, in conversations you joined.",
     );
     await waitFor(() => expect(activity).toHaveBeenLastCalledWith("mentions", expect.anything()));
     expect(await within(panel).findByText("No mentions yet.")).toBeVisible();
