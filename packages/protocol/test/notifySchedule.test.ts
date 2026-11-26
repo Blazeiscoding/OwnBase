@@ -151,6 +151,25 @@ describe("notifyDecision with a schedule", () => {
     expect(notifyDecision(inputs({ schedule: null }))).toEqual({ notify: true, reason: "mention" });
   });
 
+  it("holds a keyword back outside the hours, as a mention, until turned on for an hour", () => {
+    const keywordHit = inputs({
+      message: { ...inputs().message, text: "The release is out" },
+      prefs: { muted: false, notifyLevel: "mentions", notifyChosen: true },
+      keywords: ["release"],
+    });
+    expect(notifyDecision(keywordHit)).toEqual({ notify: false, reason: "schedule" });
+    const onForAnHour = { ...weekdays, onUntil: evening + 3_600_000 };
+    expect(notifyDecision({ ...keywordHit, schedule: onForAnHour })).toEqual({
+      notify: true,
+      reason: "keyword",
+      keyword: "release",
+    });
+    // The hour over, the schedule holds it back again.
+    expect(
+      notifyDecision({ ...keywordHit, schedule: onForAnHour, now: evening + 3_600_001 }).reason,
+    ).toBe("schedule");
+  });
+
   it("says a pause, not the schedule, while both hold", () => {
     expect(notifyDecision(inputs({ dndUntil: evening + 60_000 })).reason).toBe("dnd");
   });

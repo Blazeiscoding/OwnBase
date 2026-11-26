@@ -467,6 +467,37 @@ describe("a new message", () => {
     expect(pushesTo(devices[2])).toEqual([]);
   });
 
+  it("holds a keyword's push back outside the schedule, until turned on for an hour (K11, K12)", async () => {
+    // Monday 20:00 in Kolkata, with the clock still running.
+    vi.useFakeTimers({ toFake: ["Date"], shouldAdvanceTime: true });
+    vi.setSystemTime(new Date("2026-11-23T14:30:00Z"));
+    onTestFinished(() => void vi.useRealTimers());
+    await startWithPeople();
+    const device = browser("/owner");
+    await subscribe(device);
+    await request("/api/me", { timeZone: "Asia/Kolkata" }, "PATCH");
+    await request("/api/me/keywords", { keywords: ["release"] }, "PUT");
+    const work = { from: "09:00", to: "18:00" };
+    const schedule = { kind: "weekdays", days: [null, work, work, work, work, work, null] };
+    await request("/api/me/notify-schedule", { schedule }, "PUT");
+
+    await post("The release is out");
+    await server!.flushPushes();
+    expect(pushesTo(device)).toEqual([]);
+
+    await request(
+      "/api/me/notify-schedule",
+      { schedule: { ...schedule, onUntil: Date.now() + 3_600_000 } },
+      "PUT",
+    );
+    await post("The release notes too");
+    await server!.flushPushes();
+    expect(pushesTo(device)).toHaveLength(1);
+    expect(open(pushesTo(device)[0]!.body, device)).toMatchObject({
+      title: "Peer mentioned “release” in #general",
+    });
+  });
+
   it("pushes for a reminder that comes due while the app is closed", async () => {
     await startWithPeople();
     const device = browser("/owner");
