@@ -258,7 +258,7 @@ describe("a place in a huddle when the person joins from another device", () => 
 });
 
 describe("what one side of a huddle says it is sending", () => {
-  it("is passed on whole, the share's sound included", async () => {
+  it("is passed on whole, the share's sound and being deafened included", async () => {
     await start();
     const { bob, a, b } = await call();
     a.send({
@@ -270,13 +270,21 @@ describe("what one side of a huddle says it is sending", () => {
         camera: false,
         screen: true,
         muted: true,
+        deafened: true,
         screenSound: true,
         view: { camera: 360, screen: 0 },
       },
     });
     await expect.poll(() => b.events("huddle.signal")).toHaveLength(1);
     expect(b.events("huddle.signal")[0]).toMatchObject({
-      signal: { kind: "media", camera: false, screen: true, muted: true, screenSound: true },
+      signal: {
+        kind: "media",
+        camera: false,
+        screen: true,
+        muted: true,
+        deafened: true,
+        screenSound: true,
+      },
     });
   });
 
@@ -292,6 +300,7 @@ describe("what one side of a huddle says it is sending", () => {
         camera: true,
         screen: false,
         muted: false,
+        deafened: false,
         screenSound: false,
         view: { camera: 180, screen: 720 },
       },
@@ -305,6 +314,7 @@ describe("what one side of a huddle says it is sending", () => {
         camera: true,
         screen: false,
         muted: false,
+        deafened: false,
         screenSound: false,
         view: { camera: 0, screen: 0 },
       },

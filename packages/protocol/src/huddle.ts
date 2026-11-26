@@ -33,6 +33,11 @@ export const huddleSignal = z.discriminatedUnion("kind", [
     camera: z.boolean(),
     screen: z.boolean(),
     muted: z.boolean(),
+    /**
+     * They hear nothing (K16), their microphone off with it. Whoever is told
+     * sends them no voice and no share's sound, since none would be heard.
+     */
+    deafened: z.boolean(),
     /** Whether their share sends its sound, in a fourth slot after the screen's. */
     screenSound: z.boolean(),
     /**
