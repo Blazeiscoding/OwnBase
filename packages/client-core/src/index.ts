@@ -79,6 +79,7 @@ export type { RecordChanges } from "./records.js";
 export { addTrustedAddress, readTrustedAddresses } from "./trustedAddresses.js";
 export type {
   CallLogLine,
+  CallReaction,
   CallView,
   HuddlePeer,
   HuddleState,

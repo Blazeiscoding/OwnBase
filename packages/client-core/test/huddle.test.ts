@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { HuddleSignal, ID } from "@ownbase/protocol";
 import type { CallReport } from "@ownbase/protocol";
-import { HuddleSession, STALL_MS } from "../src/huddle.js";
+import { HuddleSession, REACTION_SHOWN_MS, STALL_MS, type HuddleTransport } from "../src/huddle.js";
 import { withStereoScreenSound } from "../src/screenShare.js";
 import {
   cameraEncoding,
@@ -193,13 +193,24 @@ const g = globalThis as unknown as Record<string, unknown>;
 /** Offers are sent after a couple of awaits; let them land before asserting. */
 const flush = () => new Promise((r) => setTimeout(r, 0));
 
+type Sent = Parameters<HuddleTransport["send"]>[0];
+
+/** A transport that keeps the signals for one peer, and the frames for the room in `room`. */
+function signalsInto(sent: { to: ID; signal: HuddleSignal }[], room: Sent[] = []) {
+  return (msg: Sent) => {
+    if (msg.type === "huddle.signal") sent.push({ to: msg.to, signal: msg.signal });
+    else room.push(msg);
+  };
+}
+
 /** Collects everything the session tries to send to the server. */
 function makeSession(selfId: ID) {
   const sent: { to: ID; signal: HuddleSignal }[] = [];
+  const room: Sent[] = [];
   const session = new HuddleSession("C1", selfId, {
-    send: (msg) => sent.push({ to: msg.to, signal: msg.signal }),
+    send: signalsInto(sent, room),
   });
-  return { session, sent };
+  return { session, sent, room };
 }
 
 beforeEach(() => {
@@ -1526,7 +1537,7 @@ describe("the call log", () => {
     const session = new HuddleSession(
       "C1",
       selfId,
-      { send: (msg) => sent.push({ to: msg.to, signal: msg.signal }) },
+      { send: signalsInto(sent) },
       { iceServers: servers },
       { refreshConfig, onReport: (peer, report) => reports.push({ peer, report }) },
     );
@@ -1809,13 +1820,7 @@ describe("choosing the microphone and camera (Voice & video)", () => {
   /** A call with one peer, its microphone and choices as given. */
   async function inCall(first: Track, options: ConstructorParameters<typeof HuddleSession>[4]) {
     const sent: { to: ID; signal: HuddleSignal }[] = [];
-    const session = new HuddleSession(
-      "C1",
-      "A",
-      { send: (msg) => sent.push({ to: msg.to, signal: msg.signal }) },
-      undefined,
-      options,
-    );
+    const session = new HuddleSession("C1", "A", { send: signalsInto(sent) }, undefined, options);
     const ask = vi.spyOn(navigator.mediaDevices, "getUserMedia").mockResolvedValue(stream(first));
     await session.startLocalAudio();
     session.syncParticipants(["A", "B"]);
@@ -2397,7 +2402,7 @@ describe("deafen and push to talk (K16)", () => {
     const session = new HuddleSession(
       "C1",
       "A",
-      { send: (msg) => sent.push({ to: msg.to, signal: msg.signal }) },
+      { send: signalsInto(sent) },
       { iceServers: [] },
       options.releaseMs === undefined ? {} : { pushToTalk: { releaseMs: options.releaseMs } },
     );
@@ -2538,5 +2543,62 @@ describe("deafen and push to talk (K16)", () => {
     } finally {
       vi.useRealTimers();
     }
+  });
+});
+
+describe("reactions and raised hands (K17)", () => {
+  it("raises and lowers a hand by asking the server, and shows what the server says", () => {
+    const { session, room } = makeSession("A");
+    session.toggleHand();
+    expect(room).toEqual([{ type: "huddle.hand", channelId: "C1", raised: true }]);
+    // Nothing shows until the roster says so.
+    expect(session.state().hands).toEqual([]);
+    session.setHands(["B", "A"]);
+    expect(session.state().hands).toEqual(["B", "A"]);
+    session.toggleHand();
+    expect(room.at(-1)).toEqual({ type: "huddle.hand", channelId: "C1", raised: false });
+  });
+
+  it("sends one reaction every 400 ms, and shows each it hears for two seconds", () => {
+    vi.useFakeTimers();
+    try {
+      const { session, room } = makeSession("A");
+      const changed = vi.fn();
+      session.onChange = changed;
+      session.react("👍");
+      session.react("🎉");
+      expect(room).toEqual([{ type: "huddle.react", channelId: "C1", emoji: "👍" }]);
+      vi.advanceTimersByTime(400);
+      session.react("🎉");
+      expect(room).toHaveLength(2);
+
+      session.heardReaction("B", "👍");
+      vi.advanceTimersByTime(1000);
+      session.heardReaction("A", "🎉");
+      expect(session.state().reactions).toEqual([
+        { id: 1, userId: "B", emoji: "👍" },
+        { id: 2, userId: "A", emoji: "🎉" },
+      ]);
+      vi.advanceTimersByTime(REACTION_SHOWN_MS - 1000);
+      expect(session.state().reactions).toEqual([{ id: 2, userId: "A", emoji: "🎉" }]);
+      vi.advanceTimersByTime(1000);
+      expect(session.state().reactions).toEqual([]);
+      expect(changed).toHaveBeenCalledTimes(4);
+
+      session.heardReaction("B", "😮");
+      session.destroy();
+      expect(vi.getTimerCount()).toBe(0);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("lets a kind of signal it does not know pass, as a later app may send one", async () => {
+    const { session } = makeSession("A");
+    session.syncParticipants(["A", "B"]);
+    await flush();
+    const unknown = { kind: "wave" } as unknown as HuddleSignal;
+    await session.handleSignal("B", unknown);
+    expect(session.log.map((line) => line.text).join("\n")).not.toMatch(/Could not use/);
   });
 });

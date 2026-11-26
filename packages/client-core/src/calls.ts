@@ -367,6 +367,7 @@ export class Calls {
   participantsChanged(event: Extract<EphemeralEvent, { type: "huddle.participants" }>): void {
     // Reconcile our own mesh against the new roster.
     if (this.session?.channelId === event.channelId && this.huddleAdmitted) {
+      this.session.setHands(event.hands ?? []);
       this.session.syncParticipants(event.userIds);
       this.publishHuddleState();
     }
@@ -390,7 +391,11 @@ export class Calls {
   joinResult(event: Extract<EphemeralEvent, { type: "huddle.join.result" }>): void {
     const pending = this.pendingHuddleJoin;
     if (pending?.channelId === event.channelId && pending.requestId === event.requestId) {
-      if (event.accepted) this.huddleAdmitted = true;
+      if (event.accepted) {
+        this.huddleAdmitted = true;
+        // The roster that came before this answer was not yet this device's to read.
+        this.session?.setHands(event.hands ?? []);
+      }
       pending.finish(event.accepted ? undefined : new HuddleJoinRefusedError(event.message));
     }
   }
@@ -400,6 +405,20 @@ export class Calls {
     if (this.session?.channelId === event.channelId && this.huddleAdmitted) {
       void this.session.handleSignal(event.from, event.signal);
     }
+  }
+
+  /** Someone in this device's call reacted (K17). */
+  reacted(event: Extract<EphemeralEvent, { type: "huddle.react" }>): void {
+    if (this.session?.channelId === event.channelId && this.huddleAdmitted)
+      this.session.heardReaction(event.from, event.emoji);
+  }
+
+  toggleHand(): void {
+    this.session?.toggleHand();
+  }
+
+  react(emoji: string): void {
+    this.session?.react(emoji);
   }
 
   /** Leaves the huddle when it is in this conversation. */

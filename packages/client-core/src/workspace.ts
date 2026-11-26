@@ -878,6 +878,9 @@ export class WorkspaceClient {
       case "huddle.signal":
         this.calls.signal(event);
         break;
+      case "huddle.react":
+        this.calls.reacted(event);
+        break;
       case "channel.read":
         this.readMarks.channelRead(event);
         break;
@@ -1467,6 +1470,16 @@ export class WorkspaceClient {
   /** Starts or stops talking, for a key that cannot say when it is let go. */
   toggleTalk(): void {
     this.calls.toggleTalk();
+  }
+
+  /** Raises your hand in the huddle, or lowers it (K17). */
+  toggleHand(): void {
+    this.calls.toggleHand();
+  }
+
+  /** Floats an emoji over your tile for everyone in the huddle (K17). */
+  reactInHuddle(emoji: string): void {
+    this.calls.react(emoji);
   }
 
   /** Asks for a microphone again after the huddle's stopped. */

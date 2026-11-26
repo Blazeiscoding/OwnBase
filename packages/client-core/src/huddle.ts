@@ -1,4 +1,5 @@
 import {
+  HUDDLE_REACTION_MS,
   shouldInitiateOffer,
   type CallCause,
   type CallReport,
@@ -147,11 +148,31 @@ export interface HuddleState {
    */
   talkingWhileMuted?: boolean;
   peers: HuddlePeer[];
+  /** Who has a hand raised, you among them, first raised first (K17). */
+  hands?: ID[];
+  /** Reactions still showing, oldest first, each for `REACTION_SHOWN_MS` (K17). */
+  reactions?: CallReaction[];
 }
+
+/** An emoji someone in the call sent, you among them (K17). */
+export interface CallReaction {
+  /** Counts up within the call, so a view can tell a new one from one it has drawn. */
+  id: number;
+  userId: ID;
+  emoji: string;
+}
+
+/** How long a reaction shows over its sender's tile. */
+export const REACTION_SHOWN_MS = 2000;
 
 /** How the huddle reaches the server; supplied by WorkspaceClient. */
 export interface HuddleTransport {
-  send: (msg: { type: "huddle.signal"; channelId: ID; to: ID; signal: HuddleSignal }) => void;
+  send: (
+    msg:
+      | { type: "huddle.signal"; channelId: ID; to: ID; signal: HuddleSignal }
+      | { type: "huddle.react"; channelId: ID; emoji: string }
+      | { type: "huddle.hand"; channelId: ID; raised: boolean },
+  ) => void;
 }
 
 /**
@@ -253,6 +274,12 @@ export class HuddleSession {
   private mutedLoud: number[] = [];
   private mutedTalkAt = 0;
   private talkingWhileMuted = false;
+  /** Raised hands as the server last said (K17); a press waits for its word too. */
+  private hands: ID[] = [];
+  private reactions: CallReaction[] = [];
+  private reactionTimers = new Set<ReturnType<typeof setTimeout>>();
+  private reactionCount = 0;
+  private reactedAt = -Infinity;
   /** Every step of this call, for whoever has to work out what went wrong. */
   readonly log: CallLogLine[] = [];
 
@@ -556,6 +583,47 @@ export class HuddleSession {
     this.micChanged();
   }
 
+  /** Who has a hand up, from the server's roster (K17). */
+  setHands(hands: ID[]): void {
+    if (this.destroyed || hands.join() === this.hands.join()) return;
+    this.hands = hands;
+    this.onChange?.();
+  }
+
+  /** Raises this person's hand, or lowers it; it shows once the server says so. */
+  toggleHand(): void {
+    if (this.destroyed) return;
+    const raised = !this.hands.includes(this.selfId);
+    this.transport.send({ type: "huddle.hand", channelId: this.channelId, raised });
+  }
+
+  /**
+   * Sends a reaction, unless the last went less than `HUDDLE_REACTION_MS`
+   * ago, which the server would drop. It shows when the server passes it
+   * back, as it does for everyone at once.
+   */
+  react(emoji: string): void {
+    const now = Date.now();
+    if (this.destroyed || now - this.reactedAt < HUDDLE_REACTION_MS) return;
+    this.reactedAt = now;
+    this.transport.send({ type: "huddle.react", channelId: this.channelId, emoji });
+  }
+
+  /** Someone in the call reacted, this person among them: shown for `REACTION_SHOWN_MS`. */
+  heardReaction(userId: ID, emoji: string): void {
+    if (this.destroyed) return;
+    const reaction = { id: ++this.reactionCount, userId, emoji };
+    // A full room's worth at once; older ones have floated off anyway.
+    this.reactions = [...this.reactions.slice(-23), reaction];
+    const timer = setTimeout(() => {
+      this.reactionTimers.delete(timer);
+      this.reactions = this.reactions.filter((r) => r !== reaction);
+      this.onChange?.();
+    }, REACTION_SHOWN_MS);
+    this.reactionTimers.add(timer);
+    this.onChange?.();
+  }
+
   private micChanged(): void {
     const track = this.localStream?.getAudioTracks()[0];
     if (track) track.enabled = !this.muted;
@@ -658,6 +726,8 @@ export class HuddleSession {
       speaking: this.speaking.has(this.selfId),
       micLost: this.micLost,
       talkingWhileMuted: this.talkingWhileMuted,
+      hands: this.hands,
+      reactions: this.reactions,
     };
   }
 
@@ -1161,7 +1231,8 @@ export class HuddleSession {
         this.sizeFor(from, peer);
       }
       this.onChange?.();
-    } else {
+    } else if (signal.kind === "ice") {
+      // Asked by kind, so a kind of signal added later passes this app by.
       const { kind, protocol } = candidateOf(signal.candidate);
       peer.remote[kind]++;
       if (firstOf(peer.logged, `there ${kind} ${protocol}`))
@@ -1510,6 +1581,8 @@ export class HuddleSession {
     if (!this.destroyed) this.note("Left the huddle.");
     this.destroyed = true;
     this.clearRelease();
+    for (const timer of this.reactionTimers) clearTimeout(timer);
+    this.reactionTimers.clear();
     this.stopWaitingForMicrophone();
     if (this.levelTimer) clearInterval(this.levelTimer);
     this.levelTimer = null;
