@@ -5328,6 +5328,64 @@
         }
       }
     },
+    "/api/me/keywords": {
+      "get": {
+        "operationId": "getMeKeywords",
+        "tags": [
+          "me"
+        ],
+        "summary": "This account's keywords (K11): a message holding one notifies as a mention does.",
+        "description": "This account's keywords (K11): a message holding one notifies as a mention does.\n\nNeeds a signed-in account. Guests may call it too.",
+        "x-access": "member",
+        "x-guests": true,
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Done."
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      },
+      "put": {
+        "operationId": "putMeKeywords",
+        "tags": [
+          "me"
+        ],
+        "summary": "Replaces this account's keywords with the list given, at most 20 (K11).",
+        "description": "Replaces this account's keywords with the list given, at most 20 (K11).\n\nNeeds a signed-in account. Guests may call it too.",
+        "x-access": "member",
+        "x-guests": true,
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/KeywordsBody"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Done."
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    },
     "/api/me/unread": {
       "get": {
         "operationId": "getMeUnread",
@@ -7576,6 +7634,22 @@
         },
         "required": [
           "level"
+        ]
+      },
+      "KeywordsBody": {
+        "type": "object",
+        "properties": {
+          "keywords": {
+            "maxItems": 20,
+            "type": "array",
+            "items": {
+              "type": "string",
+              "maxLength": 50
+            }
+          }
+        },
+        "required": [
+          "keywords"
         ]
       },
       "SidebarSectionBody": {

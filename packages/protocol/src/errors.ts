@@ -81,6 +81,7 @@ export const ERROR_CODES = [
   "section_not_found",
   "sections_changed",
   "too_many_sections",
+  "keyword_without_words",
 
   // Messages, threads, polls and calls
   "attachments_scheduled",

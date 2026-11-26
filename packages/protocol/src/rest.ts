@@ -22,6 +22,7 @@ import { COMMAND_NAME } from "./commands.js";
 import { EMAIL_MAX, isEmailAddress } from "./email.js";
 import { PAGE_ID_CHARS } from "./pageLinks.js";
 import { NOTIFICATION_PREVIEWS } from "./notify.js";
+import { KEYWORD_LENGTH_MAX, KEYWORDS_MAX } from "./keywords.js";
 import {
   CHANNEL_DESCRIPTION_MAX,
   CHANNEL_NAME_MAX,
@@ -195,6 +196,14 @@ export const pushSubscriptionBody = z.object({
 /** `PUT /api/me/notify-default`: what conversations notify about unless set on their own (v53). */
 export const notifyDefaultBody = z.object({
   level: z.enum(NOTIFY_LEVELS),
+});
+
+/**
+ * `PUT /api/me/keywords`: this account's whole list of keywords (K11). The
+ * server trims them and drops repeats; one with no letter or digit is refused.
+ */
+export const keywordsBody = z.object({
+  keywords: z.array(z.string().max(KEYWORD_LENGTH_MAX)).max(KEYWORDS_MAX),
 });
 
 /**

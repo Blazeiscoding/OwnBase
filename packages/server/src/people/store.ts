@@ -1,5 +1,5 @@
 import type { Friendship, ID, Role, User } from "@ownbase/protocol";
-import { isAdministrator, RESERVED_HANDLES } from "@ownbase/protocol";
+import { isAdministrator, keywordKey, RESERVED_HANDLES } from "@ownbase/protocol";
 import type { DatabaseSync, SQLInputValue } from "node:sqlite";
 import { countOf, oneOf, shape, type RowOf } from "../core/rows.js";
 import { ulid } from "../ids.js";
@@ -48,6 +48,7 @@ const friendshipRow = shape({
   created_at: "number",
 });
 const blockedRow = shape({ blocked_id: "text" });
+const keywordRow = shape({ keyword: "text", added_at: "number" });
 const nextExpiryRow = shape({ next: "number?" });
 const avatarRow = shape({ type: "text", bytes: "bytes", avatar_version: "text?" });
 const lastSeenRow = shape({ user_id: "text", seen: "number" });
@@ -176,6 +177,46 @@ export class PeopleStore {
     if (!blocked) this.tellFriends(userId);
     this.store.outbox.mentions([userId]);
     return true;
+  }
+
+  /** This account's keywords (K11), in its order, with when each was added. */
+  keywordsAdded(userId: ID): { keyword: string; addedAt: number }[] {
+    return keywordRow
+      .all(
+        this.db.prepare(
+          "SELECT keyword, added_at FROM user_keywords WHERE user_id = ? ORDER BY position",
+        ),
+        userId,
+      )
+      .map((row) => ({ keyword: row.keyword, addedAt: row.added_at }));
+  }
+
+  keywords(userId: ID): string[] {
+    return this.keywordsAdded(userId).map((k) => k.keyword);
+  }
+
+  /**
+   * Replaces this account's keywords and tells its devices. One it had
+   * already, however it is written now, keeps when it was first added, so
+   * Activity goes on finding it as far back as before. In a transaction.
+   */
+  setKeywords(userId: ID, keywords: readonly string[]): void {
+    const added = new Map(
+      this.keywordsAdded(userId).map((k) => [keywordKey(k.keyword), k.addedAt]),
+    );
+    const now = Date.now();
+    this.db.prepare("DELETE FROM user_keywords WHERE user_id = ?").run(userId);
+    const insert = this.db.prepare(
+      "INSERT INTO user_keywords (user_id, keyword, position, added_at) VALUES (?, ?, ?, ?)",
+    );
+    keywords.forEach((keyword, position) =>
+      insert.run(userId, keyword, position, added.get(keywordKey(keyword)) ?? now),
+    );
+    this.store.outbox.person(
+      userId,
+      () => ({ type: "keywords", keywords: this.keywords(userId) }),
+      { key: "keywords" },
+    );
   }
 
   removeFriend(userId: ID, otherId: ID): void {

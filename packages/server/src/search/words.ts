@@ -7,7 +7,8 @@
 export const GROUP_TOKEN = /<!subteam\^([A-Za-z0-9_-]+)(?:\|([^<>\n]*))?>/g;
 
 /**
- * Characters of writing systems that put no spaces between words. Korean puts
+ * Characters of writing systems that put no spaces between words (protocol's
+ * keyword matcher has the same list, held to this one by a test). Korean puts
  * spaces between phrases, but often runs a compound and its endings together,
  * so it is here too.
  *
@@ -19,7 +20,7 @@ export const GROUP_TOKEN = /<!subteam\^([A-Za-z0-9_-]+)(?:\|([^<>\n]*))?>/g;
  * dictionaries change with ICU), and because it splits a run of katakana one
  * way inside a sentence and another way when it is searched for alone.
  */
-const UNSPACED_RANGES: [first: number, last: number][] = [
+export const UNSPACED_RANGES: [first: number, last: number][] = [
   [0x0e00, 0x0eff], // Thai, Lao
   [0x1000, 0x109f], // Myanmar
   [0x1100, 0x11ff], // Hangul jamo
