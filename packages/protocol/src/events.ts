@@ -175,9 +175,27 @@ export type EphemeralEvent =
   | { type: "prefs"; channelId: ID; prefs: ChannelPrefs }
   /** This user's unread mention count per conversation, replacing what it had. */
   | { type: "mentions"; counts: Record<ID, number> }
-  | { type: "huddle.participants"; channelId: ID; userIds: ID[] }
-  /** Sender-only admission result, correlated to this device's join attempt. */
-  | { type: "huddle.join.result"; channelId: ID; requestId: string; accepted: true }
+  | {
+      type: "huddle.participants";
+      channelId: ID;
+      userIds: ID[];
+      /**
+       * Who has a hand raised, first raised first (K17); left out when nobody
+       * has. Optional, so an app from before K17 reads the roster as it did.
+       */
+      hands?: ID[];
+    }
+  /**
+   * Sender-only admission result, correlated to this device's join attempt,
+   * with who has a hand raised as it is then (K17), as `huddle.participants`.
+   */
+  | {
+      type: "huddle.join.result";
+      channelId: ID;
+      requestId: string;
+      accepted: true;
+      hands?: ID[];
+    }
   | {
       type: "huddle.join.result";
       channelId: ID;
@@ -193,6 +211,11 @@ export type EphemeralEvent =
   | { type: "huddle.moved"; channelId: ID }
   /** A relayed WebRTC handshake payload from one peer. */
   | { type: "huddle.signal"; channelId: ID; from: ID; signal: HuddleSignal }
+  /**
+   * Someone in the huddle reacted (K17), told to each device in it, the
+   * sender's too. An app from before K17 does not know the type and drops it.
+   */
+  | { type: "huddle.react"; channelId: ID; from: ID; emoji: string }
   /**
    * A direct message's huddle ringing, as it is now (E10), to its caller and
    * everyone it rang, at each change. `ring.ringing` empty means it is over.

@@ -36,6 +36,17 @@ export const clientMessage = z.discriminatedUnion("type", [
   z.object({ type: z.literal("idle"), idle: z.boolean() }),
   /** Says no to a ring this account is being rung by (E10). */
   z.object({ type: z.literal("huddle.decline"), channelId: idSchema }),
+  /**
+   * An emoji floated over this person's tile for everyone in the huddle (K17).
+   * Never stored; the server passes on at most one every `HUDDLE_REACTION_MS`.
+   */
+  z.object({
+    type: z.literal("huddle.react"),
+    channelId: idSchema,
+    emoji: z.string().min(1).max(64),
+  }),
+  /** Raises or lowers this person's hand in the huddle, until they lower it or leave (K17). */
+  z.object({ type: z.literal("huddle.hand"), channelId: idSchema, raised: z.boolean() }),
 ]);
 
 export type ClientToServer = z.infer<typeof clientMessage>;

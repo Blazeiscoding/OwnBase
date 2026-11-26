@@ -1,4 +1,12 @@
-import type { EphemeralEvent, HuddleRing, ID, ReadySnapshot } from "@ownbase/protocol";
+import {
+  HUDDLE_REACTION_MS,
+  customEmojiName,
+  isCallReaction,
+  type EphemeralEvent,
+  type HuddleRing,
+  type ID,
+  type ReadySnapshot,
+} from "@ownbase/protocol";
 import type { EventTo } from "../events/registry.js";
 import type { Client, Gateway, HuddleFrame, Huddles, SessionCheck } from "../gateway.js";
 import type { RateLimiter } from "../limits.js";
@@ -36,6 +44,10 @@ interface Ring {
 interface Seat {
   client: Client | null;
   released: NodeJS.Timeout | null;
+  /** Their hand is up (K17), the how-manieth raised; it goes with the place. */
+  hand?: number;
+  /** When their last reaction was passed on (K17). */
+  reactedAt?: number;
 }
 
 export interface HuddleRoomsOptions {
@@ -59,6 +71,8 @@ export class HuddleRooms implements Huddles {
   private rings = new Map<ID, Ring>();
   /** What happened in huddles lately, for the host (see `CallLog`). */
   readonly calls = new CallLog();
+  /** How many hands have gone up, which orders them (K17). */
+  private handsRaised = 0;
 
   constructor(
     private gateway: Gateway,
@@ -80,6 +94,13 @@ export class HuddleRooms implements Huddles {
         return;
       case "huddle.report":
         if (this.afford(client.userId)) this.report(frame, client);
+        return;
+      // Spaced out by its own time below, not the shared allowance: a burst
+      // of reactions should not hold back someone's typing notices.
+      case "huddle.react":
+        return this.react(frame, client);
+      case "huddle.hand":
+        if (this.afford(client.userId)) this.raiseHand(frame, client);
         return;
     }
   }
@@ -171,7 +192,13 @@ export class HuddleRooms implements Huddles {
         // talk over this one.
         if (before) this.gateway.tellDevice(before, { type: "huddle.moved", channelId });
       }
-      reply({ type: "huddle.join.result", channelId, requestId, accepted: true });
+      reply({
+        type: "huddle.join.result",
+        channelId,
+        requestId,
+        accepted: true,
+        ...this.hands(channelId),
+      });
       return;
     }
     // Each admitted join can cause at most one later departure broadcast. Leave,
@@ -191,7 +218,13 @@ export class HuddleRooms implements Huddles {
     this.calls.add({ channelId, userId, kind: "joined" });
     if (started) this.gateway.contained("huddle ring", () => this.startRing(channelId, userId));
     this.publish(channelId);
-    reply({ type: "huddle.join.result", channelId, requestId, accepted: true });
+    reply({
+      type: "huddle.join.result",
+      channelId,
+      requestId,
+      accepted: true,
+      ...this.hands(channelId),
+    });
   }
 
   /**
@@ -261,7 +294,12 @@ export class HuddleRooms implements Huddles {
   publish(channelId: ID, authorized?: SessionCheck): void {
     this.gateway.tellChannel(
       channelId,
-      { type: "huddle.participants", channelId, userIds: this.participants(channelId) },
+      {
+        type: "huddle.participants",
+        channelId,
+        userIds: this.participants(channelId),
+        ...this.hands(channelId),
+      },
       authorized,
     );
     this.gateway.contained("huddle ring", () => this.settleRing(channelId));
@@ -303,6 +341,58 @@ export class HuddleRooms implements Huddles {
         signal,
       });
     }
+  }
+
+  /** Who has a hand up in a huddle, first raised first, for its roster (K17). */
+  private hands(channelId: ID): { hands?: ID[] } {
+    const up = [...(this.rooms.get(channelId) ?? [])]
+      .filter(([, seat]) => seat.hand !== undefined)
+      .sort(([, a], [, b]) => a.hand! - b.hand!)
+      .map(([userId]) => userId);
+    return up.length > 0 ? { hands: up } : {};
+  }
+
+  /** The seat of the device in the call, and only while it can still see the conversation. */
+  private seatOf(channelId: ID, client: Client): Seat | null {
+    const seat = this.rooms.get(channelId)?.get(client.userId);
+    return seat?.client === client && this.store.canAccess(channelId, client.userId) ? seat : null;
+  }
+
+  /**
+   * Passes a reaction to every device in the huddle, the sender's as well, so
+   * each shows it at the same moment. One that comes sooner than
+   * `HUDDLE_REACTION_MS` after the last is dropped without a word, as is one
+   * that is not an emoji, or names a custom emoji the workspace lacks.
+   */
+  private react(frame: Frame<"huddle.react">, client: Client): void {
+    const { channelId, emoji } = frame;
+    const seat = this.seatOf(channelId, client);
+    const now = Date.now();
+    const custom = customEmojiName(emoji);
+    if (
+      !seat ||
+      now - (seat.reactedAt ?? -Infinity) < HUDDLE_REACTION_MS ||
+      !isCallReaction(emoji) ||
+      (custom !== null && !this.store.emoji.has(custom))
+    )
+      return;
+    seat.reactedAt = now;
+    for (const other of this.rooms.get(channelId)!.values())
+      if (other.client && this.gateway.authorized(other.client))
+        this.gateway.tellDevice(other.client, {
+          type: "huddle.react",
+          channelId,
+          from: client.userId,
+          emoji,
+        });
+  }
+
+  /** Raises or lowers a hand, and tells the room's roster when that changed it. */
+  private raiseHand(frame: Frame<"huddle.hand">, client: Client): void {
+    const seat = this.seatOf(frame.channelId, client);
+    if (!seat || frame.raised === (seat.hand !== undefined)) return;
+    seat.hand = frame.raised ? ++this.handsRaised : undefined;
+    this.publish(frame.channelId);
   }
 
   private report(frame: Frame<"huddle.report">, client: Client): void {
