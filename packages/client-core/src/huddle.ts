@@ -71,6 +71,8 @@ export interface HuddlePeer {
   connected: boolean;
   /** Their microphone is off, as they reported it. */
   micMuted: boolean;
+  /** They hear nobody, as they reported it (K16). */
+  deafened?: boolean;
   speaking: boolean;
   /**
    * Why the connection has not come up, once it has taken long enough to
@@ -105,11 +107,24 @@ export interface HuddleSessionOptions {
    * can, for when none of the browser's processing is chosen.
    */
   systemMicrophone?: OpenSystemMicrophone;
+  /** Push to talk from the start, so nothing is sent before the key is first held (K16). */
+  pushToTalk?: PushToTalk;
+}
+
+/** The microphone sends only while a key is held, and for `releaseMs` after it is let go. */
+export interface PushToTalk {
+  releaseMs: number;
 }
 
 export interface HuddleState {
   channelId: ID;
   micMuted: boolean;
+  /** You hear nobody, and your microphone is off with it (K16). */
+  deafened?: boolean;
+  /** Push to talk is on: your microphone sends only while its key is held. */
+  pushToTalk?: boolean;
+  /** The push-to-talk key is held, or was let go less than the release delay ago. */
+  holdingTalk?: boolean;
   cameraOn: boolean;
   sharingScreen: boolean;
   /** Your share sends its sound too. */
@@ -166,6 +181,15 @@ function receivedLevel(peer: Peer): number {
   if (!receiver?.getSynchronizationSources) return 0;
   let loudest = 0;
   for (const source of receiver.getSynchronizationSources()) {
+    // The browser goes on reporting a source's last packet for seconds after
+    // the packets stop, as they do when push to talk lets go: a packet heard
+    // at the last poll already is no longer anyone talking.
+    const heard = source.rtpTimestamp;
+    if (typeof heard === "number") {
+      const before = peer.heard.get(source.source);
+      peer.heard.set(source.source, heard);
+      if (before === heard) continue;
+    }
     loudest = Math.max(loudest, source.audioLevel ?? 0);
   }
   return loudest;
@@ -188,6 +212,13 @@ export class HuddleSession {
   private mic: MicrophoneFeed | null = null;
   /** The person's latest choice, even while the microphone is being replaced. */
   private muted = false;
+  /** Hearing nobody (K16), with the microphone off; `mutedBeforeDeafen` is put back after. */
+  private deafened = false;
+  private mutedBeforeDeafen = false;
+  /** Push to talk (K16), and whether its key is held, or let go within its release delay. */
+  private pushToTalk: PushToTalk | null;
+  private talkHeld = false;
+  private releaseTimer: ReturnType<typeof setTimeout> | null = null;
   private micLost = false;
   private recoveringMic: Promise<boolean> | null = null;
   /** The newest microphone or camera choice, so an older one finishing late is dropped. */
@@ -237,6 +268,7 @@ export class HuddleSession {
   ) {
     this.microphone = options.microphone ?? {};
     this.cameraId = options.cameraId;
+    this.pushToTalk = options.pushToTalk ?? null;
     this.note(`Call settings: ${describeServers(rtcConfig)}.`);
   }
 
@@ -281,14 +313,26 @@ export class HuddleSession {
     return this.mic?.stream ?? null;
   }
 
+  /** Whether the microphone goes out at all: not while muted, nor while push to talk's key is up. */
+  private get sendingVoice(): boolean {
+    return !this.muted && (!this.pushToTalk || this.talkHeld);
+  }
+
   /**
-   * What the microphone's slot sends: the microphone, or nothing at all while
-   * muted (E13b). A muted track would still be encoded as silence once for
+   * What the microphone's slot sends one peer: the microphone, or nothing at
+   * all while muted (E13b), while push to talk's key is up, or to someone
+   * deafened (K16). A muted track would still be encoded as silence once for
    * every connection, and heard as silence on every one, which in a big call
    * of mostly muted people is most of what each of them spends on sound.
    */
-  private get sentMicrophone(): MediaStreamTrack | null {
-    return this.muted ? null : (this.localStream?.getAudioTracks()[0] ?? null);
+  private sentMicrophone(peer: Peer): MediaStreamTrack | null {
+    if (!this.sendingVoice || peer.deafened) return null;
+    return this.localStream?.getAudioTracks()[0] ?? null;
+  }
+
+  /** The share's sound, for anyone not deafened. */
+  private sentScreenSound(peer: Peer): MediaStreamTrack | null {
+    return peer.deafened ? null : this.screenSoundTrack;
   }
 
   /** Makes this the microphone everyone hears, and watches for it stopping. */
@@ -400,10 +444,11 @@ export class HuddleSession {
 
   /** Sends the microphone, or nothing while muted, to everyone in place of what was before. */
   private async sendMicrophone(): Promise<void> {
-    const track = this.sentMicrophone;
     await Promise.all(
       [...this.peers.values()].flatMap((peer) =>
-        peer.audioTx ? [peer.audioTx.sender.replaceTrack(track).catch(() => {})] : [],
+        peer.audioTx
+          ? [peer.audioTx.sender.replaceTrack(this.sentMicrophone(peer)).catch(() => {})]
+          : [],
       ),
     );
   }
@@ -431,7 +476,7 @@ export class HuddleSession {
   private sampleLevels(): void {
     const now = Date.now();
     const loud = this.localLevel() > SPEAKING_LEVEL;
-    if (loud && !this.muted) this.spokeAt.set(this.selfId, now);
+    if (loud && this.sendingVoice) this.spokeAt.set(this.selfId, now);
     let changed = this.noticeMutedTalk(loud, now);
     for (const [userId, peer] of this.peers) {
       // Muted, they send nothing, and the browser goes on reporting their last
@@ -484,13 +529,96 @@ export class HuddleSession {
   toggleMic(): void {
     const track = this.localStream?.getAudioTracks()[0];
     if (this.destroyed || !track) return;
-    this.muted = !this.muted;
-    track.enabled = !this.muted;
+    // Unmuting while deafened hears everyone again too, as Discord does.
+    if (this.deafened) {
+      this.deafened = false;
+      this.muted = false;
+    } else this.muted = !this.muted;
+    this.micChanged();
+  }
+
+  /**
+   * Deafens: nobody's voice nor share's sound plays here, nobody sends any,
+   * and the microphone goes off with it. Undeafening puts the microphone back
+   * as it was before (K16).
+   */
+  toggleDeafen(): void {
+    if (this.destroyed) return;
+    if (this.deafened) {
+      this.deafened = false;
+      this.muted = this.mutedBeforeDeafen;
+    } else {
+      this.mutedBeforeDeafen = this.muted;
+      this.deafened = true;
+      this.muted = true;
+    }
+    this.note(this.deafened ? "Deafened: hearing nobody, the microphone off." : "Undeafened.");
+    this.micChanged();
+  }
+
+  private micChanged(): void {
+    const track = this.localStream?.getAudioTracks()[0];
+    if (track) track.enabled = !this.muted;
     this.noticeMutedTalk(false, Date.now());
     void this.sendMicrophone();
     // Everyone else needs to know, or a muted person just looks silent.
     this.announceMedia();
     this.onChange?.();
+  }
+
+  /**
+   * Turns push to talk on, or off with null, mid-call. While it is on the
+   * microphone sends nothing until `pressTalk`, through the same empty slot
+   * as muting, so nothing is offered again and the others see no change.
+   */
+  setPushToTalk(choice: PushToTalk | null): void {
+    if (this.destroyed) return;
+    const was = this.pushToTalk !== null;
+    this.pushToTalk = choice;
+    if (was === (choice !== null)) return;
+    this.clearRelease();
+    this.talkHeld = false;
+    this.note(choice ? "Push to talk is on." : "Push to talk is off.");
+    void this.sendMicrophone();
+    this.onChange?.();
+  }
+
+  /** The push-to-talk key went down: the microphone sends from now. */
+  pressTalk(): void {
+    if (this.destroyed || !this.pushToTalk) return;
+    this.clearRelease();
+    if (this.talkHeld) return;
+    this.talkHeld = true;
+    void this.sendMicrophone();
+    this.onChange?.();
+  }
+
+  /**
+   * The push-to-talk key came up: the microphone stops after the release
+   * delay, so the end of the last word still goes.
+   */
+  releaseTalk(): void {
+    if (this.destroyed || !this.pushToTalk || !this.talkHeld || this.releaseTimer) return;
+    const stop = () => {
+      this.releaseTimer = null;
+      this.talkHeld = false;
+      void this.sendMicrophone();
+      this.onChange?.();
+    };
+    if (this.pushToTalk.releaseMs > 0)
+      this.releaseTimer = setTimeout(stop, this.pushToTalk.releaseMs);
+    else stop();
+  }
+
+  /** Starts talking, or stops, for a key that says when it is pressed but not when let go. */
+  toggleTalk(): void {
+    if (this.talkHeld && !this.releaseTimer) this.releaseTalk();
+    else this.pressTalk();
+  }
+
+  private clearRelease(): void {
+    if (this.releaseTimer) clearTimeout(this.releaseTimer);
+    this.releaseTimer = null;
   }
 
   get cameraOn(): boolean {
@@ -505,6 +633,9 @@ export class HuddleSession {
     return {
       channelId: this.channelId,
       micMuted: this.micMuted,
+      deafened: this.deafened,
+      pushToTalk: this.pushToTalk !== null,
+      holdingTalk: this.pushToTalk !== null && this.talkHeld,
       cameraOn: this.cameraOn,
       sharingScreen: this.sharingScreen,
       sharingScreenSound: this.screenSoundTrack !== null,
@@ -519,6 +650,7 @@ export class HuddleSession {
         screenSoundStream: peer.screenOn && peer.screenSoundOn ? peer.screenSound : null,
         connected: this.connected.has(userId),
         micMuted: peer.micMuted,
+        deafened: peer.deafened,
         speaking: this.speaking.has(userId),
         trouble: this.connected.has(userId) ? null : peer.trouble,
         reconnecting: !this.connected.has(userId) && peer.everConnected,
@@ -695,6 +827,8 @@ export class HuddleSession {
       screenOn: false,
       screenSoundOn: false,
       micMuted: false,
+      deafened: false,
+      heard: new Map(),
       pendingIce: [],
       heldIce: null,
       everConnected: false,
@@ -920,10 +1054,10 @@ export class HuddleSession {
 
   private async attachLocalTracks(peer: Peer): Promise<void> {
     await Promise.all([
-      peer.audioTx?.sender.replaceTrack(this.sentMicrophone),
+      peer.audioTx?.sender.replaceTrack(this.sentMicrophone(peer)),
       peer.cameraTx?.sender.replaceTrack(this.cameraTrack),
       peer.screenTx?.sender.replaceTrack(this.screenTrack),
-      peer.screenSoundTx?.sender.replaceTrack(this.screenSoundTrack),
+      peer.screenSoundTx?.sender.replaceTrack(this.sentScreenSound(peer)),
     ]);
   }
 
@@ -1007,6 +1141,19 @@ export class HuddleSession {
       peer.screenOn = signal.screen;
       peer.micMuted = signal.muted;
       peer.screenSoundOn = signal.screenSound;
+      if (signal.deafened !== peer.deafened) {
+        peer.deafened = signal.deafened;
+        this.note(
+          signal.deafened
+            ? "They deafened. Sending them no sound, since they would hear none."
+            : "They undeafened.",
+          from,
+        );
+        void Promise.all([
+          peer.audioTx?.sender.replaceTrack(this.sentMicrophone(peer)).catch(() => {}),
+          peer.screenSoundTx?.sender.replaceTrack(this.sentScreenSound(peer)).catch(() => {}),
+        ]);
+      }
       const view = signal.view;
       if (view.camera !== peer.wants?.camera || view.screen !== peer.wants.screen) {
         peer.wants = { camera: view.camera, screen: view.screen };
@@ -1278,7 +1425,7 @@ export class HuddleSession {
     await Promise.all(
       [...this.peers.values()].flatMap((peer) =>
         peer.screenSoundTx
-          ? [peer.screenSoundTx.sender.replaceTrack(this.screenSoundTrack).catch(() => {})]
+          ? [peer.screenSoundTx.sender.replaceTrack(this.sentScreenSound(peer)).catch(() => {})]
           : [],
       ),
     );
@@ -1324,6 +1471,7 @@ export class HuddleSession {
           camera: this.cameraTrack !== null,
           screen: this.screenTrack !== null,
           muted: this.micMuted || this.micLost,
+          deafened: this.deafened,
           // Said either way: saying it at all tells them this side has the slot.
           screenSound: this.screenSoundTrack !== null,
           view,
@@ -1360,6 +1508,7 @@ export class HuddleSession {
   destroy(): void {
     if (!this.destroyed) this.note("Left the huddle.");
     this.destroyed = true;
+    this.clearRelease();
     this.stopWaitingForMicrophone();
     if (this.levelTimer) clearInterval(this.levelTimer);
     this.levelTimer = null;
@@ -1416,6 +1565,10 @@ interface Peer {
   screenOn: boolean;
   screenSoundOn: boolean;
   micMuted: boolean;
+  /** They hear nobody, so they are sent pictures but no sound (K16). */
+  deafened: boolean;
+  /** Each of their sound's sources by the RTP time of its last packet, as last polled. */
+  heard: Map<number, number>;
   /** What the camera's and the share's senders were last set to (`SentEncoding`, as JSON). */
   cameraSized: string | null;
   screenSized: string | null;

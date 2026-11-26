@@ -325,6 +325,16 @@
       "concepts": ["E13", "E13b", "sender sizing", "G12"]
     },
     {
+      "path": "packages/client-core/src/callKeys.ts",
+      "plain": "Reads and writes the keys that mute, deafen and push to talk in a call, for the window and for the desktop app's keys that work in any app.",
+      "summary": "The three call keys (K16): how they are written, matched against key presses, named for people, and turned into Electron accelerators.",
+      "details": [
+        "A key is written as modifiers then the browser's KeyboardEvent.code, as Mod+Shift+KeyD, so it names the same place on every keyboard layout. parseCallKey takes only a function key alone or a key with Ctrl, Cmd or Alt held, so a call key never types into a message instead.",
+        "The window matches presses with matchesCallKey and releasesCallKey; settings record one with callKeyFromEvent; the desktop app's main process turns it into a globalShortcut accelerator with callKeyAccelerator, imported through the @ownbase/client-core/callKeys entry."
+      ],
+      "concepts": ["K16", "push to talk", "deafen", "global shortcuts"]
+    },
+    {
       "path": "packages/client-core/src/screenShare.ts",
       "plain": "Says what a screen share asks the browser for, and keeps the call's own sound out of a shared screen's sound.",
       "summary": "The browser-facing rules of a screen share's capture, picture and sound.",

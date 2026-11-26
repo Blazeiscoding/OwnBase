@@ -52,6 +52,18 @@ export type {
   OpenSystemMicrophone,
   SystemMicrophone,
 } from "./devices.js";
+export {
+  CALL_KEY_ACTIONS,
+  DEFAULT_CALL_KEYS,
+  DEFAULT_RELEASE_MS,
+  RELEASE_DELAYS_MS,
+  callKeyCombo,
+  callKeyFromEvent,
+  callKeysOf,
+  matchesCallKey,
+  releasesCallKey,
+} from "./callKeys.js";
+export type { CallKeyAction, CallKeys } from "./callKeys.js";
 export { captureFailure } from "./capture.js";
 export type { CaptureKind } from "./capture.js";
 export { applyOutboxChanges, readStoredOutbox, unwrapStoredOutbox } from "./outbox.js";
@@ -75,6 +87,7 @@ export type {
   HuddlePeer,
   HuddleState,
   MicrophoneTest,
+  PushToTalk,
   ScreenShareQuality,
 } from "./huddle.js";
 export { shownPoll } from "./polls.js";

@@ -3,7 +3,13 @@ import type { StoreApi } from "zustand/vanilla";
 import type { Api } from "./api.js";
 import { captureFailure } from "./capture.js";
 import type { MicrophoneSettings, NoiseFilter, OpenSystemMicrophone } from "./devices.js";
-import type { CallLogLine, CallView, HuddleSession, ScreenShareQuality } from "./huddle.js";
+import type {
+  CallLogLine,
+  CallView,
+  HuddleSession,
+  PushToTalk,
+  ScreenShareQuality,
+} from "./huddle.js";
 import type { WorkspaceState } from "./workspaceState.js";
 
 class HuddleJoinRefusedError extends Error {}
@@ -58,6 +64,7 @@ export class Calls {
       cameraId?: string;
       noiseFilter?: NoiseFilter;
       systemMicrophone?: OpenSystemMicrophone;
+      pushToTalk?: PushToTalk;
     } = {},
   ): Promise<void> {
     this.leaveHuddle();
@@ -96,6 +103,7 @@ export class Calls {
         cameraId: options.cameraId,
         noiseFilter: options.noiseFilter,
         systemMicrophone: options.systemMicrophone,
+        pushToTalk: options.pushToTalk,
         onReport: (peer, report) => {
           if (this.session === session)
             this.sendSocket({ type: "huddle.report", channelId, peer, report });
@@ -304,6 +312,26 @@ export class Calls {
 
   toggleMic(): void {
     this.session?.toggleMic();
+  }
+
+  toggleDeafen(): void {
+    this.session?.toggleDeafen();
+  }
+
+  setPushToTalk(choice: PushToTalk | null): void {
+    this.session?.setPushToTalk(choice);
+  }
+
+  pressTalk(): void {
+    this.session?.pressTalk();
+  }
+
+  releaseTalk(): void {
+    this.session?.releaseTalk();
+  }
+
+  toggleTalk(): void {
+    this.session?.toggleTalk();
   }
 
   retryMicrophone(): void {

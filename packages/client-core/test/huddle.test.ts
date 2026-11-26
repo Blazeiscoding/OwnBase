@@ -18,6 +18,7 @@ function mediaSignal(over: Partial<Extract<HuddleSignal, { kind: "media" }>> = {
     camera: false,
     screen: false,
     muted: false,
+    deafened: false,
     screenSound: false,
     view: { camera: 2160, screen: 2160 },
     ...over,
@@ -1086,6 +1087,7 @@ describe("the camera and the share, sized to how big each other person draws the
         camera: false,
         screen: false,
         muted: false,
+        deafened: false,
         screenSound: false,
         view: { camera: 180, screen: 0 },
       },
@@ -1354,6 +1356,36 @@ describe("the share's sound", () => {
     expect(pc.transceivers[3]!.sender.track).toBeNull();
     expect(lastMedia(sent, "B")).toMatchObject({ screen: false, screenSound: false });
     expect(session.state().sharingScreenSound).toBe(false);
+    session.destroy();
+  });
+
+  it("sends someone deafened neither voice nor the share's sound, and both again after (K16)", async () => {
+    const { sound } = shareWithSound();
+    const mic = fakeTrack("audio");
+    vi.spyOn(navigator.mediaDevices, "getUserMedia").mockResolvedValue(
+      new FakeDisplay(fakeTrack("video"), mic) as unknown as MediaStream,
+    );
+    const { session } = makeSession("Z");
+    await session.startLocalAudio();
+    await session.handleSignal("B", { kind: "offer", sdp: sdpWith(FOUR) });
+    await session.handleSignal("C", { kind: "offer", sdp: sdpWith(FOUR) });
+    const [toB, toC] = FakePeerConnection.instances;
+    await session.toggleScreenShare();
+
+    await session.handleSignal("B", mediaSignal({ muted: true, deafened: true }));
+    await flush();
+    expect(session.state().peers.find((p) => p.userId === "B")!.deafened).toBe(true);
+    expect(toB!.transceivers[0]!.sender.track).toBeNull();
+    expect(toB!.transceivers[3]!.sender.track).toBeNull();
+    // Their picture still goes, and everyone else hears as before.
+    expect(toB!.transceivers[2]!.sender.track).not.toBeNull();
+    expect(toC!.transceivers[0]!.sender.track).toBe(mic);
+    expect(toC!.transceivers[3]!.sender.track).toBe(sound);
+
+    await session.handleSignal("B", mediaSignal({ muted: true, deafened: false }));
+    await flush();
+    expect(toB!.transceivers[0]!.sender.track).toBe(mic);
+    expect(toB!.transceivers[3]!.sender.track).toBe(sound);
     session.destroy();
   });
 
@@ -2351,5 +2383,160 @@ describe("choosing the microphone and camera (Voice & video)", () => {
     });
     expect(test.stream).toBe(opened);
     test.stop();
+  });
+});
+
+describe("deafen and push to talk (K16)", () => {
+  type Track = { kind: string; enabled: boolean; stop: () => void };
+  async function joined(options: { muted?: boolean; releaseMs?: number } = {}) {
+    const mic: Track = { kind: "audio", enabled: true, stop() {} };
+    vi.spyOn(navigator.mediaDevices, "getUserMedia").mockResolvedValue(
+      new FakeMediaStream([mic]) as unknown as MediaStream,
+    );
+    const sent: { to: ID; signal: HuddleSignal }[] = [];
+    const session = new HuddleSession(
+      "C1",
+      "A",
+      { send: (msg) => sent.push({ to: msg.to, signal: msg.signal }) },
+      { iceServers: [] },
+      options.releaseMs === undefined ? {} : { pushToTalk: { releaseMs: options.releaseMs } },
+    );
+    await session.startLocalAudio(options.muted);
+    session.syncParticipants(["A", "B"]);
+    await flush();
+    const slot = FakePeerConnection.instances[0]!.transceivers[0]!.sender;
+    const told = () =>
+      sent.filter((m) => m.signal.kind === "media").at(-1)!.signal as Extract<
+        HuddleSignal,
+        { kind: "media" }
+      >;
+    return { session, mic, slot, told };
+  }
+
+  it("deafens with the microphone off, tells the others, and puts the microphone back as it was", async () => {
+    const { session, mic, slot, told } = await joined();
+    session.toggleDeafen();
+    await flush();
+    expect(session.state()).toMatchObject({ deafened: true, micMuted: true });
+    expect(told()).toMatchObject({ deafened: true, muted: true });
+    expect(mic.enabled).toBe(false);
+    expect(slot.track).toBeNull();
+
+    session.toggleDeafen();
+    await flush();
+    expect(session.state()).toMatchObject({ deafened: false, micMuted: false });
+    expect(told()).toMatchObject({ deafened: false, muted: false });
+    expect(slot.track).toBe(mic);
+    session.destroy();
+  });
+
+  it("stays muted after undeafening for someone who was muted before", async () => {
+    const { session, slot, told } = await joined({ muted: true });
+    session.toggleDeafen();
+    session.toggleDeafen();
+    await flush();
+    expect(session.state()).toMatchObject({ deafened: false, micMuted: true });
+    expect(told()).toMatchObject({ deafened: false, muted: true });
+    expect(slot.track).toBeNull();
+    session.destroy();
+  });
+
+  it("hears again on unmute, as Discord does", async () => {
+    const { session, slot } = await joined({ muted: true });
+    session.toggleDeafen();
+    session.toggleMic();
+    await flush();
+    expect(session.state()).toMatchObject({ deafened: false, micMuted: false });
+    expect(slot.track).not.toBeNull();
+    session.destroy();
+  });
+
+  it("sends the microphone only while the key is held, and the release delay after", async () => {
+    const { session, mic, slot, told } = await joined({ releaseMs: 200 });
+    expect(slot.track).toBeNull();
+    expect(session.state()).toMatchObject({ pushToTalk: true, holdingTalk: false });
+    // Nobody is told anything: they hear silence, not someone muted.
+    expect(told()).toMatchObject({ muted: false });
+
+    vi.useFakeTimers();
+    try {
+      session.pressTalk();
+      await vi.advanceTimersByTimeAsync(0);
+      expect(slot.track).toBe(mic);
+      expect(session.state().holdingTalk).toBe(true);
+
+      session.releaseTalk();
+      await vi.advanceTimersByTimeAsync(150);
+      expect(slot.track).toBe(mic);
+      // Held again within the delay: it never stopped.
+      session.pressTalk();
+      session.releaseTalk();
+      await vi.advanceTimersByTimeAsync(199);
+      expect(slot.track).toBe(mic);
+      await vi.advanceTimersByTimeAsync(1);
+      expect(slot.track).toBeNull();
+      expect(session.state().holdingTalk).toBe(false);
+      expect(told()).toMatchObject({ muted: false });
+    } finally {
+      vi.useRealTimers();
+      session.destroy();
+    }
+  });
+
+  it("sends nothing while muted, key held or not", async () => {
+    const { session, slot } = await joined({ releaseMs: 0 });
+    session.toggleMic();
+    session.pressTalk();
+    await flush();
+    expect(slot.track).toBeNull();
+    session.destroy();
+  });
+
+  it("starts and stops talking on each press of a key that cannot say it was let go", async () => {
+    const { session, mic, slot } = await joined({ releaseMs: 0 });
+    session.toggleTalk();
+    await flush();
+    expect(slot.track).toBe(mic);
+    session.toggleTalk();
+    await flush();
+    expect(slot.track).toBeNull();
+    session.destroy();
+  });
+
+  it("turns push to talk on and off mid-call, without a new offer", async () => {
+    const { session, mic, slot, told } = await joined();
+    const offers = FakePeerConnection.instances[0]!.offerOptions.length;
+    session.setPushToTalk({ releaseMs: 200 });
+    await flush();
+    expect(slot.track).toBeNull();
+    session.setPushToTalk(null);
+    await flush();
+    expect(slot.track).toBe(mic);
+    expect(told()).toMatchObject({ muted: false });
+    expect(FakePeerConnection.instances[0]!.offerOptions).toHaveLength(offers);
+    session.destroy();
+  });
+
+  it("stops showing someone as talking once their packets stop, though the last still reads loud", () => {
+    vi.useFakeTimers();
+    try {
+      const { session } = makeSession("A");
+      session.syncParticipants(["A", "B"]);
+      const receiver = FakePeerConnection.instances[0]!.transceivers[0]!.receiver;
+      let rtp = 0;
+      let flowing = true;
+      receiver.getSynchronizationSources = () => {
+        if (flowing) rtp += 960;
+        return [{ audioLevel: 0.4, source: 7, rtpTimestamp: rtp } as { audioLevel: number }];
+      };
+      vi.advanceTimersByTime(300);
+      expect(session.state().peers[0]!.speaking).toBe(true);
+      flowing = false;
+      vi.advanceTimersByTime(800);
+      expect(session.state().peers[0]!.speaking).toBe(false);
+      session.destroy();
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });
