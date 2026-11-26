@@ -1,4 +1,4 @@
-import { Suspense, lazy, useRef, useState } from "react";
+import { Suspense, lazy, useRef, useState, type KeyboardEvent } from "react";
 import type { CallReaction } from "@ownbase/client-core";
 import type { ID, User } from "@ownbase/protocol";
 import { useClient } from "../context.js";
@@ -50,16 +50,16 @@ export function ReactionBar({
   const button = `flex size-10 shrink-0 items-center justify-center rounded-lg text-xl transition-[background-color,scale] active:scale-90 ${
     inCall ? "hover:bg-ink/[0.12]" : "hover:bg-ink/[0.06]"
   }`;
+  // On the buttons rather than the row, so the picker's own Escape closes only it.
+  const escape = (event: KeyboardEvent) => {
+    if (event.key !== "Escape") return;
+    event.stopPropagation();
+    onClose();
+  };
   return (
     <div
       role="group"
       aria-label="Reactions"
-      onKeyDown={(event) => {
-        // The picker's own Escape comes through its portal, and closes only it.
-        if (event.key !== "Escape" || picking) return;
-        event.stopPropagation();
-        onClose();
-      }}
       className={`flex basis-full flex-wrap items-center gap-0.5 ${
         inCall ? `justify-center ${overlay ? "rounded-xl bg-black/50 p-1" : ""}` : "justify-end"
       }`}
@@ -71,6 +71,7 @@ export function ReactionBar({
           aria-label={name}
           title={name}
           onClick={() => client.reactInHuddle(emoji)}
+          onKeyDown={escape}
           className={button}
         >
           {emoji}
@@ -83,6 +84,7 @@ export function ReactionBar({
           aria-label="More emoji"
           title="More emoji"
           onClick={() => setPicking(true)}
+          onKeyDown={escape}
           className={`${button} text-ink-dim`}
         >
           <Icon name="plus" size={18} />
