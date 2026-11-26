@@ -36,8 +36,11 @@ export const huddleSignal = z.discriminatedUnion("kind", [
     /**
      * They hear nothing (K16), their microphone off with it. Whoever is told
      * sends them no voice and no share's sound, since none would be heard.
+     * Every client since K16 says it. Optional, as each field here was when it
+     * came, because the server closes the socket of a client whose message it
+     * cannot read: an app not yet updated would drop out of every call.
      */
-    deafened: z.boolean(),
+    deafened: z.boolean().optional(),
     /** Whether their share sends its sound, in a fourth slot after the screen's. */
     screenSound: z.boolean(),
     /**

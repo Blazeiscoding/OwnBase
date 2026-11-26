@@ -1141,10 +1141,11 @@ export class HuddleSession {
       peer.screenOn = signal.screen;
       peer.micMuted = signal.muted;
       peer.screenSoundOn = signal.screenSound;
-      if (signal.deafened !== peer.deafened) {
-        peer.deafened = signal.deafened;
+      const deafened = signal.deafened ?? false;
+      if (deafened !== peer.deafened) {
+        peer.deafened = deafened;
         this.note(
-          signal.deafened
+          deafened
             ? "They deafened. Sending them no sound, since they would hear none."
             : "They undeafened.",
           from,

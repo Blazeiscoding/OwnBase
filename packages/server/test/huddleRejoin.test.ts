@@ -305,6 +305,7 @@ describe("what one side of a huddle says it is sending", () => {
         view: { camera: 180, screen: 720 },
       },
     });
+    // Said without deafened, as by an app from before K16: still passed on.
     b.send({
       type: "huddle.signal",
       channelId: general(),
@@ -314,7 +315,6 @@ describe("what one side of a huddle says it is sending", () => {
         camera: true,
         screen: false,
         muted: false,
-        deafened: false,
         screenSound: false,
         view: { camera: 0, screen: 0 },
       },
