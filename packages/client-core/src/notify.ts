@@ -50,6 +50,7 @@ export function decideNotification(
     dndUntil: self?.dndUntil,
     now,
     live,
+    keywords: state.keywords,
   });
 }
 

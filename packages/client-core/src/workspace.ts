@@ -469,6 +469,7 @@ export class WorkspaceClient {
       rings: Object.fromEntries(snap.huddleRings.map((ring) => [ring.channelId, ring])),
       friends: snap.friends,
       blocked: snap.blocked,
+      keywords: snap.keywords,
       openReports: snap.openReports ?? null,
       memberNotice: snap.memberNotice ?? null,
       serverNotices: snap.notices ?? [],
@@ -774,6 +775,9 @@ export class WorkspaceClient {
         break;
       case "blocks":
         this.store.setState({ blocked: event.blocked });
+        break;
+      case "keywords":
+        this.store.setState({ keywords: event.keywords });
         break;
       case "reports":
         this.store.setState({ openReports: event.open });
@@ -1579,6 +1583,18 @@ export class WorkspaceClient {
         ? await this.api.blockUser(userId)
         : await this.api.unblockUser(userId);
       if (!this.stopped) this.store.setState({ blocked: result.blocked });
+    });
+  }
+
+  /**
+   * Replaces this account's keywords (K11); resolves with the server's
+   * refusal, or null. The list is kept from the answer, tidied as the server
+   * kept it, before the socket says it.
+   */
+  setKeywords(keywords: string[]): Promise<ApiError | null> {
+    return doneOf(async () => {
+      const result = await this.api.setKeywords(keywords);
+      if (!this.stopped) this.store.setState({ keywords: result.keywords });
     });
   }
 

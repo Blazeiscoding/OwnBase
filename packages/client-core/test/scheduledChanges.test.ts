@@ -56,6 +56,7 @@ const ready = (over: Partial<ReadySnapshot> = {}): ReadySnapshot => ({
   workspaceId: "W1",
   friends: [],
   blocked: [],
+  keywords: [],
   replayFrom: null,
   ...over,
 });

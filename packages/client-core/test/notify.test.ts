@@ -62,6 +62,7 @@ function state(over: Partial<WorkspaceState> = {}): WorkspaceState {
     timelineStatus: {},
     friends: [],
     blocked: [],
+    keywords: [],
     serverProtocolVersion: null,
     openReports: null,
     memberNotice: null,
@@ -397,6 +398,20 @@ describe("decideNotification", () => {
     };
     const s = state({ notifyDefault: "nothing", prefs: { C1: own } });
     expect(decideNotification(s, message())).toEqual({ notify: true, reason: "all" });
+  });
+
+  it("notifies for one of this account's keywords at the default level (K11)", () => {
+    const hit = message({ text: "The Release is out" });
+    expect(decideNotification(state(), hit).notify).toBe(false);
+    expect(decideNotification(state({ keywords: ["release"] }), hit)).toEqual({
+      notify: true,
+      reason: "keyword",
+      keyword: "release",
+    });
+    expect(decideNotification(state({ keywords: ["release"], blocked: [them.id] }), hit)).toEqual({
+      notify: false,
+      reason: "blocked",
+    });
   });
 
   it("falls back to mentions-only when a channel has no stored preference", () => {

@@ -70,6 +70,8 @@ export interface WorkspaceState extends MessageCache {
   friends: Friendship[];
   /** The people this account blocked (E12), whose messages fold away and who never notify it. */
   blocked: ID[];
+  /** This account's keywords (K11): a message holding one notifies as a mention does. */
+  keywords: string[];
   /** How many reported messages wait for an admin (E12); null unless this account is one. */
   openReports: number | null;
   /**
@@ -247,6 +249,7 @@ export interface WorkspaceState extends MessageCache {
 export const initialState: WorkspaceState = {
   friends: [],
   blocked: [],
+  keywords: [],
   openReports: null,
   memberNotice: null,
   serverNotices: [],
