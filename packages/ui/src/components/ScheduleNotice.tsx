@@ -26,8 +26,10 @@ export function ScheduleNotice({ schedule }: { schedule: NotifySchedule }) {
   const now = useMinute();
   const until = scheduleQuietUntil(schedule, zone, now);
   if (until === null) return null;
+  // The sidebar is as wide as its content, so on one line this would widen it
+  // as it arrives. Contained, it takes the width there is and wraps.
   return (
-    <div className="mb-2 flex flex-wrap items-center gap-x-2 gap-y-0.5 rounded-lg bg-ink/[0.05] px-2.5 py-1.5">
+    <div className="mb-2 flex flex-wrap items-center gap-x-2 gap-y-0.5 rounded-lg bg-ink/[0.05] px-2.5 py-1.5 [contain:inline-size]">
       <span className="text-ink-dim">
         <Icon name="moon" size={14} />
       </span>
