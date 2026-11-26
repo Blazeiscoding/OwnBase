@@ -77,6 +77,8 @@ export type EphemeralEvent =
    * its own sockets: whoever is blocked is told nothing.
    */
   | { type: "blocks"; blocked: ID[] }
+  /** This account's keywords after a change (K11), to its own sockets. */
+  | { type: "keywords"; keywords: string[] }
   /**
    * How many reported messages wait for an admin now (E12). Told to the owner
    * and admins only, at each report and each one resolved.
@@ -293,6 +295,8 @@ export interface ReadySnapshot {
   workspaceId: ID;
   friends: Friendship[];
   blocked: ID[];
+  /** This account's keywords (K11): a message holding one notifies as a mention does. */
+  keywords: string[];
   /** How many reported messages wait for an admin (E12). Given to the owner and admins only. */
   openReports?: number;
   /**

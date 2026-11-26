@@ -32,4 +32,5 @@ export const peopleEphemeral = {
   friends: "person",
   blocks: "person",
   "notify.schedule": "person",
+  keywords: "person",
 } as const satisfies Partial<EphemeralRegistry>;

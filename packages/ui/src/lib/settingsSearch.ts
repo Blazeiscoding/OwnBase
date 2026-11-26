@@ -55,6 +55,12 @@ export const SETTINGS: readonly Setting[] = [
     words: "hours working weekdays weekends night quiet allow do not disturb",
   },
   {
+    id: "keywords",
+    section: "notifications",
+    label: "My keywords",
+    words: "keyword word phrase highlight alert watch mention",
+  },
+  {
     id: "notification-previews",
     section: "notifications",
     label: "What notifications show",

@@ -1736,6 +1736,23 @@ export const endpoints = {
     answer: json<{ schedule: NotifySchedule | null }>(),
   }),
 
+  /** This account's keywords (K11): a message holding one notifies as a mention does. */
+  keywords: endpoint({
+    method: "GET",
+    path: "/api/me/keywords",
+    access: "guest",
+    answer: json<{ keywords: string[] }>(),
+  }),
+
+  /** Replaces this account's keywords with the list given, at most 20 (K11). */
+  setKeywords: endpoint({
+    method: "PUT",
+    path: "/api/me/keywords",
+    access: "guest",
+    body: "keywordsBody",
+    answer: json<{ keywords: string[] }>(),
+  }),
+
   /** What waits here, for a device of this account that has another workspace open. */
   unreadSummary: endpoint({
     method: "GET",

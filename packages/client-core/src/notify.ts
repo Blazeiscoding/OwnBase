@@ -52,6 +52,7 @@ export function decideNotification(
     live,
     schedule: state.notifySchedule,
     timeZone: self?.timeZone,
+    keywords: state.keywords,
   });
 }
 

@@ -1548,6 +1548,17 @@
       "concepts": ["notifications", "time zones", "daylight saving"]
     },
     {
+      "path": "packages/protocol/src/keywords.ts",
+      "plain": "Finds a person's keywords in a message, whatever their case or accents, so it can notify them as a mention would.",
+      "summary": "The keyword matcher for keyword alerts (K11), used by notifications, push and the highlight in messages.",
+      "details": [
+        "wordSpans cuts text into words as the server's search index does: letters, digits and their marks make a word, accents come off Latin letters only, and each character of a writing system without spaces is a word of its own. So Activity, which finds keyword hits through that index, and a notification agree.",
+        "keywordMatches finds each keyword's words side by side as whole words and says where they stand, for the mark in a message; keywordIn gives the first one a message holds, for notifyDecision. keywordKey says when two keywords are the same one.",
+        "UNSPACED_RANGES repeats the server's list in search/words.ts, which cannot import protocol; a server test holds the two equal."
+      ],
+      "concepts": ["keyword alerts", "notifications", "search words"]
+    },
+    {
       "path": "packages/protocol/src/repeat.ts",
       "plain": "Works out when a repeating scheduled message goes next, such as every weekday at 9:00, on the author's own clock.",
       "summary": "Computes a repeat rule's next send in its IANA zone, the same in the app and on the server (K14).",

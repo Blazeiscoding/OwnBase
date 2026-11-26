@@ -167,6 +167,7 @@ describe("the default for what notifies", () => {
       CREATE INDEX idx_download_tokens_file ON download_tokens(file_id);
       CREATE INDEX idx_download_tokens_session ON download_tokens(session_hash);
     `);
+    db.exec("DROP TABLE user_keywords");
     db.exec("ALTER TABLE users DROP COLUMN notify_schedule");
     db.exec("ALTER TABLE scheduled_messages DROP COLUMN repeat_slot");
     db.exec("ALTER TABLE scheduled_messages DROP COLUMN repeat");

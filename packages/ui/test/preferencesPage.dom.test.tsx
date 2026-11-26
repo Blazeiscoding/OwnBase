@@ -338,6 +338,7 @@ describe("the settings index", () => {
       "Pause notifications",
       "What notifications show",
       "On this device",
+      "My keywords",
       "Show unread on the app's icon",
       "Sounds",
     ]);

@@ -67,6 +67,21 @@ afterAll(async () => {
   rmSync(dataDir, { recursive: true, force: true });
 });
 
+describe("keywords (K11)", () => {
+  it("arrive with the snapshot, are kept as the server tidied them, and reach other devices", async () => {
+    const laptop = await online();
+    const phone = await online();
+    expect(laptop.state.keywords).toEqual([]);
+    expect(await laptop.setKeywords([" release ", "Release", "launch day"])).toBeNull();
+    expect(laptop.state.keywords).toEqual(["release", "launch day"]);
+    await until(phone, (s) => s.keywords.length === 2, "the phone hearing of them");
+    const refused = await laptop.setKeywords(["?!"]);
+    expect(refused).toBeInstanceOf(ApiError);
+    expect(laptop.state.keywords).toEqual(["release", "launch day"]);
+    expect(await laptop.setKeywords([])).toBeNull();
+  });
+});
+
 describe("the default for what notifies", () => {
   it("arrives with the snapshot, and a change reaches the account's other devices", async () => {
     const laptop = await online();

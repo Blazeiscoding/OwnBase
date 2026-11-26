@@ -269,6 +269,10 @@ export class Api {
     return this.http.json(endpoints.unblockUser, { params: { id: userId } });
   }
 
+  setKeywords(keywords: string[]) {
+    return this.http.json(endpoints.setKeywords, { body: { keywords } });
+  }
+
   /** Reports a message to the workspace's admins (E12), with why and anything to add. */
   reportMessage(messageId: ID, reason: ReportReason, note = "") {
     return this.http.json(endpoints.reportMessage, {

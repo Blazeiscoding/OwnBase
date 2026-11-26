@@ -8,6 +8,7 @@ import {
   type NotifyLevel,
 } from "./entities.js";
 import { broadcastsIn, plainText, type MentionLabels } from "./format.js";
+import { keywordIn } from "./keywords.js";
 import { namesUser } from "./messageRules.js";
 import { scheduleAllows, type NotifySchedule } from "./notifySchedule.js";
 
@@ -25,7 +26,9 @@ export type NotifyDecision =
         | "schedule"
         | "not-here";
     }
-  | { notify: true; reason: "dm" | "mention" | "broadcast" | "all" };
+  | { notify: true; reason: "dm" | "mention" | "broadcast" | "all" }
+  /** A message with one of this person's keywords (K11), the first it holds. */
+  | { notify: true; reason: "keyword"; keyword: string };
 
 /**
  * Everything the notify rule weighs for one message and one person, as plain
@@ -57,6 +60,8 @@ export interface NotifyInputs {
   schedule?: NotifySchedule | null;
   /** The account's zone the schedule is read in; without one, this runtime's. */
   timeZone?: string | null;
+  /** This person's keywords (K11): a message holding one notifies as a mention does. */
+  keywords?: readonly string[];
 }
 
 const snoozed = (dndUntil: number | null | undefined, now: number) =>
@@ -81,6 +86,7 @@ export function notifyDecision(inputs: NotifyInputs): NotifyDecision {
   // A room-wide mention only reaches a room: in a DM it is just words.
   const isDm = isDirect(inputs.channelType);
   const addressed = named || (!isDm && broadcasts.size > 0);
+  const keyword = isDm || named ? null : keywordIn(message.text, inputs.keywords ?? []);
 
   // A muted thread speaks up only for what is addressed to this account, as
   // its mention badge counts it; in a DM, too, where everything else would.
@@ -88,7 +94,7 @@ export function notifyDecision(inputs: NotifyInputs): NotifyDecision {
     return { notify: false, reason: "thread-muted" };
   }
 
-  if (level === "mentions" && !addressed && !isDm) {
+  if (level === "mentions" && !addressed && !isDm && keyword === null) {
     return { notify: false, reason: "level" };
   }
 
@@ -101,6 +107,7 @@ export function notifyDecision(inputs: NotifyInputs): NotifyDecision {
 
   if (isDm) return { notify: true, reason: "dm" };
   if (named) return { notify: true, reason: "mention" };
+  if (keyword !== null) return { notify: true, reason: "keyword", keyword };
   if (broadcasts.size > 0) {
     // @channel reaches everyone in it; @here only the people who are here.
     if (broadcasts.has("channel") || live) return { notify: true, reason: "broadcast" };
@@ -165,11 +172,17 @@ export interface NotificationWords {
 
 export function notificationContent(
   preview: NotificationPreview,
-  message: { from: string; channelName?: string; body: string },
+  message: { from: string; channelName?: string; body: string; keyword?: string },
 ): NotificationWords {
   if (preview === "none") return { title: "New message", body: "Open OwnBase to read it." };
-  const title = `${message.from}${message.channelName ? ` in #${message.channelName}` : ""}`;
-  return { title, body: preview === "full" ? message.body : "New message" };
+  const where = message.channelName ? ` in #${message.channelName}` : "";
+  // The keyword says something of the message, so only the full preview names it.
+  if (preview === "full" && message.keyword)
+    return { title: `${message.from} mentioned “${message.keyword}”${where}`, body: message.body };
+  return {
+    title: `${message.from}${where}`,
+    body: preview === "full" ? message.body : "New message",
+  };
 }
 
 /**

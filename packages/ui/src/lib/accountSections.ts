@@ -24,6 +24,7 @@ export type SettingId =
   | "pause-notifications"
   | "notification-schedule"
   | "notification-previews"
+  | "keywords"
   | "unread-on-icon"
   | "sounds"
   | "theme"

@@ -435,6 +435,38 @@ describe("a new message", () => {
     expect(pushesTo(device)).toEqual([]);
   });
 
+  it("pushes a keyword at mentions only, naming it, but not where muted or blocked (K11)", async () => {
+    await startWithPeople();
+    const third = await register("third", "Third");
+    const fourth = await register("fourth", "Fourth");
+    const devices = [browser("/owner"), browser("/third"), browser("/fourth")] as const;
+    const people = [owner, third, fourth];
+    for (const [i, device] of devices.entries()) {
+      await subscribe(device, people[i]!.token);
+      const set = await request(
+        "/api/me/keywords",
+        { keywords: ["release"] },
+        "PUT",
+        people[i]!.token,
+      );
+      expect(set.status).toBe(200);
+    }
+    // #general follows each account's default, mentions only. Third muted it,
+    // Fourth blocked the sender.
+    await request(`/api/channels/${channelId}/prefs`, { muted: true }, "PATCH", third.token);
+    await request(`/api/me/blocks/${peer.id}`, undefined, "PUT", fourth.token);
+
+    await post("The release is out");
+    await server!.flushPushes();
+    expect(pushesTo(devices[0])).toHaveLength(1);
+    expect(open(pushesTo(devices[0])[0]!.body, devices[0])).toMatchObject({
+      title: "Peer mentioned “release” in #general",
+      body: "The release is out",
+    });
+    expect(pushesTo(devices[1])).toEqual([]);
+    expect(pushesTo(devices[2])).toEqual([]);
+  });
+
   it("pushes for a reminder that comes due while the app is closed", async () => {
     await startWithPeople();
     const device = browser("/owner");

@@ -132,6 +132,7 @@ export function registerPush(ctx: ServerContext) {
     message: Message,
     channel: Channel,
     tag: string,
+    keyword?: string,
   ) => {
     const from = nameOf(message.userId) ?? "Someone";
     const channelName = isDirect(channel.type) ? undefined : channel.name || undefined;
@@ -139,7 +140,7 @@ export function registerPush(ctx: ServerContext) {
     for (const subscription of store.push.forUser(user.id)) {
       const words = (kind === "message" ? notificationContent : reminderContent)(
         subscription.preview,
-        { from, channelName, body },
+        { from, channelName, body, keyword },
       );
       const payload: PushPayload = {
         ...words,
@@ -183,11 +184,13 @@ export function registerPush(ctx: ServerContext) {
         live: false,
         schedule: store.people.notifySchedule(userId),
         timeZone: user.timeZone,
+        keywords: store.people.keywords(userId),
       });
       if (!decision.notify) continue;
       recipients++;
       if (!spaced(userId, message.channelId, now)) continue;
-      deliver(user, "message", message, channel, `c:${message.channelId}`);
+      const keyword = decision.reason === "keyword" ? decision.keyword : undefined;
+      deliver(user, "message", message, channel, `c:${message.channelId}`, keyword);
     }
   };
 

@@ -23,6 +23,7 @@ import { EMAIL_MAX, isEmailAddress } from "./email.js";
 import { PAGE_ID_CHARS } from "./pageLinks.js";
 import { NOTIFICATION_PREVIEWS } from "./notify.js";
 import type { NotifyScheduleKind } from "./notifySchedule.js";
+import { KEYWORD_LENGTH_MAX, KEYWORDS_MAX } from "./keywords.js";
 import {
   CHANNEL_DESCRIPTION_MAX,
   CHANNEL_NAME_MAX,
@@ -216,6 +217,14 @@ export const notifyScheduleBody = z.object({
       message: "a schedule allows notifications on at least one day",
     })
     .nullable(),
+});
+
+/**
+ * `PUT /api/me/keywords`: this account's whole list of keywords (K11). The
+ * server trims them and drops repeats; one with no letter or digit is refused.
+ */
+export const keywordsBody = z.object({
+  keywords: z.array(z.string().max(KEYWORD_LENGTH_MAX)).max(KEYWORDS_MAX),
 });
 
 /**
