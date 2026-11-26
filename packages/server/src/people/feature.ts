@@ -150,6 +150,12 @@ export function registerPeople(ctx: ServerContext) {
     });
   });
 
+  route(endpoints.setNotifySchedule, async ({ user: me, body }) => {
+    const { schedule } = body;
+    store.people.setNotifySchedule(me.id, schedule);
+    return { schedule };
+  });
+
   // Statuses that ended while the server was stopped clear as it starts.
   ctx.lifecycle.onStart(() => statusExpiry.arm());
 
@@ -158,6 +164,7 @@ export function registerPeople(ctx: ServerContext) {
       users: store.people.list(),
       friends: store.people.friends(user.id),
       blocked: store.people.blockedIds(user.id),
+      notifySchedule: store.people.notifySchedule(user.id),
     }),
   };
 }

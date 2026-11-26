@@ -46,6 +46,7 @@ const ready = (over: Partial<ReadySnapshot> = {}): ReadySnapshot => ({
   pollChoices: {},
   sidebarSections: [],
   notifyDefault: "mentions",
+  notifySchedule: null,
   accessPolicy: "account_required",
   iconVersion: null,
   linkPreviews: true,

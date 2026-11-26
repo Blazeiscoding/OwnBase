@@ -50,6 +50,8 @@ export function decideNotification(
     dndUntil: self?.dndUntil,
     now,
     live,
+    schedule: state.notifySchedule,
+    timeZone: self?.timeZone,
   });
 }
 
@@ -57,8 +59,9 @@ export function decideNotification(
 export function decideReminderNotification(
   state: WorkspaceState,
   now = Date.now(),
-): { notify: false; reason: "dnd" } | { notify: true; reason: "reminder" } {
-  return reminderNotifyDecision(state.self?.dndUntil, now);
+): ReturnType<typeof reminderNotifyDecision> {
+  const { self, notifySchedule } = state;
+  return reminderNotifyDecision(self?.dndUntil, now, notifySchedule, self?.timeZone);
 }
 
 /** Reminders come due, in conversations this client still has. */

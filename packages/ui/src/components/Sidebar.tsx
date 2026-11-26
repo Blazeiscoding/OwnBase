@@ -72,6 +72,10 @@ import {
 const SectionNameDialog = lazy(() =>
   import("./SectionNameDialog.js").then((module) => ({ default: module.SectionNameDialog })),
 );
+// Only an account with a notification schedule (K12) needs its line.
+const ScheduleNotice = lazy(() =>
+  import("./ScheduleNotice.js").then((module) => ({ default: module.ScheduleNotice })),
+);
 // Guests alone are offered an account of their own.
 const KeepAccountOffer = lazy(() =>
   import("./KeepAccountOffer.js").then((module) => ({ default: module.KeepAccountOffer })),
@@ -243,6 +247,7 @@ export function Sidebar(props: {
   const blocked = useWorkspace((s) => s.blocked);
   const dndUntil = useWorkspace((s) => s.self?.dndUntil ?? null);
   const snoozed = isSnoozed(dndUntil);
+  const schedule = useWorkspace((s) => s.notifySchedule);
   const others = shell.otherWorkspaces;
   const name = workspaceName || "Connecting…";
 
@@ -911,7 +916,15 @@ export function Sidebar(props: {
       )}
       {/* Discord's floating panel: you, across the foot of the rail and the list. */}
       <footer className="user-panel m-2 mt-0 shrink-0 rounded-xl border border-edge bg-raised p-1.5 shadow-[0_8px_24px_-12px_rgb(0_0_0/0.5)]">
-        {snoozed && <SnoozedNotice until={dndUntil!} />}
+        {snoozed ? (
+          <SnoozedNotice until={dndUntil!} />
+        ) : (
+          schedule && (
+            <Suspense fallback={null}>
+              <ScheduleNotice schedule={schedule} />
+            </Suspense>
+          )
+        )}
         <div className="flex items-center gap-0.5">
           <AccountMenu />
           {!snoozed && <SnoozeControl />}

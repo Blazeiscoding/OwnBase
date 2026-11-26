@@ -181,6 +181,8 @@ export function registerPush(ctx: ServerContext) {
         now,
         // Nobody without an open connection is "here".
         live: false,
+        schedule: store.people.notifySchedule(userId),
+        timeZone: user.timeZone,
       });
       if (!decision.notify) continue;
       recipients++;
@@ -234,7 +236,9 @@ export function registerPush(ctx: ServerContext) {
       const user = store.people.get(userId);
       const channel = store.channels.get(message.channelId);
       if (!user || user.deactivated || !channel) return;
-      if (!reminderNotifyDecision(user.dndUntil, Date.now()).notify) return;
+      const schedule = store.people.notifySchedule(userId);
+      if (!reminderNotifyDecision(user.dndUntil, Date.now(), schedule, user.timeZone).notify)
+        return;
       deliver(user, "reminder", message, channel, `r:${message.id}`);
     },
     /** Resolves once every push asked for so far has been sent or given up. */

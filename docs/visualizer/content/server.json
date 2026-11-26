@@ -1527,6 +1527,27 @@
       "concepts": ["search syntax", "time zones", "bounded cache"]
     },
     {
+      "path": "packages/protocol/src/notifySchedule.ts",
+      "plain": "Decides whether an account's notification schedule, such as weekdays 9:00 to 18:00, lets a notification through right now.",
+      "summary": "The notification schedule (K12) and scheduleAllows, the same check in the app and for Web Push.",
+      "details": [
+        "A schedule keeps seven days, Sunday first, each with From and Until times or null for none. Until at or before From runs past midnight into the next day, so 22:00 to 07:00 is one night and 00:00 to 00:00 a whole day.",
+        "scheduleAllows reads the weekday and time on the wall clock in the account's zone (this runtime's when it has none) with a cached Intl clock per zone, so the hours hold across daylight-saving changes. Last night's hours that run past midnight count too.",
+        "onUntil is Turn on for 1 hour: until then the schedule holds nothing back. notifyDecision and reminderNotifyDecision check the schedule after Do Not Disturb, with the reason schedule."
+      ],
+      "concepts": ["notifications", "time zones", "daylight saving"]
+    },
+    {
+      "path": "packages/protocol/src/scheduleResume.ts",
+      "plain": "Works out when a notification schedule lets notifications through again, for the app to say \"Notifications resume at 9:00\".",
+      "summary": "scheduleQuietUntil (K12): the next opening of a schedule that holds notifications now, or null.",
+      "details": [
+        "Kept apart from scheduleAllows, which every notification runs, so the calendar arithmetic loads only in the views that show the time.",
+        "Looks a week ahead for the next day whose From time is still to come, and turns that wall-clock time into an instant with repeat.ts, so an hour the clocks skip opens at the time after it."
+      ],
+      "concepts": ["notifications", "time zones", "daylight saving"]
+    },
+    {
       "path": "packages/protocol/src/repeat.ts",
       "plain": "Works out when a repeating scheduled message goes next, such as every weekday at 9:00, on the author's own clock.",
       "summary": "Computes a repeat rule's next send in its IANA zone, the same in the app and on the server (K14).",

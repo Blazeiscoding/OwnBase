@@ -9,6 +9,7 @@ import {
 } from "./entities.js";
 import { broadcastsIn, plainText, type MentionLabels } from "./format.js";
 import { namesUser } from "./messageRules.js";
+import { scheduleAllows, type NotifySchedule } from "./notifySchedule.js";
 
 export type NotifyDecision =
   | {
@@ -21,6 +22,7 @@ export type NotifyDecision =
         | "thread-muted"
         | "level"
         | "dnd"
+        | "schedule"
         | "not-here";
     }
   | { notify: true; reason: "dm" | "mention" | "broadcast" | "all" };
@@ -51,6 +53,10 @@ export interface NotifyInputs {
    * catching up on it later. `@here` asks only the people who are around.
    */
   live: boolean;
+  /** When this account allows notifications (K12); none allows them always. */
+  schedule?: NotifySchedule | null;
+  /** The account's zone the schedule is read in; without one, this runtime's. */
+  timeZone?: string | null;
 }
 
 const snoozed = (dndUntil: number | null | undefined, now: number) =>
@@ -89,6 +95,9 @@ export function notifyDecision(inputs: NotifyInputs): NotifyDecision {
   // Do Not Disturb wins over everything except the decision to stay silent,
   // which is already settled above.
   if (snoozed(inputs.dndUntil, now)) return { notify: false, reason: "dnd" };
+  // Outside the hours it allows, a schedule pauses as Do Not Disturb does.
+  if (!scheduleAllows(inputs.schedule, inputs.timeZone, now))
+    return { notify: false, reason: "schedule" };
 
   if (isDm) return { notify: true, reason: "dm" };
   if (named) return { notify: true, reason: "mention" };
@@ -103,13 +112,17 @@ export function notifyDecision(inputs: NotifyInputs): NotifyDecision {
 /**
  * Whether a reminder that came due should raise a notification. The person
  * asked for it, so a muted or quiet conversation does not hold it back; Do Not
- * Disturb does, and it waits in Activity.
+ * Disturb does, and so do the hours outside its schedule (K12); it waits in
+ * Activity.
  */
 export function reminderNotifyDecision(
   dndUntil: number | null | undefined,
   now: number,
-): { notify: false; reason: "dnd" } | { notify: true; reason: "reminder" } {
+  schedule?: NotifySchedule | null,
+  timeZone?: string | null,
+): { notify: false; reason: "dnd" | "schedule" } | { notify: true; reason: "reminder" } {
   if (snoozed(dndUntil, now)) return { notify: false, reason: "dnd" };
+  if (!scheduleAllows(schedule, timeZone, now)) return { notify: false, reason: "schedule" };
   return { notify: true, reason: "reminder" };
 }
 

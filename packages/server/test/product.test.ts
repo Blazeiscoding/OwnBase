@@ -304,6 +304,7 @@ describe("self-hosted product", () => {
           INSERT INTO messages_fts(rowid, text) VALUES (new.rowid, new.text);
         END;
       `);
+      db.exec("ALTER TABLE users DROP COLUMN notify_schedule");
       db.exec("DROP INDEX idx_reactions_author");
       db.exec("ALTER TABLE reactions DROP COLUMN author_id");
       db.exec("ALTER TABLE users DROP COLUMN reactions_seen_at");

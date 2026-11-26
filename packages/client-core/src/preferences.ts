@@ -3,6 +3,7 @@ import {
   type ChannelPrefs,
   type ID,
   type NotifyLevel,
+  type NotifySchedule,
   type SidebarSection,
 } from "@ownbase/protocol";
 import type { StoreApi } from "zustand/vanilla";
@@ -138,5 +139,22 @@ export class Preferences {
       show: (notifyDefault) => this.store.setState({ notifyDefault }),
       send: async (chosen) => (await this.api.setNotifyDefault(chosen)).level,
     });
+  }
+
+  setNotifySchedule(schedule: NotifySchedule | null): Promise<ApiError | null> {
+    if (!this.state.self) return Promise.resolve(notConnected());
+    // Boxed, because the writes take a null change for none at all.
+    type Change = { schedule: NotifySchedule | null };
+    return this.writes.write<NotifySchedule | null, Change>(
+      { kind: "notifySchedule" },
+      { schedule },
+      {
+        read: () => this.state.notifySchedule,
+        show: (notifySchedule) => this.store.setState({ notifySchedule }),
+        send: async (chosen) => (await this.api.setNotifySchedule(chosen.schedule)).schedule,
+        apply: (_, change) => change.schedule,
+        same: (a, b) => JSON.stringify(a) === JSON.stringify(b),
+      },
+    );
   }
 }

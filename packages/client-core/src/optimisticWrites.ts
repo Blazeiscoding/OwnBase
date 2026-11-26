@@ -12,6 +12,7 @@ type WriteKey =
   | { kind: "linkPreview"; previewId: ID }
   | { kind: "dnd" }
   | { kind: "notifyDefault" }
+  | { kind: "notifySchedule" }
   | { kind: "sectionOrder" }
   | { kind: "prefs"; channelId: ID }
   /** Following, muting or marking a thread unread, sent in the order chosen (Q09). */
@@ -34,6 +35,7 @@ function keyOf(key: WriteKey): string {
       return `linkPreview:${key.previewId}`;
     case "dnd":
     case "notifyDefault":
+    case "notifySchedule":
     case "sectionOrder":
       return key.kind;
     case "prefs":

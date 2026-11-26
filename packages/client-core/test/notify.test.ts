@@ -73,6 +73,7 @@ function state(over: Partial<WorkspaceState> = {}): WorkspaceState {
     clockSkewMs: null,
     sidebarSections: [],
     notifyDefault: "mentions",
+    notifySchedule: null,
     reminders: {},
     channelRemovals: {},
     reactionActivity: { seenAt: 0, unseen: 0, revision: 0 },

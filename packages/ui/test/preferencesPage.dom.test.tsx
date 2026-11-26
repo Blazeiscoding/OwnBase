@@ -334,6 +334,7 @@ describe("the settings index", () => {
     ]);
     // A section's name finds what is in it, those named for it first.
     expect(findSettings("notif").map((s) => s.label)).toEqual([
+      "Notification schedule",
       "Pause notifications",
       "What notifications show",
       "On this device",

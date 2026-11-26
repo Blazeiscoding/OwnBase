@@ -903,6 +903,27 @@
       "concepts": ["web push", "settings"]
     },
     {
+      "path": "packages/ui/src/components/NotifyScheduleSettings.tsx",
+      "plain": "Notifications, Schedule: the hours you allow notifications, every day, on weekdays, or day by day, after which they pause by themselves.",
+      "summary": "Edits the account's notification schedule (K12) in Account settings, saved at once for every device.",
+      "details": [
+        "Off clears the schedule. Every day and Weekdays share one pair of From and Until times; Custom lists the days Monday first, each with a box and its own times. A time at or before From runs past midnight.",
+        "Changing a kind keeps the hours already chosen. Custom refuses to leave no day ticked and says to choose Off instead, since the server refuses a schedule with no hours.",
+        "Times are in the account's zone, or this device's when it has none. A line says whether the schedule holds notifications now and when they resume, or until when Turn on for 1 hour keeps them on; any edit drops that hour."
+      ],
+      "concepts": ["settings", "notifications", "time zones"]
+    },
+    {
+      "path": "packages/ui/src/components/ScheduleNotice.tsx",
+      "plain": "The line above the sidebar's foot while your notification schedule pauses notifications: when they resume, and Turn on for 1 hour.",
+      "summary": "Shown in place of the Pause line while the schedule (K12) holds notifications; loaded lazily, only for an account with a schedule.",
+      "details": [
+        "Rechecks each minute, since hours start and end on the minute, and hides itself inside the hours.",
+        "Turn on for 1 hour saves the schedule with onUntil an hour ahead, so every device and Web Push let notifications through until then. A pause wins the line while both hold."
+      ],
+      "concepts": ["notifications", "sidebar"]
+    },
+    {
       "path": "packages/ui/src/components/UnreadOnIconSetting.tsx",
       "plain": "The switch in notification settings for showing unread on the app's icon, the tray and the tab's title.",
       "summary": "The 'Show unread on the app's icon' switch, under 'Outside the window'.",

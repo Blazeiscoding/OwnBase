@@ -22,6 +22,7 @@ export type SettingId =
   | "status"
   | "device-notifications"
   | "pause-notifications"
+  | "notification-schedule"
   | "notification-previews"
   | "unread-on-icon"
   | "sounds"
