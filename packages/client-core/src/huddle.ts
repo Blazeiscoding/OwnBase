@@ -4,10 +4,14 @@ import {
   type CallCause,
   type CallReport,
   type CandidateCounts,
+  type HuddleAskRefusal,
+  type HuddleRing,
   type HuddleSignal,
   type ID,
 } from "@ownbase/protocol";
+import type { StoreApi } from "zustand/vanilla";
 import { CALL_CAUSES, type CallLogLine } from "./callLog.js";
+import type { WorkspaceState } from "./workspaceState.js";
 import {
   candidateOf,
   countServers,
@@ -214,6 +218,49 @@ function receivedLevel(peer: Peer): number {
     loudest = Math.max(loudest, source.audioLevel ?? 0);
   }
   return loudest;
+}
+
+/**
+ * What whoever asked people into a channel's call hears as its ring changes
+ * (K18): who of those they asked can't join or didn't answer. Here with the
+ * call, which is loaded on the device that asks, rather than with every visit.
+ */
+export function askNotice(
+  before: HuddleRing | undefined,
+  after: HuddleRing,
+  selfId: ID | undefined,
+  names: (ids: ID[]) => string,
+): string | null {
+  const mine = (id: ID) => after.askedBy?.[id] === selfId;
+  const declined = after.declined.filter((id) => mine(id) && !before?.declined.includes(id));
+  if (declined.length > 0) return `${names(declined)} can't join now`;
+  const missed = (before?.ringing ?? []).filter(
+    (id) =>
+      mine(id) &&
+      !after.ringing.includes(id) &&
+      !after.answered.includes(id) &&
+      !after.declined.includes(id),
+  );
+  return missed.length > 0 ? `${names(missed)} didn't answer` : null;
+}
+
+/**
+ * What the asking device says, in the call's line, of someone the server did
+ * not ring (K18): as of a decline when they could not be rung, or to wait
+ * when this account has rung too many people lately.
+ */
+export function askRefused(
+  store: StoreApi<WorkspaceState>,
+  refusal: { channelId: ID; userId: ID; reason: HuddleAskRefusal; retryAfterMs?: number },
+): void {
+  const { huddle, users } = store.getState();
+  if (huddle?.channelId !== refusal.channelId) return;
+  const seconds = Math.max(1, Math.ceil((refusal.retryAfterMs ?? 0) / 1000));
+  const message =
+    refusal.reason === "unavailable"
+      ? `${users[refusal.userId]?.displayName ?? "Someone"} can't join now`
+      : `You've asked a lot of people just now. Try again in ${seconds} seconds.`;
+  store.setState({ ringNotice: { channelId: refusal.channelId, message, at: Date.now() } });
 }
 
 /**

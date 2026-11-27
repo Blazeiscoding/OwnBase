@@ -310,6 +310,9 @@ describe("asking someone into a channel's call (K18)", () => {
     const general = other.store.channels.byName("general")!.id;
     const mayas = await online(maya.token, url);
     mayas.store.setState({ huddle: { channelId: general } as HuddleState });
+    // The device in the call has the call code, which words how an ask went.
+    (mayas as unknown as { calls: { callCode: unknown } }).calls.callCode =
+      await import("../src/huddle.js");
     const priyas = await online(priya.token, url);
     priyas.store.setState({ huddle: { channelId: general } as HuddleState });
     const mayaInCall = await socket(maya.token, url);
@@ -365,7 +368,12 @@ describe("asking someone into a channel's call (K18)", () => {
     // Node has no microphone, so this device is put in the call by hand.
     const calls = (
       mayas as unknown as {
-        calls: { sendSocket: (m: unknown) => void; session: unknown; huddleAdmitted: boolean };
+        calls: {
+          sendSocket: (m: unknown) => void;
+          session: unknown;
+          huddleAdmitted: boolean;
+          callCode: unknown;
+        };
       }
     ).calls;
     calls.sendSocket({ type: "huddle.join", channelId: general, requestId: "a" });
@@ -373,6 +381,7 @@ describe("asking someone into a channel's call (K18)", () => {
     mayas.store.setState({ huddle: { channelId: general } as HuddleState });
     calls.session = { channelId: general };
     calls.huddleAdmitted = true;
+    calls.callCode = await import("../src/huddle.js");
     mayas.ringIntoCall(sam.user.id);
     calls.session = null;
 

@@ -32,6 +32,8 @@ export class Calls {
   }
 
   private session: HuddleSession | null = null;
+  /** The call code, fetched with the first huddle; it also words how asks went (K18). */
+  private callCode: typeof import("./huddle.js") | null = null;
   /** How tall the call draws everyone's pictures; see `setCallViews`. */
   private callViews: ReadonlyMap<ID, CallView> = new Map();
   private huddleAttempt = 0;
@@ -88,7 +90,9 @@ export class Calls {
     if (attempt !== this.huddleAttempt) return;
 
     // Calls are loaded when someone joins one, not with every visit.
-    const { HuddleSession } = await import("./huddle.js");
+    const callCode = await import("./huddle.js");
+    this.callCode = callCode;
+    const { HuddleSession } = callCode;
     if (attempt !== this.huddleAttempt) return;
     const session = new HuddleSession(
       channelId,
@@ -175,25 +179,12 @@ export class Calls {
   ringNoticeFor(before: HuddleRing | undefined, after: HuddleRing): string | null {
     const selfId = this.state.self?.id;
     if (this.state.huddle?.channelId !== after.channelId) return null;
-    const { askedBy } = after;
     const names = (ids: ID[]) =>
       ids.map((id) => this.state.users[id]?.displayName ?? "Someone").join(" and ");
-    const declined = after.declined.filter((id) => !before?.declined.includes(id));
     // In a channel (K18), whoever asked hears of the people they asked.
-    if (askedBy) {
-      const mine = (id: ID) => askedBy[id] === selfId;
-      const refused = declined.filter(mine);
-      if (refused.length > 0) return `${names(refused)} can't join now`;
-      const missed = (before?.ringing ?? []).filter(
-        (id) =>
-          mine(id) &&
-          !after.ringing.includes(id) &&
-          !after.answered.includes(id) &&
-          !after.declined.includes(id),
-      );
-      return missed.length > 0 ? `${names(missed)} didn't answer` : null;
-    }
+    if (after.askedBy) return this.callCode?.askNotice(before, after, selfId, names) ?? null;
     if (after.callerId !== selfId) return null;
+    const declined = after.declined.filter((id) => !before?.declined.includes(id));
     if (declined.length > 0) return `${names(declined)} declined`;
     if (after.ringing.length === 0 && after.answered.length === 0) return "No answer";
     return null;
@@ -206,13 +197,9 @@ export class Calls {
       this.sendSocket({ type: "huddle.ask", channelId, userId });
   }
 
-  /** What the asking device says of someone the server did not ring (K18). */
-  askRefusedNotice(event: Extract<EphemeralEvent, { type: "huddle.ask.refused" }>): string | null {
-    if (this.state.huddle?.channelId !== event.channelId) return null;
-    if (event.reason === "unavailable")
-      return `${this.state.users[event.userId]?.displayName ?? "Someone"} can't join now`;
-    const seconds = Math.max(1, Math.ceil((event.retryAfterMs ?? 0) / 1000));
-    return `You've asked a lot of people just now. Try again in ${seconds} seconds.`;
+  /** Someone this device asked into its call was not rung (K18). */
+  askRefused(event: Extract<EphemeralEvent, { type: "huddle.ask.refused" }>): void {
+    this.callCode?.askRefused(this.store, event);
   }
 
   declineRing(channelId: ID): void {

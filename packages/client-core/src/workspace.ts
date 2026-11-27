@@ -868,14 +868,9 @@ export class WorkspaceClient {
         });
         break;
       }
-      case "huddle.ask.refused": {
-        const message = this.calls.askRefusedNotice(event);
-        if (message)
-          this.store.setState({
-            ringNotice: { channelId: event.channelId, message, at: Date.now() },
-          });
+      case "huddle.ask.refused":
+        this.calls.askRefused(event);
         break;
-      }
       case "huddle.moved":
         this.calls.moved(event);
         break;
