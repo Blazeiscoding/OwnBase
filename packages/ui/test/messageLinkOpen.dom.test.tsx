@@ -33,6 +33,7 @@ const room = (id: string, name: string): Channel => ({
   archived: false,
   createdAt: 0,
 });
+const lee: User = { ...sam, id: "U_LEE", handle: "lee", displayName: "Lee Park" };
 const general = room("C_GENERAL", "general");
 const engineering = room("C_ENGINEERING", "engineering");
 
@@ -52,8 +53,9 @@ afterEach(() => {
 });
 
 function openAt(
-  target: { channelId: string; messageId?: string },
+  target: { channelId: string; messageId?: string; call?: boolean },
   answer: () => Promise<string | null | undefined | ApiError>,
+  huddles: Record<string, string[]> = {},
 ) {
   vi.stubGlobal("matchMedia", () => ({
     matches: false,
@@ -68,9 +70,10 @@ function openAt(
   clients.push(client);
   client.store.setState({
     self: sam,
-    users: { [sam.id]: sam },
+    users: { [sam.id]: sam, [lee.id]: lee },
     channels: { [general.id]: general, [engineering.id]: engineering },
     memberships: { [general.id]: 9, [engineering.id]: 9 },
+    huddles,
     status: "online",
   });
   const load = vi.spyOn(client, "loadTimeline").mockResolvedValue();
@@ -135,6 +138,30 @@ describe("a link to a conversation (K03)", () => {
     await screen.findByRole("textbox", { name: "Message #engineering" });
     await waitFor(() => expect(load).toHaveBeenCalledWith(engineering.id, expect.anything()));
     expect(jump).not.toHaveBeenCalled();
+  });
+
+  it("offers to join the call a link leads to, and never joins by itself (K18)", async () => {
+    const { client } = openAt(
+      { channelId: engineering.id, call: true },
+      () => Promise.resolve(null),
+      {
+        [engineering.id]: [lee.id],
+      },
+    );
+    const join = vi.spyOn(client, "joinHuddle").mockResolvedValue();
+    await screen.findByRole("textbox", { name: "Message #engineering" });
+    expect(await screen.findByText("Lee Park is in the call in #engineering.")).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Join" })).toBeTruthy();
+    expect(join).not.toHaveBeenCalled();
+    expect(client.state.huddle).toBeNull();
+    cleanup();
+
+    openAt({ channelId: engineering.id, call: true }, () => Promise.resolve(null));
+    expect(
+      await screen.findByText("Nobody is in the call in #engineering right now."),
+    ).toBeTruthy();
+    // The notice's, beside the header's own.
+    expect(screen.getAllByRole("button", { name: "Start a huddle" })).toHaveLength(2);
   });
 
   it("says so when it leads to a conversation this account cannot see", async () => {

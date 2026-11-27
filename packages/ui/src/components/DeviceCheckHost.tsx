@@ -1,5 +1,7 @@
 import { lazy, Suspense } from "react";
 import { useCallPreferences, useDeviceCheckEndsWithScreen } from "../lib/callPreferences.js";
+import { useNavigationState } from "../lib/navigation.js";
+import { CallOffer } from "./CallOffer.js";
 
 /** Which microphone and camera to use, asked once before a first huddle. */
 const DeviceCheckDialog = lazy(() =>
@@ -13,11 +15,17 @@ const DeviceCheckDialog = lazy(() =>
  */
 export function DeviceCheckHost() {
   const checking = useCallPreferences().checkingDevices;
+  // A link to a call offers it from here (K18), out of the first download too.
+  const callOffer = useNavigationState((s) => s.callOffer);
   useDeviceCheckEndsWithScreen();
-  if (!checking) return null;
   return (
-    <Suspense fallback={null}>
-      <DeviceCheckDialog />
-    </Suspense>
+    <>
+      {callOffer && <CallOffer offer={callOffer} />}
+      {checking && (
+        <Suspense fallback={null}>
+          <DeviceCheckDialog />
+        </Suspense>
+      )}
+    </>
   );
 }

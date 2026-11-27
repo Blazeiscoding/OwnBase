@@ -582,6 +582,14 @@ describe("a link to a message, written in a message", () => {
       document.removeEventListener("click", noWindows);
     }
   });
+
+  it("opens a link to a channel's call here, offering it (K18)", async () => {
+    const openMessage = await renderText("Come say hi: http://192.168.1.20:8543/#/c/C_DESIGN/call");
+    const link = screen.getByRole("link");
+    expect(link).toHaveTextContent(/^Call in #design$/);
+    expect(fireEvent.click(link)).toBe(false);
+    expect(openMessage.mock.calls).toEqual([["C_DESIGN", undefined, true]]);
+  });
 });
 
 describe("a browser opened at a link", () => {
@@ -618,6 +626,13 @@ describe("a browser opened at a link", () => {
       await new Promise((resolve) => setTimeout(resolve, 20));
       expect(received).toHaveBeenCalledTimes(1);
       expect(location.hash).toBe("#/c/C_DESIGN");
+
+      // A link to its call (K18) is handed over once, and taken out of the address.
+      location.hash = "#/c/C_DESIGN/call";
+      await waitFor(() =>
+        expect(received).toHaveBeenLastCalledWith(`${location.origin}/#/c/C_DESIGN/call`),
+      );
+      expect(location.hash).toBe("");
     } finally {
       unsubscribe();
     }

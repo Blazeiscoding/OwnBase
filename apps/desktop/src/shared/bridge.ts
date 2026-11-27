@@ -18,6 +18,7 @@ import type {
   SystemMicrophones,
   UpdateStatus,
 } from "@ownbase/protocol/desktop";
+import type { CallKeyAction, HeldCallKeys } from "@ownbase/client-core/callKeys";
 import type { DraftChanges } from "@ownbase/client-core/drafts";
 import type { OutboxChanges, StoredOutbox } from "@ownbase/client-core/outbox";
 import type { RecordChanges } from "@ownbase/client-core/records";
@@ -81,6 +82,11 @@ export interface Calls extends HostingCalls, UpdateCalls {
   "microphone:close": (session: number) => void;
   "window:questionShown": (id: number) => void;
   "window:answerQuestion": (id: number, index: number) => void;
+  /**
+   * Holds the call keys for while another app is in front, or lets them go
+   * with null (K16); answers the ones another app holds.
+   */
+  "callKeys:set": (keys: HeldCallKeys | null) => CallKeyAction[];
 }
 
 export interface Events {
@@ -99,6 +105,10 @@ export interface Events {
   "window:notice": string;
   /** The tray's "Restart to update", for the window to ask or explain. */
   "updates:restartAsked": null;
+  /** A call key pressed while another app was in front. */
+  "callKeys:pressed": CallKeyAction;
+  /** The call keys another app holds, whenever that changes. */
+  "callKeys:taken": CallKeyAction[];
 }
 
 export type Channel = keyof Calls;
@@ -186,6 +196,7 @@ const CALL_LIST = {
   "updates:openDownloadPage": true,
   "window:questionShown": true,
   "window:answerQuestion": true,
+  "callKeys:set": true,
 } satisfies Record<Channel, boolean>;
 
 const EVENT_LIST = {
@@ -199,6 +210,8 @@ const EVENT_LIST = {
   "window:ask": true,
   "window:withdrawQuestion": true,
   "window:notice": true,
+  "callKeys:pressed": true,
+  "callKeys:taken": true,
 } satisfies Record<EventName, true>;
 
 export const CHANNELS = Object.keys(CALL_LIST) as Channel[];

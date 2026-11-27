@@ -41,6 +41,11 @@ export interface Limits {
   /** Typing notices, new huddle joins and call signalling from one account. */
   ephemeral: LimitRule;
   /**
+   * People one account may ring into a channel's call (K18), each ring a
+   * notice with a ring tone on someone else's screen.
+   */
+  huddleRing: LimitRule;
+  /**
    * Posts to one incoming webhook. Whoever holds its URL can post, with no
    * account behind them, so each webhook has a budget of its own rather than
    * spending a person's or starving the app's other webhooks.
@@ -83,6 +88,8 @@ export const DEFAULT_LIMITS: Limits = {
   upload: { burst: 20, perMinute: 60 },
   socket: { burst: 30, perMinute: 60 },
   ephemeral: { burst: 60, perMinute: 300 },
+  // Ten at once, then two a minute.
+  huddleRing: { burst: 10, perMinute: 2 },
   hook: { burst: 30, perMinute: 60 },
   hookByAddress: { burst: 120, perMinute: 240 },
   appCall: { burst: 20, perMinute: 60 },

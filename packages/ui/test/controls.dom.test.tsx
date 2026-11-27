@@ -156,7 +156,7 @@ describe("the huddle bar", () => {
   it("names each control for what it controls, and says whether it is on without renaming it", () => {
     const { client } = huddleBar();
     const controls = screen.getByRole("group", { name: "Huddle controls" });
-    const toggles = ["Mute microphone", "Camera", "Share screen"];
+    const toggles = ["Mute microphone", "Deafen", "Camera", "Share screen"];
     for (const name of toggles)
       expect(within(controls).getByRole("button", { name, pressed: false })).toBeInTheDocument();
     const mute = within(controls).getByRole("button", { name: "Mute microphone" });
@@ -170,7 +170,13 @@ describe("the huddle bar", () => {
 
     act(() =>
       client.store.setState((s) => ({
-        huddle: { ...s.huddle!, micMuted: true, cameraOn: true, sharingScreen: true },
+        huddle: {
+          ...s.huddle!,
+          micMuted: true,
+          deafened: true,
+          cameraOn: true,
+          sharingScreen: true,
+        },
       })),
     );
     // A screen reader hears the same control, now pressed, not a different one.
@@ -186,13 +192,29 @@ describe("the huddle bar", () => {
     ).toEqual([
       "Mute microphone",
       "Microphone and speaker",
+      "Deafen",
       "Camera",
       "Camera options",
       "Share screen",
       // While sharing, its resolution and frame rate, as Discord's stream quality.
       "Screen share options",
+      // Reactions (K17); the bar's raised hand is in the menu after it, to fit one row.
+      "Reactions",
+      "More call options",
       "Leave",
     ]);
+  });
+
+  it("raises a hand from the bar's menu, named by what choosing it does", async () => {
+    const { client, user } = huddleBar();
+    const hand = vi.fn();
+    client.toggleHand = hand;
+    await user.click(screen.getByRole("button", { name: "More call options" }));
+    await user.click(screen.getByRole("menuitem", { name: "Raise your hand" }));
+    expect(hand).toHaveBeenCalledOnce();
+    act(() => client.store.setState((s) => ({ huddle: { ...s.huddle!, hands: ["U_SAM"] } })));
+    await user.click(screen.getByRole("button", { name: "More call options" }));
+    expect(screen.getByRole("menuitem", { name: "Lower your hand" })).toBeVisible();
   });
 
   it("says who is in the huddle, and offers Leave in words", async () => {

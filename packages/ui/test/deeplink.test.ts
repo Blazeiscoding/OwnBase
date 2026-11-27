@@ -132,8 +132,11 @@ describe("links", () => {
     const join = { kind: "join", code: "ABCD1234" } as const;
     const message = { kind: "message", channelId: "C123", messageId: "M456" } as const;
     const conversation = { kind: "conversation", channelId: "C123" } as const;
-    const desktop = (url: string, link: typeof join | typeof message | typeof conversation) =>
-      desktopLink(serverAddress(url), link);
+    const call = { kind: "conversation", channelId: "C123", call: true } as const;
+    const desktop = (
+      url: string,
+      link: typeof join | typeof message | typeof conversation | typeof call,
+    ) => desktopLink(serverAddress(url), link);
     for (const build of [pageLink, desktop]) {
       expect(parseDeepLink(build(serverUrl, join))).toEqual({ ...join, serverUrl });
       expect(parseDeepLink(build(serverUrl, message))).toEqual({ ...message, serverUrl });
@@ -141,6 +144,7 @@ describe("links", () => {
         ...conversation,
         serverUrl,
       });
+      expect(parseDeepLink(build(serverUrl, call))).toEqual({ ...call, serverUrl });
     }
   });
 

@@ -167,6 +167,22 @@ describe("the call", () => {
     expect(await accessibilityProblems(region())).toEqual([]);
   });
 
+  it("says who is deafened on their tile, in place of muted (K16)", async () => {
+    stage({
+      deafened: true,
+      micMuted: true,
+      peers: [peer("U_PRIYA", { micMuted: true, deafened: true })],
+    });
+    const everyone = within(region()).getByRole("list", { name: "Everyone in the huddle" });
+    expect(
+      within(everyone)
+        .getAllByRole("group")
+        .map((tile) => tile.getAttribute("aria-label")),
+    ).toEqual(["You, camera off, deafened", "Priya Shah, camera off, deafened"]);
+    expect(control("Deafen")).toHaveAttribute("aria-pressed", "true");
+    expect(await accessibilityProblems(region())).toEqual([]);
+  });
+
   it("sets how loud someone is to you from their tile, in the tile so it shows in full screen", async () => {
     // A device of its own, so nobody stays muted for the tests after.
     const device = {

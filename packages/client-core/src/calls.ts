@@ -3,7 +3,13 @@ import type { StoreApi } from "zustand/vanilla";
 import type { Api } from "./api.js";
 import { captureFailure } from "./capture.js";
 import type { MicrophoneSettings, NoiseFilter, OpenSystemMicrophone } from "./devices.js";
-import type { CallLogLine, CallView, HuddleSession, ScreenShareQuality } from "./huddle.js";
+import type {
+  CallLogLine,
+  CallView,
+  HuddleSession,
+  PushToTalk,
+  ScreenShareQuality,
+} from "./huddle.js";
 import type { WorkspaceState } from "./workspaceState.js";
 
 class HuddleJoinRefusedError extends Error {}
@@ -26,6 +32,8 @@ export class Calls {
   }
 
   private session: HuddleSession | null = null;
+  /** The call code, fetched with the first huddle; it also words how asks went (K18). */
+  private callCode: typeof import("./huddle.js") | null = null;
   /** How tall the call draws everyone's pictures; see `setCallViews`. */
   private callViews: ReadonlyMap<ID, CallView> = new Map();
   private huddleAttempt = 0;
@@ -58,6 +66,7 @@ export class Calls {
       cameraId?: string;
       noiseFilter?: NoiseFilter;
       systemMicrophone?: OpenSystemMicrophone;
+      pushToTalk?: PushToTalk;
     } = {},
   ): Promise<void> {
     this.leaveHuddle();
@@ -81,7 +90,9 @@ export class Calls {
     if (attempt !== this.huddleAttempt) return;
 
     // Calls are loaded when someone joins one, not with every visit.
-    const { HuddleSession } = await import("./huddle.js");
+    const callCode = await import("./huddle.js");
+    this.callCode = callCode;
+    const { HuddleSession } = callCode;
     if (attempt !== this.huddleAttempt) return;
     const session = new HuddleSession(
       channelId,
@@ -96,6 +107,7 @@ export class Calls {
         cameraId: options.cameraId,
         noiseFilter: options.noiseFilter,
         systemMicrophone: options.systemMicrophone,
+        pushToTalk: options.pushToTalk,
         onReport: (peer, report) => {
           if (this.session === session)
             this.sendSocket({ type: "huddle.report", channelId, peer, report });
@@ -160,16 +172,34 @@ export class Calls {
   /**
    * What the caller's device in the call says as its ring changes (E10): who
    * has just declined, or, once it ends with nobody answering, that nobody
-   * did. Their other devices say nothing, nor does anyone rung.
+   * did. Their other devices say nothing, nor does anyone rung. In a
+   * channel's call (K18), each asker's device says who of those they asked
+   * can't join or didn't answer.
    */
   ringNoticeFor(before: HuddleRing | undefined, after: HuddleRing): string | null {
-    if (after.callerId !== this.state.self?.id || this.state.huddle?.channelId !== after.channelId)
-      return null;
+    const selfId = this.state.self?.id;
+    if (this.state.huddle?.channelId !== after.channelId) return null;
+    const names = (ids: ID[]) =>
+      ids.map((id) => this.state.users[id]?.displayName ?? "Someone").join(" and ");
+    // In a channel (K18), whoever asked hears of the people they asked.
+    if (after.askedBy) return this.callCode?.askNotice(before, after, selfId, names) ?? null;
+    if (after.callerId !== selfId) return null;
     const declined = after.declined.filter((id) => !before?.declined.includes(id));
-    if (declined.length > 0)
-      return `${declined.map((id) => this.state.users[id]?.displayName ?? "Someone").join(" and ")} declined`;
+    if (declined.length > 0) return `${names(declined)} declined`;
     if (after.ringing.length === 0 && after.answered.length === 0) return "No answer";
     return null;
+  }
+
+  /** Rings a member of the channel into this device's call (K18). */
+  ringIntoCall(userId: ID): void {
+    const channelId = this.session?.channelId;
+    if (channelId && this.huddleAdmitted)
+      this.sendSocket({ type: "huddle.ask", channelId, userId });
+  }
+
+  /** Someone this device asked into its call was not rung (K18). */
+  askRefused(event: Extract<EphemeralEvent, { type: "huddle.ask.refused" }>): void {
+    this.callCode?.askRefused(this.store, event);
   }
 
   declineRing(channelId: ID): void {
@@ -306,6 +336,26 @@ export class Calls {
     this.session?.toggleMic();
   }
 
+  toggleDeafen(): void {
+    this.session?.toggleDeafen();
+  }
+
+  setPushToTalk(choice: PushToTalk | null): void {
+    this.session?.setPushToTalk(choice);
+  }
+
+  pressTalk(): void {
+    this.session?.pressTalk();
+  }
+
+  releaseTalk(): void {
+    this.session?.releaseTalk();
+  }
+
+  toggleTalk(): void {
+    this.session?.toggleTalk();
+  }
+
   retryMicrophone(): void {
     void this.session?.recoverMicrophone();
   }
@@ -339,6 +389,7 @@ export class Calls {
   participantsChanged(event: Extract<EphemeralEvent, { type: "huddle.participants" }>): void {
     // Reconcile our own mesh against the new roster.
     if (this.session?.channelId === event.channelId && this.huddleAdmitted) {
+      this.session.setHands(event.hands ?? []);
       this.session.syncParticipants(event.userIds);
       this.publishHuddleState();
     }
@@ -362,7 +413,11 @@ export class Calls {
   joinResult(event: Extract<EphemeralEvent, { type: "huddle.join.result" }>): void {
     const pending = this.pendingHuddleJoin;
     if (pending?.channelId === event.channelId && pending.requestId === event.requestId) {
-      if (event.accepted) this.huddleAdmitted = true;
+      if (event.accepted) {
+        this.huddleAdmitted = true;
+        // The roster that came before this answer was not yet this device's to read.
+        this.session?.setHands(event.hands ?? []);
+      }
       pending.finish(event.accepted ? undefined : new HuddleJoinRefusedError(event.message));
     }
   }
@@ -372,6 +427,20 @@ export class Calls {
     if (this.session?.channelId === event.channelId && this.huddleAdmitted) {
       void this.session.handleSignal(event.from, event.signal);
     }
+  }
+
+  /** Someone in this device's call reacted (K17). */
+  reacted(event: Extract<EphemeralEvent, { type: "huddle.react" }>): void {
+    if (this.session?.channelId === event.channelId && this.huddleAdmitted)
+      this.session.heardReaction(event.from, event.emoji);
+  }
+
+  toggleHand(): void {
+    this.session?.toggleHand();
+  }
+
+  react(emoji: string): void {
+    this.session?.react(emoji);
   }
 
   /** Leaves the huddle when it is in this conversation. */

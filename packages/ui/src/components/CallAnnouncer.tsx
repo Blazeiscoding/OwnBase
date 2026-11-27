@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
+import type { CallReaction } from "@ownbase/client-core";
 import type { ID, User } from "@ownbase/protocol";
 import { namesList } from "../lib/catchUp.js";
 import { useKeyed } from "../lib/useKeyed.js";
@@ -19,18 +20,28 @@ export function describeArrivals(joined: string[], left: string[]): string {
   return parts.join(" ");
 }
 
+/** The least time between two reactions read out in one call, so a run of 👏 is one line (K17). */
+export const REACTION_SAID_MS = 5000;
+
 /**
  * Tells a screen reader who joins and leaves the huddle, which otherwise only
- * shows as a tile appearing. On the body, beside the notices, so it is heard
- * over a dialog: the modal layer makes the workspace inert, and an inert live
- * region says nothing.
+ * shows as a tile appearing, and who raises a hand or reacts (K17). On the
+ * body, beside the notices, so it is heard over a dialog: the modal layer
+ * makes the workspace inert, and an inert live region says nothing. Your own
+ * hand and reactions are your own presses, and not read back.
  */
 export function CallAnnouncer({
   peerIds,
   users,
+  selfId,
+  hands = [],
+  reactions = [],
 }: {
   peerIds: readonly ID[];
   users: Record<ID, User>;
+  selfId?: ID;
+  hands?: readonly ID[];
+  reactions?: readonly CallReaction[];
 }) {
   const [said, setSaid] = useState<{ id: number; text: string }[]>([]);
   const nextId = useRef(0);
@@ -73,6 +84,34 @@ export function CallAnnouncer({
     if (joined.length) say(describeArrivals(joined, []));
   }, [here, say]);
 
+  // Hands already up when you joined are on the screen, as people are.
+  const raised = useRef<Set<ID> | null>(null);
+  const handsNow = useKeyed(hands.join(" "), () => hands);
+  useEffect(() => {
+    const before = raised.current;
+    raised.current = new Set(handsNow);
+    if (!before) return;
+    for (const id of handsNow)
+      if (!before.has(id) && id !== selfId) say(`${nameOf.current(id)} raised their hand`);
+  }, [handsNow, selfId, say]);
+
+  // Read when a new one comes, which the newest id says; the list changes as old ones go too.
+  const heard = useRef<number | null>(null);
+  const saidAt = useRef(-Infinity);
+  const shown = useRef(reactions);
+  shown.current = reactions;
+  const newest = reactions.at(-1)?.id ?? 0;
+  useEffect(() => {
+    const last = heard.current;
+    heard.current = newest;
+    if (last === null) return;
+    const fresh = shown.current.find((r) => r.id > last && r.userId !== selfId);
+    const now = Date.now();
+    if (!fresh || now - saidAt.current < REACTION_SAID_MS) return;
+    saidAt.current = now;
+    say(`${nameOf.current(fresh.userId)} reacted ${fresh.emoji}`);
+  }, [newest, selfId, say]);
+
   useEffect(() => {
     const timers = leaving.current;
     return () => {
@@ -82,7 +121,7 @@ export function CallAnnouncer({
   }, []);
 
   return createPortal(
-    <div data-ownbase-call="" role="log" aria-label="Huddle arrivals" className="sr-only">
+    <div data-ownbase-call="" role="log" aria-label="Huddle updates" className="sr-only">
       {said.map((s) => (
         <p key={s.id}>{s.text}</p>
       ))}

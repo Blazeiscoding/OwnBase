@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { clientMessage, inviteMemberBody, type ClientToServer } from "../src/index.js";
+import {
+  clientMessage,
+  inviteMemberBody,
+  isCallReaction,
+  type ClientToServer,
+} from "../src/index.js";
 
 const id = (length: number) => "C".repeat(length);
 
@@ -28,5 +33,23 @@ describe("what a client may send over the socket", () => {
   it("refuses anything else", () => {
     expect(clientMessage.safeParse({ type: "typing" }).success).toBe(false);
     expect(clientMessage.safeParse({ type: "shout", channelId: "C1" }).success).toBe(false);
+  });
+});
+
+describe("a reaction in a huddle (K17)", () => {
+  it("is an emoji or a workspace's :name:, never words", () => {
+    for (const emoji of ["👍", "❤️", "👍🏽", "🇮🇳", "1️⃣", "ℹ️", "👩‍👩‍👧", ":party-parrot:"])
+      expect(isCallReaction(emoji), emoji).toBe(true);
+    for (const emoji of ["hi", "👍 nice", "nice👍", "123", ":Nope:", "", "👍".repeat(17)])
+      expect(isCallReaction(emoji), emoji).toBe(false);
+  });
+
+  it("goes over the socket with a hand raised or lowered", () => {
+    for (const message of [
+      { type: "huddle.react", channelId: "C1", emoji: "👍" },
+      { type: "huddle.hand", channelId: "C1", raised: true },
+    ])
+      expect(clientMessage.safeParse(message).success).toBe(true);
+    expect(clientMessage.safeParse({ type: "huddle.hand", channelId: "C1" }).success).toBe(false);
   });
 });

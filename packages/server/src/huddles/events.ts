@@ -10,5 +10,7 @@ export const huddleEphemeral = {
   "huddle.join.result": "device",
   "huddle.moved": "device",
   "huddle.signal": "device",
+  "huddle.react": "device",
   "huddle.ring": "person",
+  "huddle.ask.refused": "device",
 } as const satisfies Partial<EphemeralRegistry>;

@@ -33,6 +33,14 @@ export const huddleSignal = z.discriminatedUnion("kind", [
     camera: z.boolean(),
     screen: z.boolean(),
     muted: z.boolean(),
+    /**
+     * They hear nothing (K16), their microphone off with it. Whoever is told
+     * sends them no voice and no share's sound, since none would be heard.
+     * Every client since K16 says it. Optional, as each field here was when it
+     * came, because the server closes the socket of a client whose message it
+     * cannot read: an app not yet updated would drop out of every call.
+     */
+    deafened: z.boolean().optional(),
     /** Whether their share sends its sound, in a fourth slot after the screen's. */
     screenSound: z.boolean(),
     /**
@@ -151,9 +159,13 @@ export interface HuddleState {
  * each person who answers by joining, declines, or is still ringing at
  * `endsAt`, and for everyone once its caller leaves. `huddle.ring` tells the
  * caller and everyone it rang at each change; `ringing` empty means it is over.
+ *
+ * A channel's call rings only the members someone in it asks to join (K18),
+ * each until they answer, decline, miss it, or whoever asked leaves.
  */
 export interface HuddleRing {
   channelId: ID;
+  /** In a channel, whoever asked first; `askedBy` says who asked each. */
   callerId: ID;
   startedAt: number;
   /** When whoever is still ringing has missed it. */
@@ -162,6 +174,28 @@ export interface HuddleRing {
   /** Who answered by joining. */
   answered: ID[];
   declined: ID[];
+  /** A channel's ring only (K18): who asked each person it rang. */
+  askedBy?: Record<ID, ID>;
+}
+
+/** Why a ring someone asked for in a channel's call did not go out (K18). */
+export type HuddleAskRefusal = "unavailable" | "limited";
+
+/** The least time between two of one person's reactions in a huddle; the server drops the rest (K17). */
+export const HUDDLE_REACTION_MS = 400;
+
+/**
+ * Whether a reaction in a huddle is an emoji, a workspace's `:name:` or one
+ * the system draws, and not words, which would float over the call as text.
+ */
+export function isCallReaction(emoji: string): boolean {
+  return (
+    /^:[a-z0-9_-]{1,32}:$/.test(emoji) ||
+    (emoji.length <= 32 &&
+      // A letter only as an emoji's base, like ℹ️.
+      !/\s|\p{L}(?!️)/u.test(emoji) &&
+      /[\p{Extended_Pictographic}\p{Regional_Indicator}⃣]/u.test(emoji))
+  );
 }
 
 /**

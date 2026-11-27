@@ -260,14 +260,17 @@ function WorkspaceNavigation(props: {
   // A link to a conversation or a message, on arrival or later: the screen
   // keeps its key across deep links, so it goes there without remounting.
   const openMessage = useMemo(
-    () => (channelId: ID, messageId?: ID) =>
+    () => (channelId: ID, messageId?: ID, call?: boolean) => {
       navigation.navigate(
         messageId ? { to: "message", channelId, messageId } : { to: "conversation", channelId },
-      ),
+      );
+      if (call) navigation.offerCall(channelId);
+    },
     [navigation],
   );
   useEffect(() => {
-    if (initialTarget) openMessage(initialTarget.channelId, initialTarget.messageId);
+    if (initialTarget)
+      openMessage(initialTarget.channelId, initialTarget.messageId, initialTarget.call);
   }, [openMessage, initialTarget]);
   return (
     <NavigationContext.Provider value={navigation}>

@@ -310,6 +310,17 @@
       "concepts": ["screen sharing", "in-app picker", "consent"]
     },
     {
+      "path": "apps/desktop/src/main/callKeys.ts",
+      "plain": "Makes the mute, deafen and push-to-talk keys work in a call while another app, such as a game, is in front.",
+      "summary": "Holds the call keys with Electron's globalShortcut while the window is in a call and behind another app (K16).",
+      "details": [
+        "A key globalShortcut holds is taken from every app, OwnBase's own window included, and globalShortcut reports a press but never the key coming up. CallKeyHolder therefore holds the keys only while the window is in a call and not in front: focus lets them go so the window hears them itself, push to talk's key-up included; blur holds them again.",
+        "Behind another app, push to talk's key starts talking and a second press stops it, since nothing says when it was let go. Push to talk's key is held only while push to talk is chosen.",
+        "set tries every key at once, in front or not, and answers which ones another app holds, so Voice & video settings can say so; blur reports that list again when it changes (callKeys:taken). Keys are checked with callKeyAccelerator from client-core, and are let go when the page navigates, crashes, closes or the app quits."
+      ],
+      "concepts": ["K16", "global shortcuts", "push to talk"]
+    },
+    {
       "path": "apps/desktop/src/main/trayBackups.ts",
       "plain": "Shows failed automatic backups in the tray menu, with a retry option when one can be tried again.",
       "summary": "Turns persistent automatic-backup failures into tray actions.",

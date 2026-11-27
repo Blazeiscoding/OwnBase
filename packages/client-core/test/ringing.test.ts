@@ -292,3 +292,102 @@ describe("rings on the client", () => {
     expect(caller.state.ringNotice).toBeNull();
   });
 });
+
+describe("asking someone into a channel's call (K18)", () => {
+  it("rings them, and tells only whoever asked that they can't join or didn't answer", async () => {
+    const other = await createWorkspaceServer({
+      dataDir: ":memory:",
+      port: 0,
+      mdns: false,
+      rateLimits: false,
+    });
+    onTestFinished(() => other.stop());
+    const url = `http://127.0.0.1:${other.port}`;
+    const api = new Api(url);
+    const made = async (handle: string) =>
+      api.register({ handle, displayName: handle, password: "password123" });
+    const [maya, sam, priya] = [await made("maya"), await made("sam"), await made("priya")];
+    const general = other.store.channels.byName("general")!.id;
+    const mayas = await online(maya.token, url);
+    mayas.store.setState({ huddle: { channelId: general } as HuddleState });
+    // The device in the call has the call code, which words how an ask went.
+    (mayas as unknown as { calls: { callCode: unknown } }).calls.callCode =
+      await import("../src/huddle.js");
+    const priyas = await online(priya.token, url);
+    priyas.store.setState({ huddle: { channelId: general } as HuddleState });
+    const mayaInCall = await socket(maya.token, url);
+    const priyaInCall = await socket(priya.token, url);
+    mayaInCall({ type: "huddle.join", channelId: general, requestId: "a" });
+    priyaInCall({ type: "huddle.join", channelId: general, requestId: "b" });
+    await expect.poll(() => other.huddles.participants(general)).toHaveLength(2);
+    const sams = await online(sam.token, url);
+
+    mayaInCall({ type: "huddle.ask", channelId: general, userId: sam.user.id });
+    const rung = await until(sams, (s) => !!s.rings[general], "the ring");
+    expect(rung.rings[general]).toMatchObject({
+      ringing: [sam.user.id],
+      askedBy: { [sam.user.id]: maya.user.id },
+    });
+    sams.declineRing(general);
+    const said = await until(mayas, (s) => s.ringNotice !== null, "the notice");
+    expect(said.ringNotice).toMatchObject({ channelId: general, message: "sam can't join now" });
+    await until(priyas, (s) => !s.rings[general], "the ring to end for priya");
+    expect(priyas.state.ringNotice).toBeNull();
+
+    // Missed: the ring runs out on a clock the test moves.
+    mayas.store.setState({ ringNotice: null });
+    moveableClock();
+    mayaInCall({ type: "huddle.ask", channelId: general, userId: sam.user.id });
+    await until(sams, (s) => !!s.rings[general], "the second ring");
+    await vi.advanceTimersByTimeAsync(SERVER_RING_MS);
+    const missed = await until(mayas, (s) => s.ringNotice !== null, "the missed notice");
+    expect(missed.ringNotice?.message).toBe("sam didn't answer");
+    await until(sams, (s) => !s.rings[general], "the ring to stop for sam");
+  });
+
+  it("says someone who paused notifications can't join, without ringing them", async () => {
+    const other = await createWorkspaceServer({
+      dataDir: ":memory:",
+      port: 0,
+      mdns: false,
+      rateLimits: false,
+    });
+    onTestFinished(() => other.stop());
+    const url = `http://127.0.0.1:${other.port}`;
+    const api = new Api(url);
+    const maya = await api.register({
+      handle: "maya",
+      displayName: "Maya",
+      password: "password123",
+    });
+    const sam = await api.register({ handle: "sam", displayName: "Sam", password: "password123" });
+    await new Api(url, sam.token).updateMe({ dndUntil: Date.now() + 60_000 });
+    const general = other.store.channels.byName("general")!.id;
+    const sams = await online(sam.token, url);
+    const mayas = await online(maya.token, url);
+    // Node has no microphone, so this device is put in the call by hand.
+    const calls = (
+      mayas as unknown as {
+        calls: {
+          sendSocket: (m: unknown) => void;
+          session: unknown;
+          huddleAdmitted: boolean;
+          callCode: unknown;
+        };
+      }
+    ).calls;
+    calls.sendSocket({ type: "huddle.join", channelId: general, requestId: "a" });
+    await expect.poll(() => other.huddles.participants(general)).toHaveLength(1);
+    mayas.store.setState({ huddle: { channelId: general } as HuddleState });
+    calls.session = { channelId: general };
+    calls.huddleAdmitted = true;
+    calls.callCode = await import("../src/huddle.js");
+    mayas.ringIntoCall(sam.user.id);
+    calls.session = null;
+
+    const said = await until(mayas, (s) => s.ringNotice !== null, "the notice");
+    expect(said.ringNotice).toMatchObject({ channelId: general, message: "Sam can't join now" });
+    expect(other.huddles.ring(general)).toBeNull();
+    expect(sams.state.rings).toEqual({});
+  });
+});

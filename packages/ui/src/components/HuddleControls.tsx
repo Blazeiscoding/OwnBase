@@ -1,6 +1,8 @@
-import { useEffect, useState } from "react";
+import { useContext, useEffect, useRef, useState } from "react";
+import { isRoom, pageLink } from "@ownbase/protocol";
 import { useStore } from "zustand";
 import { createStore } from "zustand/vanilla";
+import { callKeyCombo } from "@ownbase/client-core/callKeys";
 import {
   canChooseSpeaker,
   captureFailure,
@@ -14,9 +16,17 @@ import { FRAME_RATES, RESOLUTIONS } from "../lib/screenShareQuality.js";
 import { Icon } from "./Icon.js";
 import { Menu, type MenuItem } from "./Menu.js";
 import { Swap } from "./Motion.js";
+import { ReactionBar } from "./CallReactions.js";
 import { ScreenShareDialog } from "./ScreenShareDialog.js";
 import { Tooltip } from "./Tooltip.js";
 import { shortcutLabel } from "../lib/shortcuts.js";
+import { writeClipboard } from "../lib/useCopy.js";
+import { AskToJoin } from "./AskToJoin.js";
+import { useShareableServer } from "./ShareableServer.js";
+import { ToastContext } from "./Toast.js";
+
+/** Where the controls show alone, as in a test, a copied link goes unannounced. */
+const quiet = () => () => {};
 
 /**
  * Whether the desktop app's screen picker is open. The controls out of full
@@ -121,9 +131,16 @@ export function HuddleControls({
   const away = useWorkspace((s) => s.status === "reconnecting" || s.status === "connecting");
   const calls = useCallPreferences();
   const devices = useMediaDevices();
+  const selfId = useWorkspace((s) => s.self?.id);
+  const [reacting, setReacting] = useState(false);
+  const [asking, setAsking] = useState(false);
+  const room = useWorkspace((s) => isRoom(s.channels[s.huddle?.channelId ?? ""]?.type));
+  const shareable = useShareableServer();
+  const toast = useContext(ToastContext) ?? quiet;
   const [busy, setBusy] = useState<"screen" | "camera" | "microphone" | null>(null);
   const [failure, setFailure] = useState<string | null>(null);
   const choosingScreen = useStore(picker, (s) => s.open);
+  const reactButton = useRef<HTMLButtonElement>(null);
   const savedQuality = calls.screenShare.quality;
   // The picker goes with the huddle, and does not open again with the next
   // one. Moving between the bar and the call keeps it open.
@@ -195,6 +212,57 @@ export function HuddleControls({
     onSelect: onOpenSettings,
   };
   const pickerDisabled = busy !== null || !calls.loaded || calls.saving;
+  const keyOf = (combo: string) => shortcutLabel(callKeyCombo(combo));
+  const deafened = !!huddle.deafened;
+  const holdingTalk = !!huddle.holdingTalk;
+  const handRaised = !!selfId && !!huddle.hands?.includes(selfId);
+  // The bar keeps to one row on a laptop, so what is used less goes in a menu.
+  // Full screen opens no menu, as with the devices.
+  const moreItems: MenuItem[] = overlay
+    ? []
+    : [
+        ...(inCall
+          ? []
+          : [
+              {
+                id: "hand",
+                label: handRaised ? "Lower your hand" : "Raise your hand",
+                icon: "hand" as const,
+                onSelect: () => client.toggleHand(),
+              },
+            ]),
+        // A direct call already rang everyone in it (K18).
+        ...(room
+          ? [
+              {
+                id: "ask",
+                label: "Ask someone to join",
+                icon: "userPlus" as const,
+                onSelect: () => setAsking(true),
+              },
+            ]
+          : []),
+        // Opens the conversation and offers its call, as Copy link opens the conversation (K03).
+        {
+          id: "copy-call-link",
+          label: "Copy link to call",
+          icon: "link",
+          onSelect: () =>
+            void writeClipboard(
+              pageLink(shareable.serverUrl, {
+                kind: "conversation",
+                channelId: huddle.channelId,
+                call: true,
+              }),
+            ).then((ok) =>
+              toast(
+                ok
+                  ? { message: "Link copied.", kind: "success" }
+                  : { message: "Could not copy the link." },
+              ),
+            ),
+        },
+      ];
   // Full screen shows only what is inside the stage, and menus open on the
   // page beneath it, so devices are changed from the bar.
   const micMenu = !overlay && (
@@ -293,14 +361,17 @@ export function HuddleControls({
       <div
         role="group"
         aria-label="Huddle controls"
-        className={`flex shrink-0 items-center gap-2 ${
-          overlay ? "rounded-2xl bg-black/50 p-1.5 backdrop-blur" : stage ? "" : "ml-auto"
+        // As wide as the room it has, and no wider: on a phone the buttons wrap
+        // onto a second row rather than running off the screen.
+        className={`flex max-w-full shrink-0 flex-wrap items-center gap-2 ${
+          overlay
+            ? "justify-center rounded-2xl bg-black/50 p-1.5 backdrop-blur"
+            : stage
+              ? "justify-center"
+              : "ml-auto justify-end"
         }`}
       >
-        <Tooltip
-          label={huddle.micMuted ? "Unmute" : "Mute"}
-          keys={shortcutLabel("Mod+Shift+Space")}
-        >
+        <Tooltip label={huddle.micMuted ? "Unmute" : "Mute"} keys={keyOf(calls.keys.mute)}>
           <button
             aria-label="Mute microphone"
             aria-pressed={huddle.micMuted}
@@ -316,6 +387,58 @@ export function HuddleControls({
           </button>
         </Tooltip>
         {micMenu}
+        <Tooltip
+          label={deafened ? "Undeafen" : "Deafen: hear nobody and mute your microphone"}
+          keys={keyOf(calls.keys.deafen)}
+        >
+          <button
+            aria-label="Deafen"
+            aria-pressed={deafened}
+            onClick={() => client.toggleDeafen()}
+            className={toggleCls(
+              deafened,
+              inCall ? "bg-alert/20 text-alert hover:bg-alert/30" : "border-alert text-alert",
+            )}
+          >
+            <Swap on={deafened}>
+              <Icon name={deafened ? "headphonesOff" : "headphones"} />
+            </Swap>
+          </button>
+        </Tooltip>
+        {huddle.pushToTalk && (
+          <Tooltip label={`Hold this button, or ${keyOf(calls.keys.talk)}, to talk`}>
+            <button
+              type="button"
+              aria-label="Hold to talk"
+              aria-pressed={holdingTalk}
+              // Held, not clicked: down starts talking and up stops it, and a
+              // long press on a touchscreen opens no menu.
+              onPointerDown={(event) => {
+                event.currentTarget.setPointerCapture?.(event.pointerId);
+                client.pressTalk();
+              }}
+              onPointerUp={() => client.releaseTalk()}
+              onPointerCancel={() => client.releaseTalk()}
+              onLostPointerCapture={() => client.releaseTalk()}
+              onContextMenu={(event) => event.preventDefault()}
+              onKeyDown={(event) => {
+                if (event.key !== " " && event.key !== "Enter") return;
+                event.preventDefault();
+                if (!event.repeat) client.pressTalk();
+              }}
+              onKeyUp={(event) => {
+                if (event.key === " " || event.key === "Enter") client.releaseTalk();
+              }}
+              onBlur={() => client.releaseTalk()}
+              className={`flex shrink-0 touch-none select-none items-center gap-1.5 px-3 text-sm font-medium transition-colors ${
+                inCall ? "h-11 rounded-xl" : "h-10 rounded-full border"
+              } ${holdingTalk ? (inCall ? "bg-online text-ground" : "border-transparent bg-online text-ground") : off}`}
+            >
+              <Icon name="mic" size={16} />
+              {holdingTalk ? "Talking" : "Hold to talk"}
+            </button>
+          </Tooltip>
+        )}
         <Tooltip label={huddle.cameraOn ? "Turn your camera off" : "Turn your camera on"}>
           <button
             aria-label="Camera"
@@ -343,6 +466,42 @@ export function HuddleControls({
           </Tooltip>
         )}
         {shareMenu}
+        <Tooltip label={reacting ? "Hide reactions" : "Send a reaction"}>
+          <button
+            ref={reactButton}
+            type="button"
+            aria-label="Reactions"
+            aria-expanded={reacting}
+            onClick={() => setReacting((on) => !on)}
+            className={toggleCls(reacting, lit)}
+          >
+            <Icon name="smile" />
+          </button>
+        </Tooltip>
+        {inCall && (
+          <Tooltip label={handRaised ? "Lower your hand" : "Raise your hand"}>
+            <button
+              type="button"
+              aria-label="Raise hand"
+              aria-pressed={handRaised}
+              onClick={() => client.toggleHand()}
+              className={toggleCls(handRaised, lit)}
+            >
+              <Icon name="hand" />
+            </button>
+          </Tooltip>
+        )}
+        {moreItems.length > 0 && (
+          <Menu
+            label="More call options"
+            items={moreItems}
+            tooltip="More call options"
+            triggerLabel="More call options"
+            sheet
+            triggerContent={<Icon name="dots" />}
+            triggerClassName={`${toggleCls(false, "")} aria-expanded:bg-ink/[0.06]`}
+          />
+        )}
         {/* Leave keeps its word: an arrow out of a door reads as signing out just as easily. */}
         <button
           onClick={() => client.leaveHuddle()}
@@ -356,6 +515,16 @@ export function HuddleControls({
           Leave
         </button>
       </div>
+      {reacting && (
+        <ReactionBar
+          inCall={inCall}
+          overlay={overlay}
+          onClose={() => {
+            setReacting(false);
+            reactButton.current?.focus();
+          }}
+        />
+      )}
       {away && (
         <p
           role="status"
@@ -384,7 +553,7 @@ export function HuddleControls({
             className="shrink-0 rounded-lg border border-current px-2 py-1 font-medium"
           >
             Unmute
-            <span className="ml-1.5 opacity-70">{shortcutLabel("Mod+Shift+Space")}</span>
+            <span className="ml-1.5 opacity-70">{keyOf(calls.keys.mute)}</span>
           </button>
         </p>
       )}
@@ -409,6 +578,9 @@ export function HuddleControls({
             Try again
           </button>
         </p>
+      )}
+      {asking && !overlay && (
+        <AskToJoin channelId={huddle.channelId} onClose={() => setAsking(false)} />
       )}
       {choosingScreen && !overlay && (
         <ScreenShareDialog onClose={() => picker.setState({ open: false })} />

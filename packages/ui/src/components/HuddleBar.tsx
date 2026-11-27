@@ -8,7 +8,13 @@ import { Popover } from "./Popover.js";
 import { HuddleControls } from "./HuddleControls.js";
 import { HuddleAudio } from "./HuddleAudio.js";
 import { Tooltip } from "./Tooltip.js";
-import { aloneLine, bigCallLine, ringingLine, type HuddleView } from "../lib/huddleView.js";
+import {
+  aloneLine,
+  bigCallLine,
+  ringingLine,
+  useRingNotice,
+  type HuddleView,
+} from "../lib/huddleView.js";
 import { useToast } from "./Toast.js";
 import type { HuddleState } from "@ownbase/client-core";
 import { namesList } from "../lib/catchUp.js";
@@ -16,7 +22,9 @@ import { useCallPreferences } from "../lib/callPreferences.js";
 import { useCallVolumes } from "../lib/callVolumes.js";
 import { PersonVolume } from "./PersonVolume.js";
 import { CallAnnouncer } from "./CallAnnouncer.js";
+import { ReactionTicker } from "./CallReactions.js";
 import { CallDock } from "./CallDock.js";
+import { CallKeys } from "./CallKeys.js";
 
 /** Someone in the call, as the bar and its roster need them. */
 interface Person {
@@ -28,6 +36,8 @@ interface Person {
   name: string;
   speaking: boolean;
   muted: boolean;
+  /** Hears nobody, their microphone off with it (K16). */
+  deafened?: boolean;
   /** Muted by you, for you alone. */
   mutedForYou?: boolean;
   connecting: boolean;
@@ -37,7 +47,13 @@ interface Person {
   reconnecting?: boolean;
   /** Sharing a screen with its sound, whose volume is yours to set as well. */
   screenSound?: boolean;
+  /** Their hand is raised (K17). */
+  hand?: boolean;
 }
+
+/** Their name, with a raised hand and what else is true of them, for a label. */
+const labelOf = (p: Person, state: string | null) =>
+  [p.name, p.hand && "hand raised", state].filter(Boolean).join(", ");
 
 /** How many faces the bar shows before the rest are counted. */
 const FACES = 4;
@@ -49,6 +65,7 @@ function stateOf(p: Person): string | null {
   // Before talking: it is why you cannot hear them.
   if (p.mutedForYou) return "muted for you";
   if (p.speaking) return "talking";
+  if (p.deafened) return "deafened";
   if (p.muted) return "muted";
   return null;
 }
@@ -61,12 +78,17 @@ function HuddleFace({ person, size = 24 }: { person: Person; size?: number }) {
   const state = stateOf(person);
   return (
     <span
-      title={state ? `${person.name} (${state})` : person.name}
+      title={labelOf(person, state)}
       className={`relative flex shrink-0 rounded-full ring-2 transition-colors ${
         person.speaking ? "ring-online" : "ring-transparent"
       } ${person.connecting ? "opacity-40" : ""}`}
     >
       <Avatar user={person.user} size={size} />
+      {person.hand && (
+        <span className="absolute -right-1 -top-1 animate-badge-in rounded-full bg-raised p-0.5 text-copper">
+          <Icon name="hand" size={9} />
+        </span>
+      )}
       {person.mutedForYou ? (
         <span className="absolute -bottom-0.5 -right-0.5 rounded-full bg-raised p-0.5 text-alert">
           <Icon name="volumeOff" size={9} />
@@ -74,7 +96,7 @@ function HuddleFace({ person, size = 24 }: { person: Person; size?: number }) {
       ) : (
         person.muted && (
           <span className="absolute -bottom-0.5 -right-0.5 rounded-full bg-raised p-0.5 text-ink-dim">
-            <Icon name="micOff" size={9} />
+            <Icon name={person.deafened ? "headphonesOff" : "micOff"} size={9} />
           </span>
         )
       )}
@@ -127,11 +149,7 @@ function HuddlePeople({ people }: { people: Person[] }) {
             {people.map((p) => {
               const state = stateOf(p);
               return (
-                <li
-                  key={p.key}
-                  aria-label={state ? `${p.name}, ${state}` : p.name}
-                  className="rounded-lg px-2 py-1.5"
-                >
+                <li key={p.key} aria-label={labelOf(p, state)} className="rounded-lg px-2 py-1.5">
                   <div className="flex items-center gap-2.5">
                     <HuddleFace person={p} size={28} />
                     <span className="min-w-0 flex-1 truncate text-sm">{p.name}</span>
@@ -209,6 +227,7 @@ export function HuddleBar({
   const ringNotice = useWorkspace((s) => s.ringNotice);
   const speakerId = useCallPreferences().devices.speakerId;
   const { volumes } = useCallVolumes();
+  const notice = useRingNotice(ringNotice, huddle?.channelId, huddle?.peers.length === 0);
 
   if (!huddle) return null;
   const channel = channels[huddle.channelId];
@@ -229,13 +248,15 @@ export function HuddleBar({
         : " · Connecting…";
   // Someone who has taken too long to connect: say so, and offer the reason.
   const stuck = huddle.peers.filter((p) => !p.connected && p.trouble);
-  const people: Person[] = [
+  const hands = huddle.hands ?? [];
+  const everyone: Person[] = [
     {
       key: "self",
       user: selfId ? users[selfId] : undefined,
       name: "You",
       speaking: huddle.speaking,
       muted: huddle.micMuted,
+      deafened: !!huddle.deafened,
       connecting: false,
       stuck: false,
     },
@@ -246,6 +267,7 @@ export function HuddleBar({
       name: users[p.userId]?.displayName ?? "Someone",
       speaking: p.connected && p.speaking,
       muted: p.connected && p.micMuted,
+      deafened: p.connected && !!p.deafened,
       mutedForYou: volumes[p.userId]?.muted ?? false,
       connecting: !p.connected,
       stuck: !p.connected && !!p.trouble,
@@ -253,6 +275,11 @@ export function HuddleBar({
       screenSound: !!p.screenSoundStream,
     })),
   ];
+  // Raised hands first, first raised first (K17); everyone else as they were.
+  const handOf = (p: Person) => hands.indexOf(p.peerId ?? selfId ?? "");
+  const people = everyone
+    .map((p) => ({ ...p, hand: handOf(p) >= 0 }))
+    .sort((a, b) => (a.hand && b.hand ? handOf(a) - handOf(b) : +b.hand - +a.hand));
   const sharer = huddle.peers.find((p) => p.screenStream);
   const sharing = sharer
     ? ` · ${users[sharer.userId]?.displayName ?? "Someone"} is sharing their screen`
@@ -270,7 +297,7 @@ export function HuddleBar({
             .join(", ")} · Trying again`
         : `With ${namesList(huddle.peers.map((p) => users[p.userId]?.displayName ?? "someone"))}${
             connecting
-          }${sharing}${ringing ? ` · ${ringing}` : ""}`;
+          }${sharing}${ringing ? ` · ${ringing}` : ""}${notice ? ` · ${notice}` : ""}`;
   const calling = view === "call";
   return (
     <div
@@ -279,8 +306,20 @@ export function HuddleBar({
       hidden={calling}
       className="huddle-live mx-4 mb-2 flex flex-wrap items-center gap-3 rounded-xl border px-4 py-2.5"
     >
-      <HuddleAudio peers={huddle.peers} speakerId={speakerId} volumes={volumes} />
-      <CallAnnouncer peerIds={huddle.peers.map((p) => p.userId)} users={users} />
+      <HuddleAudio
+        peers={huddle.peers}
+        speakerId={speakerId}
+        volumes={volumes}
+        deafened={!!huddle.deafened}
+      />
+      <CallKeys />
+      <CallAnnouncer
+        peerIds={huddle.peers.map((p) => p.userId)}
+        users={users}
+        selfId={selfId}
+        hands={hands}
+        reactions={huddle.reactions}
+      />
       <BigCallNotice huddle={huddle} />
       <CallDock where={where} />
       {!calling && (
@@ -307,16 +346,21 @@ export function HuddleBar({
             </div>
           </div>
 
+          <ReactionTicker reactions={huddle.reactions} users={users} />
           <HuddlePeople people={people} />
 
+          {/* An icon, so the bar fits one row on a laptop beside the controls. */}
           {onViewChange && (
-            <button
-              onClick={() => onViewChange("call")}
-              className="flex h-11 items-center gap-2 rounded-xl border border-edge px-3 text-sm text-ink-dim transition-colors hover:border-ink-faint hover:text-ink"
-            >
-              <Icon name="expand" size={16} />
-              Show call
-            </button>
+            <Tooltip label="Show call">
+              <button
+                type="button"
+                aria-label="Show call"
+                onClick={() => onViewChange("call")}
+                className="flex size-10 shrink-0 items-center justify-center rounded-full border border-edge text-ink-dim transition-colors hover:border-ink-faint hover:text-ink"
+              >
+                <Icon name="expand" size={16} />
+              </button>
+            </Tooltip>
           )}
 
           <HuddleControls onOpenSettings={onOpenSettings} />

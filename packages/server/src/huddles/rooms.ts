@@ -1,4 +1,15 @@
-import type { EphemeralEvent, HuddleRing, ID, ReadySnapshot } from "@ownbase/protocol";
+import {
+  HUDDLE_REACTION_MS,
+  customEmojiName,
+  isCallReaction,
+  isDirect,
+  scheduleAllows,
+  type HuddleAskRefusal,
+  type EphemeralEvent,
+  type HuddleRing,
+  type ID,
+  type ReadySnapshot,
+} from "@ownbase/protocol";
 import type { EventTo } from "../events/registry.js";
 import type { Client, Gateway, HuddleFrame, Huddles, SessionCheck } from "../gateway.js";
 import type { RateLimiter } from "../limits.js";
@@ -17,7 +28,8 @@ export const HUDDLE_GRACE_MS = 30_000;
 
 /**
  * How long a direct message's huddle rings the people in it before whoever
- * has not answered has missed it (E10).
+ * has not answered has missed it (E10), and a channel's rings each person
+ * someone in it asked to join (K18).
  */
 export const HUDDLE_RING_MS = 30_000;
 
@@ -26,6 +38,8 @@ interface Ring {
   /** Everyone it rang, who hear each change, whether or not it still rings them. */
   rang: ID[];
   timer: NodeJS.Timeout | null;
+  /** A channel's (K18): when each person it rings has missed it. */
+  asks?: Map<ID, NodeJS.Timeout>;
 }
 
 /**
@@ -36,6 +50,10 @@ interface Ring {
 interface Seat {
   client: Client | null;
   released: NodeJS.Timeout | null;
+  /** Their hand is up (K17), the how-manieth raised; it goes with the place. */
+  hand?: number;
+  /** When their last reaction was passed on (K17). */
+  reactedAt?: number;
 }
 
 export interface HuddleRoomsOptions {
@@ -47,18 +65,20 @@ export interface HuddleRoomsOptions {
 
 /**
  * Who is in which huddle on which device, the rings of direct messages'
- * huddles (E10), and the call log. Purely live state: a huddle exists only
- * while people are in it, so none of it is written to the event log or
- * survives a restart. The gateway hands it each signed-in socket's huddle
+ * huddles (E10) and of people asked into a channel's (K18), and the call
+ * log. Purely live state: a huddle exists only while people are in it, so
+ * none of it is written to the event log or survives a restart. The gateway hands it each signed-in socket's huddle
  * frames and tells it when a socket is gone.
  */
 export class HuddleRooms implements Huddles {
   /** channelId -> who is in that channel's huddle, and on which device. */
   private rooms = new Map<ID, Map<ID, Seat>>();
-  /** channelId -> the ring of a direct message's huddle just started. */
+  /** channelId -> the ring of a direct message's huddle just started, or of a channel's asks. */
   private rings = new Map<ID, Ring>();
   /** What happened in huddles lately, for the host (see `CallLog`). */
   readonly calls = new CallLog();
+  /** How many hands have gone up, which orders them (K17). */
+  private handsRaised = 0;
 
   constructor(
     private gateway: Gateway,
@@ -81,6 +101,16 @@ export class HuddleRooms implements Huddles {
       case "huddle.report":
         if (this.afford(client.userId)) this.report(frame, client);
         return;
+      // Spaced out by its own time below, not the shared allowance: a burst
+      // of reactions should not hold back someone's typing notices.
+      case "huddle.react":
+        return this.react(frame, client);
+      case "huddle.hand":
+        if (this.afford(client.userId)) this.raiseHand(frame, client);
+        return;
+      // Rationed by an allowance of its own, in `ask`.
+      case "huddle.ask":
+        return this.ask(frame, client);
     }
   }
 
@@ -95,7 +125,7 @@ export class HuddleRooms implements Huddles {
       if (this.store.canAccess(channelId, userId)) huddles[channelId] = [...members.keys()];
     }
     const huddleRings = [...this.rings.values()]
-      .filter((ring) => ring.state.callerId === userId || ring.rang.includes(userId))
+      .filter((ring) => this.hearers(ring).includes(userId))
       .map((ring) => ({ ...ring.state }));
     return { huddles, huddleRings };
   }
@@ -127,7 +157,10 @@ export class HuddleRooms implements Huddles {
     for (const room of this.rooms.values())
       for (const seat of room.values()) if (seat.released) clearTimeout(seat.released);
     // Stopping misses nobody's call: the rings end with the huddles, unannounced.
-    for (const ring of this.rings.values()) if (ring.timer) clearTimeout(ring.timer);
+    for (const ring of this.rings.values()) {
+      if (ring.timer) clearTimeout(ring.timer);
+      for (const timer of ring.asks?.values() ?? []) clearTimeout(timer);
+    }
     this.rings.clear();
   }
 
@@ -171,7 +204,13 @@ export class HuddleRooms implements Huddles {
         // talk over this one.
         if (before) this.gateway.tellDevice(before, { type: "huddle.moved", channelId });
       }
-      reply({ type: "huddle.join.result", channelId, requestId, accepted: true });
+      reply({
+        type: "huddle.join.result",
+        channelId,
+        requestId,
+        accepted: true,
+        ...this.hands(channelId),
+      });
       return;
     }
     // Each admitted join can cause at most one later departure broadcast. Leave,
@@ -191,7 +230,13 @@ export class HuddleRooms implements Huddles {
     this.calls.add({ channelId, userId, kind: "joined" });
     if (started) this.gateway.contained("huddle ring", () => this.startRing(channelId, userId));
     this.publish(channelId);
-    reply({ type: "huddle.join.result", channelId, requestId, accepted: true });
+    reply({
+      type: "huddle.join.result",
+      channelId,
+      requestId,
+      accepted: true,
+      ...this.hands(channelId),
+    });
   }
 
   /**
@@ -261,7 +306,12 @@ export class HuddleRooms implements Huddles {
   publish(channelId: ID, authorized?: SessionCheck): void {
     this.gateway.tellChannel(
       channelId,
-      { type: "huddle.participants", channelId, userIds: this.participants(channelId) },
+      {
+        type: "huddle.participants",
+        channelId,
+        userIds: this.participants(channelId),
+        ...this.hands(channelId),
+      },
       authorized,
     );
     this.gateway.contained("huddle ring", () => this.settleRing(channelId));
@@ -305,6 +355,58 @@ export class HuddleRooms implements Huddles {
     }
   }
 
+  /** Who has a hand up in a huddle, first raised first, for its roster (K17). */
+  private hands(channelId: ID): { hands?: ID[] } {
+    const up = [...(this.rooms.get(channelId) ?? [])]
+      .filter(([, seat]) => seat.hand !== undefined)
+      .sort(([, a], [, b]) => a.hand! - b.hand!)
+      .map(([userId]) => userId);
+    return up.length > 0 ? { hands: up } : {};
+  }
+
+  /** The seat of the device in the call, and only while it can still see the conversation. */
+  private seatOf(channelId: ID, client: Client): Seat | null {
+    const seat = this.rooms.get(channelId)?.get(client.userId);
+    return seat?.client === client && this.store.canAccess(channelId, client.userId) ? seat : null;
+  }
+
+  /**
+   * Passes a reaction to every device in the huddle, the sender's as well, so
+   * each shows it at the same moment. One that comes sooner than
+   * `HUDDLE_REACTION_MS` after the last is dropped without a word, as is one
+   * that is not an emoji, or names a custom emoji the workspace lacks.
+   */
+  private react(frame: Frame<"huddle.react">, client: Client): void {
+    const { channelId, emoji } = frame;
+    const seat = this.seatOf(channelId, client);
+    const now = Date.now();
+    const custom = customEmojiName(emoji);
+    if (
+      !seat ||
+      now - (seat.reactedAt ?? -Infinity) < HUDDLE_REACTION_MS ||
+      !isCallReaction(emoji) ||
+      (custom !== null && !this.store.emoji.has(custom))
+    )
+      return;
+    seat.reactedAt = now;
+    for (const other of this.rooms.get(channelId)!.values())
+      if (other.client && this.gateway.authorized(other.client))
+        this.gateway.tellDevice(other.client, {
+          type: "huddle.react",
+          channelId,
+          from: client.userId,
+          emoji,
+        });
+  }
+
+  /** Raises or lowers a hand, and tells the room's roster when that changed it. */
+  private raiseHand(frame: Frame<"huddle.hand">, client: Client): void {
+    const seat = this.seatOf(frame.channelId, client);
+    if (!seat || frame.raised === (seat.hand !== undefined)) return;
+    seat.hand = frame.raised ? ++this.handsRaised : undefined;
+    this.publish(frame.channelId);
+  }
+
   private report(frame: Frame<"huddle.report">, client: Client): void {
     // A report can come just after either side left, so only the
     // conversation's access is asked, not the room's.
@@ -323,7 +425,8 @@ export class HuddleRooms implements Huddles {
   /**
    * Rings everyone else in a direct message whose huddle this person has
    * just started: not bots, who cannot answer, nor deactivated accounts.
-   * Joining a huddle already going rings nobody, and a channel never rings.
+   * Joining a huddle already going rings nobody, and a channel rings only
+   * whom someone in its call asks to join (`ask`).
    */
   private startRing(channelId: ID, callerId: ID): void {
     const channel = this.store.channels.get(channelId);
@@ -368,11 +471,17 @@ export class HuddleRooms implements Huddles {
     const ring = this.rings.get(channelId);
     if (!ring) return;
     const room = this.rooms.get(channelId);
-    if (!room?.has(ring.state.callerId)) return this.endRing(channelId, ring);
     const { state } = ring;
-    const joined = ring.rang.filter((id) => room.has(id) && !state.answered.includes(id));
-    if (joined.length === 0) return;
-    state.ringing = state.ringing.filter((id) => !joined.includes(id));
+    const { askedBy } = state;
+    if (!askedBy && !room?.has(state.callerId)) return this.endRing(channelId, ring);
+    const joined = ring.rang.filter((id) => room?.has(id) && !state.answered.includes(id));
+    // In a channel, each person rings only while whoever asked them is in the call.
+    const dropped = askedBy
+      ? state.ringing.filter((id) => !joined.includes(id) && !room?.has(askedBy[id]!))
+      : [];
+    if (joined.length === 0 && dropped.length === 0) return;
+    for (const id of [...joined, ...dropped]) this.stopAsk(ring, id);
+    state.ringing = state.ringing.filter((id) => !joined.includes(id) && !dropped.includes(id));
     state.declined = state.declined.filter((id) => !joined.includes(id));
     state.answered = [...state.answered, ...joined];
     if (state.ringing.length === 0) this.endRing(channelId, ring);
@@ -382,6 +491,7 @@ export class HuddleRooms implements Huddles {
   private decline(channelId: ID, userId: ID): void {
     const ring = this.rings.get(channelId);
     if (!ring || !ring.state.ringing.includes(userId)) return;
+    this.stopAsk(ring, userId);
     ring.state.ringing = ring.state.ringing.filter((id) => id !== userId);
     ring.state.declined = [...ring.state.declined, userId];
     if (ring.state.ringing.length === 0) this.endRing(channelId, ring);
@@ -398,18 +508,122 @@ export class HuddleRooms implements Huddles {
     this.rings.delete(channelId);
     if (ring.timer) clearTimeout(ring.timer);
     ring.timer = null;
+    for (const id of [...(ring.asks?.keys() ?? [])]) this.stopAsk(ring, id);
     const missed = ring.state.ringing.length > 0;
     ring.state.ringing = [];
     this.tellRing(ring);
-    if (missed && ring.state.answered.length === 0)
+    // A channel's call is still there to join, so nothing is left there to say it was missed.
+    if (missed && ring.state.answered.length === 0 && !ring.state.askedBy)
       this.gateway.contained("missed call", () =>
         this.options.missedCall(channelId, ring.state.callerId),
       );
   }
 
+  /** Who hears a ring's changes: whoever rang or asked, and everyone it rang. */
+  private hearers(ring: Ring): ID[] {
+    const { callerId, askedBy } = ring.state;
+    return [...new Set([callerId, ...Object.values(askedBy ?? {}), ...ring.rang])];
+  }
+
   private tellRing(ring: Ring): void {
     const event: EventTo<"person"> = { type: "huddle.ring", ring: { ...ring.state } };
-    for (const userId of [ring.state.callerId, ...ring.rang])
+    for (const userId of this.hearers(ring))
       this.gateway.contained("huddle ring", () => this.gateway.tellPerson(userId, event));
+  }
+
+  private stopAsk(ring: Ring, userId: ID): void {
+    const timer = ring.asks?.get(userId);
+    if (timer) clearTimeout(timer);
+    ring.asks?.delete(userId);
+  }
+
+  /**
+   * Rings a member of a channel into its call, as someone in the call asked
+   * (K18): not a bot, a deactivated account, someone already in it or being
+   * rung, nor anyone who could not join it. Someone who paused notifications,
+   * is outside the hours they allow them, blocked the asker or was blocked by
+   * them is not rung, and the asker hears only that they cannot join, as a
+   * decline would say. Each asker has an allowance of rings of their own.
+   */
+  private ask(frame: Frame<"huddle.ask">, client: Client): void {
+    const { channelId, userId } = frame;
+    const askerId = client.userId;
+    const channel = this.store.channels.get(channelId);
+    const user = this.store.people.get(userId);
+    if (
+      !this.seatOf(channelId, client) ||
+      !channel ||
+      isDirect(channel.type) ||
+      !user ||
+      user.isBot ||
+      user.deactivated ||
+      this.rooms.get(channelId)!.has(userId) ||
+      this.rings.get(channelId)?.state.ringing.includes(userId) ||
+      !this.store.channels.memberIds(channelId).includes(userId) ||
+      !this.store.canAccess(channelId, userId)
+    )
+      return;
+    const refuse = (reason: HuddleAskRefusal, retryAfterMs?: number) =>
+      this.gateway.tellDevice(client, {
+        type: "huddle.ask.refused",
+        channelId,
+        userId,
+        reason,
+        ...(retryAfterMs ? { retryAfterMs } : {}),
+      });
+    const allowance = this.options.limiter?.take("huddleRing", askerId);
+    if (allowance && !allowance.ok) return refuse("limited", allowance.retryAfterMs);
+    const now = Date.now();
+    if (
+      this.store.people.blockedIds(userId).includes(askerId) ||
+      this.store.people.blockedIds(askerId).includes(userId) ||
+      (user.dndUntil ?? 0) > now ||
+      !scheduleAllows(this.store.people.notifySchedule(userId), user.timeZone, now)
+    )
+      return refuse("unavailable");
+
+    let ring = this.rings.get(channelId);
+    if (!ring) {
+      ring = {
+        state: {
+          channelId,
+          callerId: askerId,
+          startedAt: now,
+          endsAt: now,
+          ringing: [],
+          answered: [],
+          declined: [],
+          askedBy: {},
+        },
+        rang: [],
+        timer: null,
+        asks: new Map(),
+      };
+      this.rings.set(channelId, ring);
+    }
+    const { state } = ring;
+    state.ringing = [...state.ringing, userId];
+    // Asked again, after declining, or after joining and leaving.
+    state.declined = state.declined.filter((id) => id !== userId);
+    state.answered = state.answered.filter((id) => id !== userId);
+    state.askedBy = { ...state.askedBy, [userId]: askerId };
+    state.endsAt = now + HUDDLE_RING_MS;
+    if (!ring.rang.includes(userId)) ring.rang.push(userId);
+    const asked = ring;
+    const timer = setTimeout(() => {
+      this.gateway.contained("huddle ring", () => this.missAsk(channelId, asked, userId));
+    }, HUDDLE_RING_MS);
+    timer.unref?.();
+    ring.asks!.set(userId, timer);
+    this.tellRing(ring);
+  }
+
+  /** Someone asked into a channel's call has missed it. */
+  private missAsk(channelId: ID, ring: Ring, userId: ID): void {
+    if (this.rings.get(channelId) !== ring || !ring.state.ringing.includes(userId)) return;
+    ring.asks?.delete(userId);
+    ring.state.ringing = ring.state.ringing.filter((id) => id !== userId);
+    if (ring.state.ringing.length === 0) this.endRing(channelId, ring);
+    else this.tellRing(ring);
   }
 }

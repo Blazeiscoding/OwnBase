@@ -18,6 +18,7 @@ describe("page links", () => {
     [{ kind: "verifyEmail", token: "t2" }, "#/verify-email/t2"],
     [{ kind: "message", channelId: "C1", messageId: "M1" }, "#/c/C1/m/M1"],
     [{ kind: "conversation", channelId: "C1" }, "#/c/C1"],
+    [{ kind: "conversation", channelId: "C1", call: true }, "#/c/C1/call"],
   ];
 
   it.each(links)("writes %o as %s and reads it back", (link, hash) => {
@@ -38,6 +39,8 @@ describe("page links", () => {
       "#/c/C.1",
       "#/c/C1/t/M1",
       "#/c/C1/m/",
+      "#/c/C1/call/x",
+      "#/c/C1/calls",
       "#/leave/abc",
     ])
       expect(readPageHash(hash)).toBeNull();
@@ -66,5 +69,8 @@ describe("page links", () => {
     expect(desktopLink("192.168.1.5:8543", { kind: "conversation", channelId: "C1" })).toBe(
       "ownbase://conversation?host=192.168.1.5:8543&channel=C1",
     );
+    expect(
+      desktopLink("192.168.1.5:8543", { kind: "conversation", channelId: "C1", call: true }),
+    ).toBe("ownbase://conversation?host=192.168.1.5:8543&channel=C1&call=1");
   });
 });

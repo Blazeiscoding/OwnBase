@@ -8,6 +8,7 @@
     "./outbox": "./src/outbox.ts",
     "./drafts": "./src/drafts.ts",
     "./records": "./src/records.ts",
+    "./callKeys": "./src/callKeys.ts",
     "./trustedAddresses": "./src/trustedAddresses.ts",
     "./deviceStorage": "./src/deviceStorage.ts",
     "./addressTrust": "./src/addressTrust.ts",

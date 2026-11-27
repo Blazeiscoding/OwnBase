@@ -63,7 +63,7 @@ import { Preferences } from "./preferences.js";
 import { ReadMarks } from "./readMarks.js";
 import { Sender, type SendAnswer } from "./sender.js";
 import { pollChoicesKey, serverPollChoices, type PollDraft } from "./polls.js";
-import type { CallLogLine, CallView, ScreenShareQuality } from "./huddle.js";
+import type { CallLogLine, CallView, PushToTalk, ScreenShareQuality } from "./huddle.js";
 import type { MicrophoneSettings, NoiseFilter, OpenSystemMicrophone } from "./devices.js";
 
 /** How `LocalWork` reaches the outbox and drafts, which nothing else should change. */
@@ -868,6 +868,9 @@ export class WorkspaceClient {
         });
         break;
       }
+      case "huddle.ask.refused":
+        this.calls.askRefused(event);
+        break;
       case "huddle.moved":
         this.calls.moved(event);
         break;
@@ -877,6 +880,9 @@ export class WorkspaceClient {
       }
       case "huddle.signal":
         this.calls.signal(event);
+        break;
+      case "huddle.react":
+        this.calls.reacted(event);
         break;
       case "channel.read":
         this.readMarks.channelRead(event);
@@ -1421,6 +1427,7 @@ export class WorkspaceClient {
       cameraId?: string;
       noiseFilter?: NoiseFilter;
       systemMicrophone?: OpenSystemMicrophone;
+      pushToTalk?: PushToTalk;
     } = {},
   ): Promise<void> {
     return this.calls.joinHuddle(channelId, options);
@@ -1439,8 +1446,51 @@ export class WorkspaceClient {
     this.calls.declineRing(channelId);
   }
 
+  /**
+   * Rings a member of the channel into the call this device is in (K18).
+   * The ring comes back as `rings` changes, and a refusal as `ringNotice`.
+   */
+  ringIntoCall(userId: ID): void {
+    this.calls.ringIntoCall(userId);
+  }
+
   toggleMic(): void {
     this.calls.toggleMic();
+  }
+
+  /** Hears nobody and turns the microphone off, or hears again with it as it was (K16). */
+  toggleDeafen(): void {
+    this.calls.toggleDeafen();
+  }
+
+  /** Turns push to talk on, with how long the microphone stays on after the key, or off (K16). */
+  setPushToTalk(choice: PushToTalk | null): void {
+    this.calls.setPushToTalk(choice);
+  }
+
+  /** The push-to-talk key went down. */
+  pressTalk(): void {
+    this.calls.pressTalk();
+  }
+
+  /** The push-to-talk key came up. */
+  releaseTalk(): void {
+    this.calls.releaseTalk();
+  }
+
+  /** Starts or stops talking, for a key that cannot say when it is let go. */
+  toggleTalk(): void {
+    this.calls.toggleTalk();
+  }
+
+  /** Raises your hand in the huddle, or lowers it (K17). */
+  toggleHand(): void {
+    this.calls.toggleHand();
+  }
+
+  /** Floats an emoji over your tile for everyone in the huddle (K17). */
+  reactInHuddle(emoji: string): void {
+    this.calls.react(emoji);
   }
 
   /** Asks for a microphone again after the huddle's stopped. */

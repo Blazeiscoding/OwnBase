@@ -1,12 +1,19 @@
 import { useEffect, useEffectEvent, useId, useRef, useState } from "react";
+import { useStore } from "zustand";
+import { callKeyCombo, callKeyFromEvent } from "@ownbase/client-core/callKeys";
 import {
+  RELEASE_DELAYS_MS,
   cameraConstraints,
   canChooseSpeaker,
   captureFailure,
+  type CallKeyAction,
   type CaptureKind,
   type MediaDeviceOption,
 } from "@ownbase/client-core";
-import { useClient } from "../context.js";
+import { useClient, usePlatform } from "../context.js";
+import { isApple, modKey, shortcutLabel } from "../lib/shortcuts.js";
+import { takenCallKeys } from "./CallKeys.js";
+import { Kbd } from "./Kbd.js";
 import { microphoneOf, useCallPreferences, type CallDevices } from "../lib/callPreferences.js";
 import { chooseDevices, useMediaDevices, useSpeaker } from "../lib/mediaDevices.js";
 import { useSaved } from "../lib/savedNote.js";
@@ -217,6 +224,8 @@ export function VoiceVideoSettings() {
           Nothing you say is sent until you turn the microphone on in the huddle.
         </p>
       </div>
+
+      <TalkSettings />
 
       <p className="text-sm text-ink-dim">
         These settings apply to huddles in every workspace on this device, including a huddle you
@@ -449,6 +458,223 @@ export function CameraPreview({
       {failure && (
         <p role="alert" className="text-sm text-alert">
           {failure}
+        </p>
+      )}
+    </div>
+  );
+}
+
+/** What each call key does, as the settings and their notes name it. */
+const KEY_ROWS: { action: CallKeyAction; label: string }[] = [
+  { action: "mute", label: "Mute or unmute" },
+  { action: "deafen", label: "Deafen or undeafen" },
+  { action: "talk", label: "Push to talk" },
+];
+
+/**
+ * How the microphone goes on (K16): whenever you talk, or only while a key is
+ * held, Discord's Voice activity and Push to talk; and the keys for mute,
+ * deafen and push to talk, with where they work.
+ */
+function TalkSettings() {
+  const saved = useSaved();
+  const platform = usePlatform();
+  const calls = useCallPreferences();
+  const taken = useStore(takenCallKeys, (s) => s.taken);
+  const modeName = useId();
+  const delayId = useId();
+  const { talk, keys } = calls;
+  const kept = (done: Promise<boolean>) => void done.then((ok) => ok && saved());
+  const label = (combo: string) => shortcutLabel(callKeyCombo(combo));
+  const desktop = !!platform.callKeys;
+
+  return (
+    <>
+      <fieldset {...settingMark("push-to-talk")} className="space-y-3">
+        <legend className="text-sm font-semibold">Talking</legend>
+        {(
+          [
+            {
+              mode: "voice",
+              label: "Voice activity",
+              hint: "Your microphone sends whenever you talk, unless you mute it.",
+            },
+            {
+              mode: "push",
+              label: "Push to talk",
+              hint: `Your microphone sends only while you hold ${label(keys.talk)}, or the Hold to talk button in the huddle.`,
+            },
+          ] as const
+        ).map(({ mode, label: name, hint }) => (
+          <label key={mode} className="flex items-start gap-2 text-sm">
+            <input
+              type="radio"
+              name={modeName}
+              className="mt-1"
+              checked={talk.mode === mode}
+              disabled={!calls.loaded}
+              onChange={() => kept(calls.setTalk({ mode }))}
+            />
+            <span>
+              {name}
+              <span className="block text-xs text-ink-dim">{hint}</span>
+            </span>
+          </label>
+        ))}
+        {talk.mode === "push" && (
+          <div className="space-y-1 pl-6">
+            <label htmlFor={delayId} className="block text-sm">
+              Release delay
+            </label>
+            <select
+              id={delayId}
+              className={inputCls}
+              value={talk.releaseMs}
+              disabled={!calls.loaded}
+              aria-describedby={`${delayId}-hint`}
+              onChange={(event) => kept(calls.setTalk({ releaseMs: Number(event.target.value) }))}
+            >
+              {RELEASE_DELAYS_MS.map((ms) => (
+                <option key={ms} value={ms}>
+                  {ms === 0 ? "None" : ms < 1000 ? `${ms} ms` : `${ms / 1000} second`}
+                </option>
+              ))}
+            </select>
+            <p id={`${delayId}-hint`} className="text-xs text-ink-dim">
+              How long your microphone stays on after you let go, so the end of your last word still
+              goes.
+            </p>
+          </div>
+        )}
+      </fieldset>
+
+      <div {...settingMark("call-keys")} className="space-y-3">
+        <h4 className="text-sm font-semibold">Call keys</h4>
+        <ul className="space-y-3">
+          {KEY_ROWS.map(({ action, label: name }) => (
+            <li key={action}>
+              <CallKeyPicker
+                label={name}
+                value={keys[action]}
+                usedBy={(combo) =>
+                  KEY_ROWS.find((row) => row.action !== action && keys[row.action] === combo)?.label
+                }
+                onChange={(combo) => kept(calls.setKeys({ [action]: combo }))}
+              />
+              {desktop && taken.includes(keys[action]) && (
+                <p role="status" className="mt-1 text-xs text-alert">
+                  Another app is using {label(keys[action])}, so it works only while OwnBase is in
+                  front. Choose another key to use it from other apps.
+                </p>
+              )}
+            </li>
+          ))}
+        </ul>
+        <p className="text-sm text-ink-dim">
+          {desktop
+            ? "In a huddle, these keys work from any app, a game included. With OwnBase in front, hold the push-to-talk key to talk. With another app in front, OwnBase cannot tell when you let go, so press it once to start talking and again to stop."
+            : "These keys work only while this tab is in front. The OwnBase desktop app can use them from any app."}
+        </p>
+      </div>
+    </>
+  );
+}
+
+/**
+ * One call key: what it is now, and Change, which takes the next keys
+ * pressed. Escape keeps the key as it was.
+ */
+function CallKeyPicker({
+  label,
+  value,
+  usedBy,
+  onChange,
+}: {
+  label: string;
+  value: string;
+  /** What another call key with these keys does, if one has them. */
+  usedBy: (combo: string) => string | undefined;
+  onChange: (combo: string) => void;
+}) {
+  const [listening, setListening] = useState(false);
+  const [problem, setProblem] = useState<string | null>(null);
+  const problemId = useId();
+
+  useEffect(() => {
+    if (!listening) return;
+    // Ahead of everything else, so the keys being chosen do not mute, deafen
+    // or run one of the app's own shortcuts on the way.
+    const take = (event: KeyboardEvent) => {
+      if (event.key === "Tab") {
+        setListening(false);
+        return;
+      }
+      event.preventDefault();
+      event.stopImmediatePropagation();
+      if (event.type !== "keydown" || ["Control", "Meta", "Alt", "Shift"].includes(event.key))
+        return;
+      if (event.key === "Escape" && !event.ctrlKey && !event.metaKey && !event.altKey) {
+        setListening(false);
+        return;
+      }
+      const combo = callKeyFromEvent(event);
+      if (!combo) {
+        setProblem(
+          `Hold ${modKey()} or ${isApple() ? "⌥" : "Alt"} with the key, or use a function key such as F9, so typing never sets it off.`,
+        );
+        return;
+      }
+      const other = usedBy(combo);
+      if (other) {
+        setProblem(
+          `${shortcutLabel(callKeyCombo(combo))} is already the key for ${other.toLowerCase()}. Choose another.`,
+        );
+        return;
+      }
+      setProblem(null);
+      setListening(false);
+      onChange(combo);
+    };
+    window.addEventListener("keydown", take, true);
+    window.addEventListener("keyup", take, true);
+    return () => {
+      window.removeEventListener("keydown", take, true);
+      window.removeEventListener("keyup", take, true);
+    };
+  }, [listening, usedBy, onChange]);
+
+  return (
+    <div>
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-2 text-sm">
+        <span className="min-w-36">{label}</span>
+        <span className="flex items-center gap-1" aria-hidden={listening}>
+          {shortcutLabel(callKeyCombo(value))
+            .split(" ")
+            .map((key) => (
+              <Kbd key={key}>{key}</Kbd>
+            ))}
+        </span>
+        <button
+          type="button"
+          aria-label={
+            listening
+              ? `Press the new keys for ${label.toLowerCase()}`
+              : `Change the key for ${label.toLowerCase()}`
+          }
+          aria-describedby={problem ? problemId : undefined}
+          className={buttonClass("secondary")}
+          onClick={() => {
+            setProblem(null);
+            setListening((on) => !on);
+          }}
+          onBlur={() => setListening(false)}
+        >
+          {listening ? "Press keys…" : "Change"}
+        </button>
+      </div>
+      {problem && (
+        <p id={problemId} role="alert" className="mt-1 text-xs text-alert">
+          {problem}
         </p>
       )}
     </div>

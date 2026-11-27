@@ -368,7 +368,7 @@ export function App({ platform }: { platform: Platform }) {
           const target: LinkTarget =
             link.kind === "message"
               ? { channelId: link.channelId, messageId: link.messageId }
-              : { channelId: link.channelId };
+              : { channelId: link.channelId, call: link.call };
           // Already looking at this workspace: just move, don't reconnect.
           if (openServerUrl.current === link.serverUrl) {
             setSession((prev) => (prev.view === "workspace" ? { ...prev, target } : prev));

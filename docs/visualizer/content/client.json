@@ -325,6 +325,26 @@
       "concepts": ["E13", "E13b", "sender sizing", "G12"]
     },
     {
+      "path": "packages/client-core/src/callKeys.ts",
+      "plain": "Reads and writes the keys that mute, deafen and push to talk in a call, for the window and for the desktop app's keys that work in any app.",
+      "summary": "The three call keys (K16): how they are written, matched against key presses, named for people, and turned into Electron accelerators.",
+      "details": [
+        "A key is written as modifiers then the browser's KeyboardEvent.code, as Mod+Shift+KeyD, so it names the same place on every keyboard layout. parseCallKey takes only a function key alone or a key with Ctrl, Cmd or Alt held, so a call key never types into a message instead.",
+        "The window matches presses with matchesCallKey and releasesCallKey; settings record one with callKeyFromEvent; the desktop app's main process turns it into a globalShortcut accelerator with callKeyAccelerator, imported through the @ownbase/client-core/callKeys entry, as the UI does, so it stays out of the first screen; the defaults it re-exports live in callKeyChoices.ts."
+      ],
+      "concepts": ["K16", "push to talk", "deafen", "global shortcuts"]
+    },
+    {
+      "path": "packages/client-core/src/callKeyChoices.ts",
+      "plain": "The default keys for mute, deafen and push to talk, and push to talk's release delays, as settings keep them.",
+      "summary": "The call keys' types, defaults and release delays, and callKeysOf, which reads kept keys (K16).",
+      "details": [
+        "Apart from callKeys.ts because call preferences read these on the first screen, and a module the first screen uses ships whole with it: callKeys.ts and its table of keys load with the call and with settings instead. The UI imports callKeys.ts by its own entry, @ownbase/client-core/callKeys, for the same reason.",
+        "callKeysOf checks a kept key only for its shape; one that is not a call key never matches a press, and settings offer to change it."
+      ],
+      "concepts": ["K16", "first-load budget"]
+    },
+    {
       "path": "packages/client-core/src/screenShare.ts",
       "plain": "Says what a screen share asks the browser for, and keeps the call's own sound out of a shared screen's sound.",
       "summary": "The browser-facing rules of a screen share's capture, picture and sound.",
@@ -3189,9 +3209,30 @@
       "details": [
         "A card per ring at the top of the window: the caller's picture, <name> is calling, and Huddle with you or with the group's names; on a phone its buttons take a row of their own. Join opens the conversation and joins through useCallPreferences, so the device check still comes first; Decline calls WorkspaceClient.declineRing.",
         "While it rings, startRingTone plays and a system notification says who is calling once per ring if the window is not in front, worded by ringContent; both stay quiet during Do Not Disturb and in a muted conversation, where the card still shows. The title is an alert, so it is read as it appears.",
-        "A ring from someone blocked never shows or sounds (E12)."
+        "A ring from someone blocked never shows or sounds (E12).",
+        "Asked into a channel's call (K18), the card reads <name> is asking you to join the call in #channel, naming whoever asked this account in the ring's askedBy. Outside the hours the account allows notifications it rings silently, as during Do Not Disturb."
       ],
       "concepts": ["ringing", "huddles", "notifications"]
+    },
+    {
+      "path": "packages/ui/src/components/AskToJoin.tsx",
+      "plain": "The window for asking members of a channel to join its call: find someone, and they get a ring.",
+      "summary": "Ask someone to join, from the call's More call options menu (K18): AddPeople over the channel's members not in the call or being rung, each one chosen rung through WorkspaceClient.ringIntoCall.",
+      "details": [
+        "Reads the channel's members with WorkspaceClient.channelMembers and leaves out this account, apps, deactivated and blocked people, and anyone in the call or still ringing.",
+        "Under the field, everyone asked from here, newest first, with In the call, Ringing… or Not in the call. A decline shows in the call's own line as <name> can't join now."
+      ],
+      "concepts": ["ringing", "huddles"]
+    },
+    {
+      "path": "packages/ui/src/components/CallOffer.tsx",
+      "plain": "What a link to a call shows when it is opened: who is in the call, with a Join button. It never joins by itself.",
+      "summary": "Shown by DeviceCheckHost, out of the first download, while the navigation holds a callOffer, set by opening a #/c/<id>/call link (K18) from an address, the desktop app or a message; offers the call once the workspace is online.",
+      "details": [
+        "A notice names who is in the conversation's call, with Join, or says nobody is, with Start a huddle; both go through useStartHuddle, so the device check and the Switch huddles? question still come first.",
+        "Says nothing for a conversation this account cannot see, where the screen already says so, or for a call this device is in. Each link offers once, however often the workspace reconnects."
+      ],
+      "concepts": ["huddle entry point", "links"]
     },
     {
       "path": "packages/ui/src/components/ConversationHeader.tsx",
@@ -3223,7 +3264,7 @@
       "plain": "The call bar showing who is in the huddle, who is speaking, each person's volume and anyone you cannot connect to.",
       "summary": "Shows call presence, speaking rings and the header join/start control.",
       "details": [
-        "HuddleFace resolves participants and speaking state, while the compact bar hosts the controls and Show call, which opens the call, video or not.",
+        "HuddleFace resolves participants and speaking state, while the compact bar hosts the controls and Show call, an icon button that opens the call, video or not.",
         "While the call shows, the bar is hidden and keeps only HuddleAudio mounted, in the same place, so moving between the views never starts anyone's voice again, and there is one set of controls (and one screen picker) at a time.",
         "The list of who is there (Everyone in the huddle) gives each of the others a PersonVolume row, and someone sharing a screen with its sound a second row for that sound. Someone muted for you is said to be, ahead of talking, with a crossed speaker on their face. The bar hands everyone's volume to HuddleAudio.",
         "HuddleButton starts or joins through the shared call-preference store and provides meaningful error state. N04 makes this header path agree with Getting started about mute initialization.",
@@ -3241,6 +3282,7 @@
         "Used by the bar and by the call, which gives them its own look (stage): squarer buttons lit from within and a solid red Leave, as Discord draws a voice channel's, drawn in ink so they read on Onyx's black and White's grey alike. Over the call in full screen (overlay) they leave out the device menus.",
         "While the connection to the workspace is down (status reconnecting or connecting), a polite status line says the call goes on while it comes back.",
         "Stable accessible names plus aria-pressed describe toggles; captureFailure distinguishes a cancelled picker from a permission/device problem. A lost microphone exposes retry.",
+        "A More call options menu holds what is used less: in the bar, Raise your hand (the call keeps its own Raise hand button), so the bar fits one row on a laptop; in both, Ask someone to join in a channel's call, which opens AskToJoin, and Copy link to call (K18). Full screen leaves it out, as it does the device menus.",
         "Beside Mute and Camera, a small arrow opens a menu of microphones and speakers, or cameras, with the chosen one ticked (menuitemradio) and a link to Voice & video settings. The menus are left out of the full-screen overlay, because menus open on the page beneath a fullscreen element.",
         "In the desktop app, Share screen opens ScreenShareDialog rather than asking the browser; a browser shows its own picker, and stopping needs none. Whether the picker is open is one small store for the window: the controls out of full screen draw it, in the bar or the call; in full screen they leave full screen first, since a dialog does not show over it, and draw it once full screen has ended. Moving between the bar and the call keeps it open; it closes when the huddle ends."
       ],
@@ -3363,7 +3405,8 @@
       "plain": "Waits in the workspace for a huddle that needs the device question, and shows it then.",
       "summary": "Shows DeviceCheckDialog while callPreferences.checkingDevices is set, and ends a waiting join when the workspace goes.",
       "details": [
-        "WorkspaceScreen fetches it as the workspace opens, so the call preferences it reads stay out of the first download; useStartHuddle fetches them the same way when a huddle starts."
+        "WorkspaceScreen fetches it as the workspace opens, so the call preferences it reads stay out of the first download; useStartHuddle fetches them the same way when a huddle starts.",
+        "It also shows CallOffer while a link to a call waits to be offered (K18), which keeps that out of the first download too."
       ],
       "concepts": ["first-call device check", "lazy loading"]
     },
@@ -3791,12 +3834,33 @@
     },
     {
       "path": "packages/ui/src/components/CallDock.tsx",
-      "plain": "Mute, camera and Leave at the foot of the window while a dialog covers the huddle bar.",
+      "plain": "Mute, deafen, camera and Leave at the foot of the window while a dialog covers the huddle bar.",
       "summary": "CallDock, portalled to the body with data-ownbase-call while useDialogOpen is true.",
       "details": [
         "useDialogOpen (Modal.tsx) counts only layers drawn on .dialog-backdrop: menus and popovers are Modal layers too and do not bring it up. Settings stops short of it (theme.css .call-dock)."
       ],
       "concepts": ["calls", "accessibility"]
+    },
+    {
+      "path": "packages/ui/src/components/CallKeys.tsx",
+      "plain": "Makes the mute, deafen and push-to-talk keys work in a call, and in the desktop app from other apps too.",
+      "summary": "CallKeys, mounted in the huddle bar for the whole call (K16): the keys in the window, the desktop app's keys from any app, and push to talk chosen mid-call.",
+      "details": [
+        "In the window it listens in the capture phase, so the keys work in a dialog and in the message box. Push to talk's key starts talking on the first keydown and stops when it, or a modifier it needs, comes up, or when the window loses focus, since the key-up then goes elsewhere.",
+        "In the desktop app it hands the keys to Platform.callKeys for the call, push to talk's only while push to talk is chosen, and lets them go on leaving. A press from another app toggles mute or deafen; push to talk toggles talking there, since globalShortcut reports no key-up. takenCallKeys keeps the keys another app held, as written, for Voice & video settings to name."
+      ],
+      "concepts": ["K16", "push to talk", "deafen", "global shortcuts"]
+    },
+    {
+      "path": "packages/ui/src/components/CallReactions.tsx",
+      "plain": "Lets people in a call send a quick emoji reaction, and shows reactions floating up from whoever sent them.",
+      "summary": "CallReactions (K17): the row of six quick reactions and the full picker under the call's buttons, the emoji that rise over a sender's tile, and the newest one beside the bar's faces and in the dock.",
+      "details": [
+        "ReactionBar stays open after a press, so a reaction can be sent again and again; the client sends at most one every 400 ms and the server drops any more. In full screen it leaves out the picker, since a dialog opens out of sight there.",
+        "TileReactions floats each reaction up from near the tile's foot for the two seconds it is kept. With reduced motion asked for, theme.css cuts every animation short, so it shows the newest one still in the tile's corner for as long instead.",
+        "ReactionTicker is the bar's and the dock's small form: the sender's face and the emoji, where no tile shows. The call announcer reads reactions aloud, so all three are hidden from screen readers."
+      ],
+      "concepts": ["K17", "reactions", "reduced motion", "huddles"]
     },
     {
       "path": "packages/ui/src/components/JoinPolicyChoice.tsx",

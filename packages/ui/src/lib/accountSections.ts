@@ -37,6 +37,8 @@ export type SettingId =
   | "voice-processing"
   | "camera"
   | "join-muted"
+  | "push-to-talk"
+  | "call-keys"
   | "password"
   | "email"
   | "two-step"

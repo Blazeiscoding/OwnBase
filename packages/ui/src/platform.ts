@@ -1,4 +1,9 @@
-import type { DeviceStorage, StoredOutbox } from "@ownbase/client-core";
+import type {
+  CallKeyAction,
+  DeviceStorage,
+  HeldCallKeys,
+  StoredOutbox,
+} from "@ownbase/client-core";
 import type {
   AskedQuestion,
   DesktopErrorCode,
@@ -166,6 +171,17 @@ export interface Platform {
     /** Opens one by the system's id for it. Rejects, saying why, when it will not start. */
     open: (id: string) => Promise<OpenedSystemMicrophone>;
   };
+  /**
+   * The call keys working while another app is in front (K16). Desktop only:
+   * a browser hears keys only while its tab is in front. `set` holds them
+   * while in a call, or lets them go with null, and resolves the ones another
+   * app holds; `onTaken` hears that list again whenever it changes.
+   */
+  callKeys?: {
+    set: (keys: HeldCallKeys | null) => Promise<CallKeyAction[]>;
+    onPress: (cb: (action: CallKeyAction) => void) => () => void;
+    onTaken: (cb: (taken: CallKeyAction[]) => void) => () => void;
+  };
   /** Subscribe to LAN server discovery. Returns unsubscribe. Desktop only. */
   discoverLan?: (cb: (servers: DiscoveredServer[]) => void) => () => void;
   /**
@@ -325,7 +341,9 @@ function takeLinkFromAddress(): string | null {
   const link = parseDeepLink(href);
   // A conversation's link is this page's own address for it, which its
   // routing reads; taken out, every move between conversations would be lost.
-  if (!link || link.kind === "conversation") return null;
+  // A link to its call (K18) is taken, to offer the call once; opening the
+  // conversation writes its address back.
+  if (!link || (link.kind === "conversation" && !link.call)) return null;
   history.replaceState(history.state, "", pathname + search);
   return href;
 }
