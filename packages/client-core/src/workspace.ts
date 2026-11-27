@@ -11,6 +11,7 @@ import {
   type UpdateUserGroupBody,
   type UserGroup,
   type NotifyLevel,
+  type NotifySchedule,
   type EphemeralEvent,
   type EventEnvelope,
   type ID,
@@ -424,6 +425,7 @@ export class WorkspaceClient {
       clockSkewMs: snap.serverTime - Date.now(),
       sidebarSections: snap.sidebarSections,
       notifyDefault: snap.notifyDefault,
+      notifySchedule: snap.notifySchedule,
       reminders: Object.fromEntries(
         snap.reminders.map((reminder) => [reminder.messageId, reminder]),
       ),
@@ -469,6 +471,7 @@ export class WorkspaceClient {
       rings: Object.fromEntries(snap.huddleRings.map((ring) => [ring.channelId, ring])),
       friends: snap.friends,
       blocked: snap.blocked,
+      keywords: snap.keywords,
       openReports: snap.openReports ?? null,
       memberNotice: snap.memberNotice ?? null,
       serverNotices: snap.notices ?? [],
@@ -775,6 +778,9 @@ export class WorkspaceClient {
       case "blocks":
         this.store.setState({ blocked: event.blocked });
         break;
+      case "keywords":
+        this.store.setState({ keywords: event.keywords });
+        break;
       case "reports":
         this.store.setState({ openReports: event.open });
         break;
@@ -933,6 +939,10 @@ export class WorkspaceClient {
       case "notify.default":
         if (!this.writes.heard({ kind: "notifyDefault" }, event.level))
           this.store.setState({ notifyDefault: event.level });
+        break;
+      case "notify.schedule":
+        if (!this.writes.heard({ kind: "notifySchedule" }, event.schedule))
+          this.store.setState({ notifySchedule: event.schedule });
         break;
       case "sidebar.sections":
         // A reorder of this device's still on its way is not undone by an older word.
@@ -1583,11 +1593,31 @@ export class WorkspaceClient {
   }
 
   /**
+   * Replaces this account's keywords (K11); resolves with the server's
+   * refusal, or null. The list is kept from the answer, tidied as the server
+   * kept it, before the socket says it.
+   */
+  setKeywords(keywords: string[]): Promise<ApiError | null> {
+    return doneOf(async () => {
+      const result = await this.api.setKeywords(keywords);
+      if (!this.stopped) this.store.setState({ keywords: result.keywords });
+    });
+  }
+
+  /**
    * What conversations notify about unless one was set on its own (v53),
    * shown at once; put back when the server refused, resolving with why.
    */
   setNotifyDefault(level: NotifyLevel): Promise<ApiError | null> {
     return this.preferences.setNotifyDefault(level);
+  }
+
+  /**
+   * The hours this account allows notifications (K12), or null for always,
+   * shown at once; put back when the server refused, resolving with why.
+   */
+  setNotifySchedule(schedule: NotifySchedule | null): Promise<ApiError | null> {
+    return this.preferences.setNotifySchedule(schedule);
   }
 
   private changeSelf(request: () => Promise<{ user: User }>): Promise<ApiError | null> {

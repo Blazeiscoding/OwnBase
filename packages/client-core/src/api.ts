@@ -15,6 +15,7 @@ import {
   type FileKind,
   type ID,
   type NotifyLevel,
+  type NotifySchedule,
   type PushSubscriptionBody,
   type RegisterBody,
   type ReportReason,
@@ -266,6 +267,10 @@ export class Api {
 
   unblockUser(userId: ID) {
     return this.http.json(endpoints.unblockUser, { params: { id: userId } });
+  }
+
+  setKeywords(keywords: string[]) {
+    return this.http.json(endpoints.setKeywords, { body: { keywords } });
   }
 
   /** Reports a message to the workspace's admins (E12), with why and anything to add. */
@@ -590,6 +595,10 @@ export class Api {
 
   setNotifyDefault(level: NotifyLevel) {
     return this.http.json(endpoints.setNotifyDefault, { body: { level } });
+  }
+
+  setNotifySchedule(schedule: NotifySchedule | null) {
+    return this.http.json(endpoints.setNotifySchedule, { body: { schedule } });
   }
 
   pushKey() {

@@ -113,6 +113,64 @@ describe("notifyDecision", () => {
   it("notifies for any message where the level is everything", () => {
     expect(notifyDecision(inputs())).toEqual({ notify: true, reason: "all" });
   });
+
+  describe("keywords (K11)", () => {
+    const quiet = { muted: false, notifyLevel: "mentions" as const, notifyChosen: true };
+    const keywords = ["release", "launch day"];
+
+    it("notifies for a keyword as for a mention, naming it", () => {
+      expect(
+        notifyDecision(inputs({ prefs: quiet, keywords }, { text: "The Release is out" })),
+      ).toEqual({
+        notify: true,
+        reason: "keyword",
+        keyword: "release",
+      });
+      expect(reason({ prefs: quiet, keywords }, { text: "see you on launch day" })).toBe("keyword");
+      expect(reason({ prefs: quiet, keywords }, { text: "released" })).toBe("level");
+      // At the level of everything it says which keyword it was, too.
+      expect(reason({ keywords }, { text: "release" })).toBe("keyword");
+    });
+
+    it("stays silent where a mention would: muted, blocked, nothing, Do Not Disturb", () => {
+      const text = "release";
+      expect(
+        reason(
+          { keywords, prefs: { muted: true, notifyLevel: "all", notifyChosen: true } },
+          { text },
+        ),
+      ).toBe("muted");
+      expect(reason({ keywords, senderBlocked: true }, { text })).toBe("blocked");
+      expect(
+        reason(
+          { keywords, prefs: { muted: false, notifyLevel: "nothing", notifyChosen: true } },
+          { text },
+        ),
+      ).toBe("level");
+      expect(reason({ keywords, prefs: quiet, dndUntil: NOW + 1 }, { text })).toBe("dnd");
+      expect(reason({ keywords, prefs: quiet }, { text, userId: "me" })).toBe("own-message");
+    });
+
+    it("does not reach into a muted thread, which only a mention does", () => {
+      expect(
+        reason(
+          { keywords, prefs: quiet, threadMuted: true },
+          { text: "release", threadRootId: "r" },
+        ),
+      ).toBe("thread-muted");
+    });
+
+    it("leaves a mention or a direct message as it was", () => {
+      expect(reason({ keywords, prefs: quiet }, { text: "<@me> release" })).toBe("mention");
+      expect(reason({ keywords, channelType: "dm" }, { text: "release" })).toBe("dm");
+    });
+
+    it("reaches someone who is away when @here would not", () => {
+      expect(reason({ keywords, prefs: quiet, live: false }, { text: "<!here> release" })).toBe(
+        "keyword",
+      );
+    });
+  });
 });
 
 describe("reminderNotifyDecision", () => {
@@ -138,6 +196,16 @@ describe("notification previews", () => {
     const none = notificationContent("none", message);
     expect(none).toEqual({ title: "New message", body: "Open OwnBase to read it." });
     expect(JSON.stringify(none)).not.toMatch(/Priya|design|Friday/);
+  });
+
+  it("names a keyword the message holds, only when it shows the message (K11)", () => {
+    const hit = { ...message, keyword: "launch" };
+    expect(notificationContent("full", hit)).toEqual({
+      title: "Priya Shah mentioned “launch” in #design",
+      body: "Launch moves to Friday",
+    });
+    expect(notificationContent("sender", hit)).toEqual(notificationContent("sender", message));
+    expect(notificationContent("none", hit)).toEqual(notificationContent("none", message));
   });
 
   it("leaves out the channel of a direct message", () => {

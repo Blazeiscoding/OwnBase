@@ -3,7 +3,7 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { createServer, type Server } from "node:http";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, onTestFinished, vi } from "vitest";
 import WebSocket from "ws";
 import { PROTOCOL_VERSION } from "@ownbase/protocol";
 import { PushSender, PUSH_LIMITS, type PostPush } from "../src/push/sender.js";
@@ -370,6 +370,131 @@ describe("a new message", () => {
     expect(pushesTo(device)).toHaveLength(1);
     expect(open(pushesTo(device)[0]!.body, device)).toMatchObject({
       body: "Review this, @design",
+    });
+  });
+
+  it("pushes nothing outside the hours the account allows, and Activity still lists it (K12)", async () => {
+    // Monday 20:00 in Kolkata, with the clock still running.
+    vi.useFakeTimers({ toFake: ["Date"], shouldAdvanceTime: true });
+    vi.setSystemTime(new Date("2026-11-23T14:30:00Z"));
+    onTestFinished(() => void vi.useRealTimers());
+    await startWithPeople();
+    const device = browser("/owner");
+    await subscribe(device);
+    expect((await request("/api/me", { timeZone: "Asia/Kolkata" }, "PATCH")).status).toBe(200);
+    const work = { from: "09:00", to: "18:00" };
+    const schedule = { kind: "weekdays", days: [null, work, work, work, work, work, null] };
+    const set = await request("/api/me/notify-schedule", { schedule }, "PUT");
+    expect(set.status).toBe(200);
+    expect(set.body.schedule).toEqual(schedule);
+    // One with no hours on any day would never let anything through.
+    const never = { kind: "custom", days: Array(7).fill(null) };
+    expect((await request("/api/me/notify-schedule", { schedule: never }, "PUT")).status).toBe(400);
+
+    const held = await post(`<@${owner.id}> are you around?`);
+    await server!.flushPushes();
+    expect(pushesTo(device)).toEqual([]);
+    const activity = await request("/api/activity?mode=mentions", undefined, "GET");
+    expect(activity.body.messages.map((m: { id: string }) => m.id)).toContain(held.id);
+
+    // Turned on for an hour, the next one pushes.
+    await request(
+      "/api/me/notify-schedule",
+      { schedule: { ...schedule, onUntil: Date.now() + 3_600_000 } },
+      "PUT",
+    );
+    await post(`<@${owner.id}> now?`);
+    await server!.flushPushes();
+    expect(pushesTo(device)).toHaveLength(1);
+  });
+
+  it("keeps a reminder's push back outside the hours the account allows (K12)", async () => {
+    await startWithPeople();
+    const device = browser("/owner");
+    await subscribe(device);
+    await request("/api/me", { timeZone: "UTC" }, "PATCH");
+    const hour = (h: number) => `${String(((h % 24) + 24) % 24).padStart(2, "0")}:00`;
+    const nowHour = new Date().getUTCHours();
+    const later = { from: hour(nowHour + 2), to: hour(nowHour + 3) };
+    await request(
+      "/api/me/notify-schedule",
+      { schedule: { kind: "custom", days: Array.from({ length: 7 }, () => later) } },
+      "PUT",
+    );
+    const message = await post("Renew the domain");
+    await request(`/api/messages/${message.id}/reminder`, { at: Date.now() + 300 }, "PUT");
+    await expect
+      .poll(async () => {
+        const listed = await request("/api/reminders", undefined, "GET");
+        return listed.body.reminders.some(
+          (item: { reminder: { dueAt: number | null } }) => item.reminder.dueAt !== null,
+        );
+      })
+      .toBe(true);
+    await server!.flushPushes();
+    expect(pushesTo(device)).toEqual([]);
+  });
+
+  it("pushes a keyword at mentions only, naming it, but not where muted or blocked (K11)", async () => {
+    await startWithPeople();
+    const third = await register("third", "Third");
+    const fourth = await register("fourth", "Fourth");
+    const devices = [browser("/owner"), browser("/third"), browser("/fourth")] as const;
+    const people = [owner, third, fourth];
+    for (const [i, device] of devices.entries()) {
+      await subscribe(device, people[i]!.token);
+      const set = await request(
+        "/api/me/keywords",
+        { keywords: ["release"] },
+        "PUT",
+        people[i]!.token,
+      );
+      expect(set.status).toBe(200);
+    }
+    // #general follows each account's default, mentions only. Third muted it,
+    // Fourth blocked the sender.
+    await request(`/api/channels/${channelId}/prefs`, { muted: true }, "PATCH", third.token);
+    await request(`/api/me/blocks/${peer.id}`, undefined, "PUT", fourth.token);
+
+    await post("The release is out");
+    await server!.flushPushes();
+    expect(pushesTo(devices[0])).toHaveLength(1);
+    expect(open(pushesTo(devices[0])[0]!.body, devices[0])).toMatchObject({
+      title: "Peer mentioned “release” in #general",
+      body: "The release is out",
+    });
+    expect(pushesTo(devices[1])).toEqual([]);
+    expect(pushesTo(devices[2])).toEqual([]);
+  });
+
+  it("holds a keyword's push back outside the schedule, until turned on for an hour (K11, K12)", async () => {
+    // Monday 20:00 in Kolkata, with the clock still running.
+    vi.useFakeTimers({ toFake: ["Date"], shouldAdvanceTime: true });
+    vi.setSystemTime(new Date("2026-11-23T14:30:00Z"));
+    onTestFinished(() => void vi.useRealTimers());
+    await startWithPeople();
+    const device = browser("/owner");
+    await subscribe(device);
+    await request("/api/me", { timeZone: "Asia/Kolkata" }, "PATCH");
+    await request("/api/me/keywords", { keywords: ["release"] }, "PUT");
+    const work = { from: "09:00", to: "18:00" };
+    const schedule = { kind: "weekdays", days: [null, work, work, work, work, work, null] };
+    await request("/api/me/notify-schedule", { schedule }, "PUT");
+
+    await post("The release is out");
+    await server!.flushPushes();
+    expect(pushesTo(device)).toEqual([]);
+
+    await request(
+      "/api/me/notify-schedule",
+      { schedule: { ...schedule, onUntil: Date.now() + 3_600_000 } },
+      "PUT",
+    );
+    await post("The release notes too");
+    await server!.flushPushes();
+    expect(pushesTo(device)).toHaveLength(1);
+    expect(open(pushesTo(device)[0]!.body, device)).toMatchObject({
+      title: "Peer mentioned “release” in #general",
     });
   });
 

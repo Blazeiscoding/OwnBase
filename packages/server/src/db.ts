@@ -904,6 +904,21 @@ const MIGRATIONS: string[] = [
   ALTER TABLE scheduled_messages ADD COLUMN repeat TEXT;
   ALTER TABLE scheduled_messages ADD COLUMN repeat_slot INTEGER;
   `,
+  // K12 — the hours an account allows notifications, as JSON; null for always.
+  `
+  ALTER TABLE users ADD COLUMN notify_schedule TEXT;
+  `,
+  // K11 — keyword alerts: each account's words, in its order, and when each
+  // was added. Activity finds a keyword only in messages sent since then.
+  `
+  CREATE TABLE user_keywords (
+    user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    keyword TEXT NOT NULL,
+    position INTEGER NOT NULL,
+    added_at INTEGER NOT NULL,
+    PRIMARY KEY (user_id, keyword)
+  );
+  `,
 ];
 
 /** The schema this build understands. A workspace above it cannot be opened. */

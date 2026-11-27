@@ -3,6 +3,7 @@ import {
   reminderContent,
   type Message,
   type NotificationPreview,
+  type NotifyDecision,
 } from "@ownbase/protocol";
 import { isDirect } from "@ownbase/protocol";
 import {
@@ -73,12 +74,13 @@ export function startNotifications(options: NotificationOptions): () => void {
     return loaded.soundNotification(platform, direct ? "direct" : "message", options.account(), id);
   };
 
-  const tell = (msg: Message) => {
+  const tell = (msg: Message, decision: NotifyDecision) => {
     const state = client.state;
     const { title, body } = notificationContent(options.preview(), {
       from: from(msg),
       channelName: state.channels[msg.channelId]?.name,
       body: notificationBody(state, msg),
+      keyword: decision.notify && decision.reason === "keyword" ? decision.keyword : undefined,
     });
     platform.notify(title, body, open(msg), {
       tag: `${options.account()} ${msg.id}`,
@@ -94,7 +96,8 @@ export function startNotifications(options: NotificationOptions): () => void {
       decideNotification(client.state, msg, { live: false }).notify,
     show: (messages) => {
       const first = messages[0]!;
-      if (messages.length === 1) return tell(first);
+      if (messages.length === 1)
+        return tell(first, decideNotification(client.state, first, { live: false }));
       const state = client.state;
       const conversations = new Set(messages.map((msg) => msg.channelId));
       const senders = [...new Set(messages.map(from))];
@@ -128,8 +131,9 @@ export function startNotifications(options: NotificationOptions): () => void {
       // A message you're already looking at needs no notification. One in a
       // thread that is not open is not in view just because its channel is.
       if (onScreen(msg)) return;
-      if (!decideNotification(state, msg, { live }).notify) return;
-      if (live) tell(msg);
+      const decision = decideNotification(state, msg, { live });
+      if (!decision.notify) return;
+      if (live) tell(msg, decision);
       else catchUp.hold(msg);
     }),
     // A reminder come due says so wherever the person is looking: they asked.

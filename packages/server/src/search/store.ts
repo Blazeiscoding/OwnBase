@@ -1,5 +1,10 @@
 import type { ID, Message, ParsedSearch, ReactionActivity } from "@ownbase/protocol";
-import { FILE_TYPE_MATCH, REACTION_ACTIVITY_NAMES, UNSEEN_REACTIONS_MAX } from "@ownbase/protocol";
+import {
+  FILE_TYPE_MATCH,
+  keywordKey,
+  REACTION_ACTIVITY_NAMES,
+  UNSEEN_REACTIONS_MAX,
+} from "@ownbase/protocol";
 import type { DatabaseSync } from "node:sqlite";
 import { NAMES_ME, NOT_BLOCKED, UNREAD } from "../core/sqlRules.js";
 import { countOf, shape } from "../core/rows.js";
@@ -219,8 +224,56 @@ export class SearchStore {
            JOIN channel_members cm ON cm.channel_id = mm.channel_id
            JOIN channels c ON c.id = mm.channel_id JOIN messages m ON m.id = mm.message_id
            WHERE ${conditions.join(" AND ")} GROUP BY m.id ORDER BY m.id DESC LIMIT ?`;
-    return this.store.messages.hydrate(
-      messageRow.all(this.db.prepare(query), ...params, opts.limit),
+    const rows = messageRow.all(this.db.prepare(query), ...params, opts.limit);
+    if (opts.mode !== "mentions") return this.store.messages.hydrate(rows);
+    const hits = this.keywordHits(userId, opts);
+    if (hits.length === 0) return this.store.messages.hydrate(rows);
+    // Both lists are the newest `limit` after the cursor, so their newest
+    // `limit` together are the page.
+    const page = [...new Map([...rows, ...hits].map((row) => [row.id, row])).values()]
+      .sort((a, b) => (a.id < b.id ? 1 : -1))
+      .slice(0, opts.limit);
+    return this.store.messages.hydrate(page);
+  }
+
+  /**
+   * Messages holding one of this account's keywords (K11), newest first, for
+   * Activity's Mentions. Each keyword is looked for through the search index,
+   * so the work is in its hits rather than in the history, and only in
+   * messages sent since it was added. None in a conversation or a thread
+   * this account muted, which a keyword does not reach into.
+   */
+  private keywordHits(userId: ID, opts: { cursor?: ID; limit: number }): MessageRow[] {
+    const keywords = this.store.people
+      .keywordsAdded(userId)
+      .filter((k) => keywordKey(k.keyword) !== "");
+    if (keywords.length === 0) return [];
+    const each = keywords.map(
+      () =>
+        "SELECT rowid FROM messages WHERE created_at >= ? AND rowid IN (SELECT rowid FROM messages_fts WHERE messages_fts MATCH ?)",
+    );
+    const values = keywords.flatMap((k) => [
+      k.addedAt,
+      `"${searchText(k.keyword).trim().replaceAll('"', '""')}"`,
+    ]);
+    return messageRow.all(
+      this.db.prepare(
+        `WITH hits(id) AS (${each.join(" UNION ")})
+         SELECT m.* FROM hits h JOIN messages m ON m.rowid = h.id
+         JOIN channel_members cm ON cm.channel_id = m.channel_id AND cm.user_id = ?
+         WHERE m.user_id != ? AND m.deleted_at IS NULL AND cm.muted = 0 AND ${NOT_BLOCKED}
+           ${opts.cursor ? "AND m.id < ?" : ""}
+           AND (m.thread_root_id IS NULL OR (
+             EXISTS (SELECT 1 FROM messages root WHERE root.id = m.thread_root_id AND root.deleted_at IS NULL)
+             AND NOT EXISTS (SELECT 1 FROM thread_follows tf
+               WHERE tf.user_id = cm.user_id AND tf.root_id = m.thread_root_id AND tf.muted = 1)))
+         ORDER BY m.id DESC LIMIT ?`,
+      ),
+      ...values,
+      userId,
+      userId,
+      ...(opts.cursor ? [opts.cursor] : []),
+      opts.limit,
     );
   }
 

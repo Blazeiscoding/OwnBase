@@ -893,6 +893,16 @@
       "concepts": ["web push", "service worker", "G09"]
     },
     {
+      "path": "packages/ui/src/components/KeywordSettings.tsx",
+      "plain": "The list of words in Account settings that notify you as a mention does.",
+      "summary": "My keywords, under Account settings, Notifications (K11): add, remove and save this account's keywords.",
+      "details": [
+        "Several keywords typed with commas between are added together; one with no letters or numbers, one already listed or one past the limit of 20 is refused with a line under the field, before anything is sent.",
+        "Each change saves at once through client-core's setKeywords and reaches the account's other devices by the keywords event."
+      ],
+      "concepts": ["keyword alerts", "settings"]
+    },
+    {
       "path": "packages/ui/src/components/PushSettings.tsx",
       "plain": "The switch in Account settings that turns on notifications while OwnBase is closed.",
       "summary": "Notify me when OwnBase is closed, under Account settings, Notifications, in a browser.",
@@ -901,6 +911,27 @@
         "It is shown on as long as this account chose it, the browser is still subscribed and permission is granted; otherwise it says what stops it."
       ],
       "concepts": ["web push", "settings"]
+    },
+    {
+      "path": "packages/ui/src/components/NotifyScheduleSettings.tsx",
+      "plain": "Notifications, Schedule: the hours you allow notifications, every day, on weekdays, or day by day, after which they pause by themselves.",
+      "summary": "Edits the account's notification schedule (K12) in Account settings, saved at once for every device.",
+      "details": [
+        "Off clears the schedule. Every day and Weekdays share one pair of From and Until times; Custom lists the days Monday first, each with a box and its own times. A time at or before From runs past midnight.",
+        "Changing a kind keeps the hours already chosen. Custom refuses to leave no day ticked and says to choose Off instead, since the server refuses a schedule with no hours.",
+        "Times are in the account's zone, or this device's when it has none. A line says whether the schedule holds notifications now and when they resume, or until when Turn on for 1 hour keeps them on; any edit drops that hour."
+      ],
+      "concepts": ["settings", "notifications", "time zones"]
+    },
+    {
+      "path": "packages/ui/src/components/ScheduleNotice.tsx",
+      "plain": "The line above the sidebar's foot while your notification schedule pauses notifications: when they resume, and Turn on for 1 hour.",
+      "summary": "Shown in place of the Pause line while the schedule (K12) holds notifications; loaded lazily, only for an account with a schedule.",
+      "details": [
+        "Rechecks each minute, since hours start and end on the minute, and hides itself inside the hours.",
+        "Turn on for 1 hour saves the schedule with onUntil an hour ahead, so every device and Web Push let notifications through until then. A pause wins the line while both hold."
+      ],
+      "concepts": ["notifications", "sidebar"]
     },
     {
       "path": "packages/ui/src/components/UnreadOnIconSetting.tsx",
@@ -3799,10 +3830,22 @@
       "plain": "Offers people after @, channels after # and emoji after : while you type a message or edit one.",
       "summary": "useSuggestions and SuggestionList, shared by the Composer and the MessageEditor.",
       "details": [
-        "People and channels rank with switcherRank's matchTier: whole name, start, word start; yourself after others, joined channels before the rest. DMs and archived channels are never offered.",
-        "A choice goes in as the stored token (<@id>, <#id>, <!here>) through useMentionField, so the box shows the name. A finished :shortcode: becomes its emoji. Not inside code."
+        "Finds the word being typed after @, # or : and keeps the keys: arrows, Enter or Tab to choose, Esc to close.",
+        "A choice goes in as the stored token (<@id>, <#id>, <!here>) through useMentionField, so the box shows the name. A finished :shortcode: becomes its emoji. Not inside code.",
+        "The ranking and the list are in SuggestionChoices, a preloadable part fetched as the workspace opens. Until it arrives nothing is offered, and the list opens when it does."
       ],
-      "concepts": ["autocomplete", "ARIA listbox", "mentions"]
+      "concepts": ["autocomplete", "ARIA listbox", "mentions", "code splitting"]
+    },
+    {
+      "path": "packages/ui/src/components/SuggestionChoices.tsx",
+      "plain": "Ranks the people, channels and emoji a word typed after @, # or : could be, and draws the list of them above the message box.",
+      "summary": "suggestionsFor, the rank functions and SuggestionChoices, the list SuggestionList draws once this part has arrived.",
+      "details": [
+        "People and channels rank with switcherRank's matchTier: whole name, start, word start; yourself after others, joined channels before the rest. DMs and archived channels are never offered.",
+        "A person whose name or handle is exactly what was typed comes before any user group, so naming one person never reaches a team by a slip. @channel and @here are offered only in a channel.",
+        "Kept out of the first download: it only matters while a word is being typed, and the workspace fetches it as it opens."
+      ],
+      "concepts": ["autocomplete", "mentions", "code splitting"]
     },
     {
       "path": "packages/ui/src/components/When.tsx",

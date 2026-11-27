@@ -10,6 +10,7 @@ import type {
   MemberNotice,
   ModalView,
   NotifyLevel,
+  NotifySchedule,
   Presence,
   Reminder,
   ServerNotice,
@@ -70,6 +71,8 @@ export interface WorkspaceState extends MessageCache {
   friends: Friendship[];
   /** The people this account blocked (E12), whose messages fold away and who never notify it. */
   blocked: ID[];
+  /** This account's keywords (K11): a message holding one notifies as a mention does. */
+  keywords: string[];
   /** How many reported messages wait for an admin (E12); null unless this account is one. */
   openReports: number | null;
   /**
@@ -109,6 +112,8 @@ export interface WorkspaceState extends MessageCache {
   sidebarSections: SidebarSection[];
   /** What this account's conversations notify about unless one was set on its own (v53). */
   notifyDefault: NotifyLevel;
+  /** The hours this account allows notifications (K12), or null for always. */
+  notifySchedule: NotifySchedule | null;
   /** This account's reminders by message id, waiting and due (E4). */
   reminders: Record<ID, Reminder>;
   /**
@@ -247,6 +252,7 @@ export interface WorkspaceState extends MessageCache {
 export const initialState: WorkspaceState = {
   friends: [],
   blocked: [],
+  keywords: [],
   openReports: null,
   memberNotice: null,
   serverNotices: [],
@@ -258,6 +264,7 @@ export const initialState: WorkspaceState = {
   clockSkewMs: null,
   sidebarSections: [],
   notifyDefault: "mentions",
+  notifySchedule: null,
   reminders: {},
   channelRemovals: {},
   reactionActivity: { seenAt: 0, unseen: 0, revision: 0 },

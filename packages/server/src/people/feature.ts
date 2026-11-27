@@ -1,4 +1,4 @@
-import { endpoints, type User } from "@ownbase/protocol";
+import { endpoints, keywordKey, type User } from "@ownbase/protocol";
 import {
   declaredPictureType,
   guestRestricted,
@@ -134,6 +134,26 @@ export function registerPeople(ctx: ServerContext) {
     return { blocked: store.people.blockedIds(me.id) };
   });
 
+  route(endpoints.keywords, async ({ user: me }) => ({ keywords: store.people.keywords(me.id) }));
+
+  route(endpoints.setKeywords, async ({ user: me, body }) => {
+    const keywords = new Map<string, string>();
+    for (const written of body.keywords) {
+      const keyword = written.trim().replace(/\s+/g, " ");
+      if (!keyword) continue;
+      const key = keywordKey(keyword);
+      if (!key)
+        throw new HttpError(
+          400,
+          "keyword_without_words",
+          `"${keyword}" has no letters or numbers, so no message could match it.`,
+        );
+      if (!keywords.has(key)) keywords.set(key, keyword);
+    }
+    store.transaction(() => store.people.setKeywords(me.id, [...keywords.values()]));
+    return { keywords: store.people.keywords(me.id) };
+  });
+
   route(endpoints.reportMessage, async ({ user: me, body, params }) => {
     const message = requireVisibleMessage(store, params.id, me);
     if (message.userId === me.id) throw new HttpError(400, "cannot_report_own_message");
@@ -150,6 +170,12 @@ export function registerPeople(ctx: ServerContext) {
     });
   });
 
+  route(endpoints.setNotifySchedule, async ({ user: me, body }) => {
+    const { schedule } = body;
+    store.people.setNotifySchedule(me.id, schedule);
+    return { schedule };
+  });
+
   // Statuses that ended while the server was stopped clear as it starts.
   ctx.lifecycle.onStart(() => statusExpiry.arm());
 
@@ -158,6 +184,8 @@ export function registerPeople(ctx: ServerContext) {
       users: store.people.list(),
       friends: store.people.friends(user.id),
       blocked: store.people.blockedIds(user.id),
+      notifySchedule: store.people.notifySchedule(user.id),
+      keywords: store.people.keywords(user.id),
     }),
   };
 }
