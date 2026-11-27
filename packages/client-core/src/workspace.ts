@@ -868,6 +868,14 @@ export class WorkspaceClient {
         });
         break;
       }
+      case "huddle.ask.refused": {
+        const message = this.calls.askRefusedNotice(event);
+        if (message)
+          this.store.setState({
+            ringNotice: { channelId: event.channelId, message, at: Date.now() },
+          });
+        break;
+      }
       case "huddle.moved":
         this.calls.moved(event);
         break;
@@ -1441,6 +1449,14 @@ export class WorkspaceClient {
    */
   declineRing(channelId: ID): void {
     this.calls.declineRing(channelId);
+  }
+
+  /**
+   * Rings a member of the channel into the call this device is in (K18).
+   * The ring comes back as `rings` changes, and a refusal as `ringNotice`.
+   */
+  ringIntoCall(userId: ID): void {
+    this.calls.ringIntoCall(userId);
   }
 
   toggleMic(): void {

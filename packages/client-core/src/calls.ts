@@ -168,16 +168,51 @@ export class Calls {
   /**
    * What the caller's device in the call says as its ring changes (E10): who
    * has just declined, or, once it ends with nobody answering, that nobody
-   * did. Their other devices say nothing, nor does anyone rung.
+   * did. Their other devices say nothing, nor does anyone rung. In a
+   * channel's call (K18), each asker's device says who of those they asked
+   * can't join or didn't answer.
    */
   ringNoticeFor(before: HuddleRing | undefined, after: HuddleRing): string | null {
-    if (after.callerId !== this.state.self?.id || this.state.huddle?.channelId !== after.channelId)
-      return null;
+    const selfId = this.state.self?.id;
+    if (this.state.huddle?.channelId !== after.channelId) return null;
+    const { askedBy } = after;
+    const names = (ids: ID[]) =>
+      ids.map((id) => this.state.users[id]?.displayName ?? "Someone").join(" and ");
     const declined = after.declined.filter((id) => !before?.declined.includes(id));
-    if (declined.length > 0)
-      return `${declined.map((id) => this.state.users[id]?.displayName ?? "Someone").join(" and ")} declined`;
+    // In a channel (K18), whoever asked hears of the people they asked.
+    if (askedBy) {
+      const mine = (id: ID) => askedBy[id] === selfId;
+      const refused = declined.filter(mine);
+      if (refused.length > 0) return `${names(refused)} can't join now`;
+      const missed = (before?.ringing ?? []).filter(
+        (id) =>
+          mine(id) &&
+          !after.ringing.includes(id) &&
+          !after.answered.includes(id) &&
+          !after.declined.includes(id),
+      );
+      return missed.length > 0 ? `${names(missed)} didn't answer` : null;
+    }
+    if (after.callerId !== selfId) return null;
+    if (declined.length > 0) return `${names(declined)} declined`;
     if (after.ringing.length === 0 && after.answered.length === 0) return "No answer";
     return null;
+  }
+
+  /** Rings a member of the channel into this device's call (K18). */
+  ringIntoCall(userId: ID): void {
+    const channelId = this.session?.channelId;
+    if (channelId && this.huddleAdmitted)
+      this.sendSocket({ type: "huddle.ask", channelId, userId });
+  }
+
+  /** What the asking device says of someone the server did not ring (K18). */
+  askRefusedNotice(event: Extract<EphemeralEvent, { type: "huddle.ask.refused" }>): string | null {
+    if (this.state.huddle?.channelId !== event.channelId) return null;
+    if (event.reason === "unavailable")
+      return `${this.state.users[event.userId]?.displayName ?? "Someone"} can't join now`;
+    const seconds = Math.max(1, Math.ceil((event.retryAfterMs ?? 0) / 1000));
+    return `You've asked a lot of people just now. Try again in ${seconds} seconds.`;
   }
 
   declineRing(channelId: ID): void {
