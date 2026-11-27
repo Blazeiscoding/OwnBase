@@ -1,4 +1,5 @@
-import { useEffect, useRef, useState } from "react";
+import { useContext, useEffect, useRef, useState } from "react";
+import { isRoom, pageLink } from "@ownbase/protocol";
 import { useStore } from "zustand";
 import { createStore } from "zustand/vanilla";
 import { callKeyCombo } from "@ownbase/client-core/callKeys";
@@ -19,6 +20,13 @@ import { ReactionBar } from "./CallReactions.js";
 import { ScreenShareDialog } from "./ScreenShareDialog.js";
 import { Tooltip } from "./Tooltip.js";
 import { shortcutLabel } from "../lib/shortcuts.js";
+import { writeClipboard } from "../lib/useCopy.js";
+import { AskToJoin } from "./AskToJoin.js";
+import { useShareableServer } from "./ShareableServer.js";
+import { ToastContext } from "./Toast.js";
+
+/** Where the controls show alone, as in a test, a copied link goes unannounced. */
+const quiet = () => () => {};
 
 /**
  * Whether the desktop app's screen picker is open. The controls out of full
@@ -125,6 +133,10 @@ export function HuddleControls({
   const devices = useMediaDevices();
   const selfId = useWorkspace((s) => s.self?.id);
   const [reacting, setReacting] = useState(false);
+  const [asking, setAsking] = useState(false);
+  const room = useWorkspace((s) => isRoom(s.channels[s.huddle?.channelId ?? ""]?.type));
+  const shareable = useShareableServer();
+  const toast = useContext(ToastContext) ?? quiet;
   const [busy, setBusy] = useState<"screen" | "camera" | "microphone" | null>(null);
   const [failure, setFailure] = useState<string | null>(null);
   const choosingScreen = useStore(picker, (s) => s.open);
@@ -205,14 +217,50 @@ export function HuddleControls({
   const holdingTalk = !!huddle.holdingTalk;
   const handRaised = !!selfId && !!huddle.hands?.includes(selfId);
   // The bar keeps to one row on a laptop, so what is used less goes in a menu.
-  const moreItems: MenuItem[] = inCall
+  // Full screen opens no menu, as with the devices.
+  const moreItems: MenuItem[] = overlay
     ? []
     : [
+        ...(inCall
+          ? []
+          : [
+              {
+                id: "hand",
+                label: handRaised ? "Lower your hand" : "Raise your hand",
+                icon: "hand" as const,
+                onSelect: () => client.toggleHand(),
+              },
+            ]),
+        // A direct call already rang everyone in it (K18).
+        ...(room
+          ? [
+              {
+                id: "ask",
+                label: "Ask someone to join",
+                icon: "userPlus" as const,
+                onSelect: () => setAsking(true),
+              },
+            ]
+          : []),
+        // Opens the conversation and offers its call, as Copy link opens the conversation (K03).
         {
-          id: "hand",
-          label: handRaised ? "Lower your hand" : "Raise your hand",
-          icon: "hand",
-          onSelect: () => client.toggleHand(),
+          id: "copy-call-link",
+          label: "Copy link to call",
+          icon: "link",
+          onSelect: () =>
+            void writeClipboard(
+              pageLink(shareable.serverUrl, {
+                kind: "conversation",
+                channelId: huddle.channelId,
+                call: true,
+              }),
+            ).then((ok) =>
+              toast(
+                ok
+                  ? { message: "Link copied.", kind: "success" }
+                  : { message: "Could not copy the link." },
+              ),
+            ),
         },
       ];
   // Full screen shows only what is inside the stage, and menus open on the
@@ -530,6 +578,9 @@ export function HuddleControls({
             Try again
           </button>
         </p>
+      )}
+      {asking && !overlay && (
+        <AskToJoin channelId={huddle.channelId} onClose={() => setAsking(false)} />
       )}
       {choosingScreen && !overlay && (
         <ScreenShareDialog onClose={() => picker.setState({ open: false })} />

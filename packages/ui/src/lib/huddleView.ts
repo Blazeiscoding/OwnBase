@@ -83,6 +83,32 @@ export function aloneLine(
   return ringingLine(ring, users) ?? (notice?.channelId === channelId ? notice.message : null);
 }
 
+/** How long a line about a ring stays beside the others in a call (K18). */
+export const RING_NOTICE_MS = 10_000;
+
+/**
+ * How a ring went, such as "Sam can't join now", while it is news: alone in
+ * the call it stays, being all there is to say; with others it goes after
+ * `RING_NOTICE_MS`, so the line goes back to who is there.
+ */
+export function useRingNotice(
+  notice: { channelId: ID; message: string; at: number } | null,
+  channelId: ID | undefined,
+  alone: boolean,
+): string | null {
+  const [, expire] = useState(0);
+  useEffect(() => {
+    if (alone || !notice) return;
+    const timer = setTimeout(
+      () => expire((n) => n + 1),
+      Math.max(0, notice.at + RING_NOTICE_MS - Date.now()),
+    );
+    return () => clearTimeout(timer);
+  }, [alone, notice]);
+  if (!notice || notice.channelId !== channelId) return null;
+  return alone || Date.now() - notice.at < RING_NOTICE_MS ? notice.message : null;
+}
+
 /**
  * How many cameras a call holds up with (E13b). Each one costs everyone else
  * a decoder, and its owner an encoder for every one of them, so it is the

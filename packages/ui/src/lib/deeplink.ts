@@ -13,8 +13,8 @@ export type DeepLink =
   /** A link mailed to confirm an email address (G10). */
   | { kind: "verifyEmail"; serverUrl: string; token: string }
   | { kind: "message"; serverUrl: string; channelId: string; messageId: string }
-  /** A channel or conversation (K03). */
-  | { kind: "conversation"; serverUrl: string; channelId: string };
+  /** A channel or conversation (K03), or its call (K18). */
+  | { kind: "conversation"; serverUrl: string; channelId: string; call?: true };
 
 /**
  * Parses the links the app hands out, in either form: protocol's
@@ -53,7 +53,9 @@ export function parseDeepLink(raw: string): DeepLink | null {
   }
   if (action === "conversation") {
     const channelId = url.searchParams.get("channel");
-    return isPageId(channelId) ? { kind: "conversation", serverUrl, channelId } : null;
+    if (!isPageId(channelId)) return null;
+    const call = url.searchParams.get("call") === "1" && { call: true as const };
+    return { kind: "conversation", serverUrl, channelId, ...call };
   }
   return null;
 }

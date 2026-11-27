@@ -9,11 +9,12 @@ export const ClientContext = createContext<WorkspaceClient | null>(null);
 /**
  * Opens a message, or with no message the conversation, in the workspace on
  * screen, so a link to one written in a message opens it there rather than
- * in another window of the app.
+ * in another window of the app. `call`: a link to the conversation's call,
+ * which offers to join it (K18).
  */
-export const OpenMessageContext = createContext<((channelId: ID, messageId?: ID) => void) | null>(
-  null,
-);
+export const OpenMessageContext = createContext<
+  ((channelId: ID, messageId?: ID, call?: boolean) => void) | null
+>(null);
 
 export function usePlatform(): Platform {
   const p = useContext(PlatformContext);

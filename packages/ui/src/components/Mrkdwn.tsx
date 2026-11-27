@@ -312,7 +312,7 @@ const INLINE_RE = new RegExp(
 function renderInline(
   text: string,
   ctx: Pick<Props, "users" | "channels" | "selfId" | "onChannelClick"> & {
-    openMessage?: ((channelId: ID, messageId?: ID) => void) | null;
+    openMessage?: ((channelId: ID, messageId?: ID, call?: boolean) => void) | null;
     /** Whether an address is this workspace's; only its links open here. */
     ours?: (serverUrl: string) => boolean;
     highlight: (value: string) => ReactNode;
@@ -474,7 +474,9 @@ function renderLink(
       ? (event: React.MouseEvent) => {
           if (event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey) return;
           event.preventDefault();
-          openMessage(place.channelId, place.kind === "message" ? place.messageId : undefined);
+          if (place.kind === "message") openMessage(place.channelId, place.messageId);
+          else if (place.call) openMessage(place.channelId, undefined, true);
+          else openMessage(place.channelId, undefined);
         }
       : undefined;
   // A bare link to a channel the reader can see reads as its name, as Slack
@@ -483,7 +485,11 @@ function renderLink(
     !label && openHere && place?.kind === "conversation"
       ? ctx.channels[place.channelId]
       : undefined;
-  const shown = label ?? (room && isRoom(room.type) ? `#${room.name}` : null);
+  const shown =
+    label ??
+    (room && isRoom(room.type)
+      ? `${place?.kind === "conversation" && place.call ? "Call in " : ""}#${room.name}`
+      : null);
   const realHost = label ? disguisedHost(url, label) : null;
   return (
     <Fragment key={key}>

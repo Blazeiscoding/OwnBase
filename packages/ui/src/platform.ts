@@ -341,7 +341,9 @@ function takeLinkFromAddress(): string | null {
   const link = parseDeepLink(href);
   // A conversation's link is this page's own address for it, which its
   // routing reads; taken out, every move between conversations would be lost.
-  if (!link || link.kind === "conversation") return null;
+  // A link to its call (K18) is taken, to offer the call once; opening the
+  // conversation writes its address back.
+  if (!link || (link.kind === "conversation" && !link.call)) return null;
   history.replaceState(history.state, "", pathname + search);
   return href;
 }

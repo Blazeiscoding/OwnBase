@@ -2,6 +2,7 @@ import { useEffect, useId, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import type { HuddleRing, ID, NotificationPreview } from "@ownbase/protocol";
 import { isSnoozed } from "@ownbase/client-core";
+import { scheduleAllows } from "@ownbase/protocol";
 import { useClient, usePlatform, useWorkspace } from "../context.js";
 import { Avatar } from "./Avatar.js";
 import { Icon } from "./Icon.js";
@@ -15,10 +16,11 @@ import { startRingTone } from "../lib/ringTone.js";
 import { focusedElsewhere, inOneWindow } from "../lib/focusedView.js";
 
 /**
- * A direct message's huddle ringing this account (E10): who is calling, with
- * Join and Decline, a ring tone, and a system notification while the window
- * is not in front. During Do Not Disturb, or in a muted conversation, it
- * rings silently: the prompt still shows.
+ * A direct message's huddle ringing this account (E10), or someone asking it
+ * into a channel's call (K18): who, with Join and Decline, a ring tone, and a
+ * system notification while the window is not in front. During Do Not
+ * Disturb, outside the hours the account allows notifications, or in a muted
+ * conversation, it rings silently: the prompt still shows.
  */
 export function IncomingCall(props: {
   /** Opens the conversation, as answering goes to the call. */
@@ -33,6 +35,8 @@ export function IncomingCall(props: {
   const selfId = useWorkspace((s) => s.self?.id);
   const blocked = useWorkspace((s) => s.blocked);
   const dndUntil = useWorkspace((s) => s.self?.dndUntil ?? null);
+  const schedule = useWorkspace((s) => s.notifySchedule);
+  const timeZone = useWorkspace((s) => s.self?.timeZone);
   const prefs = useWorkspace((s) => s.prefs);
   const users = useWorkspace((s) => s.users);
   const channels = useWorkspace((s) => s.channels);
@@ -43,11 +47,11 @@ export function IncomingCall(props: {
           !!selfId &&
           ring.ringing.includes(selfId) &&
           // Someone this account blocked never rings it (E12).
-          !blocked.includes(ring.callerId),
+          !blocked.includes(callerOf(ring, selfId)),
       ),
     [rings, selfId, blocked],
   );
-  const snoozed = isSnoozed(dndUntil);
+  const snoozed = isSnoozed(dndUntil) || !scheduleAllows(schedule, timeZone, Date.now());
   const loud = ringingMe.filter((ring) => !snoozed && !prefs[ring.channelId]?.muted);
   const ringing = loud.length > 0;
 
@@ -69,10 +73,19 @@ export function IncomingCall(props: {
       if (told.current.has(key) || document.hasFocus() || focusedElsewhere(props.tag)) continue;
       told.current.add(key);
       const channel = channels[ring.channelId];
-      const { title, body } = ringContent(props.preview, {
-        from: users[ring.callerId]?.displayName ?? "Someone",
-        group: channel?.type === "group_dm" ? channelTitle(channel, users, selfId) : undefined,
-      });
+      const from = users[callerOf(ring, selfId)]?.displayName ?? "Someone";
+      // Asked into a channel's call (K18), worded here rather than with the first screen.
+      const { title, body } =
+        ring.askedBy && props.preview !== "none"
+          ? {
+              title: `${from} is asking you to join the call in #${channel?.name}`,
+              body: "Open OwnBase to join or decline.",
+            }
+          : ringContent(props.preview, {
+              from,
+              group:
+                channel?.type === "group_dm" ? channelTitle(channel, users, selfId) : undefined,
+            });
       platform.notify(title, body, () => open.current(ring.channelId), {
         tag: `${props.tag ?? ""} ring ${ring.channelId}`,
       });
@@ -95,10 +108,15 @@ export function IncomingCall(props: {
   );
 }
 
+/** Who rang: in a channel's call, whoever asked this account (K18). */
+const callerOf = (ring: HuddleRing, selfId: ID | undefined) =>
+  ring.askedBy?.[selfId ?? ""] ?? ring.callerId;
+
 function RingCard({ ring, onOpen }: { ring: HuddleRing; onOpen: (channelId: ID) => void }) {
   const client = useClient();
   const toast = useToast();
-  const caller = useWorkspace((s) => s.users[ring.callerId]);
+  const caller = useWorkspace((s) => s.users[callerOf(ring, s.self?.id)]);
+  const room = useWorkspace((s) => (ring.askedBy ? s.channels[ring.channelId]?.name : null));
   const group = useWorkspace((s) => {
     const channel = s.channels[ring.channelId];
     return channel?.type === "group_dm" ? channelTitle(channel, s.users, s.self?.id) : null;
@@ -138,12 +156,21 @@ function RingCard({ ring, onOpen }: { ring: HuddleRing; onOpen: (channelId: ID) 
       </span>
       {/* Room for the name; on a phone the buttons take a row of their own. */}
       <div className="min-w-0 flex-1 basis-40">
-        <p id={titleId} role="alert" className="truncate text-[15px] font-semibold">
-          {name} is calling
-        </p>
-        <p className="truncate text-[13px] text-ink-dim">
-          {group ? `Huddle with ${group}` : "Huddle with you"}
-        </p>
+        {room != null ? (
+          // The whole sentence, over two lines on a phone rather than cut short.
+          <p id={titleId} role="alert" className="line-clamp-2 text-[15px] font-semibold">
+            {name} is asking you to join the call in #{room}
+          </p>
+        ) : (
+          <>
+            <p id={titleId} role="alert" className="truncate text-[15px] font-semibold">
+              {name} is calling
+            </p>
+            <p className="truncate text-[13px] text-ink-dim">
+              {group ? `Huddle with ${group}` : "Huddle with you"}
+            </p>
+          </>
+        )}
       </div>
       <div className="flex shrink-0 gap-2 max-sm:w-full">
         <button

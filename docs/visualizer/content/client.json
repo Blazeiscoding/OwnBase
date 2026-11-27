@@ -3209,9 +3209,30 @@
       "details": [
         "A card per ring at the top of the window: the caller's picture, <name> is calling, and Huddle with you or with the group's names; on a phone its buttons take a row of their own. Join opens the conversation and joins through useCallPreferences, so the device check still comes first; Decline calls WorkspaceClient.declineRing.",
         "While it rings, startRingTone plays and a system notification says who is calling once per ring if the window is not in front, worded by ringContent; both stay quiet during Do Not Disturb and in a muted conversation, where the card still shows. The title is an alert, so it is read as it appears.",
-        "A ring from someone blocked never shows or sounds (E12)."
+        "A ring from someone blocked never shows or sounds (E12).",
+        "Asked into a channel's call (K18), the card reads <name> is asking you to join the call in #channel, naming whoever asked this account in the ring's askedBy. Outside the hours the account allows notifications it rings silently, as during Do Not Disturb."
       ],
       "concepts": ["ringing", "huddles", "notifications"]
+    },
+    {
+      "path": "packages/ui/src/components/AskToJoin.tsx",
+      "plain": "The window for asking members of a channel to join its call: find someone, and they get a ring.",
+      "summary": "Ask someone to join, from the call's More call options menu (K18): AddPeople over the channel's members not in the call or being rung, each one chosen rung through WorkspaceClient.ringIntoCall.",
+      "details": [
+        "Reads the channel's members with WorkspaceClient.channelMembers and leaves out this account, apps, deactivated and blocked people, and anyone in the call or still ringing.",
+        "Under the field, everyone asked from here, newest first, with In the call, Ringing… or Not in the call. A decline shows in the call's own line as <name> can't join now."
+      ],
+      "concepts": ["ringing", "huddles"]
+    },
+    {
+      "path": "packages/ui/src/components/CallOffer.tsx",
+      "plain": "What a link to a call shows when it is opened: who is in the call, with a Join button. It never joins by itself.",
+      "summary": "Shown by DeviceCheckHost, out of the first download, while the navigation holds a callOffer, set by opening a #/c/<id>/call link (K18) from an address, the desktop app or a message; offers the call once the workspace is online.",
+      "details": [
+        "A notice names who is in the conversation's call, with Join, or says nobody is, with Start a huddle; both go through useStartHuddle, so the device check and the Switch huddles? question still come first.",
+        "Says nothing for a conversation this account cannot see, where the screen already says so, or for a call this device is in. Each link offers once, however often the workspace reconnects."
+      ],
+      "concepts": ["huddle entry point", "links"]
     },
     {
       "path": "packages/ui/src/components/ConversationHeader.tsx",
@@ -3243,7 +3264,7 @@
       "plain": "The call bar showing who is in the huddle, who is speaking, each person's volume and anyone you cannot connect to.",
       "summary": "Shows call presence, speaking rings and the header join/start control.",
       "details": [
-        "HuddleFace resolves participants and speaking state, while the compact bar hosts the controls and Show call, which opens the call, video or not.",
+        "HuddleFace resolves participants and speaking state, while the compact bar hosts the controls and Show call, an icon button that opens the call, video or not.",
         "While the call shows, the bar is hidden and keeps only HuddleAudio mounted, in the same place, so moving between the views never starts anyone's voice again, and there is one set of controls (and one screen picker) at a time.",
         "The list of who is there (Everyone in the huddle) gives each of the others a PersonVolume row, and someone sharing a screen with its sound a second row for that sound. Someone muted for you is said to be, ahead of talking, with a crossed speaker on their face. The bar hands everyone's volume to HuddleAudio.",
         "HuddleButton starts or joins through the shared call-preference store and provides meaningful error state. N04 makes this header path agree with Getting started about mute initialization.",
@@ -3261,6 +3282,7 @@
         "Used by the bar and by the call, which gives them its own look (stage): squarer buttons lit from within and a solid red Leave, as Discord draws a voice channel's, drawn in ink so they read on Onyx's black and White's grey alike. Over the call in full screen (overlay) they leave out the device menus.",
         "While the connection to the workspace is down (status reconnecting or connecting), a polite status line says the call goes on while it comes back.",
         "Stable accessible names plus aria-pressed describe toggles; captureFailure distinguishes a cancelled picker from a permission/device problem. A lost microphone exposes retry.",
+        "A More call options menu holds what is used less: in the bar, Raise your hand (the call keeps its own Raise hand button), so the bar fits one row on a laptop; in both, Ask someone to join in a channel's call, which opens AskToJoin, and Copy link to call (K18). Full screen leaves it out, as it does the device menus.",
         "Beside Mute and Camera, a small arrow opens a menu of microphones and speakers, or cameras, with the chosen one ticked (menuitemradio) and a link to Voice & video settings. The menus are left out of the full-screen overlay, because menus open on the page beneath a fullscreen element.",
         "In the desktop app, Share screen opens ScreenShareDialog rather than asking the browser; a browser shows its own picker, and stopping needs none. Whether the picker is open is one small store for the window: the controls out of full screen draw it, in the bar or the call; in full screen they leave full screen first, since a dialog does not show over it, and draw it once full screen has ended. Moving between the bar and the call keeps it open; it closes when the huddle ends."
       ],
@@ -3383,7 +3405,8 @@
       "plain": "Waits in the workspace for a huddle that needs the device question, and shows it then.",
       "summary": "Shows DeviceCheckDialog while callPreferences.checkingDevices is set, and ends a waiting join when the workspace goes.",
       "details": [
-        "WorkspaceScreen fetches it as the workspace opens, so the call preferences it reads stay out of the first download; useStartHuddle fetches them the same way when a huddle starts."
+        "WorkspaceScreen fetches it as the workspace opens, so the call preferences it reads stay out of the first download; useStartHuddle fetches them the same way when a huddle starts.",
+        "It also shows CallOffer while a link to a call waits to be offered (K18), which keeps that out of the first download too."
       ],
       "concepts": ["first-call device check", "lazy loading"]
     },

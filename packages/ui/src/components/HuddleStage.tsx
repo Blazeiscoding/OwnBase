@@ -13,7 +13,7 @@ import type { CallReaction, CallView, HuddleState } from "@ownbase/client-core";
 import type { ID, User } from "@ownbase/protocol";
 import { useClient, useWorkspace } from "../context.js";
 import { avatarColor, channelTitle } from "../lib/format.js";
-import { aloneLine, ringingLine } from "../lib/huddleView.js";
+import { aloneLine, ringingLine, useRingNotice } from "../lib/huddleView.js";
 import { Avatar, usePicture } from "./Avatar.js";
 import { HuddleControls } from "./HuddleControls.js";
 import { TileReactions } from "./CallReactions.js";
@@ -907,6 +907,7 @@ export function HuddleStage({
   const selfId = useWorkspace((s) => s.self?.id);
   const ring = useWorkspace((s) => (s.huddle ? s.rings[s.huddle.channelId] : undefined));
   const ringNotice = useWorkspace((s) => s.ringNotice);
+  const notice = useRingNotice(ringNotice, huddle?.channelId, huddle?.peers.length === 0);
   const { volumes } = useCallVolumes();
   const stage = useRef<HTMLElement | null>(null);
   const [measure, area] = useElementSize();
@@ -987,11 +988,11 @@ export function HuddleStage({
       : channelTitle(channel, users, selfId)
     : "Huddle";
   const stuck = huddle.peers.some((p) => !p.connected && p.trouble);
-  // Who a ring still rings, and alone, for its caller, how it went (E10).
+  // Who a ring still rings, and for whoever rang or asked, how it went (E10, K18).
   const ringLine =
     huddle.peers.length === 0
       ? aloneLine(ring, ringNotice, huddle.channelId, users)
-      : ringingLine(ring, users);
+      : (ringingLine(ring, users) ?? notice);
   const viewButtons = (side: "top" | "bottom") => (
     <>
       {main && others.length > 0 && (

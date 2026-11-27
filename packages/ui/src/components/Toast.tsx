@@ -32,7 +32,7 @@ export interface ToastRequest {
 /** Shows a notice. Returns a function that takes it back off the screen. */
 type Show = (request: ToastRequest) => () => void;
 
-const ToastContext = createContext<Show | null>(null);
+export const ToastContext = createContext<Show | null>(null);
 
 /**
  * Report something that finished away from the control that started it: a

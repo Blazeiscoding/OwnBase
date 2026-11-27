@@ -8,7 +8,13 @@ import { Popover } from "./Popover.js";
 import { HuddleControls } from "./HuddleControls.js";
 import { HuddleAudio } from "./HuddleAudio.js";
 import { Tooltip } from "./Tooltip.js";
-import { aloneLine, bigCallLine, ringingLine, type HuddleView } from "../lib/huddleView.js";
+import {
+  aloneLine,
+  bigCallLine,
+  ringingLine,
+  useRingNotice,
+  type HuddleView,
+} from "../lib/huddleView.js";
 import { useToast } from "./Toast.js";
 import type { HuddleState } from "@ownbase/client-core";
 import { namesList } from "../lib/catchUp.js";
@@ -221,6 +227,7 @@ export function HuddleBar({
   const ringNotice = useWorkspace((s) => s.ringNotice);
   const speakerId = useCallPreferences().devices.speakerId;
   const { volumes } = useCallVolumes();
+  const notice = useRingNotice(ringNotice, huddle?.channelId, huddle?.peers.length === 0);
 
   if (!huddle) return null;
   const channel = channels[huddle.channelId];
@@ -290,7 +297,7 @@ export function HuddleBar({
             .join(", ")} · Trying again`
         : `With ${namesList(huddle.peers.map((p) => users[p.userId]?.displayName ?? "someone"))}${
             connecting
-          }${sharing}${ringing ? ` · ${ringing}` : ""}`;
+          }${sharing}${ringing ? ` · ${ringing}` : ""}${notice ? ` · ${notice}` : ""}`;
   const calling = view === "call";
   return (
     <div

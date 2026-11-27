@@ -25,6 +25,8 @@ export function AddPeople({
   autoFocus,
   label = "Add someone",
   quiet,
+  action = "Add",
+  none = "Everyone in the workspace is already here.",
   onAdd,
 }: {
   /** Who can be added: not already in, not deactivated, not an app. */
@@ -37,6 +39,10 @@ export function AddPeople({
   label?: string;
   /** Says nothing on adding, for a form that is saved later, where nobody is added yet. */
   quiet?: boolean;
+  /** What choosing someone does, in a word: "Add", or "Ring" to ask them into a call. */
+  action?: string;
+  /** Said when nobody is left to choose. */
+  none?: string;
   /** Adds them; says whether it worked (a failure is reported by the caller). */
   onAdd: (userId: ID) => Promise<boolean>;
 }) {
@@ -113,13 +119,17 @@ export function AddPeople({
         {matches.length === 0
           ? query
             ? `No one else matches “${q.trim()}”.`
-            : "Everyone in the workspace is already here."
+            : none
           : matches.length > SHOWN
             ? `${matches.length} people match. Keep typing to narrow it down.`
-            : "Press Enter to add the highlighted person."}
+            : `Press Enter to ${action.toLowerCase()} the highlighted person.`}
       </p>
       {shown.length > 0 && (
-        <ul {...list.listProps} aria-label="People to add" className="mt-1 space-y-0.5">
+        <ul
+          {...list.listProps}
+          aria-label={`People to ${action.toLowerCase()}`}
+          className="mt-1 space-y-0.5"
+        >
           {shown.map((u, i) => (
             // eslint-disable-next-line jsx-a11y/click-events-have-key-events, jsx-a11y/no-noninteractive-element-interactions -- an option of a combobox: the field keeps focus and takes the keys (aria-activedescendant)
             <li
@@ -144,7 +154,7 @@ export function AddPeople({
                 {u.displayName} <span className="text-[12px] text-ink-dim">@{u.handle}</span>
               </span>
               <span aria-hidden="true" className="text-[12px] text-ink-dim">
-                {i === list.active ? "Add ↵" : ""}
+                {i === list.active ? `${action} ↵` : ""}
               </span>
             </li>
           ))}

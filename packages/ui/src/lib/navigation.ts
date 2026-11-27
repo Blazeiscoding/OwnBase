@@ -75,6 +75,8 @@ export interface NavigationState {
    * conversation on a narrow window, or the call over the chat.
    */
   cover: { panel: boolean; call: boolean };
+  /** The conversation whose call a link last offered to join (K18), a new object each time. */
+  callOffer?: { channelId: ID };
 }
 
 export type Intent =
@@ -148,6 +150,8 @@ export function reading(state: NavigationState): { channel: boolean; thread: boo
 export interface LinkTarget {
   channelId: ID;
   messageId?: ID;
+  /** A link to the conversation's call (K18): it offers to join. */
+  call?: boolean;
 }
 
 const NOT_OPENED =
@@ -291,6 +295,11 @@ export class Navigation {
         this.dialogStep = false;
         return this.set({ dialog: { kind: "none" }, channelId: null });
     }
+  }
+
+  /** A link to a conversation's call was opened: offer to join it (K18). */
+  offerCall(channelId: ID): void {
+    this.put({ callOffer: { channelId } });
   }
 
   /** Closes the dialog: Back through the step that opened it, if one did. */
