@@ -866,6 +866,27 @@ export interface ChannelRemoval {
   createdAt: number;
 }
 
+/**
+ * Other people's reactions with one emoji to one of this account's messages,
+ * as Activity's Reactions tab shows them (K13).
+ */
+export interface ReactionActivity {
+  message: Message;
+  emoji: string;
+  /** Who reacted, newest first, at most `REACTION_ACTIVITY_NAMES` of them. */
+  userIds: ID[];
+  /** How many people reacted with it, this account aside. */
+  count: number;
+  /** When the newest of them reacted. Unseen while after `reactionsSeenAt`. */
+  at: number;
+}
+
+/** How many of the people who reacted a Reactions entry names. */
+export const REACTION_ACTIVITY_NAMES = 3;
+
+/** Unseen Reactions entries are counted up to this many; the tab says "99+" past it. */
+export const UNSEEN_REACTIONS_MAX = 100;
+
 /** A reminder with the message it is about, as the Reminders list shows it. */
 export interface ReminderItem {
   reminder: Reminder;
@@ -919,8 +940,35 @@ export interface ScheduledMessage {
   /** Why delivery is held or failed, phrased for the author. */
   failureReason: string | null;
   attempts: number;
-  /** Set when delivered, in the same transaction as the message itself. */
+  /**
+   * Set when delivered, in the same transaction as the message itself. A
+   * repeating one keeps the last message it sent here while it waits for the next.
+   */
   messageId: ID | null;
+  /** How it repeats; null for a message sent once. */
+  repeat: RepeatRule | null;
+}
+
+/** How often a repeating scheduled message goes out. */
+export type RepeatEvery = "day" | "weekday" | "week" | "month";
+
+/**
+ * When a scheduled message goes out again after each send (K14). Its days and
+ * its time are the author's, in `timeZone`, so 9:00 stays 9:00 across a
+ * daylight-saving change.
+ */
+export interface RepeatRule {
+  every: RepeatEvery;
+  /** For "week": the day it goes, 0 for Sunday to 6 for Saturday. */
+  weekday?: number;
+  /** For "month": the date it goes, 1 to 31. A shorter month sends on its last day. */
+  monthDay?: number;
+  /** The time of day, "HH:MM" on a 24-hour clock. */
+  time: string;
+  /** The IANA zone its days and time are in, such as "Europe/London". */
+  timeZone: string;
+  /** The last day it may go out, "YYYY-MM-DD" in its zone, or null to go on until stopped. */
+  until: string | null;
 }
 
 /** An integration: a bot user plus the tokens and hooks that drive it. */

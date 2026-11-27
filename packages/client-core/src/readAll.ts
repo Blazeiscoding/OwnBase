@@ -53,12 +53,19 @@ export interface Unread {
   threads: ThreadFollow[];
   /** Notes that someone removed this account from a channel, not yet read. */
   removals: ID[];
+  /** How many Reactions entries are new (K13). */
+  reactions: number;
 }
 
 export function unreadEverywhere(
   state: Pick<
     WorkspaceState,
-    "memberships" | "channelLastSeq" | "mentionCounts" | "threadFollows" | "channelRemovals"
+    | "memberships"
+    | "channelLastSeq"
+    | "mentionCounts"
+    | "threadFollows"
+    | "channelRemovals"
+    | "reactionActivity"
   >,
 ): Unread {
   return {
@@ -67,18 +74,19 @@ export function unreadEverywhere(
     ),
     threads: Object.values(state.threadFollows).filter(isThreadUnread),
     removals: Object.keys(state.channelRemovals),
+    reactions: state.reactionActivity.unseen,
   };
 }
 
 /** Whether Mark all read has anything to read. */
 export function anythingUnread(state: Parameters<typeof unreadEverywhere>[0]): boolean {
-  const { channels, threads, removals } = unreadEverywhere(state);
-  return channels.length + threads.length + removals.length > 0;
+  const { channels, threads, removals, reactions } = unreadEverywhere(state);
+  return channels.length + threads.length + removals.length + reactions > 0;
 }
 
 /**
  * Reads everything: every conversation and followed thread to its newest,
- * and every note of a removal. A reply naming this account in a thread it
+ * every note of a removal, and every reaction to this account's messages. A reply naming this account in a thread it
  * does not follow is read only through that thread, and nothing on the
  * device lists those, so while the mention counts say any are unread they
  * are looked up among the mentions, newest first, a page at a time. Gives
@@ -94,11 +102,12 @@ export async function markEverythingRead(client: WorkspaceClient): Promise<ApiEr
       explicit: true,
       through: { channelId: follow.channelId, seq: follow.lastSeq },
     });
-  const [removals, mentions] = await Promise.all([
+  const [removals, mentions, reactions] = await Promise.all([
     client.readChannelRemovals(Object.keys(before.channelRemovals)),
     readMentionedThreads(client, before),
+    before.reactionActivity.unseen > 0 ? client.seeReactions() : null,
   ]);
-  return removals ?? mentions;
+  return removals ?? mentions ?? reactions;
 }
 
 async function readMentionedThreads(

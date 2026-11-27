@@ -162,7 +162,11 @@ export class Sender {
 
     const command = !poll && !forward && files.length === 0 ? parseCommand(text) : null;
     if (command) {
-      if (isInAppCommand(command.name))
+      // Unless an app had the name first: the server lists it as the app's then.
+      if (
+        isInAppCommand(command.name) &&
+        !this.state.commands.some((c) => c.command === command.name && !c.builtin)
+      )
         return { kind: "in_app", name: command.name, args: command.args };
       void this.commands.runCommand(channelId, text.trim(), command.name, opts.threadRootId);
       return { kind: "command" };

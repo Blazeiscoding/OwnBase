@@ -47,6 +47,16 @@ describe("a slash command typed as a message", () => {
     expect(client.state.pending).toEqual([]);
   });
 
+  it("goes to an app that had the name before the app took it, as the server lists it", () => {
+    const { client, run } = signedIn();
+    expect(client.send("C1", "/remind #general hi every day at 9").kind).toBe("in_app");
+    client.store.setState({
+      commands: [{ command: "remind", description: "", usageHint: "", builtin: false }],
+    });
+    expect(client.send("C1", "/remind me in 5 minutes")).toEqual({ kind: "command" });
+    expect(run).toHaveBeenCalledWith("C1", { text: "/remind me in 5 minutes" });
+  });
+
   it("is an ordinary message when it carries files, or is a path", () => {
     const { client, run } = signedIn();
     expect(client.send("C1", "/Users/me/notes.txt").kind).toBe("queued");

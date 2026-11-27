@@ -15,6 +15,7 @@ import type {
   Invite,
   Message,
   NotifyLevel,
+  ReactionActivity,
   ReminderItem,
   Reminder,
   ReportedMessage,
@@ -1650,6 +1651,17 @@ export const endpoints = {
     answer: json<{ scheduled: ScheduledMessage }>(),
   }),
 
+  /**
+   * Stops a scheduled message repeating. The send already waiting still goes,
+   * once; cancel it to send nothing more.
+   */
+  stopRepeating: endpoint({
+    method: "DELETE",
+    path: "/api/scheduled/:id/repeat",
+    access: "member",
+    answer: json<{ scheduled: ScheduledMessage }>(),
+  }),
+
   /** Pins a message to its conversation, for everyone in it to see. */
   pinMessage: endpoint({
     method: "PUT",
@@ -1933,6 +1945,37 @@ export const endpoints = {
     answer: json<{ messages: Message[]; nextCursor: ID | null }>(),
   }),
 
+  /**
+   * Other people's reactions to the caller's messages, newest first, one
+   * entry per message and emoji (K13). Only messages in conversations the
+   * caller is in, and only the newest few thousand reactions, so a busy
+   * channel cannot fill it. `seenAt` and `unseen` say which entries are new.
+   */
+  reactionActivity: endpoint({
+    method: "GET",
+    path: "/api/activity/reactions",
+    access: "guest",
+    query: "reactionActivityQuery",
+    answer: json<{
+      reactions: ReactionActivity[];
+      nextCursor: string | null;
+      seenAt: number;
+      unseen: number;
+    }>(),
+  }),
+
+  /**
+   * Marks the reactions to the caller's messages seen up to `upTo`, or up to
+   * now, on every device of theirs. A mark never moves back.
+   */
+  seeReactions: endpoint({
+    method: "POST",
+    path: "/api/activity/reactions/seen",
+    access: "guest",
+    body: "seeReactionsBody",
+    answer: json<{ seenAt: number; unseen: number }>(),
+  }),
+
   // Reads notes that someone removed this account from channels, which clears
   // them on every device. One already read, or not this account's, is passed over.
   readChannelRemovals: endpoint({
@@ -1944,16 +1987,17 @@ export const endpoints = {
   }),
 
   /**
-   * Searches the messages the caller can read, newest first, by words and
-   * modifiers such as `from:`, `in:`, `has:` and `before:`. `tz` says which
-   * calendar the dates are in.
+   * Searches the messages the caller can read, by words and modifiers such as
+   * `from:`, `in:`, `has:` and `before:`. `sort` puts them newest first (the
+   * default), oldest first or best match first. `tz` says which calendar the
+   * dates are in.
    */
   search: endpoint({
     method: "GET",
     path: "/api/search",
     access: "guest",
     query: "searchQuery",
-    answer: json<{ messages: Message[]; nextCursor: ID | null }>(),
+    answer: json<{ messages: Message[]; nextCursor: string | null }>(),
   }),
 
   // ---------- push to a closed browser (G09) ----------

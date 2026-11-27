@@ -6,6 +6,7 @@ import type { DatabaseSync } from "node:sqlite";
 import { FILE_TYPE_MATCH, parseSearchQuery } from "@ownbase/protocol";
 import { openDb } from "../src/db.js";
 import { Store } from "../src/store.js";
+import { SearchStore } from "../src/search/store.js";
 
 /**
  * A search for a word in many messages walks the newest first, and one for a
@@ -17,7 +18,7 @@ import { Store } from "../src/store.js";
  * walk bounds its matches by disagree with the ids it pages by, and the walk
  * and the point past which it gives up are made small enough to be crossed.
  */
-const statics = Store as unknown as { SEARCH_FEW_MATCHES: number; SEARCH_WINDOW: number };
+const statics = SearchStore;
 const defaults = { few: statics.SEARCH_FEW_MATCHES, window: statics.SEARCH_WINDOW };
 
 let directory: string;
@@ -86,7 +87,12 @@ function everyMatch(reader: string, text: string, opts: { channelId?: string } =
 }
 
 /** Every page the store gives, `size` at a time, as the route asks for them. */
-function everyPage(reader: string, text: string, size: number, opts: { channelId?: string } = {}) {
+function everyPage(
+  reader: string,
+  text: string,
+  size: number,
+  opts: { channelId?: string; order?: "newest" | "oldest" } = {},
+) {
   const parsed = parseSearchQuery(text, { timeZone: "UTC" });
   const ids: string[] = [];
   let cursor: string | undefined;
@@ -229,6 +235,10 @@ describe("a search, whichever way it goes", () => {
           for (const size of [1, 7, 50]) {
             expect(everyPage(reader, text, size), `${text}, ${size} a page`).toEqual(expected);
           }
+          // Oldest first is the same messages the other way round (K15).
+          expect(everyPage(reader, text, 7, { order: "oldest" }), `${text}, oldest first`).toEqual(
+            [...expected].reverse(),
+          );
           expect(
             everyPage(reader, text, 7, { channelId: small.id }),
             `${text} in one channel`,
@@ -404,6 +414,9 @@ describe("a search with few matches, against every case (F13)", () => {
             expect(everyPage(reader, text, size), `${text} for ${reader}, ${size} a page`).toEqual(
               expected,
             );
+          expect(everyPage(reader, text, 3, { order: "oldest" }), `${text}, oldest first`).toEqual(
+            [...expected].reverse(),
+          );
           for (const channelId of [where.general, where.anaBen])
             expect(everyPage(reader, text, 2, { channelId }), `${text} in one channel`).toEqual(
               everyMatch(reader, text, { channelId }),

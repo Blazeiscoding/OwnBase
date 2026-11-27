@@ -295,6 +295,7 @@ describe("scheduling a reply that is also for the channel", () => {
           failureReason: null,
           attempts: 0,
           messageId: null,
+          repeat: null,
         },
       }));
     await user.type(box, "Friday it is");

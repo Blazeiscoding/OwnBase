@@ -258,7 +258,7 @@ describe("Activity's reminders", () => {
       [due.id]: items[0]!.reminder,
       [later.id]: items[1]!.reminder,
     });
-    const tab = screen.getByRole("tab", { name: "Reminders, 1 due" });
+    const tab = screen.getByRole("tab", { name: /^Reminders ?1 ?due$/ });
     expect(tab).toHaveAttribute("aria-selected", "false");
     await user.click(screen.getByRole("button", { name: "1 reminder is due" }));
     expect(tab).toHaveAttribute("aria-selected", "true");
@@ -274,7 +274,7 @@ describe("Activity's reminders", () => {
       [due.id]: items[0]!.reminder,
       [later.id]: items[1]!.reminder,
     });
-    await user.click(screen.getByRole("tab", { name: "Reminders, 1 due" }));
+    await user.click(screen.getByRole("tab", { name: /^Reminders ?1 ?due$/ }));
     const dueSection = await screen.findByRole("region", { name: "Due" });
     const upcoming = screen.getByRole("region", { name: "Upcoming" });
 
@@ -297,7 +297,7 @@ describe("Activity's reminders", () => {
       [due.id]: items[0]!.reminder,
       [later.id]: items[1]!.reminder,
     });
-    await user.click(screen.getByRole("tab", { name: "Reminders, 1 due" }));
+    await user.click(screen.getByRole("tab", { name: /^Reminders ?1 ?due$/ }));
     const dueSection = await screen.findByRole("region", { name: "Due" });
     const upcoming = screen.getByRole("region", { name: "Upcoming" });
     await user.click(within(dueSection).getByRole("button", { name: "Mark done" }));

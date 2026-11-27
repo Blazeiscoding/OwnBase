@@ -41,6 +41,8 @@ const ready = (over: Partial<ReadySnapshot> = {}): ReadySnapshot => ({
   serverTime: 0,
   reminders: [],
   channelRemovals: [],
+  reactionsSeenAt: 0,
+  unseenReactions: 0,
   pollChoices: {},
   sidebarSections: [],
   notifyDefault: "mentions",

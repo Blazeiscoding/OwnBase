@@ -11,6 +11,7 @@ import type { DatabaseSync, SQLInputValue } from "node:sqlite";
 import { oneOf, shape, type RowOf } from "../core/rows.js";
 import { GUEST_SQL, IN_CHANNEL_TIMELINE, NAMES_ME, NOT_BLOCKED, UNREAD } from "../core/sqlRules.js";
 import { ulid } from "../ids.js";
+import { REPEAT_STOPPED } from "../scheduled/store.js";
 import type { Store } from "../store.js";
 
 const NOTIFY_LEVELS = { all: true, mentions: true, nothing: true } satisfies Record<
@@ -319,6 +320,8 @@ export class ChannelStore {
       .prepare("DELETE FROM channel_members WHERE channel_id = ? AND user_id = ?")
       .run(channelId, userId);
     if (res.changes === 0) return false;
+    // In a public channel a send would join them again, so it stops here.
+    this.store.scheduled.stopRepeatsOf({ userId, channelId }, REPEAT_STOPPED.left);
     this.retireDmKey(channelId);
     this.store.outbox.access(channelId, userId);
     return true;

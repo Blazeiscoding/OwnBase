@@ -61,6 +61,7 @@ const originalRow = messageRow
   .with({ channel_type: "text" });
 const attachedFileRow = fileMetaRow.with({ message_id: "text" });
 const reactionRow = shape({ message_id: "text", emoji: "text", user_id: "text" });
+const reactionAuthorRow = shape({ author_id: "text?" });
 
 /** A `link_previews` row; `has_image` stands for the picture when only whether there is one is read. */
 const previewRow = shape({
@@ -1088,20 +1089,39 @@ export class MessageStore {
     }));
   }
 
+  /**
+   * Adds one reaction, keeping who wrote the message for that person's
+   * Activity, and tells them when it is someone else's.
+   */
   addReaction(messageId: ID, userId: ID, emoji: string, at = Date.now()): boolean {
-    const res = this.db
-      .prepare(
-        "INSERT OR IGNORE INTO reactions (message_id, user_id, emoji, created_at) VALUES (?, ?, ?, ?)",
-      )
-      .run(messageId, userId, emoji, at);
-    return res.changes > 0;
+    const added = reactionAuthorRow.get(
+      this.db.prepare(
+        `INSERT OR IGNORE INTO reactions (message_id, user_id, emoji, created_at, author_id)
+         SELECT ?, ?, ?, ?, user_id FROM messages WHERE id = ? RETURNING author_id`,
+      ),
+      messageId,
+      userId,
+      emoji,
+      at,
+      messageId,
+    );
+    if (added?.author_id && added.author_id !== userId)
+      this.store.search.reactionsChanged(added.author_id);
+    return !!added;
   }
 
   removeReaction(messageId: ID, userId: ID, emoji: string): boolean {
-    const res = this.db
-      .prepare("DELETE FROM reactions WHERE message_id = ? AND user_id = ? AND emoji = ?")
-      .run(messageId, userId, emoji);
-    return res.changes > 0;
+    const removed = reactionAuthorRow.get(
+      this.db.prepare(
+        "DELETE FROM reactions WHERE message_id = ? AND user_id = ? AND emoji = ? RETURNING author_id",
+      ),
+      messageId,
+      userId,
+      emoji,
+    );
+    if (removed?.author_id && removed.author_id !== userId)
+      this.store.search.reactionsChanged(removed.author_id);
+    return !!removed;
   }
 
   /**

@@ -422,10 +422,14 @@ describe("the search dialog", () => {
     search: (q: string, opts: { cursor?: string; channelId?: string }) => Promise<Found>,
     props: Partial<ComponentProps<typeof SearchDialog>> = {},
     recent: RecentSearch[] = [],
+    stored: Record<string, unknown> = {},
   ) {
     const { client } = workspace();
     const key = workspaceStorageKey(client.baseUrl, "W1", sam.id, "recent-searches")!.key;
-    const platform = keptStorage(recent.length ? { [key]: { version: 1, value: recent } } : {});
+    const platform = keptStorage({
+      ...stored,
+      ...(recent.length ? { [key]: { version: 1, value: recent } } : {}),
+    });
     const spy = vi
       .spyOn(client.api, "search")
       .mockImplementation((q, _limit, opts) => search(q, opts ?? {}));
@@ -441,7 +445,7 @@ describe("the search dialog", () => {
     const box = within(dialog).getByRole<HTMLInputElement>("textbox", { name: "Search messages" });
     expect(box).toHaveFocus();
     const scroller = dialog.querySelector<HTMLElement>(".dialog-scroll")!;
-    return { client, spy, dialog, box, scroller, onJump };
+    return { client, spy, dialog, box, scroller, onJump, platform };
   }
 
   const ready =
@@ -569,7 +573,7 @@ describe("the search dialog", () => {
         30,
         expect.objectContaining({ cursor: undefined }),
       );
-      expect(dialog).toHaveTextContent("1 result · Newest first · “launch”");
+      expect(dialog).toHaveTextContent("1 result · “launch”");
 
       // Asked once for that change, not again and again.
       await pause(400);
@@ -599,7 +603,7 @@ describe("the search dialog", () => {
       await waitFor(() => expect(resultList(dialog)).toHaveAttribute("aria-busy", "false"));
       expect(within(dialog).getByText(/Newer/)).toBeVisible();
       expect(within(dialog).getByText(/Older/)).toBeVisible();
-      expect(dialog).toHaveTextContent("2 results · Newest first · “mockups”");
+      expect(dialog).toHaveTextContent("2 results · “mockups”");
       expect(scroller.scrollTop).toBe(200);
     });
 
@@ -661,12 +665,12 @@ describe("the search dialog", () => {
       );
       await user.type(box, "launch{Enter}");
       await within(dialog).findByText(/^the/);
-      expect(summary(dialog)).toHaveTextContent("1 result · Newest first · “launch”");
+      expect(summary(dialog)).toHaveTextContent("1 result · “launch”");
 
       await user.type(box, " roadmap{Enter}");
       expect(within(dialog).getByText(/^the/)).toBeVisible();
       // The words are the ones the results on show were found for.
-      expect(summary(dialog)).toHaveTextContent("1 result · Newest first · “launch”");
+      expect(summary(dialog)).toHaveTextContent("1 result · “launch”");
       expect(summary(dialog)).not.toHaveTextContent("roadmap");
     });
 
@@ -702,7 +706,7 @@ describe("the search dialog", () => {
       );
       await user.type(box, "mockups{Enter}");
       await within(dialog).findByText(/Newer/);
-      expect(dialog).toHaveTextContent("1 result so far · Newest first · “mockups”");
+      expect(dialog).toHaveTextContent("1 result so far · “mockups”");
       expect(within(dialog).queryByRole("button", { name: "Next page" })).toBeNull();
       expect(within(dialog).queryByRole("button", { name: "Previous page" })).toBeNull();
 
@@ -714,7 +718,7 @@ describe("the search dialog", () => {
         30,
         expect.objectContaining({ cursor: "M5" }),
       );
-      expect(dialog).toHaveTextContent("2 results · Newest first · “mockups”");
+      expect(dialog).toHaveTextContent("2 results · “mockups”");
       // The end of the list: nothing more to show.
       expect(within(dialog).queryByRole("button", { name: "Show more" })).toBeNull();
     });
@@ -751,7 +755,7 @@ describe("the search dialog", () => {
       fail = false;
       await user.click(within(alert).getByRole("button", { name: "Retry" }));
       await waitFor(() => expect(within(dialog).queryByRole("alert")).toBeNull());
-      expect(dialog).toHaveTextContent("1 result · Newest first · “mockups”");
+      expect(dialog).toHaveTextContent("1 result · “mockups”");
       expect(spy.mock.calls.map((call) => call[0])).toEqual(["mockups", "mockups"]);
     });
 
@@ -762,12 +766,12 @@ describe("the search dialog", () => {
       expect(
         await within(dialog).findByText("Nothing matched. Try different words."),
       ).toBeVisible();
-      expect(dialog).toHaveTextContent("0 results · Newest first · “zebra”");
+      expect(dialog).toHaveTextContent("0 results · “zebra”");
       await user.click(within(dialog).getByRole("tab", { name: "Files" }));
       expect(
         await within(dialog).findByText("No files matched. Try different words."),
       ).toBeVisible();
-      expect(dialog).toHaveTextContent("0 files · Newest first · “zebra”");
+      expect(dialog).toHaveTextContent("0 files · “zebra”");
     });
 
     it("offers to look everywhere when nothing in the conversation it opened in matched", async () => {
@@ -796,10 +800,10 @@ describe("the search dialog", () => {
       const user = userEvent.setup();
       const { dialog, box, spy } = renderSearch(ready());
       await user.type(box, "mo");
-      await waitFor(() => expect(dialog).toHaveTextContent("1 result · Newest first · “mo”"));
+      await waitFor(() => expect(dialog).toHaveTextContent("1 result · “mo”"));
       expect(within(dialog).queryByRole("list", { name: "Recent searches" })).toBeNull();
       await user.type(box, "ck");
-      await waitFor(() => expect(dialog).toHaveTextContent("1 result · Newest first · “mock”"));
+      await waitFor(() => expect(dialog).toHaveTextContent("1 result · “mock”"));
       expect(spy.mock.calls.map((call) => call[0])).toEqual(["mo", "mock"]);
 
       // Enter keeps the search it already has, without asking again.
@@ -895,7 +899,7 @@ describe("the search dialog", () => {
         30,
         expect.objectContaining({ channelId: undefined }),
       );
-      expect(dialog).toHaveTextContent("1 result · Newest first · “launch”");
+      expect(dialog).toHaveTextContent("1 result · “launch”");
     });
 
     it("takes every modifier left in the field on Enter, finished or not", async () => {
@@ -1114,7 +1118,8 @@ describe("the search dialog", () => {
         inConversation: true,
         channelId: design.id,
       });
-      expect(spy).toHaveBeenCalledOnce();
+      // At once, as soon as the order kept on this device is read.
+      await waitFor(() => expect(spy).toHaveBeenCalledOnce());
       expect(spy).toHaveBeenCalledWith(
         "",
         30,
@@ -1153,11 +1158,11 @@ describe("the search dialog", () => {
 
     it("opened with words from the palette, makes their modifiers chips and searches at once", async () => {
       const { dialog, box, spy } = renderSearch(ready(), { initialQuery: "launch from:@priya" });
-      expect(spy).toHaveBeenCalledOnce();
+      await waitFor(() => expect(spy).toHaveBeenCalledOnce());
       expect(spy).toHaveBeenCalledWith(
         "launch from:priya",
         30,
-        expect.objectContaining({ channelId: undefined }),
+        expect.objectContaining({ channelId: undefined, sort: "relevant" }),
       );
       expect(chips(dialog)).toEqual(["From Priya Shah"]);
       expect(box.value.trim()).toBe("launch");
@@ -1171,6 +1176,79 @@ describe("the search dialog", () => {
       await user.click(within(dialog).getByRole("button", { name: "Search tips" }));
       expect(chips(dialog)).toEqual(["From Priya Shah", "In #design"]);
       expect(await accessibilityProblems(dialog)).toEqual([]);
+    });
+  });
+
+  describe("its order (K15)", () => {
+    const sortButton = (dialog: HTMLElement) =>
+      within(dialog).getByRole("button", { name: /^Sort: / });
+
+    it("is Most relevant to start with, and another order asks again from the top and is kept", async () => {
+      const user = userEvent.setup();
+      const { dialog, spy, platform } = renderSearch(
+        async (_q, opts) => ({
+          messages: [message(`M${opts.cursor ?? ""}5`, "The launch is Friday", 5)],
+          nextCursor: opts.cursor ? null : "r~page-two",
+        }),
+        { initialQuery: "launch" },
+      );
+      await waitFor(() => expect(summary(dialog)).toHaveTextContent("1 result so far · “launch”"));
+      expect(sortButton(dialog)).toHaveTextContent("Most relevant");
+      expect(sortButton(dialog)).toHaveAccessibleName("Sort: Most relevant");
+      expect(spy).toHaveBeenLastCalledWith(
+        "launch",
+        30,
+        expect.objectContaining({ sort: "relevant" }),
+      );
+
+      await user.click(sortButton(dialog));
+      const menu = await screen.findByRole("menu", { name: "Sort results" });
+      const orders = within(menu).getAllByRole("menuitemradio");
+      expect(orders.map((item) => item.textContent)).toEqual([
+        "Most relevant",
+        "Newest first",
+        "Oldest first",
+      ]);
+      expect(orders[0]).toHaveAttribute("aria-checked", "true");
+      await user.click(within(menu).getByRole("menuitemradio", { name: "Oldest first" }));
+      await waitFor(() =>
+        expect(spy).toHaveBeenLastCalledWith(
+          "launch",
+          30,
+          expect.objectContaining({ sort: "oldest", cursor: undefined }),
+        ),
+      );
+      expect(sortButton(dialog)).toHaveTextContent("Oldest first");
+      expect(await platform.storage.get("search-sort")).toBe("oldest");
+    });
+
+    it("starts from the order kept on this device, asking once", async () => {
+      const { dialog, spy } = renderSearch(ready(), { initialQuery: "mockups" }, [], {
+        "search-sort": "newest",
+      });
+      await waitFor(() => expect(summary(dialog)).toHaveTextContent("1 result · “mockups”"));
+      expect(spy).toHaveBeenCalledOnce();
+      expect(spy).toHaveBeenCalledWith("mockups", 30, expect.objectContaining({ sort: "newest" }));
+      expect(sortButton(dialog)).toHaveTextContent("Newest first");
+    });
+
+    it("is newest first for filters alone, with nothing to rank by", async () => {
+      const user = userEvent.setup();
+      const { dialog, spy } = renderSearch(ready(), { initialQuery: "from:@priya" });
+      await waitFor(() => expect(summary(dialog)).toHaveTextContent("1 result"));
+      expect(spy).toHaveBeenCalledWith(
+        "from:priya",
+        30,
+        expect.objectContaining({ sort: "newest" }),
+      );
+      expect(sortButton(dialog)).toHaveTextContent("Newest first");
+      await user.click(sortButton(dialog));
+      const menu = await screen.findByRole("menu", { name: "Sort results" });
+      expect(
+        within(menu)
+          .getAllByRole("menuitemradio")
+          .map((item) => item.textContent),
+      ).toEqual(["Newest first", "Oldest first"]);
     });
   });
 
@@ -1284,7 +1362,7 @@ describe("the search dialog", () => {
       }));
       await user.type(box, "budget{Enter}");
       await within(dialog).findByRole("list", { name: "Attachments" });
-      expect(dialog).toHaveTextContent("1 result · Newest first · “budget”");
+      expect(dialog).toHaveTextContent("1 result · “budget”");
 
       const tab = within(dialog).getByRole("tab", { name: "Files" });
       await user.click(tab);
@@ -1296,7 +1374,7 @@ describe("the search dialog", () => {
         expect.objectContaining({ cursor: undefined }),
       );
       await waitFor(() => expect(resultList(dialog)).toHaveAttribute("aria-busy", "false"));
-      expect(dialog).toHaveTextContent("2 files · Newest first · “budget”");
+      expect(dialog).toHaveTextContent("2 files · “budget”");
       const panel = within(dialog).getByRole("tabpanel", { name: "Files" });
       const rows = within(panel).getAllByRole("listitem");
       expect(rows).toHaveLength(2);
@@ -1322,7 +1400,7 @@ describe("the search dialog", () => {
       await user.click(within(dialog).getByRole("tab", { name: "Messages" }));
       await pause(400);
       expect(spy).toHaveBeenCalledTimes(asked);
-      expect(dialog).toHaveTextContent("1 result · Newest first · “budget”");
+      expect(dialog).toHaveTextContent("1 result · “budget”");
     });
   });
 });

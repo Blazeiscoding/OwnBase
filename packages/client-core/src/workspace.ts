@@ -20,6 +20,7 @@ import {
   type ReplyReference,
   type CreateChannelBody,
   type ReportReason,
+  type SearchSort,
   type ServerToClient,
   type UpdateChannelBody,
   type UpdateMeBody,
@@ -54,7 +55,7 @@ import {
   type MessageCache,
   type MessageEvent,
 } from "./messageCache.js";
-import { answerOf, doneOf } from "./answers.js";
+import { answerOf, doneOf, failureOf } from "./answers.js";
 import { type StoredPending } from "./outbox.js";
 import { OptimisticWrites } from "./optimisticWrites.js";
 import { Preferences } from "./preferences.js";
@@ -432,6 +433,12 @@ export class WorkspaceClient {
           .filter((removal) => !this.readMarks.isReading(removal.id))
           .map((removal) => [removal.id, removal]),
       ),
+      // Whatever changed while this client was away was not heard.
+      reactionActivity: {
+        seenAt: snap.reactionsSeenAt,
+        unseen: snap.unseenReactions,
+        revision: prev.reactionActivity.revision + 1,
+      },
       pollChoices: snap.pollChoices,
       // What the server now says stands, but for votes still on their way.
       pollPicks: Object.fromEntries(
@@ -911,6 +918,18 @@ export class WorkspaceClient {
       case "channel.removals.read":
         this.readMarks.forgetRemovals(event.ids);
         break;
+      case "reactions.changed":
+        this.store.setState({
+          reactionActivity: {
+            ...s.reactionActivity,
+            unseen: event.unseen,
+            revision: s.reactionActivity.revision + 1,
+          },
+        });
+        break;
+      case "reactions.seen":
+        this.reactionsSeen(event);
+        break;
       case "notify.default":
         if (!this.writes.heard({ kind: "notifyDefault" }, event.level))
           this.store.setState({ notifyDefault: event.level });
@@ -1193,6 +1212,28 @@ export class WorkspaceClient {
    */
   async readChannelRemovals(ids: ID[]): Promise<ApiError | null> {
     return this.readMarks.readChannelRemovals(ids);
+  }
+
+  /**
+   * Marks the reactions to this account's messages seen up to `upTo`, or up
+   * to now, on every device of theirs (K13). Resolves with why it could not.
+   */
+  async seeReactions(upTo?: number): Promise<ApiError | null> {
+    try {
+      this.reactionsSeen(await this.api.seeReactions(upTo));
+      return null;
+    } catch (error) {
+      return failureOf(error);
+    }
+  }
+
+  /** Takes what the server says about seen reactions; a mark never moves back. */
+  reactionsSeen({ seenAt, unseen }: { seenAt: number; unseen: number }): void {
+    this.store.setState((s) =>
+      seenAt < s.reactionActivity.seenAt
+        ? {}
+        : { reactionActivity: { ...s.reactionActivity, seenAt, unseen } },
+    );
   }
 
   /**
@@ -1644,7 +1685,11 @@ export class WorkspaceClient {
     return this.fileLimit;
   }
 
-  search(q: string, limit?: number, opts?: { cursor?: ID; channelId?: ID; signal?: AbortSignal }) {
+  search(
+    q: string,
+    limit?: number,
+    opts?: { cursor?: string; channelId?: ID; sort?: SearchSort; signal?: AbortSignal },
+  ) {
     return answerOf(() => this.api.search(q, limit, opts));
   }
 

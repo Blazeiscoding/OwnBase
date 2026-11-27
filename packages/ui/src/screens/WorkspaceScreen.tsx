@@ -37,7 +37,6 @@ import { CustomEmojiHost } from "../components/CustomEmojiHost.js";
 import { GettingStarted } from "../components/GettingStarted.js";
 import { useHuddleView } from "../lib/huddleView.js";
 import { useHuddleEndedNotice } from "../lib/huddleEnded.js";
-import { useCallPreferences, useDeviceCheckEndsWithScreen } from "../lib/callPreferences.js";
 import { useStartHuddle } from "../lib/startHuddle.js";
 import { previewAccount, previewFor, useNotificationPreviews } from "../lib/notificationPreview.js";
 import { focusOrigin } from "../lib/opener.js";
@@ -130,10 +129,10 @@ function Courtesy({ children }: { children: ReactNode }) {
     </ErrorBoundary>
   );
 }
-/** Which microphone and camera to use, asked once before a first huddle. */
-const DeviceCheckDialog = lazy(() =>
-  import("../components/DeviceCheckDialog.js").then((module) => ({
-    default: module.DeviceCheckDialog,
+/** The device question before a first huddle, with the call preferences it reads. */
+const DeviceCheckHost = lazy(() =>
+  import("../components/DeviceCheckHost.js").then((module) => ({
+    default: module.DeviceCheckHost,
   })),
 );
 /** The bar for a call in progress, fetched when one starts. */
@@ -419,9 +418,7 @@ function WorkspaceLayout(props: { restore: boolean; banner?: ReactNode }) {
   const self = useWorkspace((s) => s.self);
   // Every device of an account idle makes it away (E9).
   useIdleReport(client);
-  const calls = useCallPreferences();
   const huddle = useStartHuddle();
-  useDeviceCheckEndsWithScreen();
   const channelId = useNavigationState((s) => s.channelId);
   const panel = useNavigationState((s) => s.panel);
   const drawer = useNavigationState((s) => s.drawer);
@@ -822,11 +819,9 @@ function WorkspaceLayout(props: { restore: boolean; banner?: ReactNode }) {
                   onInvite={canInvite ? runInvite : undefined}
                   onDetails={details}
                 />
-                {calls.checkingDevices && (
-                  <Suspense fallback={null}>
-                    <DeviceCheckDialog />
-                  </Suspense>
-                )}
+                <Suspense fallback={null}>
+                  <DeviceCheckHost />
+                </Suspense>
                 {inHuddle && (
                   <Suspense fallback={null}>
                     <HuddleBar

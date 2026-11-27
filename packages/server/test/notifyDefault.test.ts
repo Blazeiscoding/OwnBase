@@ -167,8 +167,13 @@ describe("the default for what notifies", () => {
       CREATE INDEX idx_download_tokens_file ON download_tokens(file_id);
       CREATE INDEX idx_download_tokens_session ON download_tokens(session_hash);
     `);
+    db.exec("ALTER TABLE scheduled_messages DROP COLUMN repeat_slot");
+    db.exec("ALTER TABLE scheduled_messages DROP COLUMN repeat");
     db.exec("ALTER TABLE scheduled_files DROP COLUMN position");
     db.exec("ALTER TABLE scheduled_messages ADD COLUMN file_ids TEXT NOT NULL DEFAULT '[]'");
+    db.exec("DROP INDEX idx_reactions_author");
+    db.exec("ALTER TABLE reactions DROP COLUMN author_id");
+    db.exec("ALTER TABLE users DROP COLUMN reactions_seen_at");
     db.exec("ALTER TABLE invites DROP COLUMN email");
     db.exec("DROP TABLE email_links");
     db.exec("DROP INDEX idx_users_email");

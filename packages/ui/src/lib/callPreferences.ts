@@ -349,6 +349,9 @@ function createPreferences(platform: Platform) {
 
 const preferencesOf = perDevice(createPreferences);
 
+/** This device's call preferences, for code outside React, such as starting a huddle. */
+export const callPreferencesOf = preferencesOf;
+
 /** How huddles start on this device, for every workspace, from the platform's storage. */
 export function useCallPreferences() {
   return useStore(preferencesOf(usePlatform()));

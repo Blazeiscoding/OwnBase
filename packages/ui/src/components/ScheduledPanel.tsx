@@ -4,6 +4,7 @@ import { ApiError } from "@ownbase/client-core";
 import { useClient, useWorkspace } from "../context.js";
 import { channelTitle } from "../lib/format.js";
 import { formatScheduleTime, localDateTime } from "../lib/schedule.js";
+import { describeRepeat } from "../lib/repeat.js";
 import { Mrkdwn } from "./Mrkdwn.js";
 import { TimeField } from "./TimeField.js";
 import { Icon } from "./Icon.js";
@@ -121,6 +122,22 @@ export function ScheduledPanel(props: {
     } else
       setError(
         "Could not tell if this change went through. The message may already have sent, or changed on another device. Refresh the list before you try again.",
+      );
+  }
+
+  /** The waiting send still goes, so it stays in the list, without its rule. */
+  async function stopRepeating(id: ID) {
+    if (mutating.current) return;
+    mutating.current = true;
+    setBusy(id);
+    setError(null);
+    const refused = await list.stopRepeating(id);
+    mutating.current = false;
+    if (!alive.current) return;
+    setBusy(null);
+    if (refused)
+      setError(
+        "Could not tell if it stopped repeating. Refresh the list to see if it still repeats.",
       );
   }
 
@@ -303,6 +320,12 @@ export function ScheduledPanel(props: {
                     {formatScheduleTime(s.sendAt)}
                   </span>
                 </div>
+                {s.repeat && (
+                  <p className="mb-1.5 flex items-center gap-1.5 text-[12px] text-ink-dim">
+                    <Icon name="refresh" size={12} className="shrink-0 text-ink-faint" />
+                    <span>{describeRepeat(s.repeat)}</span>
+                  </p>
+                )}
                 {s.status !== "queued" && (
                   <p
                     className={`mb-1.5 text-[11px] ${s.status === "failed" ? "text-alert" : "text-ink-faint"}`}
@@ -361,6 +384,15 @@ export function ScheduledPanel(props: {
                   >
                     Change time
                   </button>
+                  {s.repeat && (
+                    <button
+                      disabled={busy !== null}
+                      className="rounded-lg border border-edge px-2.5 py-1 text-xs text-ink-dim hover:border-ink-faint/50"
+                      onClick={() => void stopRepeating(s.id)}
+                    >
+                      Stop repeating
+                    </button>
+                  )}
                 </div>
                 {confirmation?.id === s.id && (
                   <div className="mt-3 rounded-lg border border-edge p-2 text-sm">

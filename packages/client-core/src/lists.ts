@@ -3,6 +3,7 @@ import type {
   FileKind,
   ID,
   Message,
+  ReactionActivity,
   ScheduledMessage,
   SharedFile,
 } from "@ownbase/protocol";
@@ -15,6 +16,9 @@ import type { WorkspaceState } from "./workspaceState.js";
 
 /** What Activity's tabs ask the server for. */
 export type ActivityAsk = "unread" | "mentions" | "threads";
+
+/** One entry of Activity's Reactions tab, known by its message and emoji. */
+export type ReactionActivityRow = ReactionActivity & { id: string; channelId: ID };
 
 /** A shared file, known by its own id as a paged list needs. */
 export type SharedFileRow = SharedFile & { id: string };
@@ -227,6 +231,44 @@ export class Lists {
     );
   }
 
+  /**
+   * Activity's Reactions tab (K13): others' reactions to this account's
+   * messages, one entry per message and emoji, newest first. Each page also
+   * says how far they have been seen, which the store takes.
+   */
+  reactionActivity(): PagedList<ReactionActivityRow> {
+    return new PagedList<ReactionActivityRow>(
+      async (cursor, signal) => {
+        const page = await this.api.reactionActivity({ cursor, signal });
+        if (!cursor) {
+          const { seenAt, unseen } = page;
+          this.store.setState((s) =>
+            seenAt < s.reactionActivity.seenAt
+              ? {}
+              : { reactionActivity: { ...s.reactionActivity, seenAt, unseen } },
+          );
+        }
+        return {
+          items: page.reactions.map((entry) => ({
+            ...entry,
+            id: `${entry.message.id}:${entry.emoji}`,
+            channelId: entry.message.channelId,
+          })),
+          nextCursor: page.nextCursor,
+        };
+      },
+      {
+        watch: refreshWhen(
+          this.store,
+          (now, before, list) =>
+            now.reactionActivity.revision !== before.reactionActivity.revision ||
+            changedFor("changedContent")(now, before, list) ||
+            changedFor("removedHistory")(now, before, list),
+        ),
+      },
+    );
+  }
+
   /** Messages queued to go out later, soonest first. */
   scheduled(): ScheduledList {
     return new ScheduledList(this.api, this.store);
@@ -315,6 +357,14 @@ export class ScheduledList {
           ?.map((item) => (item.id === id ? scheduled : item))
           .sort((a, b) => a.sendAt - b.sendAt) ?? null
       );
+    });
+  }
+
+  /** Makes a repeating one send once more, at its time, and then no more. */
+  stopRepeating(id: ID): Promise<ApiError | null> {
+    return this.change(async () => {
+      const { scheduled } = await this.api.stopRepeating(id);
+      return this.state.items?.map((item) => (item.id === id ? scheduled : item)) ?? null;
     });
   }
 

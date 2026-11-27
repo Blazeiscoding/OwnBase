@@ -26,10 +26,12 @@
  * It checks that nothing from the hidden channel is returned, then times one
  * page (21 rows, as the route asks for 20) of each query through the store,
  * after five untimed runs, and prints a short hash of the page's ids, so two
- * revisions' runs show whether they found the same. Run with the server
+ * revisions' runs show whether they found the same. `--sort` times the
+ * same queries newest first (the default), oldest first, or by relevance
+ * (K15), where a query with no words is newest first. Run with the server
  * package's tsx:
  *
- *   pnpm --filter @ownbase/server exec tsx ../../scripts/measure-search.mts [--messages=200000]
+ *   pnpm --filter @ownbase/server exec tsx ../../scripts/measure-search.mts [--messages=200000] [--sort=relevant]
  */
 import { mkdtempSync, rmSync } from "node:fs";
 import { cpus, tmpdir, totalmem } from "node:os";
@@ -39,10 +41,13 @@ import { createHash } from "node:crypto";
 import { parseSearchQuery } from "../packages/protocol/src/search.js";
 import { openDb } from "../packages/server/src/db.js";
 import { Store } from "../packages/server/src/store.js";
+import { readRankCursor } from "../packages/server/src/search/store.js";
 
 const arg = (name: string, fallback: number) =>
   Number(process.argv.find((a) => a.startsWith(`--${name}=`))?.split("=")[1] ?? fallback);
 const count = arg("messages", 200_000);
+const sort = process.argv.find((a) => a.startsWith("--sort="))?.split("=")[1] ?? "newest";
+if (!["newest", "oldest", "relevant"].includes(sort)) throw new Error(`No such order: ${sort}`);
 const SAMPLES = 25;
 const DAY = 86_400_000;
 const END = Date.UTC(2026, 8, 30);
@@ -232,20 +237,41 @@ try {
     ["ปรับใช้"],
     ["버전"],
     ["확인"],
+    ["the deploy"],
+    ["deploy zebra"],
+    ["deploy zebra", { cursor: true }],
   ];
   console.log("query                              rows   p50 ms   p95 ms   page");
   for (const [text, options] of queries) {
     const parsed = parseSearchQuery(text, { timeZone: "UTC" });
+    const ranked = sort === "relevant" && parsed.terms.length > 0;
+    const order = sort === "oldest" ? ("oldest" as const) : ("newest" as const);
+    const channelId = options?.channelId;
+    // One page of 21 by the order asked for, after `cursor` when there is one.
+    const run = (cursor?: string) => {
+      if (!ranked)
+        return {
+          messages: store.search.search(reader, parsed, 21, { cursor, channelId, order }),
+          next: undefined as string | undefined,
+        };
+      const page = store.search.relevant(reader, parsed, 20, {
+        cursor: cursor ? readRankCursor(cursor)! : undefined,
+        channelId,
+      });
+      return { messages: page.messages, next: page.nextCursor ?? undefined };
+    };
     let cursor: string | undefined;
-    if (options?.cursor) cursor = store.search.search(reader, parsed, 21).at(-1)?.id;
-    const opts = { cursor, channelId: options?.channelId };
-    const found = store.search.search(reader, parsed, 21, opts);
+    if (options?.cursor) {
+      const first = run();
+      cursor = ranked ? first.next : first.messages.at(-1)?.id;
+    }
+    const found = run(cursor).messages;
     if (found.some((m) => m.channelId === "CSECRET"))
       throw new Error(`${text} returned a hidden channel's message`);
     const times: number[] = [];
     for (let i = 0; i < 5 + SAMPLES; i++) {
       const t = performance.now();
-      store.search.search(reader, parsed, 21, opts);
+      run(cursor);
       if (i >= 5) times.push(performance.now() - t);
     }
     // What the page held, short enough to compare between revisions.

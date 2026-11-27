@@ -1,9 +1,9 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { WorkspaceClient } from "@ownbase/client-core";
 import type { ID } from "@ownbase/protocol";
-import { useClient } from "../context.js";
+import { useClient, usePlatform } from "../context.js";
 import { useConfirm } from "../components/Confirm.js";
-import { useCallPreferences } from "./callPreferences.js";
+import { preloadable } from "./preloadable.js";
 import { conversationName } from "./format.js";
 
 /**
@@ -32,6 +32,10 @@ export async function confirmHuddleSwitch(
   });
 }
 
+// How huddles start on this device matters once one does, so it is fetched as
+// the workspace opens rather than with the first screen.
+const callPreferences = preloadable(() => import("./callPreferences.js"));
+
 export interface StartHuddleOptions {
   /**
    * Read again after each wait, the device check included: false drops the
@@ -56,8 +60,8 @@ export function useStartHuddle(): {
   shown: () => boolean;
 } {
   const client = useClient();
+  const platform = usePlatform();
   const confirm = useConfirm();
-  const calls = useCallPreferences();
   const [starting, setStarting] = useState(false);
   const mounted = useRef(true);
   useEffect(() => {
@@ -73,7 +77,10 @@ export function useStartHuddle(): {
       setStarting(true);
       options.onAgreed?.();
       try {
-        await calls.joinHuddle(client, channelId, options.stillWanted ?? shown);
+        const { callPreferencesOf } = await callPreferences.load();
+        await callPreferencesOf(platform)
+          .getState()
+          .joinHuddle(client, channelId, options.stillWanted ?? shown);
         return null;
       } catch (error) {
         return { error };
@@ -81,7 +88,7 @@ export function useStartHuddle(): {
         setStarting(false);
       }
     },
-    [client, confirm, calls, shown],
+    [client, confirm, platform, shown],
   );
   return { start, starting, shown };
 }

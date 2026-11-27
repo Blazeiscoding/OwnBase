@@ -1722,9 +1722,7 @@ test("OwnBase keeps a capped live timeline pinned and supports keyboard and narr
   // It follows further typing without being asked again, a word found from
   // its start.
   await searchBox.fill("welc");
-  await expect(search.getByRole("status").filter({ hasText: "Newest first" })).toContainText(
-    "“welc”",
-  );
+  await expect(search.getByRole("status").filter({ hasText: "result" })).toContainText("“welc”");
   await expect(search.getByText(/A little space for big ideas/)).toBeVisible();
   // A modifier typed in the field becomes a chip once a space follows it, and
   // what it finds starts close under the field, not under a panel of filters.

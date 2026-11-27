@@ -102,7 +102,8 @@ async function signOut(ctx: ActionContext) {
 /** Everything read, after asking when it is more than a couple of places. */
 async function markAllRead(ctx: ActionContext) {
   const unread = unreadEverywhere(ctx.client.state);
-  const count = unread.channels.length + unread.threads.length + unread.removals.length;
+  const count =
+    unread.channels.length + unread.threads.length + unread.removals.length + unread.reactions;
   if (count === 0) {
     ctx.toast({ message: "Nothing unread.", kind: "info" });
     return;

@@ -3,6 +3,7 @@ import { isAdministrator, RESERVED_HANDLES } from "@ownbase/protocol";
 import type { DatabaseSync, SQLInputValue } from "node:sqlite";
 import { countOf, oneOf, shape, type RowOf } from "../core/rows.js";
 import { ulid } from "../ids.js";
+import { REPEAT_STOPPED } from "../scheduled/store.js";
 import type { Store } from "../store.js";
 
 /** The words a `role` column holds. */
@@ -332,6 +333,8 @@ export class PeopleStore {
     }
     // What this account scheduled while deactivated can go at the next flush.
     if (patch.deactivated === false) this.store.scheduled.wakeHeld({ userId: id });
+    if (patch.deactivated === true)
+      this.store.scheduled.stopRepeatsOf({ userId: id }, REPEAT_STOPPED.deactivated);
     return this.get(id)!;
   }
 

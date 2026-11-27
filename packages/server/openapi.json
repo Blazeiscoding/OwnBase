@@ -5025,6 +5025,40 @@
         }
       }
     },
+    "/api/scheduled/{id}/repeat": {
+      "delete": {
+        "operationId": "deleteScheduledByIdRepeat",
+        "tags": [
+          "scheduled"
+        ],
+        "summary": "Stops a scheduled message repeating.",
+        "description": "Stops a scheduled message repeating. The send already waiting still goes, once; cancel it to send nothing more.\n\nNeeds a signed-in account.",
+        "x-access": "member",
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Done."
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    },
     "/api/messages/{id}/pin": {
       "put": {
         "operationId": "putMessagesByIdPin",
@@ -6068,6 +6102,90 @@
         }
       }
     },
+    "/api/activity/reactions": {
+      "get": {
+        "operationId": "getActivityReactions",
+        "tags": [
+          "activity"
+        ],
+        "summary": "Other people's reactions to the caller's messages, newest first, one entry per message and emoji (K13).",
+        "description": "Other people's reactions to the caller's messages, newest first, one entry per message and emoji (K13). Only messages in conversations the caller is in, and only the newest few thousand reactions, so a busy channel cannot fill it. `seenAt` and `unseen` say which entries are new.\n\nNeeds a signed-in account. Guests may call it too.",
+        "x-access": "member",
+        "x-guests": true,
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "cursor",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "default": 30,
+              "type": "integer",
+              "minimum": 0,
+              "exclusiveMinimum": true,
+              "maximum": 50
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Done."
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    },
+    "/api/activity/reactions/seen": {
+      "post": {
+        "operationId": "postActivityReactionsSeen",
+        "tags": [
+          "activity"
+        ],
+        "summary": "Marks the reactions to the caller's messages seen up to `upTo`, or up to now, on every device of theirs.",
+        "description": "Marks the reactions to the caller's messages seen up to `upTo`, or up to now, on every device of theirs. A mark never moves back.\n\nNeeds a signed-in account. Guests may call it too.",
+        "x-access": "member",
+        "x-guests": true,
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SeeReactionsBody"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Done."
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    },
     "/api/activity/removals/read": {
       "post": {
         "operationId": "postActivityRemovalsRead",
@@ -6109,8 +6227,8 @@
         "tags": [
           "search"
         ],
-        "summary": "Searches the messages the caller can read, newest first, by words and modifiers such as `from:`, `in:`, `has:` and `before:`.",
-        "description": "Searches the messages the caller can read, newest first, by words and modifiers such as `from:`, `in:`, `has:` and `before:`. `tz` says which calendar the dates are in.\n\nNeeds a signed-in account. Guests may call it too.",
+        "summary": "Searches the messages the caller can read, by words and modifiers such as `from:`, `in:`, `has:` and `before:`.",
+        "description": "Searches the messages the caller can read, by words and modifiers such as `from:`, `in:`, `has:` and `before:`. `sort` puts them newest first (the default), oldest first or best match first. `tz` says which calendar the dates are in.\n\nNeeds a signed-in account. Guests may call it too.",
         "x-access": "member",
         "x-guests": true,
         "security": [
@@ -6148,7 +6266,7 @@
             "schema": {
               "type": "string",
               "minLength": 1,
-              "maxLength": 100
+              "maxLength": 300
             }
           },
           {
@@ -6159,6 +6277,20 @@
               "type": "string",
               "minLength": 1,
               "maxLength": 100
+            }
+          },
+          {
+            "name": "sort",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "default": "newest",
+              "type": "string",
+              "enum": [
+                "relevant",
+                "newest",
+                "oldest"
+              ]
             }
           },
           {
@@ -7315,6 +7447,49 @@
             "items": {
               "type": "string"
             }
+          },
+          "repeat": {
+            "type": "object",
+            "properties": {
+              "every": {
+                "type": "string",
+                "enum": [
+                  "day",
+                  "weekday",
+                  "week",
+                  "month"
+                ]
+              },
+              "weekday": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 6
+              },
+              "monthDay": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 31
+              },
+              "time": {
+                "type": "string",
+                "pattern": "^([01]\\d|2[0-3]):[0-5]\\d$"
+              },
+              "timeZone": {
+                "type": "string",
+                "maxLength": 64
+              },
+              "until": {
+                "nullable": true,
+                "type": "string",
+                "pattern": "^\\d{4}-(0[1-9]|1[0-2])-(0[1-9]|[12]\\d|3[01])$"
+              }
+            },
+            "required": [
+              "every",
+              "time",
+              "timeZone",
+              "until"
+            ]
           }
         },
         "required": [
@@ -7508,6 +7683,16 @@
         "required": [
           "email"
         ]
+      },
+      "SeeReactionsBody": {
+        "type": "object",
+        "properties": {
+          "upTo": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991
+          }
+        }
       },
       "ReadRemovalsBody": {
         "type": "object",

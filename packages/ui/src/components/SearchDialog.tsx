@@ -9,9 +9,13 @@ import {
   type ReactNode,
 } from "react";
 import { ApiError } from "@ownbase/client-core";
-import type { FileMeta, FileType, ID, Message } from "@ownbase/protocol";
-import { SEARCH_WORDS_MAX, parseSearchQuery } from "@ownbase/protocol";
-import { useClient, useWorkspace } from "../context.js";
+import type { FileMeta, FileType, ID, Message, SearchSort } from "@ownbase/protocol";
+import { SEARCH_SORTS, SEARCH_WORDS_MAX, parseSearchQuery } from "@ownbase/protocol";
+import { useStore } from "zustand";
+import { createStore } from "zustand/vanilla";
+import { useClient, usePlatform, useWorkspace } from "../context.js";
+import type { Platform } from "../platform.js";
+import { perDevice } from "../lib/perDevice.js";
 import { useRecentSearches, type RecentSearch } from "../lib/recentSearches.js";
 import { channelTitle, formatBytes, formatFull } from "../lib/format.js";
 import { usePagedList } from "../lib/pagedList.js";
@@ -58,6 +62,39 @@ const MODIFIER_HELP = [
 
 const RESULT_TABS = ["messages", "files"] as const;
 type ResultTab = (typeof RESULT_TABS)[number];
+
+const SORT_LABELS: Record<SearchSort, string> = {
+  relevant: "Most relevant",
+  newest: "Newest first",
+  oldest: "Oldest first",
+};
+
+const SORT_KEY = "search-sort";
+
+/**
+ * The order results come in, kept on this device (K15): Most relevant until
+ * another is chosen. Read once a session, so a search waits for it only the
+ * first time it opens; one that could not be read is Most relevant.
+ */
+const sortChoiceOf = perDevice((platform: Platform) => {
+  const store = createStore(() => ({ sort: "relevant" as SearchSort, loaded: false }));
+  platform.storage.get<unknown>(SORT_KEY).then(
+    (saved) => {
+      if (store.getState().loaded) return;
+      const known = SEARCH_SORTS.find((sort) => sort === saved);
+      store.setState({ sort: known ?? "relevant", loaded: true });
+    },
+    () => store.setState({ loaded: true }),
+  );
+  return {
+    store,
+    choose: (sort: SearchSort) => {
+      store.setState({ sort, loaded: true });
+      // A courtesy: if it cannot be kept, this search is still in that order.
+      platform.storage.set(SORT_KEY, sort).catch(() => {});
+    },
+  };
+});
 
 /** A filter that is not chosen yet, as a small pill that opens its choices. */
 const ADD_FILTER =
@@ -299,7 +336,9 @@ export function SearchDialog(props: {
   );
   /** The question the results showing answer. */
   const answered = useRef<string | null>(null);
-  /** The results last scrolled to the top for, so only a new question moves them. */
+  /** That question and the order its results are in. */
+  const answeredList = useRef<string | null>(null);
+  /** The results last scrolled to the top for, so only a new question or order moves them. */
   const scrolledFor = useRef<string | null>(null);
   /** How far changes had got in the results' conversations when they were asked for. */
   const heard = useRef(0);
@@ -312,11 +351,28 @@ export function SearchDialog(props: {
   const parsed = useMemo(() => parseSearchQuery(query), [query]);
   const unreadable = parsed.invalid.length > 0;
   const terms = useMemo(() => parseSearchQuery(shownQuery ?? "").terms, [shownQuery]);
+  const sortChoice = sortChoiceOf(usePlatform());
+  const { sort, loaded: sortLoaded } = useStore(sortChoice.store);
+  const askedWords = useMemo(
+    () => !!asked && parseSearchQuery(asked.query).terms.length > 0,
+    [asked],
+  );
+  // With no words there is nothing to rank by, so newest first it is.
+  const order: SearchSort = sort === "relevant" && !askedWords ? "newest" : sort;
+  const listKey = `${askedKey}|${sortLoaded ? order : ""}`;
 
   const paged = usePagedList<Message>(
     async (cursor, signal) => {
       if (!asked) {
         answered.current = null;
+        answeredList.current = null;
+        return { items: [], nextCursor: null };
+      }
+      // The order kept on this device is read before the first search, so it
+      // is not asked twice. Being read is a new list, and ends this one.
+      if (!sortLoaded) {
+        if (!signal.aborted)
+          await new Promise((resolve) => signal.addEventListener("abort", resolve, { once: true }));
         return { items: [], nextCursor: null };
       }
       const known = client.state.changedContent;
@@ -324,6 +380,7 @@ export function SearchDialog(props: {
       const found = await client.search(asked.query, PAGE_SIZE, {
         cursor,
         channelId: asked.channelId,
+        sort: order,
         signal,
       });
       if (signal.aborted) return { items: [], nextCursor: null };
@@ -343,6 +400,7 @@ export function SearchDialog(props: {
       heard.current = cursor ? Math.max(heard.current, latest) : latest;
       if (!cursor) {
         answered.current = question;
+        answeredList.current = listKey;
         setShownQuery(asked.query);
         setSearchError(null);
         // Only a search someone settled on is kept, not each one typed on the way.
@@ -353,7 +411,7 @@ export function SearchDialog(props: {
       }
       return { items: found.messages, nextCursor: found.nextCursor };
     },
-    askedKey,
+    listKey,
     // The answer to the last question stays on show until the next one's comes.
     { keep: true },
   );
@@ -376,8 +434,8 @@ export function SearchDialog(props: {
 
   // A new question's answer is read from its top; one read again stays put.
   useLayoutEffect(() => {
-    if (answered.current === scrolledFor.current) return;
-    scrolledFor.current = answered.current;
+    if (answeredList.current === scrolledFor.current) return;
+    scrolledFor.current = answeredList.current;
     if (scroller.current) scroller.current.scrollTop = 0;
   }, [paged.items]);
 
@@ -523,6 +581,14 @@ export function SearchDialog(props: {
   );
   const shown = tab === "files" ? files.length : messages.length;
   const answeredHere = !!asked && paged.items !== null;
+  const orders: MenuItem[] = SEARCH_SORTS.filter((each) => askedWords || each !== "relevant").map(
+    (each) => ({
+      id: each,
+      label: SORT_LABELS[each],
+      checked: order === each,
+      onSelect: () => sortChoice.choose(each),
+    }),
+  );
   const chipCount = filters.length + (scope ? 1 : 0);
 
   function open(m: Message) {
@@ -704,18 +770,33 @@ export function SearchDialog(props: {
                 ))}
               </div>
               {answeredHere && (
-                <p role="status" className="text-xs text-ink-faint">
-                  {shown}{" "}
-                  {tab === "files"
-                    ? shown === 1
-                      ? "file"
-                      : "files"
-                    : shown === 1
-                      ? "result"
-                      : "results"}
-                  {paged.nextCursor ? " so far" : ""} · Newest first
-                  {terms.length > 0 ? ` · “${terms.join(" ")}”` : ""}
-                </p>
+                <div className="flex min-w-0 items-center gap-2">
+                  <p role="status" className="min-w-0 text-xs text-ink-faint">
+                    {shown}{" "}
+                    {tab === "files"
+                      ? shown === 1
+                        ? "file"
+                        : "files"
+                      : shown === 1
+                        ? "result"
+                        : "results"}
+                    {paged.nextCursor ? " so far" : ""}
+                    {terms.length > 0 ? ` · “${terms.join(" ")}”` : ""}
+                  </p>
+                  <Menu
+                    label="Sort results"
+                    items={orders}
+                    width={200}
+                    triggerLabel={`Sort: ${SORT_LABELS[order]}`}
+                    triggerClassName="inline-flex h-7 shrink-0 items-center gap-1 rounded-md px-1.5 text-[12px] font-medium text-ink-dim transition-colors hover:bg-ink/[0.05] hover:text-ink aria-expanded:bg-ink/[0.05] aria-expanded:text-ink"
+                    triggerContent={
+                      <>
+                        {SORT_LABELS[order]}
+                        <Icon name="chevronDown" size={12} />
+                      </>
+                    }
+                  />
+                </div>
               )}
             </div>
             <div {...tabs.panelProps}>

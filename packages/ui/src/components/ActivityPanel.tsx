@@ -7,7 +7,13 @@ import {
   notificationBody,
   PagedList,
 } from "@ownbase/client-core";
-import { isRoom, type ChannelRemoval, type ID, type Message } from "@ownbase/protocol";
+import {
+  isRoom,
+  UNSEEN_REACTIONS_MAX,
+  type ChannelRemoval,
+  type ID,
+  type Message,
+} from "@ownbase/protocol";
 import { useClient, useWorkspace } from "../context.js";
 import { channelTitle, formatFull } from "../lib/format.js";
 import { Avatar } from "./Avatar.js";
@@ -22,14 +28,16 @@ import { useFocusWhenGone } from "../lib/keys.js";
 import { useTabs } from "../lib/useTabs.js";
 import { useOpenList } from "../lib/pagedList.js";
 import { dropRepeatClick } from "../lib/repeatClick.js";
+import { ReactionsList } from "./ReactionsList.js";
 import { RemindersList } from "./RemindersList.js";
 import { When } from "./When.js";
 
 /**
- * Activity's tabs (UX-52), and what each asks the server for. Reminders (E4)
- * is a list of its own, RemindersList.
+ * Activity's tabs (UX-52), and what each asks the server for. Reactions
+ * (K13) and Reminders (E4) are lists of their own, ReactionsList and
+ * RemindersList.
  */
-const MODES = ["all", "mentions", "threads", "reminders"] as const;
+const MODES = ["all", "mentions", "threads", "reactions", "reminders"] as const;
 type ActivityMode = (typeof MODES)[number];
 const ASKS = { all: "unread", mentions: "mentions", threads: "threads" } as const;
 const nothing = async () => ({ items: [], nextCursor: null });
@@ -37,19 +45,25 @@ const NAMES: Record<ActivityMode, string> = {
   all: "All",
   mentions: "Mentions",
   threads: "Threads",
+  reactions: "Reactions",
   reminders: "Reminders",
 };
 const ABOUT: Record<ActivityMode, string> = {
   all: "Unread messages in conversations you joined.",
   mentions: "Messages that mention you or everyone, in conversations you joined.",
   threads: "Unread replies in threads you follow.",
+  reactions: "Reactions to your messages, in conversations you joined.",
   reminders: "Messages you asked to be reminded about.",
 };
-const EMPTY: Record<Exclude<ActivityMode, "reminders">, string> = {
+const EMPTY: Record<keyof typeof ASKS, string> = {
   all: "You're caught up.",
   mentions: "No mentions yet.",
   threads: "No unread replies in threads you follow.",
 };
+/** How many Reactions entries are new, as the tab says it. */
+const unseenCount = (n: number) =>
+  n >= UNSEEN_REACTIONS_MAX ? `${UNSEEN_REACTIONS_MAX - 1}+` : `${n}`;
+
 /** The messages of one conversation, or of one thread in Threads, newest first. */
 export interface ActivityGroup {
   key: string;
@@ -126,6 +140,7 @@ export function ActivityPanel({
   const repliesRead = useWorkspace((s) => s.repliesRead);
   const saved = useWorkspace((s) => s.saved);
   const dueReminders = useWorkspace(dueReminderCount);
+  const unseenReactions = useWorkspace((s) => s.reactionActivity.unseen);
   const modes: readonly ActivityMode[] = MODES;
   const [chosen, setMode] = useState<ActivityMode>("all");
   const mode = modes.includes(chosen) ? chosen : "all";
@@ -139,10 +154,12 @@ export function ActivityPanel({
     selected: mode,
     onSelect: setMode,
   });
-  // Reminders is a list of its own, RemindersList; its tab reads nothing here.
+  // Reactions and Reminders are lists of their own; their tabs read nothing here.
   const [list, paged] = useOpenList(
     () =>
-      mode === "reminders" ? new PagedList<Message>(nothing) : client.lists.activity(ASKS[mode]),
+      mode === "reminders" || mode === "reactions"
+        ? new PagedList<Message>(nothing)
+        : client.lists.activity(ASKS[mode]),
     mode,
   );
   const { items: result } = paged;
@@ -150,6 +167,13 @@ export function ActivityPanel({
   useEffect(() => {
     if (scroller.current) scroller.current.scrollTop = 0;
   }, [list]);
+
+  // On a phone the tabs may not all fit, and scroll sideways; the one chosen
+  // is brought to the middle, which shows its neighbours.
+  const chosenTab = tabs.tabProps(mode).id;
+  useEffect(() => {
+    document.getElementById(chosenTab)?.scrollIntoView?.({ block: "nearest", inline: "center" });
+  }, [chosenTab]);
 
   const unread = (message: Message) =>
     !isMessageRead(message, { memberships, threadFollows, repliesRead });
@@ -282,22 +306,29 @@ export function ActivityPanel({
       </header>
       <div
         {...tabs.listProps}
-        className="m-3 mb-1 flex gap-1 rounded-xl border border-edge bg-deep/40 p-1"
+        className="tab-strip m-3 mb-1 flex gap-1 overflow-x-auto rounded-xl border border-edge bg-deep/40 p-1 max-sm:gap-0.5"
       >
         {modes.map((value) => (
           <button
             key={value}
             {...tabs.tabProps(value)}
-            aria-label={
-              value === "reminders" && dueReminders > 0
-                ? `Reminders, ${dueReminders} due`
-                : undefined
-            }
-            className={`flex-1 rounded-md px-3 py-1.5 text-[13px] font-medium transition-colors ${mode === value ? "bg-lifted text-ink shadow-[0_1px_2px_rgb(0_0_0/0.2)]" : "text-ink-faint hover:text-ink"}`}
+            className={`shrink-0 grow whitespace-nowrap rounded-md px-2 py-1.5 max-sm:px-1.5 text-[13px] font-medium transition-colors ${mode === value ? "bg-lifted text-ink shadow-[0_1px_2px_rgb(0_0_0/0.2)]" : "text-ink-faint hover:text-ink"}`}
           >
             {NAMES[value]}
+            {/* Named by what it shows, such as "Reminders 1 due". */}
             {value === "reminders" && dueReminders > 0 && (
-              <span className="ml-1 text-copper">{dueReminders}</span>
+              <>
+                {" "}
+                <span className="text-copper">{dueReminders}</span>
+                <span className="sr-only"> due</span>
+              </>
+            )}
+            {value === "reactions" && unseenReactions > 0 && (
+              <>
+                {" "}
+                <span className="text-copper">{unseenCount(unseenReactions)}</span>
+                <span className="sr-only"> new</span>
+              </>
             )}
           </button>
         ))}
@@ -322,6 +353,8 @@ export function ActivityPanel({
         )}
         {mode === "reminders" ? (
           <RemindersList onJump={onJump} />
+        ) : mode === "reactions" ? (
+          <ReactionsList onJump={onJump} scroller={scroller} />
         ) : (
           <>
             <ListStatus

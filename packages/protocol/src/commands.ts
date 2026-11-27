@@ -52,6 +52,11 @@ export const IN_APP_COMMANDS = {
   leave: { description: "Leave this channel", usageHint: "", roomOnly: true },
   mute: { description: "Mute this conversation", usageHint: "", roomOnly: false },
   unmute: { description: "Unmute this conversation", usageHint: "", roomOnly: false },
+  remind: {
+    description: "Post a message to a channel again and again",
+    usageHint: "#channel [message] every [weekday] at [9:00]",
+    roomOnly: false,
+  },
 } as const satisfies Record<string, InAppCommand>;
 
 export type InAppCommandName = keyof typeof IN_APP_COMMANDS;
