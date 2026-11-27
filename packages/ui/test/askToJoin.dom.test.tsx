@@ -293,7 +293,9 @@ describe("asking from the call", () => {
       }),
     );
     expect(status).toHaveTextContent("With Priya Shah · Sam Ortiz can't join now");
-    act(() => vi.advanceTimersByTime(RING_NOTICE_MS));
+    act(() => {
+      vi.advanceTimersByTime(RING_NOTICE_MS);
+    });
     expect(status).toHaveTextContent(/^With Priya Shah$/);
   });
 });
