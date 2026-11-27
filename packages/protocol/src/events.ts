@@ -16,7 +16,7 @@ import type {
   SidebarSection,
   UserGroup,
 } from "./entities.js";
-import type { HuddleRing, HuddleSignal } from "./huddle.js";
+import type { HuddleAskRefusal, HuddleRing, HuddleSignal } from "./huddle.js";
 import type { MemberNotice } from "./plan.js";
 import type { NotifySchedule } from "./notifySchedule.js";
 
@@ -221,6 +221,18 @@ export type EphemeralEvent =
    * everyone it rang, at each change. `ring.ringing` empty means it is over.
    */
   | { type: "huddle.ring"; ring: HuddleRing }
+  /**
+   * Told only to the device that asked: the person was not rung (K18),
+   * `unavailable` saying no more than a decline would, whether they paused
+   * notifications or blocked the asker.
+   */
+  | {
+      type: "huddle.ask.refused";
+      channelId: ID;
+      userId: ID;
+      reason: HuddleAskRefusal;
+      retryAfterMs?: number;
+    }
   /**
    * A reply only the recipient sees — how a slash command answers privately.
    * It is never stored, so it disappears on reload, exactly like Slack's.

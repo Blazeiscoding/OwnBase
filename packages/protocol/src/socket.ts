@@ -47,6 +47,8 @@ export const clientMessage = z.discriminatedUnion("type", [
   }),
   /** Raises or lowers this person's hand in the huddle, until they lower it or leave (K17). */
   z.object({ type: z.literal("huddle.hand"), channelId: idSchema, raised: z.boolean() }),
+  /** Rings a member of the channel into its huddle, from a device in it (K18). */
+  z.object({ type: z.literal("huddle.ask"), channelId: idSchema, userId: idSchema }),
 ]);
 
 export type ClientToServer = z.infer<typeof clientMessage>;

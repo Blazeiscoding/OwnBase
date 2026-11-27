@@ -29,9 +29,10 @@ export type PageLink =
   | { kind: "message"; channelId: string; messageId: string }
   /**
    * A channel or conversation. Its address is the web client's own for it,
-   * so a browser opens it through the client's routing.
+   * so a browser opens it through the client's routing. `call`: a link to its
+   * call (K18), which opens it and offers to join, never joining by itself.
    */
-  | { kind: "conversation"; channelId: string };
+  | { kind: "conversation"; channelId: string; call?: true };
 
 const e = encodeURIComponent;
 
@@ -51,7 +52,8 @@ const WORDS = {
 
 export function pageHash(link: PageLink): string {
   if (link.kind === "message") return `${conversationHash(link.channelId)}/m/${e(link.messageId)}`;
-  if (link.kind === "conversation") return conversationHash(link.channelId);
+  if (link.kind === "conversation")
+    return conversationHash(link.channelId) + (link.call ? "/call" : "");
   return `#/${WORDS[link.kind]}/${e("code" in link ? link.code : link.token)}`;
 }
 
@@ -83,6 +85,7 @@ export function readPageHash(hash: string): PageLink | null {
   const { channelId, rest } = conversation;
   if (rest.length === 0) return { kind: "conversation", channelId };
   const [m, messageId] = rest;
+  if (rest.length === 1 && m === "call") return { kind: "conversation", channelId, call: true };
   return rest.length === 2 && m === "m" && isPageId(messageId)
     ? { kind: "message", channelId, messageId }
     : null;
@@ -101,6 +104,7 @@ export function desktopLink(
   const base = `${DEEP_LINK_PROTOCOL}://${link.kind}?${at}`;
   if (link.kind === "message")
     return `${base}&channel=${e(link.channelId)}&id=${e(link.messageId)}`;
-  if (link.kind === "conversation") return `${base}&channel=${e(link.channelId)}`;
+  if (link.kind === "conversation")
+    return `${base}&channel=${e(link.channelId)}${link.call ? "&call=1" : ""}`;
   return `${base}&code=${e(link.code)}`;
 }

@@ -159,9 +159,13 @@ export interface HuddleState {
  * each person who answers by joining, declines, or is still ringing at
  * `endsAt`, and for everyone once its caller leaves. `huddle.ring` tells the
  * caller and everyone it rang at each change; `ringing` empty means it is over.
+ *
+ * A channel's call rings only the members someone in it asks to join (K18),
+ * each until they answer, decline, miss it, or whoever asked leaves.
  */
 export interface HuddleRing {
   channelId: ID;
+  /** In a channel, whoever asked first; `askedBy` says who asked each. */
   callerId: ID;
   startedAt: number;
   /** When whoever is still ringing has missed it. */
@@ -170,7 +174,12 @@ export interface HuddleRing {
   /** Who answered by joining. */
   answered: ID[];
   declined: ID[];
+  /** A channel's ring only (K18): who asked each person it rang. */
+  askedBy?: Record<ID, ID>;
 }
+
+/** Why a ring someone asked for in a channel's call did not go out (K18). */
+export type HuddleAskRefusal = "unavailable" | "limited";
 
 /** The least time between two of one person's reactions in a huddle; the server drops the rest (K17). */
 export const HUDDLE_REACTION_MS = 400;
