@@ -342,14 +342,18 @@ export function HuddleBar({
           <ReactionTicker reactions={huddle.reactions} users={users} />
           <HuddlePeople people={people} />
 
+          {/* An icon, so the bar fits one row on a laptop beside the controls. */}
           {onViewChange && (
-            <button
-              onClick={() => onViewChange("call")}
-              className="flex h-11 items-center gap-2 rounded-xl border border-edge px-3 text-sm text-ink-dim transition-colors hover:border-ink-faint hover:text-ink"
-            >
-              <Icon name="expand" size={16} />
-              Show call
-            </button>
+            <Tooltip label="Show call">
+              <button
+                type="button"
+                aria-label="Show call"
+                onClick={() => onViewChange("call")}
+                className="flex size-10 shrink-0 items-center justify-center rounded-full border border-edge text-ink-dim transition-colors hover:border-ink-faint hover:text-ink"
+              >
+                <Icon name="expand" size={16} />
+              </button>
+            </Tooltip>
           )}
 
           <HuddleControls onOpenSettings={onOpenSettings} />

@@ -204,6 +204,17 @@ export function HuddleControls({
   const deafened = !!huddle.deafened;
   const holdingTalk = !!huddle.holdingTalk;
   const handRaised = !!selfId && !!huddle.hands?.includes(selfId);
+  // The bar keeps to one row on a laptop, so what is used less goes in a menu.
+  const moreItems: MenuItem[] = inCall
+    ? []
+    : [
+        {
+          id: "hand",
+          label: handRaised ? "Lower your hand" : "Raise your hand",
+          icon: "hand",
+          onSelect: () => client.toggleHand(),
+        },
+      ];
   // Full screen shows only what is inside the stage, and menus open on the
   // page beneath it, so devices are changed from the bar.
   const micMenu = !overlay && (
@@ -419,17 +430,30 @@ export function HuddleControls({
             <Icon name="smile" />
           </button>
         </Tooltip>
-        <Tooltip label={handRaised ? "Lower your hand" : "Raise your hand"}>
-          <button
-            type="button"
-            aria-label="Raise hand"
-            aria-pressed={handRaised}
-            onClick={() => client.toggleHand()}
-            className={toggleCls(handRaised, lit)}
-          >
-            <Icon name="hand" />
-          </button>
-        </Tooltip>
+        {inCall && (
+          <Tooltip label={handRaised ? "Lower your hand" : "Raise your hand"}>
+            <button
+              type="button"
+              aria-label="Raise hand"
+              aria-pressed={handRaised}
+              onClick={() => client.toggleHand()}
+              className={toggleCls(handRaised, lit)}
+            >
+              <Icon name="hand" />
+            </button>
+          </Tooltip>
+        )}
+        {moreItems.length > 0 && (
+          <Menu
+            label="More call options"
+            items={moreItems}
+            tooltip="More call options"
+            triggerLabel="More call options"
+            sheet
+            triggerContent={<Icon name="dots" />}
+            triggerClassName={`${toggleCls(false, "")} aria-expanded:bg-ink/[0.06]`}
+          />
+        )}
         {/* Leave keeps its word: an arrow out of a door reads as signing out just as easily. */}
         <button
           onClick={() => client.leaveHuddle()}
